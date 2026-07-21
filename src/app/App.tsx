@@ -1,0 +1,705 @@
+import React, { useState, useEffect, useMemo, useCallback } from "react";
+import MainLayout from "./components/MainLayout";
+import HeaderSection from "./components/HeaderSection";
+import CabinetSelection from "./components/CabinetSelection";
+import ShelvesSection from "./components/ShelvesSection";
+import ProductDialog from "./components/ProductDialog";
+import HistoryPage from "./components/HistoryPage";
+import StationSelectionModal from "./components/StationSelectionModal";
+import ChangeAllocationModal from "./components/ChangeAllocationModal";
+import SerialNumberModal from "./components/SerialNumberModal";
+import QuantitySelectionPage from "./components/QuantitySelectionPage";
+import TargetBinSerialScanPage from "./components/TargetBinSerialScanPage";
+import ProductDetailPage from "./components/ProductDetailPage";
+import UnallocateConfirmModal from "./components/UnallocateConfirmModal";
+import ErrorBoundary from "./components/ErrorBoundary";
+import { useDebounce } from "./hooks/useDebounce";
+
+import { useInventoryState } from "./hooks/useInventoryState";
+import { useSerialNumberModal } from "./hooks/useSerialNumberModal";
+import { cabinets } from "./data/cabinets";
+import { ProductTransfer } from "./types";
+import {
+  getCurrentShelves,
+  getAllAvailableBins,
+  getDoorsWithAvailableBins,
+  getDoorsWithSearchMatches,
+  countSearchMatches,
+  getDoorsWithSelectedBins,
+} from "./utils/doorUtils";
+
+// Import independent services
+import { emergencyKitService } from "./services/EmergencyKitService";
+import { productDataService } from "./services/ProductDataService";
+
+export default function App() {
+  const inventoryState = useInventoryState();
+  const serialNumberModal = useSerialNumberModal(inventoryState.doorShelfConfig);
+
+  // Station selection state
+  const [currentStation, setCurrentStation] = useState("Onco Station");
+  const [showStationModal, setShowStationModal] = useState(false);
+
+  // State for showing/hiding the Unallocated Products button
+  const [showUnallocatedButton, setShowUnallocatedButton] = useState(false);
+
+  // Product detail page state
+  const [showProductDetail, setShowProductDetail] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState<any>(null);
+  const [productLocation, setProductLocation] = useState<any>(null);
+
+  // Quantity selection modal state
+  const [showQuantityModal, setShowQuantityModal] = useState(false);
+  const [pendingQuantityTransfers, setPendingQuantityTransfers] = useState<ProductTransfer[]>([]);
+  const [remainingQuantityTransfers, setRemainingQuantityTransfers] = useState<ProductTransfer[]>([]);
+
+  // Target bin serial scan state
+  const [showTargetBinScanPage, setShowTargetBinScanPage] = useState(false);
+  const [pendingSerialTransfers, setPendingSerialTransfers] = useState<ProductTransfer[]>([]);
+  const [completedTransfers, setCompletedTransfers] = useState<ProductTransfer[]>([]);
+
+  // Doors already announced as "unlocked" (via toast) during the current change-allocation
+  // session — shared between QuantitySelectionPage (source door) and TargetBinSerialScanPage
+  // (target door) so the same physical door never gets a duplicate unlock toast, e.g. when a
+  // product's source and destination bin happen to sit behind the same door.
+  const [unlockedDoors, setUnlockedDoors] = useState<Set<string>>(new Set());
+  const handleDoorUnlocked = useCallback((doorName: string) => {
+    setUnlockedDoors(prev => {
+      if (prev.has(doorName)) return prev;
+      const next = new Set(prev);
+      next.add(doorName);
+      return next;
+    });
+  }, []);
+
+  // Unallocation modal state
+  const [showUnallocateModal, setShowUnallocateModal] = useState(false);
+  const [productsToUnallocate, setProductsToUnallocate] = useState<any[]>([]);
+
+  // Keyboard event listener for "/" key to show Unallocated Products button
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // Only activate on "/" key and when not typing in an input or search field
+      if (event.key === "/" && 
+          document.activeElement?.tagName !== "INPUT" &&
+          document.activeElement?.tagName !== "TEXTAREA") {
+        event.preventDefault(); // Prevent "/" from being typed
+        setShowUnallocatedButton(true);
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, []);
+  
+  // Watch for zero-quantity products after change allocation
+  useEffect(() => {
+    if (inventoryState.zeroQuantityProducts.length > 0) {
+      console.log('🔔 Zero-quantity products detected, showing modal:', inventoryState.zeroQuantityProducts);
+      setProductsToUnallocate(inventoryState.zeroQuantityProducts);
+      setShowUnallocateModal(true);
+    }
+  }, [inventoryState.zeroQuantityProducts]);
+
+  const currentShelves = useMemo(() => {
+    if (!inventoryState.selectedDoor || !inventoryState.doorShelfConfig) return [];
+    return getCurrentShelves(inventoryState.selectedDoor, inventoryState.doorShelfConfig);
+  }, [inventoryState.selectedDoor, inventoryState.doorShelfConfig]);
+
+  const allAvailableBins = useMemo(() => {
+    if (!inventoryState.doorShelfConfig) return [];
+    return getAllAvailableBins(inventoryState.doorShelfConfig);
+  }, [inventoryState.doorShelfConfig]);
+
+  const doorsWithAvailableBins = useMemo(() => {
+    if (!inventoryState.doorShelfConfig) return [];
+    return getDoorsWithAvailableBins(inventoryState.doorShelfConfig);
+  }, [inventoryState.doorShelfConfig]);
+
+  // Debounce selected search query (only set when user picks from dropdown) to prevent excessive calculations
+  const debouncedSelectedSearchQuery = useDebounce(inventoryState.selectedSearchQuery, 300);
+
+  const doorsWithSearchMatches = useMemo(() => {
+    if (!debouncedSelectedSearchQuery.trim() || !inventoryState.doorShelfConfig) return [];
+    return getDoorsWithSearchMatches(inventoryState.doorShelfConfig, debouncedSelectedSearchQuery);
+  }, [inventoryState.doorShelfConfig, debouncedSelectedSearchQuery]);
+
+  const doorsWithSelectedBins = useMemo(() => {
+    if (inventoryState.selectedBinsForAssignment.length === 0 || !inventoryState.doorShelfConfig) return [];
+    return getDoorsWithSelectedBins(inventoryState.doorShelfConfig, inventoryState.selectedBinsForAssignment);
+  }, [inventoryState.doorShelfConfig, inventoryState.selectedBinsForAssignment]);
+
+  // Get doors with change allocation bins (source + target bins)
+  const changeAllocationBins = useMemo(() => {
+    const bins = [];
+    if (inventoryState.changeAllocationSourceBins?.length > 0) {
+      bins.push(...inventoryState.changeAllocationSourceBins);
+    }
+    if (inventoryState.changeAllocationTargetBins?.length > 0) {
+      bins.push(...inventoryState.changeAllocationTargetBins);
+    }
+    return bins;
+  }, [inventoryState.changeAllocationSourceBins, inventoryState.changeAllocationTargetBins]);
+
+  const doorsWithChangeAllocationBins = useMemo(() => {
+    if (changeAllocationBins.length === 0 || !inventoryState.doorShelfConfig) return [];
+    return getDoorsWithSelectedBins(inventoryState.doorShelfConfig, changeAllocationBins);
+  }, [inventoryState.doorShelfConfig, changeAllocationBins]);
+
+  const searchMatchCount = useMemo(() => {
+    const trimmedQuery = debouncedSelectedSearchQuery?.trim();
+    if (!trimmedQuery || !inventoryState.doorShelfConfig) return 0;
+    return countSearchMatches(inventoryState.doorShelfConfig, trimmedQuery);
+  }, [inventoryState.doorShelfConfig, debouncedSelectedSearchQuery]);
+
+  const currentBin = useMemo(() => {
+    if (!inventoryState.selectedBin || !inventoryState.doorShelfConfig) return null;
+    return inventoryState.getCurrentBin();
+  }, [inventoryState.selectedBin, inventoryState.doorShelfConfig, inventoryState.getCurrentBin]);
+
+  const handleStationSelect = useCallback((station: string) => {
+    setCurrentStation(station);
+  }, []);
+
+  const handleLogout = useCallback(() => {
+    // Handle logout functionality here
+    console.log("Logout clicked");
+  }, []);
+
+  // Handle product click for product detail page
+  const handleProductClick = useCallback((product: any, location: any) => {
+    setSelectedProduct(product);
+    setProductLocation(location);
+    setShowProductDetail(true);
+  }, []);
+
+  // Handle back from product detail page
+  const handleProductDetailBack = useCallback(() => {
+    setShowProductDetail(false);
+    setSelectedProduct(null);
+    setProductLocation(null);
+  }, []);
+
+  // CRITICAL FIX: Handle change allocation confirmation - Open quantity selection modal for all moves
+  const handleChangeAllocationConfirm = useCallback((transfers: ProductTransfer[], serialNumbers?: { [transferId: string]: string[] }) => {
+    if (!transfers?.length) {
+      console.warn('No transfers provided to handleChangeAllocationConfirm');
+      return;
+    }
+
+    try {
+      // Separate allocate-only transfers (quantity = 0) from move transfers (quantity > 0)
+      const allocateOnlyTransfers = transfers.filter(t => t.quantity === 0 && (t as any).actionType === 'allocate');
+      const moveTransfers = transfers.filter(t => t.quantity > 0 || (t as any).actionType === 'move');
+      
+      console.log('🔧 Transfer Analysis:', {
+        totalTransfers: transfers.length,
+        allocateOnlyCount: allocateOnlyTransfers.length,
+        moveTransfersCount: moveTransfers.length,
+        allocateOnlyTransfers: allocateOnlyTransfers.map(t => ({
+          productId: t.productId,
+          toBinId: t.toBinId,
+          quantity: t.quantity,
+          actionType: (t as any).actionType
+        })),
+        moveTransfers: moveTransfers.map(t => ({
+          productId: t.productId,
+          toBinId: t.toBinId,
+          quantity: t.quantity,
+          actionType: (t as any).actionType
+        }))
+      });
+      
+      // Close the change allocation modal first
+      inventoryState.setShowChangeAllocationModal(false);
+      
+      // If ALL transfers are allocate-only (no quantity movement), skip quantity/serial selection
+      if (moveTransfers.length === 0 && allocateOnlyTransfers.length > 0) {
+        console.log('🔧 All transfers are allocate-only, skipping quantity/serial selection');
+        // Directly confirm the allocation without quantity/serial selection
+        inventoryState.handleConfirmChangeAllocation(allocateOnlyTransfers);
+        return;
+      }
+      
+      // If there are move transfers, they need quantity/serial selection
+      if (moveTransfers.length > 0) {
+        console.log('🔧 Opening Quantity Selection Modal for move transfers');
+        
+        // Store BOTH move transfers and allocate transfers
+        // We'll need to combine them after quantity/serial selection
+        (window as any).allocateOnlyTransfers = allocateOnlyTransfers;
+        
+        // Store transfers and open quantity selection modal for move transfers only
+        // New session: forget which doors were already announced as unlocked.
+        setUnlockedDoors(new Set());
+        setPendingQuantityTransfers(moveTransfers);
+        setShowQuantityModal(true);
+      }
+    } catch (error) {
+      console.error('Error in handleChangeAllocationConfirm:', error);
+    }
+  }, [inventoryState]);
+
+  // Create a bin lookup map for performance (only when doorShelfConfig changes)
+  const binLookupMap = useMemo(() => {
+    if (!inventoryState.doorShelfConfig) return new Map();
+    
+    const map = new Map();
+    try {
+      Object.keys(inventoryState.doorShelfConfig).forEach((doorKey) => {
+        const shelves = inventoryState.doorShelfConfig[doorKey];
+        if (!shelves) return;
+        
+        shelves.forEach((shelf) => {
+          if (!shelf.bins) return;
+          shelf.bins.forEach((bin) => {
+            // Find which cabinet this door belongs to
+            const cabinet = cabinets.find((cab) => cab.doors.includes(doorKey));
+            const location = cabinet ? `${doorKey}, ${cabinet.name}` : doorKey;
+            
+            map.set(bin.id, {
+              ...bin,
+              location,
+              shelfName: shelf.name,
+              doorKey,
+            });
+          });
+        });
+      });
+    } catch (error) {
+      console.warn('Error creating bin lookup map:', error);
+    }
+    
+    return map;
+  }, [inventoryState.doorShelfConfig]);
+
+  // Get individual source bins with location info for the modal
+  const getSourceBins = useMemo(() => {
+    if (!inventoryState.changeAllocationSourceBins?.length || binLookupMap.size === 0) return [];
+
+    try {
+      return inventoryState.changeAllocationSourceBins
+        .map(binId => binLookupMap.get(binId))
+        .filter(Boolean);
+    } catch (error) {
+      console.warn('Error creating source bins:', error);
+      return [];
+    }
+  }, [inventoryState.changeAllocationSourceBins, binLookupMap]);
+
+  const getTargetBins = useMemo(() => {
+    // Get all target bins across any cabinet/door
+    if (!inventoryState.changeAllocationSourceBins?.length || binLookupMap.size === 0 || !inventoryState.changeAllocationTargetBins?.length) return [];
+
+    try {
+      return inventoryState.changeAllocationTargetBins
+        .map(binId => binLookupMap.get(binId))
+        .filter(Boolean);
+    } catch (error) {
+      console.warn('Error finding target bins:', error);
+      return [];
+    }
+  }, [inventoryState.changeAllocationSourceBins, inventoryState.changeAllocationTargetBins, binLookupMap]);
+
+  // Add loading state to prevent timeout during heavy operations
+  if (!inventoryState.doorShelfConfig) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-lg">Loading inventory...</div>
+      </div>
+    );
+  }
+
+  return (
+    <ErrorBoundary>
+      {/* Show Target Bin Serial Scan Page if active */}
+      {showTargetBinScanPage && pendingSerialTransfers.length > 0 ? (
+        <MainLayout
+          showBinInventory={false}
+          showUnallocatedProducts={false}
+          currentBin={null}
+          selectedUnallocatedProducts={[]}
+          selectedBinsForAssignment={[]}
+          unallocatedSearchQuery=""
+          doorShelfConfig={inventoryState.doorShelfConfig}
+          unallocatedProducts={inventoryState.unallocatedProducts}
+          currentStation={currentStation}
+          onStationClick={() => setShowStationModal(true)}
+          onLogout={handleLogout}
+          closeBinInventory={() => {}}
+          closeUnallocatedProducts={() => {}}
+          handleUnallocatedProductSelect={() => {}}
+          handleUnallocatedSearchChange={() => {}}
+          handleSelectAllUnallocatedProducts={() => {}}
+          handleClearUnallocatedSelection={() => {}}
+          handleConfirmAssignment={() => {}}
+          removePadding={true}
+        >
+          <TargetBinSerialScanPage
+            transfers={pendingSerialTransfers}
+            doorShelfConfig={inventoryState.doorShelfConfig}
+            remainingTransfers={remainingQuantityTransfers}
+            unlockedDoors={unlockedDoors}
+            onDoorUnlocked={handleDoorUnlocked}
+            onConfirm={(transfers) => {
+              // Handle serial scan confirmation
+              console.log('🔧 Serial Scan Confirmation:', {
+                transferCount: transfers.length,
+                totalSerials: transfers.reduce((sum, t) => sum + (t.serialNumbers?.length || 0), 0),
+                hasRemainingProducts: remainingQuantityTransfers.length > 0,
+                previousCompletedTransfers: completedTransfers.length
+              });
+              
+              // Accumulate completed transfers
+              const allCompletedTransfers = [...completedTransfers, ...transfers];
+              setCompletedTransfers(allCompletedTransfers);
+              
+              // Check if there are more products to process
+              if (remainingQuantityTransfers.length > 0) {
+                console.log('🔧 More products remaining, returning to Quantity Selection Page', {
+                  remainingProducts: remainingQuantityTransfers.length,
+                  accumulatedTransfers: allCompletedTransfers.length
+                });
+                // Return to quantity selection for the next product
+                setPendingQuantityTransfers(remainingQuantityTransfers);
+                setRemainingQuantityTransfers([]);
+                setShowQuantityModal(true);
+                setShowTargetBinScanPage(false);
+                setPendingSerialTransfers([]);
+              } else {
+                console.log('🔧 No more products, completing all transfers');
+                // No more products, complete the process
+                // Combine ALL completed move transfers with allocate-only transfers (if any)
+                const allocateOnlyTransfers = (window as any).allocateOnlyTransfers || [];
+                const allTransfers = [...allCompletedTransfers, ...allocateOnlyTransfers];
+                
+                console.log('🔧 Combining all transfers for history:', {
+                  completedMoveTransfers: allCompletedTransfers.length,
+                  allocateOnlyTransfers: allocateOnlyTransfers.length,
+                  totalTransfers: allTransfers.length,
+                  transferDetails: allTransfers.map(t => ({
+                    productId: t.productId,
+                    fromBinId: t.fromBinId,
+                    toBinId: t.toBinId,
+                    quantity: t.quantity,
+                    serialNumbers: t.serialNumbers?.length || 0
+                  }))
+                });
+                
+                // Clean up and reset ALL state FIRST before calling handleConfirmChangeAllocation
+                delete (window as any).allocateOnlyTransfers;
+                setShowTargetBinScanPage(false);
+                setPendingSerialTransfers([]);
+                setCompletedTransfers([]);
+                setRemainingQuantityTransfers([]);
+                setPendingQuantityTransfers([]);
+                setShowQuantityModal(false);
+                
+                // Use setTimeout to ensure state cleanup completes before the handler runs
+                setTimeout(() => {
+                  console.log('🔧 State cleanup complete, calling handleConfirmChangeAllocation');
+                  // Call the inventory state handler with ALL transfers
+                  inventoryState.handleConfirmChangeAllocation(allTransfers);
+                }, 0);
+              }
+            }}
+            onCancel={() => {
+              // Full-flow abort: reset every piece of pipeline state, not just this page's own
+              // slice — otherwise leftover remaining/completed transfers from this attempt could
+              // silently bleed into the next Change Allocation the user starts.
+              delete (window as any).allocateOnlyTransfers;
+              setShowTargetBinScanPage(false);
+              setPendingSerialTransfers([]);
+              setRemainingQuantityTransfers([]);
+              setCompletedTransfers([]);
+              setPendingQuantityTransfers([]);
+              setUnlockedDoors(new Set());
+            }}
+            onBack={() => {
+              // Go back to quantity selection. CRITICAL: merge the current product's transfers
+              // back together with whatever other products were still pending — otherwise the
+              // quantity page reopens believing this is the ONLY product in the batch, silently
+              // dropping every other queued product/bin from the allocation.
+              setShowTargetBinScanPage(false);
+              setShowQuantityModal(true);
+              setPendingQuantityTransfers([...pendingSerialTransfers, ...remainingQuantityTransfers]);
+              setRemainingQuantityTransfers([]);
+              setPendingSerialTransfers([]);
+            }}
+          />
+        </MainLayout>
+      ) : showQuantityModal && pendingQuantityTransfers.length > 0 ? (
+        /* Show Quantity Selection Page */
+        <MainLayout
+          showBinInventory={false}
+          showUnallocatedProducts={false}
+          currentBin={null}
+          selectedUnallocatedProducts={[]}
+          selectedBinsForAssignment={[]}
+          unallocatedSearchQuery=""
+          doorShelfConfig={inventoryState.doorShelfConfig}
+          unallocatedProducts={inventoryState.unallocatedProducts}
+          currentStation={currentStation}
+          onStationClick={() => setShowStationModal(true)}
+          onLogout={handleLogout}
+          closeBinInventory={() => {}}
+          closeUnallocatedProducts={() => {}}
+          handleUnallocatedProductSelect={() => {}}
+          handleUnallocatedSearchChange={() => {}}
+          handleSelectAllUnallocatedProducts={() => {}}
+          handleClearUnallocatedSelection={() => {}}
+          handleConfirmAssignment={() => {}}
+          removePadding={true}
+        >
+          <QuantitySelectionPage
+            transfers={pendingQuantityTransfers}
+            doorShelfConfig={inventoryState.doorShelfConfig}
+            unlockedDoors={unlockedDoors}
+            onDoorUnlocked={handleDoorUnlocked}
+            onConfirm={(currentProductTransfers, remainingProductTransfers) => {
+              // Handle multi-transfer quantity confirmation
+              console.log('🔧 App.tsx - Multi-Transfer Quantity Confirmation:', {
+                currentProductTransferCount: currentProductTransfers.length,
+                remainingProductTransferCount: remainingProductTransfers.length,
+                currentProductQuantity: currentProductTransfers.reduce((sum, transfer) => sum + transfer.quantity, 0),
+                currentProductName: (currentProductTransfers[0] as any)?.productName,
+                hasMoreProducts: remainingProductTransfers.length > 0,
+                detailedCurrentTransfers: currentProductTransfers.map(t => ({
+                  productId: t.productId,
+                  fromBinId: t.fromBinId,
+                  toBinId: t.toBinId,
+                  quantity: t.quantity,
+                  productName: (t as any).productName
+                }))
+              });
+              
+              // Store remaining transfers for later processing
+              setRemainingQuantityTransfers(remainingProductTransfers);
+              
+              // ALWAYS move to target bin page (for user awareness/friction)
+              // The page will determine if serial scanning is needed
+              setPendingSerialTransfers(currentProductTransfers);
+              setShowTargetBinScanPage(true);
+              setShowQuantityModal(false);
+              setPendingQuantityTransfers([]);
+            }}
+            onCancel={() => {
+              // Full-flow abort: also clear remaining/completed state so a later Change
+              // Allocation attempt never inherits leftovers from this cancelled one.
+              setShowQuantityModal(false);
+              setPendingQuantityTransfers([]);
+              setRemainingQuantityTransfers([]);
+              setCompletedTransfers([]);
+              delete (window as any).allocateOnlyTransfers;
+              setUnlockedDoors(new Set());
+            }}
+          />
+        </MainLayout>
+      ) : inventoryState.showHistoryModal ? (
+        /* Dedicated full-page History (table view) */
+        <HistoryPage
+          history={inventoryState.allocationHistory}
+          doorShelfConfig={inventoryState.doorShelfConfig}
+          currentStation={currentStation}
+          onStationClick={() => setShowStationModal(true)}
+          onLogout={handleLogout}
+          onBack={() => inventoryState.setShowHistoryModal(false)}
+        />
+      ) : showProductDetail && selectedProduct ? (
+        /* Show product detail page if a product is selected */
+        <ProductDetailPage
+          product={selectedProduct}
+          location={productLocation}
+          doorShelfConfig={inventoryState.doorShelfConfig}
+          onBack={handleProductDetailBack}
+          onUnallocate={(productId, binId) => {
+            console.log('🔧 App.tsx: Unallocating product', productId, 'from bin', binId);
+            inventoryState.handleUnallocateProduct(productId, binId);
+            // Wait for state update to complete before navigating back
+            setTimeout(() => {
+              handleProductDetailBack();
+            }, 100);
+          }}
+        />
+      ) : (
+        <MainLayout
+          showBinInventory={inventoryState.showBinInventory}
+          showUnallocatedProducts={inventoryState.showUnallocatedProducts}
+          currentBin={currentBin}
+          selectedUnallocatedProducts={inventoryState.selectedUnallocatedProducts}
+          selectedBinsForAssignment={inventoryState.selectedBinsForAssignment}
+          unallocatedSearchQuery={inventoryState.unallocatedSearchQuery}
+          doorShelfConfig={inventoryState.doorShelfConfig}
+          unallocatedProducts={inventoryState.unallocatedProducts} // CRITICAL FIX: Pass unallocated products
+          currentStation={currentStation}
+          onStationClick={() => setShowStationModal(true)}
+          onLogout={handleLogout}
+          closeBinInventory={inventoryState.closeBinInventory}
+          closeUnallocatedProducts={inventoryState.closeUnallocatedProducts}
+          handleUnallocatedProductSelect={inventoryState.handleUnallocatedProductSelect}
+          handleUnallocatedSearchChange={inventoryState.handleUnallocatedSearchChange}
+          handleSelectAllUnallocatedProducts={inventoryState.handleSelectAllUnallocatedProducts}
+          handleClearUnallocatedSelection={inventoryState.handleClearUnallocatedSelection}
+          handleConfirmAssignment={inventoryState.handleConfirmAssignment}
+        >
+          <HeaderSection
+            searchQuery={inventoryState.searchQuery}
+            highlightAvailableBins={inventoryState.highlightAvailableBins}
+            allAvailableBins={allAvailableBins}
+            showUnallocatedProducts={inventoryState.showUnallocatedProducts}
+            showUnallocatedButton={showUnallocatedButton}
+            changeAllocationMode={inventoryState.changeAllocationMode}
+            changeAllocationStep={inventoryState.changeAllocationStep}
+            changeAllocationSourceBins={inventoryState.changeAllocationSourceBins}
+            changeAllocationTargetBins={inventoryState.changeAllocationTargetBins}
+            unallocatedProductsCount={inventoryState.unallocatedProductsCount}
+            doorShelfConfig={inventoryState.doorShelfConfig}
+            selectedBinsForAssignment={inventoryState.selectedBinsForAssignment}
+            handleSearchQueryChange={inventoryState.handleSearchQueryChange}
+            handleAvailableBinsClick={inventoryState.handleAvailableBinsClick}
+            handleChangeAllocationClick={inventoryState.handleChangeAllocationClick}
+            handleUnallocatedProductsClick={inventoryState.handleUnallocatedProductsClick}
+            handleExitChangeAllocation={inventoryState.handleExitChangeAllocation}
+            handleHistoryClick={inventoryState.handleHistoryClick}
+            handleNextStep={inventoryState.handleNextStep}
+            handlePreviousStep={inventoryState.handlePreviousStep}
+            handleClearChangeAllocationSelection={inventoryState.handleClearChangeAllocationSelection}
+            handleClearSourceBins={inventoryState.handleClearSourceBins}
+            handleClearTargetBins={inventoryState.handleClearTargetBins}
+            handleOpenChangeAllocationModal={inventoryState.handleOpenChangeAllocationModal}
+            handleSelectBinsForAssignment={inventoryState.handleSelectBinsForAssignment}
+            handleSelectSourceBinsFromSearch={inventoryState.handleSelectSourceBinsFromSearch}
+            handleSelectTargetBinsFromSearch={inventoryState.handleSelectTargetBinsFromSearch}
+            handleSearchProductClick={inventoryState.handleSearchProductClick}
+          />
+
+          <CabinetSelection
+            selectedCabinet={inventoryState.selectedCabinet}
+            selectedDoor={inventoryState.selectedDoor}
+            doorsWithAvailableBins={doorsWithAvailableBins}
+            highlightAvailableBins={inventoryState.highlightAvailableBins}
+            doorsWithSearchMatches={doorsWithSearchMatches}
+            doorsWithSelectedBins={doorsWithSelectedBins}
+            doorsWithChangeAllocationBins={doorsWithChangeAllocationBins}
+            searchQuery={inventoryState.selectedSearchQuery}
+            showUnallocatedProducts={inventoryState.showUnallocatedProducts}
+            changeAllocationMode={inventoryState.changeAllocationMode}
+            onCabinetClick={inventoryState.handleCabinetClick}
+            onDoorClick={inventoryState.handleDoorClick}
+          />
+
+          <ShelvesSection
+            currentShelves={currentShelves}
+            searchQuery={inventoryState.selectedSearchQuery}
+            searchMatchCount={searchMatchCount}
+            selectedDoor={inventoryState.selectedDoor}
+            selectedBin={inventoryState.selectedBin}
+            showBinInventory={inventoryState.showBinInventory}
+            highlightAvailableBins={inventoryState.highlightAvailableBins}
+            selectedBinsForAssignment={inventoryState.selectedBinsForAssignment}
+            changeAllocationMode={inventoryState.changeAllocationMode}
+            changeAllocationStep={inventoryState.changeAllocationStep}
+            changeAllocationSourceBins={inventoryState.changeAllocationSourceBins}
+            changeAllocationTargetBins={inventoryState.changeAllocationTargetBins}
+            showUnallocatedProducts={inventoryState.showUnallocatedProducts}
+            onBinClick={inventoryState.handleBinClick}
+            onProductClick={handleProductClick}
+          />
+        </MainLayout>
+      )}
+
+      {/* Add Product Dialog */}
+      <ProductDialog
+        open={inventoryState.showProductDialog}
+        onOpenChange={inventoryState.setShowProductDialog}
+        onAddProduct={inventoryState.handleAddProduct}
+      />
+
+      {/* History is now a dedicated full page (see the showHistoryModal branch above). */}
+
+      {/* Station Selection Modal */}
+      <StationSelectionModal
+        open={showStationModal}
+        onOpenChange={setShowStationModal}
+        currentStation={currentStation}
+        onStationSelect={handleStationSelect}
+      />
+
+      {/* Change Allocation Modal */}
+      <ChangeAllocationModal
+        open={inventoryState.showChangeAllocationModal}
+        onOpenChange={inventoryState.setShowChangeAllocationModal}
+        sourceBins={getSourceBins}
+        targetBins={getTargetBins}
+        doorShelfConfig={inventoryState.doorShelfConfig}
+        onConfirmAllocation={handleChangeAllocationConfirm}
+      />
+
+      {/* Serial Number Modal - Required for all product moves (quantity > 0) between bins */}
+      <SerialNumberModal
+        open={serialNumberModal.showSerialNumberModal}
+        onOpenChange={serialNumberModal.setShowSerialNumberModal}
+        transfers={serialNumberModal.pendingTransfers} // Pass ALL transfers requiring serial numbers
+        onConfirm={(transfers, serialNumbers) => {
+          // Handle multi-transfer serial number confirmation
+          console.log('🔧 Multi-Transfer Serial Confirmation:', {
+            transferCount: transfers.length,
+            serialNumberKeys: Object.keys(serialNumbers),
+            totalSerials: Object.values(serialNumbers).flat().length
+          });
+          
+          // CRITICAL FIX: Use ALL original transfers, not just the pending E-Kit transfers
+          // This ensures that regular transfers are not discarded in mixed bin scenarios
+          const allOriginalTransfers = (window as any).allOriginalTransfers || serialNumberModal.pendingTransfers;
+          
+          console.log('🔧 Mixed Bin Fix - App.tsx Using All Original Transfers:', {
+            allOriginalTransfers: allOriginalTransfers.length,
+            pendingTransfers: serialNumberModal.pendingTransfers.length,
+            hasStoredOriginalTransfers: !!(window as any).allOriginalTransfers,
+            mixedBinScenario: allOriginalTransfers.length > serialNumberModal.pendingTransfers.length
+          });
+          
+          // Call the inventory state handler with ALL original transfers and their serial numbers
+          inventoryState.handleConfirmChangeAllocation(
+            allOriginalTransfers.map(transfer => {
+              const transferId = `${transfer.productId}-${transfer.toBinId}`;
+              return {
+                ...transfer,
+                serialNumbers: serialNumbers[transferId] || []
+              };
+            })
+          );
+          
+          // Reset the serial number modal state and clean up stored transfers
+          serialNumberModal.setShowSerialNumberModal(false);
+          delete (window as any).allOriginalTransfers;
+        }}
+        onBack={() => serialNumberModal.handleSerialNumberBack(inventoryState.setShowChangeAllocationModal)}
+        doorShelfConfig={inventoryState.doorShelfConfig}
+        currentIndex={0} // Not used in multi-transfer mode
+        totalCount={serialNumberModal.pendingTransfers.length}
+      />
+      
+      {/* Unallocation Confirmation Modal - Shows after change allocation when products have zero quantity */}
+      <UnallocateConfirmModal
+        open={showUnallocateModal}
+        onOpenChange={setShowUnallocateModal}
+        productsToUnallocate={productsToUnallocate}
+        onConfirm={(productIds, binIds) => {
+          console.log('🗑️ Confirming unallocation of products:', { productIds, binIds });
+          inventoryState.handleUnallocateMultipleProducts(productIds, binIds);
+          setShowUnallocateModal(false);
+          setProductsToUnallocate([]);
+        }}
+        onCancel={() => {
+          console.log('🚫 User cancelled unallocation');
+          inventoryState.handleClearZeroQuantityProducts();
+          setShowUnallocateModal(false);
+          setProductsToUnallocate([]);
+        }}
+      />
+    </ErrorBoundary>
+  );
+}

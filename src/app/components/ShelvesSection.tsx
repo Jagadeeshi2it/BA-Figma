@@ -1,0 +1,105 @@
+import React from 'react';
+import { Search } from 'lucide-react';
+import ShelfLayout from './ShelfLayout';
+
+interface ShelvesSectionProps {
+  currentShelves: any[];
+  searchQuery: string;
+  searchMatchCount: number;
+  selectedDoor: string | null;
+  selectedBin: string | null;
+  showBinInventory: boolean;
+  highlightAvailableBins: boolean;
+  selectedBinsForAssignment: string[];
+  changeAllocationMode: boolean;
+  changeAllocationStep: 1 | 2;
+  changeAllocationSourceBins: string[];
+  changeAllocationTargetBins: string[];
+  showUnallocatedProducts: boolean;
+  onBinClick: (binId: string, doorKey: string) => void;
+  onProductClick: (product: any, location: any) => void;
+}
+
+export default function ShelvesSection({
+  currentShelves,
+  searchQuery,
+  searchMatchCount,
+  selectedDoor,
+  selectedBin,
+  showBinInventory,
+  highlightAvailableBins,
+  selectedBinsForAssignment,
+  changeAllocationMode,
+  changeAllocationStep,
+  changeAllocationSourceBins,
+  changeAllocationTargetBins,
+  showUnallocatedProducts,
+  onBinClick,
+  onProductClick
+}: ShelvesSectionProps) {
+  return (
+    <div className="space-y-8">
+      {currentShelves.length > 0 ? (
+        currentShelves.map((shelf) => (
+          <div key={shelf.id}>
+            <div className="px-3 mb-4">
+              <h3 className="font-semibold">{shelf.name}</h3>
+            </div>
+
+            <ShelfLayout
+              shelf={shelf}
+              selectedDoor={selectedDoor}
+              selectedBin={selectedBin}
+              showBinInventory={showBinInventory}
+              highlightAvailableBins={highlightAvailableBins}
+              searchQuery={searchQuery}
+              selectedBinsForAssignment={selectedBinsForAssignment}
+              changeAllocationMode={changeAllocationMode}
+              changeAllocationStep={changeAllocationStep}
+              changeAllocationSourceBins={changeAllocationSourceBins}
+              changeAllocationTargetBins={changeAllocationTargetBins}
+              showUnallocatedProducts={showUnallocatedProducts}
+              onBinClick={onBinClick}
+              onProductClick={onProductClick}
+            />
+          </div>
+        ))
+      ) : searchQuery.trim() && searchMatchCount === 0 ? (
+        <div className="text-center py-12">
+          <Search className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 mb-2">
+            No results found
+          </h3>
+          <p className="text-gray-600">
+            Try searching for a different product name, bin, or NDC code.
+          </p>
+        </div>
+      ) : (
+        currentShelves.map((shelf) => (
+          <div key={shelf.id}>
+            <div className="px-3 mb-4">
+              <h3 className="font-semibold">{shelf.name}</h3>
+            </div>
+
+            <ShelfLayout
+              shelf={shelf}
+              selectedDoor={selectedDoor}
+              selectedBin={selectedBin}
+              showBinInventory={showBinInventory}
+              highlightAvailableBins={highlightAvailableBins}
+              searchQuery={searchQuery}
+              selectedBinsForAssignment={selectedBinsForAssignment}
+              changeAllocationMode={changeAllocationMode}
+              changeAllocationStep={changeAllocationStep}
+              changeAllocationSourceBins={changeAllocationSourceBins}
+              changeAllocationTargetBins={changeAllocationTargetBins}
+              showUnallocatedProducts={showUnallocatedProducts}
+              onBinClick={onBinClick}
+              onProductClick={onProductClick}
+            />
+          </div>
+        ))
+      )}
+    </div>
+  );
+}
