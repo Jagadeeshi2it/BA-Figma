@@ -8,7 +8,7 @@ interface SidebarProps {
 
 export default function Sidebar({ className = '' }: SidebarProps) {
   const [showContextMenu, setShowContextMenu] = useState(false);
-  const [selectedInventoryView, setSelectedInventoryView] = useState('All Products');
+  const [selectedInventoryView, setSelectedInventoryView] = useState('Allocation');
 
   const handleInventoryClick = () => {
     setShowContextMenu(!showContextMenu);

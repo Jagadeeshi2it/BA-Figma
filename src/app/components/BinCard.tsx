@@ -130,10 +130,10 @@ export default function BinCard({
 
   const renderProduct = (product: any) => {
     const isProductClickable = !changeAllocationMode && !showUnallocatedProducts && onProductClick;
-    
+
     return (
-      <div 
-        key={product.id} 
+      <div
+        key={product.id}
         className={`box-border content-stretch flex flex-row items-start justify-between gap-2 p-0 relative shrink-0 w-full ${
           isProductClickable ? 'cursor-pointer hover:bg-gray-50 rounded transition-colors p-2' : ''
         }`}
@@ -184,11 +184,12 @@ export default function BinCard({
   return (
     <>
       <div
+        data-bin-id={bin.id}
         className={`relative rounded-lg cursor-pointer transition-all hover:shadow-md ${className} ${
-          highlightSearch ? 'bg-[#FEFCE8]' : 
-          isSelectedForAssignment && !changeAllocationMode ? 'bg-[#F7EFFE]' : 
           isChangeAllocationSource ? 'bg-[#E3F2FD]' :
           isChangeAllocationTarget ? 'bg-[#E8F5E8]' :
+          highlightSearch ? 'bg-[#FEFCE8]' :
+          isSelectedForAssignment && !changeAllocationMode ? 'bg-[#F7EFFE]' :
           'bg-white'
         } ${
           isSelected ? 'border-blue-500 border-[1px] border-solid' : ''

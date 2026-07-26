@@ -28,6 +28,14 @@ interface TargetLine {
   resultingQty: number; // existing + moved (for moves)
 }
 
+// One source bin the product was gathered from. A move can pull from several bins at once,
+// so this mirrors TargetLine — each with its own quantity taken and remainder left behind.
+interface SourceLine {
+  label: string;          // e.g. "Door 1, Bin B"
+  movedQty: number | null; // qty taken out of this bin (null when unknown/unallocate)
+  remainingQty: number;    // qty left in this bin afterwards
+}
+
 // One flattened table row per product within a history entry. A product moved to several
 // target bins keeps a single row and lists each target (with its own quantity) inside the
 // Target cell — mirroring how the old modal broke a move down per destination bin.
@@ -38,8 +46,7 @@ interface HistoryRow {
   ndc: string;
   inventoryType: string;
   vialType: 'SDV' | 'MDV';
-  sourceLabel: string;      // "Bin A, Door 1" (or a fallback for legacy/allocation entries)
-  sourceSub: string;        // secondary location line, e.g. "Cabinet 1, Shelf 1"
+  sources: SourceLine[];    // every bin the product came from (empty for allocations)
   targets: TargetLine[];
   movedTotal: number;       // total units moved across all targets (0 for allocations)
   unit: string;
@@ -173,20 +180,29 @@ export default function HistoryPage({
         });
         const targets = Array.from(targetMap.values());
 
-        // Source: prefer the recorded sourceBin; otherwise fall back to the historyUtils
-        // resolver (covers legacy entries / E-Kit) — same behavior as the modal. The sub-line
-        // mirrors Target's "+moved → resulting" but for what left the source bin.
-        let sourceLabel = '—';
-        let sourceSub = '';
+        // Source: prefer the recorded sourceBins array (a move can gather from several bins),
+        // falling back to the single sourceBin, then to the historyUtils resolver for legacy
+        // entries / E-Kit. Each line mirrors Target's "+moved → resulting", but for what left.
+        const sources: SourceLine[] = [];
         if (isMove || isUnallocate) {
-          if (entry.sourceBin) {
-            sourceLabel = `Door ${entry.sourceBin.doorNumber}, ${entry.sourceBin.binName}`;
-            if (isMove && entry.sourceBin.quantity != null) {
-              const remaining = entry.sourceBin.remainingQuantity ?? 0;
-              sourceSub = `-${entry.sourceBin.quantity} → ${remaining} ${pluralizeUnit(unit, remaining)}`;
-            }
-          } else if (shouldHaveSourceBin(entry)) {
-            sourceLabel = getSourceDisplayName(entry, doorConfig, history);
+          const rawSources = (entry.sourceBins && entry.sourceBins.length > 0)
+            ? entry.sourceBins
+            : (entry.sourceBin ? [entry.sourceBin] : []);
+
+          rawSources.forEach(bin => {
+            sources.push({
+              label: `Door ${bin.doorNumber}, ${bin.binName}`,
+              movedQty: isMove && bin.quantity != null ? bin.quantity : null,
+              remainingQty: bin.remainingQuantity ?? 0
+            });
+          });
+
+          if (sources.length === 0 && shouldHaveSourceBin(entry)) {
+            sources.push({
+              label: getSourceDisplayName(entry, doorConfig, history),
+              movedQty: null,
+              remainingQty: 0
+            });
           }
         }
 
@@ -195,7 +211,7 @@ export default function HistoryPage({
           : 0;
 
         if (q) {
-          const hay = `${name} ${generic} ${ndc} ${inventoryType} ${sourceLabel} ${targets.map(t => t.label).join(' ')}`.toLowerCase();
+          const hay = `${name} ${generic} ${ndc} ${inventoryType} ${sources.map(s => s.label).join(' ')} ${targets.map(t => t.label).join(' ')}`.toLowerCase();
           if (!hay.includes(q)) return;
         }
 
@@ -210,8 +226,7 @@ export default function HistoryPage({
           ndc,
           inventoryType,
           vialType,
-          sourceLabel,
-          sourceSub,
+          sources: sources.length ? sources : [{ label: '—', movedQty: null, remainingQty: 0 }],
           targets: targets.length ? targets : [{ label: '—', movedQty: 0, resultingQty: 0 }],
           movedTotal,
           unit,
@@ -223,7 +238,8 @@ export default function HistoryPage({
       });
     });
 
-    return out;
+    // Newest activity first, regardless of the order entries arrive in.
+    return out.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
   }, [history, searchQuery, showBinChanges, showBinAllocation, showUnallocated, dateFilter, enhance, doorConfig]);
 
   const handleReset = () => {
@@ -303,7 +319,6 @@ export default function HistoryPage({
                       <SelectItem value="last7days">7 days</SelectItem>
                       <SelectItem value="last15days">15 days</SelectItem>
                       <SelectItem value="last30days">30 days</SelectItem>
-                      <SelectItem value="all">All time</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -349,7 +364,7 @@ export default function HistoryPage({
                   <table className="w-full border-collapse">
                     <thead>
                       <tr className="bg-[#f9fafb] border-b border-[#e5e7eb]">
-                        {['Product', 'NDC', 'Inventory Type', 'Source', 'Moved', 'Target', 'Status', 'Created By'].map(h => (
+                        {['Product', 'NDC', 'Inventory Type', 'Source', 'Target', 'Status', 'Created By'].map(h => (
                           <th key={h} className="text-left px-4 py-3 text-[13px] font-semibold text-[#475569] whitespace-nowrap">{h}</th>
                         ))}
                       </tr>
@@ -366,16 +381,24 @@ export default function HistoryPage({
                           </td>
                           <td className="px-4 py-4 text-[14px] text-[#020817] whitespace-nowrap">{row.ndc}</td>
                           <td className="px-4 py-4 text-[14px] text-[#020817] whitespace-nowrap">{row.inventoryType}</td>
-                          <td className="px-4 py-4 whitespace-nowrap">
-                            <div className="text-[14px] text-[#020817]">{row.sourceLabel}</div>
-                            {row.sourceSub && (
-                              <div className="text-[12px] text-[#64748b] whitespace-nowrap">{row.sourceSub}</div>
+                          <td className="px-4 py-4 min-w-[180px]">
+                            {row.sources.map((s, i) => (
+                              <div key={i} className={i > 0 ? 'mt-2 pt-2 border-t border-[#f1f3f5]' : ''}>
+                                <div className="text-[14px] text-[#020817] whitespace-nowrap">{s.label}</div>
+                                {s.movedQty != null && (
+                                  <div className="text-[12px] text-[#64748b] whitespace-nowrap">
+                                    -{s.movedQty} → {s.remainingQty} {pluralizeUnit(row.unit, s.remainingQty)}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                            {/* Only worth stating when it isn't already obvious from a single
+                                line — a lone "-25 → 0" bin already tells you the total. */}
+                            {row.isMove && row.sources.length > 1 && row.movedTotal > 0 && (
+                              <div className="mt-2 pt-2 border-t border-[#f1f3f5] text-[12px] font-medium text-[#475569] whitespace-nowrap">
+                                {row.movedTotal} {pluralizeUnit(row.unit, row.movedTotal)} total
+                              </div>
                             )}
-                          </td>
-                          <td className="px-4 py-4 text-[14px] text-[#020817] whitespace-nowrap">
-                            {row.isMove && row.movedTotal > 0
-                              ? `${row.movedTotal} ${pluralizeUnit(row.unit, row.movedTotal)}`
-                              : '—'}
                           </td>
                           <td className="px-4 py-4 min-w-[180px]">
                             {row.targets.map((t, i) => (

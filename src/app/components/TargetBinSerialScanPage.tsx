@@ -439,6 +439,31 @@ export default function TargetBinSerialScanPage({
     }
   }, [serialScanningRequired, currentTargetBin, currentProduct, doorShelfConfig]);
 
+  // Auto-fill the LAST target bin for the current product with whatever's still unaccounted
+  // for — once every earlier bin has taken its share of a split, the remainder has nowhere
+  // else to go, so there's nothing left for the user to decide by scanning it manually.
+  useEffect(() => {
+    if (!currentProduct || !currentTargetBin) return;
+    const isLastTargetBinForProduct = currentTargetBinIndex === currentProduct.targetBins.length - 1;
+    if (!isLastTargetBinForProduct || remainingQtyToMove <= 0) return;
+
+    const key = getTargetBinKey(currentTargetBin);
+    if ((scannedItems[key] || []).length > 0) return;
+
+    const autoFilledItems: ScannedItem[] = Array.from({ length: remainingQtyToMove }, () => ({
+      serial: `SN${Math.floor(Math.random() * 1000000000).toString().padStart(9, '0')}`,
+      lot: Math.floor(Math.random() * 10000000).toString(),
+      source: 'McKesson Medical',
+      expiration: new Date(Date.now() + Math.random() * 365 * 24 * 60 * 60 * 1000).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' }),
+      quantity: `1 ${currentProduct.unit || 'vial'}`
+    }));
+
+    setScannedItems(prev => ({
+      ...prev,
+      [key]: autoFilledItems
+    }));
+  }, [currentProduct, currentTargetBin, currentTargetBinIndex, remainingQtyToMove, scannedItems]);
+
   const handleScanOrAdd = () => {
     if (!currentTargetBin) return;
 

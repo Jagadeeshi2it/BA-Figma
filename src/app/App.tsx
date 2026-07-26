@@ -40,6 +40,16 @@ export default function App() {
   const [currentStation, setCurrentStation] = useState("Onco Station");
   const [showStationModal, setShowStationModal] = useState(false);
 
+  // Bin to scroll into view after a search-dropdown selection switches doors — set and
+  // cleared in the same effect pass, once the target door's bins have actually rendered.
+  const [pendingScrollBinId, setPendingScrollBinId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!pendingScrollBinId) return;
+    const el = document.querySelector(`[data-bin-id="${pendingScrollBinId}"]`);
+    el?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    setPendingScrollBinId(null);
+  }, [pendingScrollBinId, inventoryState.selectedDoor]);
+
   // State for showing/hiding the Unallocated Products button
   const [showUnallocatedButton, setShowUnallocatedButton] = useState(false);
 
@@ -573,6 +583,8 @@ export default function App() {
             handleSelectSourceBinsFromSearch={inventoryState.handleSelectSourceBinsFromSearch}
             handleSelectTargetBinsFromSearch={inventoryState.handleSelectTargetBinsFromSearch}
             handleSearchProductClick={inventoryState.handleSearchProductClick}
+            handleDoorClick={inventoryState.handleDoorClick}
+            handleScrollToBin={setPendingScrollBinId}
           />
 
           <CabinetSelection

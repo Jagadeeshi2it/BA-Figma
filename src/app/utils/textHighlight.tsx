@@ -1,26 +1,15 @@
 import React from 'react';
 
-/**
- * Check if a product matches all search criteria from a comma-separated query
- * @param product - The product object to check
- * @param searchQuery - The comma-separated search query
- * @returns boolean indicating if the product matches the search criteria
- */
-export const doesProductMatchSearch = (
-  product: any,
-  searchQuery: string
-): boolean => {
+// A query is one or more "|"-separated OR-groups, each an AND'd set of comma-separated terms —
+// same convention as productMatchesQuery/binMatchesSearch. Returns the original-case terms of
+// the first group this product satisfies (so callers can highlight exactly those terms, not the
+// whole query — a combined multi-product query's OTHER groups don't apply to this product), or
+// null if none match.
+const getMatchingGroupTerms = (product: any, searchQuery: string): string[] | null => {
   if (!searchQuery.trim() || !product) {
-    return false;
+    return null;
   }
 
-  // Parse comma-separated search terms
-  const searchTerms = searchQuery
-    .split(',')
-    .map(term => term.trim().toLowerCase())
-    .filter(term => term.length > 0);
-
-  // Create searchable text from product properties
   const searchableText = [
     product.name || '',
     product.description || '',
@@ -29,8 +18,22 @@ export const doesProductMatchSearch = (
     product.genericName || ''
   ].join(' ').toLowerCase();
 
-  // Check if ALL search terms are found in the product (AND logic)
-  return searchTerms.every(term => searchableText.includes(term));
+  const orGroups = searchQuery.split('|').map(group => group.trim()).filter(group => group.length > 0);
+
+  for (const group of orGroups) {
+    const terms = group.split(',').map(term => term.trim()).filter(term => term.length > 0);
+    if (terms.length > 0 && terms.every(term => searchableText.includes(term.toLowerCase()))) {
+      return terms;
+    }
+  }
+  return null;
+};
+
+export const doesProductMatchSearch = (
+  product: any,
+  searchQuery: string
+): boolean => {
+  return getMatchingGroupTerms(product, searchQuery) !== null;
 };
 
 /**
@@ -52,18 +55,17 @@ export const highlightText = (
     return text;
   }
 
-  // Only highlight if the product matches the search criteria (when product context is provided)
-  if (product && !doesProductMatchSearch(product, searchQuery)) {
+  // When a product is given, highlight only the terms from the OR-group it actually matches —
+  // not the whole query, which may contain other products' terms in a combined search.
+  const matchedGroupTerms = product ? getMatchingGroupTerms(product, searchQuery) : null;
+  if (product && !matchedGroupTerms) {
     return text;
   }
 
-  // Parse comma-separated search terms (remove empty terms and trim whitespace)
-  const searchTerms = searchQuery
+  const searchTerms = matchedGroupTerms ?? searchQuery
     .split(',')
     .map(term => term.trim())
     .filter(term => term.length > 0);
-
-
 
   // Create a single regex pattern that matches any of the search terms
   const escapedTerms = searchTerms.map(term => 
@@ -121,21 +123,20 @@ export const highlightNDC = (
     return ndcText;
   }
 
-  // Only highlight if the product matches the search criteria (when product context is provided)
-  if (product && !doesProductMatchSearch(product, searchQuery)) {
+  // When a product is given, highlight only the terms from the OR-group it actually matches —
+  // not the whole query, which may contain other products' terms in a combined search.
+  const matchedGroupTerms = product ? getMatchingGroupTerms(product, searchQuery) : null;
+  if (product && !matchedGroupTerms) {
     return ndcText;
   }
 
-  // Parse comma-separated search terms
-  const searchTerms = searchQuery
+  const searchTerms = matchedGroupTerms ?? searchQuery
     .split(',')
     .map(term => term.trim())
     .filter(term => term.length > 0);
 
   // We'll highlight any matching terms, not just numeric ones
   // This allows highlighting of both NDC numbers and inventory types like "Specialty Pharmacy"
-
-
 
   // Include all search terms, not just numeric ones
   const allTerms = searchTerms.map(term => term.toLowerCase());

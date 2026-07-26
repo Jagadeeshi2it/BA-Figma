@@ -10,12 +10,21 @@ interface SearchDropdownProps {
   // Bins already picked as source/target (whichever step we're on) — matching results are
   // dropped from the list so it only ever shows what's still left to pick.
   excludeBinIds?: string[];
+  // View-mode counterpart to excludeBinIds: products already clicked/selected from this same
+  // search, so the list shrinks the same way it does in change allocation mode.
+  viewedProductKeys?: string[];
   onSelectAllBins: (binIds: string[], productName: string) => void;
-  onSelectSourceBins?: (binIds: string[], productName: string) => void;
-  onSelectTargetBins?: (binIds: string[], productName: string) => void;
+  onSelectSourceBins?: (binIds: string[], productName: string, highlightQuery?: string) => void;
+  onSelectTargetBins?: (binIds: string[], productName: string, highlightQuery?: string) => void;
   onProductClick?: (productName: string, ndc: string, inventoryType: string) => void;
+  onProductsViewed?: (keys: string[]) => void;
+  // View mode only: jump the main view to wherever the just-picked product actually lives.
+  onDoorClick?: (doorName: string) => void;
+  onScrollToBin?: (binId: string) => void;
   onClose: () => void;
 }
+
+const getResultKey = (result: ProductSearchResult) => `${result.ndc}-${result.inventoryType}`;
 
 const SearchDropdown = memo(function SearchDropdown({
   searchResults,
@@ -23,10 +32,14 @@ const SearchDropdown = memo(function SearchDropdown({
   changeAllocationMode = false,
   changeAllocationStep = 1,
   excludeBinIds = [],
+  viewedProductKeys = [],
   onSelectAllBins,
   onSelectSourceBins,
   onSelectTargetBins,
   onProductClick,
+  onProductsViewed,
+  onDoorClick,
+  onScrollToBin,
   onClose
 }: SearchDropdownProps) {
   if (!isVisible || searchResults.length === 0) {
@@ -34,18 +47,34 @@ const SearchDropdown = memo(function SearchDropdown({
   }
 
   // A result is "done" once every bin it lives in has already been picked — drop it so the
-  // list only shows products that still have something left to select.
+  // list only shows products that still have something left to select. In view mode there's
+  // no bin selection to check against, so a product is "done" once it's simply been clicked.
   const visibleResults = changeAllocationMode
     ? searchResults.filter(result => !result.binLocations.every(loc => excludeBinIds.includes(loc.binId)))
-    : searchResults;
+    : searchResults.filter(result => !viewedProductKeys.includes(getResultKey(result)));
+
+  const buildHighlightQuery = (products: ProductSearchResult[]) =>
+    products
+      .map(result => [result.name, result.ndc, result.inventoryType].filter(Boolean).join(', '))
+      .join(' | ');
 
   const handleProductClick = (result: ProductSearchResult) => {
     if (onProductClick) {
-      onProductClick(result.name, result.ndc, result.inventoryType);
       // Don't close in change allocation mode - let user see the highlighted bins
-      if (!changeAllocationMode) {
-        onClose();
+      if (changeAllocationMode) {
+        onProductClick(result.name, result.ndc, result.inventoryType);
+        return;
       }
+      onProductClick(result.name, result.ndc, result.inventoryType);
+      // Replaces (not adds to) the previous pick — switching products un-hides whatever
+      // was selected before, since only one product is "the" selection at a time now.
+      onProductsViewed?.([getResultKey(result)]);
+      const location = result.binLocations[0];
+      if (location) {
+        onDoorClick?.(location.doorName);
+        onScrollToBin?.(location.binId);
+      }
+      onClose();
     }
   };
 
@@ -56,10 +85,13 @@ const SearchDropdown = memo(function SearchDropdown({
       // Actually select every matching bin as source/target, not just preview-highlight it.
       const allBinIds = Array.from(new Set(visibleResults.flatMap(getBinIdsForProduct)));
       const productNames = visibleResults.map(result => result.name).join(', ');
+      // Same OR-group query shape as the view-only "Select All" below, so every selected
+      // product's row (not just its bin) gets highlighted.
+      const highlightQuery = buildHighlightQuery(visibleResults);
       if (changeAllocationStep === 1) {
-        onSelectSourceBins?.(allBinIds, productNames);
+        onSelectSourceBins?.(allBinIds, productNames, highlightQuery);
       } else {
-        onSelectTargetBins?.(allBinIds, productNames);
+        onSelectTargetBins?.(allBinIds, productNames, highlightQuery);
       }
       // Everything visible just got added — nothing left to show, so close instead of
       // leaving an empty dropdown hanging open.
@@ -67,14 +99,16 @@ const SearchDropdown = memo(function SearchDropdown({
       return;
     }
 
-    // Normal mode: highlight every matching product. Each product's own name/NDC/type
-    // forms one AND-group; groups are OR'd with "|" so distinct products don't have to
-    // simultaneously match each other's identifying fields (which none of them could).
+    // Normal mode: highlight every matching product in this batch.
     if (onProductClick) {
-      const combinedQuery = searchResults
-        .map(result => [result.name, result.ndc, result.inventoryType].filter(Boolean).join(', '))
-        .join(' | ');
-      onProductClick(combinedQuery, '', '');
+      onProductClick(buildHighlightQuery(visibleResults), '', '');
+    }
+    // Replaces the previous pick, same as a single click — see handleProductClick.
+    onProductsViewed?.(visibleResults.map(getResultKey));
+    const location = visibleResults[0]?.binLocations[0];
+    if (location) {
+      onDoorClick?.(location.doorName);
+      onScrollToBin?.(location.binId);
     }
     onClose();
   };
@@ -97,9 +131,9 @@ const SearchDropdown = memo(function SearchDropdown({
           </p>
         </div>
 
-        {changeAllocationMode && visibleResults.length === 0 ? (
+        {visibleResults.length === 0 ? (
           <div className="text-[13px] text-[#64748b] text-center py-2">
-            All matching bins are already selected.
+            {changeAllocationMode ? 'All matching bins are already selected.' : "You've viewed all matching products."}
           </div>
         ) : (
         <>
@@ -159,10 +193,13 @@ const SearchDropdown = memo(function SearchDropdown({
                 onClick={(e) => {
                   e.stopPropagation(); // Prevent triggering the card's onClick
                   const binIds = getBinIdsForProduct(result);
+                  // stopPropagation means the card's own highlight-on-click never fires, so
+                  // build the same precise query it would have used and pass it through.
+                  const highlightQuery = [result.name, result.ndc, result.inventoryType].filter(Boolean).join(', ');
                   if (changeAllocationStep === 1) {
-                    onSelectSourceBins?.(binIds, result.name);
+                    onSelectSourceBins?.(binIds, result.name, highlightQuery);
                   } else {
-                    onSelectTargetBins?.(binIds, result.name);
+                    onSelectTargetBins?.(binIds, result.name, highlightQuery);
                   }
                   // That was the last remaining match — nothing left to pick, so close.
                   if (visibleResults.length === 1) {

@@ -5,6 +5,7 @@ import { CustomToast, ChangeAllocationToast, ValidationToast } from '../componen
 import { doorShelfConfig as initialDoorConfig } from '../data/doorConfigurations';
 import { cabinets } from '../data/cabinets';
 import { generateUnallocatedProducts } from '../data/unallocatedProducts';
+import { generateSeedHistory } from '../data/seedHistory';
 import { getCurrentShelves, initializeDoorConfigs, getBinLocationDetails } from '../utils/doorUtils';
 import { migrateHistoryEntriesWithSourceBin } from '../utils/historyUtils';
 import { DoorShelfConfig, Bin, AllocationHistoryEntry, Product } from '../types';
@@ -41,7 +42,7 @@ export const useInventoryState = () => {
   const [selectedUnallocatedProducts, setSelectedUnallocatedProducts] = useState<string[]>([]);
   const [selectedBinsForAssignment, setSelectedBinsForAssignment] = useState<string[]>([]);
   const [unallocatedSearchQuery, setUnallocatedSearchQuery] = useState<string>("");
-  const [allocationHistory, setAllocationHistory] = useState<AllocationHistoryEntry[]>([]);
+  const [allocationHistory, setAllocationHistory] = useState<AllocationHistoryEntry[]>(generateSeedHistory);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [changeAllocationMode, setChangeAllocationMode] = useState(false);
   const [changeAllocationSourceBins, setChangeAllocationSourceBins] = useState<string[]>([]);
@@ -346,7 +347,7 @@ export const useInventoryState = () => {
   }, []);
 
   // Handler for selecting source bins from search dropdown
-  const handleSelectSourceBinsFromSearch = useCallback((binIds: string[], productName: string) => {
+  const handleSelectSourceBinsFromSearch = useCallback((binIds: string[], productName: string, highlightQuery?: string) => {
     // Filter out any bins that don't have products (only include bins with products for source)
     const validSourceBins = binIds.filter(binId => {
       // Find the bin and check if it has products
@@ -367,10 +368,18 @@ export const useInventoryState = () => {
       console.log(`Added ${validSourceBins.length} bins containing ${productName} as source bins`);
       return newSelection;
     });
+
+    // Selecting straight from the "Select as Source" button skips the card's own onClick
+    // (stopPropagation), so without this the product row never gets highlighted. Only the
+    // dedicated highlight channel is set here — leaving the typed searchQuery alone means
+    // the dropdown's own result list keeps showing whatever else still matches.
+    if (highlightQuery) {
+      setSelectedSearchQuery(highlightQuery);
+    }
   }, [doorShelfConfig]);
 
   // Handler for selecting target bins from search dropdown
-  const handleSelectTargetBinsFromSearch = useCallback((binIds: string[], productName: string) => {
+  const handleSelectTargetBinsFromSearch = useCallback((binIds: string[], productName: string, highlightQuery?: string) => {
     // Filter out source bins from target selection
     const validTargetBins = binIds.filter(binId => !changeAllocationSourceBins.includes(binId));
 
@@ -380,6 +389,10 @@ export const useInventoryState = () => {
       console.log(`Added ${validTargetBins.length} bins containing ${productName} as target bins`);
       return newSelection;
     });
+
+    if (highlightQuery) {
+      setSelectedSearchQuery(highlightQuery);
+    }
   }, [changeAllocationSourceBins]);
 
   // Handler for clicking on a product in search dropdown (when change allocation mode is off)
@@ -388,9 +401,10 @@ export const useInventoryState = () => {
     // This leverages the comma-separated search to highlight only this exact product variant
     const searchTerms = [productName, ndc, inventoryType].filter(term => term && term.trim().length > 0);
     const specificQuery = searchTerms.join(', ');
-    
-    setSearchQuery(specificQuery);
-    setSelectedSearchQuery(specificQuery); // Set selected query to trigger highlighting
+
+    // Only the highlight channel narrows to this exact product — leaving the typed
+    // searchQuery untouched keeps the dropdown's own result list showing the rest of the matches.
+    setSelectedSearchQuery(specificQuery);
     console.log(`Search query set to specific product: "${specificQuery}" for ${productName} (NDC: ${ndc}, Type: ${inventoryType})`);
   }, []);
 

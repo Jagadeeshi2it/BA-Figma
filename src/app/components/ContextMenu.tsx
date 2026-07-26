@@ -73,7 +73,7 @@ function MenuItem({ label, state, isActive, isHovered, onClick, onMouseEnter, on
 }
 
 export default function ContextMenu({ isOpen, onClose, onMenuSelect, className = '' }: ContextMenuProps) {
-  const [activeItem, setActiveItem] = useState<string>('All Products');
+  const [activeItem, setActiveItem] = useState<string>('Allocation');
   const [hoveredItem, setHoveredItem] = useState<string | null>(null);
 
   if (!isOpen) return null;

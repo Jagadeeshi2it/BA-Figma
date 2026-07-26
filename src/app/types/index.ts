@@ -87,6 +87,18 @@ export interface AllocationHistoryEntry {
     quantity?: number; // Total quantity moved out of this source bin
     remainingQuantity?: number; // Quantity left in the source bin after the move
   };
+  // A single product's quantity can be gathered from SEVERAL source bins in one operation.
+  // When that happens this array holds every contributing bin (with its own quantity), while
+  // `sourceBin` above stays populated with the first one for backwards compatibility.
+  sourceBins?: {
+    binId: string;
+    binName: string;
+    shelfName: string;
+    doorNumber: string;
+    cabinetNumber: string;
+    quantity?: number; // Quantity taken out of THIS source bin
+    remainingQuantity?: number; // Quantity left in THIS source bin after the move
+  }[];
   action: 'allocation' | 'move' | 'change-allocation' | 'unallocate';
   transactionType: 'New Bin Allocation' | 'Product moved' | 'Unallocated';
 }

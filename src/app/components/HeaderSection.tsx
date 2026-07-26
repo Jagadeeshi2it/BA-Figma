@@ -31,9 +31,11 @@ interface HeaderSectionProps {
   handleClearSourceBins?: () => void;
   handleClearTargetBins?: () => void;
   handleSelectBinsForAssignment?: (binIds: string[]) => void;
-  handleSelectSourceBinsFromSearch?: (binIds: string[], productName: string) => void;
-  handleSelectTargetBinsFromSearch?: (binIds: string[], productName: string) => void;
+  handleSelectSourceBinsFromSearch?: (binIds: string[], productName: string, highlightQuery?: string) => void;
+  handleSelectTargetBinsFromSearch?: (binIds: string[], productName: string, highlightQuery?: string) => void;
   handleSearchProductClick?: (productName: string, ndc: string, inventoryType: string) => void;
+  handleDoorClick?: (doorName: string) => void;
+  handleScrollToBin?: (binId: string) => void;
 }
 
 const HeaderSection = memo(function HeaderSection({
@@ -64,13 +66,18 @@ const HeaderSection = memo(function HeaderSection({
   handleSelectBinsForAssignment,
   handleSelectSourceBinsFromSearch,
   handleSelectTargetBinsFromSearch,
-  handleSearchProductClick
+  handleSearchProductClick,
+  handleDoorClick,
+  handleScrollToBin
 }: HeaderSectionProps) {
   
   // Search dropdown state
   const [showSearchDropdown, setShowSearchDropdown] = useState(false);
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [isSearchFocused, setIsSearchFocused] = useState(false);
+  // View-mode products already clicked/selected from the current search — mirrors
+  // changeAllocationSourceBins/TargetBins so the dropdown list shrinks the same way.
+  const [viewedProductKeys, setViewedProductKeys] = useState<string[]>([]);
   const searchContainerRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
@@ -85,6 +92,17 @@ const HeaderSection = memo(function HeaderSection({
       setShowSearchDropdown(false);
     }
   }, [searchQuery, doorShelfConfig, isSearchFocused]);
+
+  // A genuinely new typed query starts the "already viewed" tracking over.
+  useEffect(() => {
+    setViewedProductKeys([]);
+  }, [searchQuery]);
+
+  const handleProductsViewed = (keys: string[]) => {
+    // Replaces, not accumulates: switching to a new product un-hides whatever was
+    // previously picked, since only one selection's worth stays hidden at a time.
+    setViewedProductKeys(keys);
+  };
 
   // Entering (or returning to) Step 1 of Change Allocation: put the cursor straight into the
   // existing search bar so the product-first flow (search → "Select as Source") is ready to
@@ -192,10 +210,14 @@ const HeaderSection = memo(function HeaderSection({
               changeAllocationMode={changeAllocationMode}
               changeAllocationStep={changeAllocationStep}
               excludeBinIds={changeAllocationStep === 1 ? changeAllocationSourceBins : changeAllocationTargetBins}
+              viewedProductKeys={viewedProductKeys}
               onSelectAllBins={handleSelectAllBins}
               onSelectSourceBins={handleSelectSourceBinsFromSearch}
               onSelectTargetBins={handleSelectTargetBinsFromSearch}
               onProductClick={handleSearchProductClick}
+              onProductsViewed={handleProductsViewed}
+              onDoorClick={handleDoorClick}
+              onScrollToBin={handleScrollToBin}
               onClose={() => setShowSearchDropdown(false)}
             />
           </div>
