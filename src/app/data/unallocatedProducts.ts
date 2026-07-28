@@ -9,6 +9,9 @@ export let unallocatedProducts: UnallocatedProduct[] = pharmaceuticalProducts
   .filter(p => HARDCODED_UNALLOCATED_PRODUCT_IDS.includes(p.id))
   .map((p, index) => ({
     id: `unalloc-${index + 1}`,
+    // Keep the master id: it's the only unambiguous link back to this catalogue
+    // entry once the tray id replaces it.
+    masterId: p.id,
     name: p.displayName,
     description: p.genericName,
     ndc: p.ndc,

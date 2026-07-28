@@ -56,6 +56,12 @@ export interface UnallocatedProduct {
   source: string;
   badge: string;
   inventoryType: string;
+  // The master product this entry came from. Carried explicitly because the
+  // display name alone is ambiguous — several master records share a name while
+  // differing by NDC (two "MESNA 1 GRAM/10 ML VIAL", two "VYLOY 100 MG VIAL") —
+  // so allocation would otherwise have to guess, and could stamp the bin product
+  // with the wrong master's identity.
+  masterId?: string;
 }
 
 export interface AllocationHistoryEntry {

@@ -422,6 +422,9 @@ export const useInventoryState = () => {
     setUnallocatedProducts(prevUnallocated => {
       const newProducts = products.map((product, index) => ({
         id: `unalloc-${Date.now()}-${index}`,
+        // Recover the master id from the bin product's instance id (PROD###_...) so a
+        // product that goes back to the tray and is re-allocated keeps its identity.
+        masterId: product.masterId || (product.id?.match(/^(PROD\d+)/i) || [])[1],
         name: product.displayName || product.name,
         description: product.genericName || product.description,
         ndc: product.ndc,
@@ -523,10 +526,29 @@ export const useInventoryState = () => {
                 if (bin.id === binId) {
                   // Convert unallocated products to Product format and add to bin
                   const newProducts: Product[] = selectedProductsData.map(unallocProduct => {
-                    // CRITICAL FIX: Persist master product ID to bins so replenishment logic can detect assignment
-                    const master = pharmaceuticalProducts.find(mp => 
-                      mp.ndc === unallocProduct.ndc || mp.displayName === unallocProduct.name
-                    );
+                    // Persist the master product ID into the bin product's id, so
+                    // ProductDataService can resolve it back to the catalogue.
+                    //
+                    // Prefer the id the tray carried through. The old lookup matched
+                    // `ndc === ndc || displayName === name`, and several masters share a
+                    // display name while differing by NDC — two "MESNA 1 GRAM/10 ML VIAL",
+                    // two "VYLOY 100 MG VIAL". `find` returned whichever came first in the
+                    // array, so a name match could win over the correct NDC match and the
+                    // bin product got stamped with the WRONG master's id. Everything that
+                    // resolves through that id then reported the wrong NDC, so search
+                    // grouped the product under a different NDC than the bin displayed and
+                    // the freshly allocated bin never matched or highlighted. It hit 3 of
+                    // the 8 tray products.
+                    //
+                    // The fallbacks stay narrow: exact match on both fields, then NDC
+                    // (unique enough to identify a product), and only then name.
+                    const master = unallocProduct.masterId
+                      ? pharmaceuticalProducts.find(mp => mp.id === unallocProduct.masterId)
+                      : pharmaceuticalProducts.find(mp =>
+                          mp.ndc === unallocProduct.ndc && mp.displayName === unallocProduct.name
+                        ) ||
+                        pharmaceuticalProducts.find(mp => mp.ndc === unallocProduct.ndc) ||
+                        pharmaceuticalProducts.find(mp => mp.displayName === unallocProduct.name);
                     const masterId = master ? master.id : undefined;
                     const generatedId = masterId ? `${masterId}_${Date.now()}` : unallocProduct.id;
                     return {

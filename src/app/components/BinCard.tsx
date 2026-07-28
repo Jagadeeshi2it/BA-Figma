@@ -1,6 +1,6 @@
 import React from 'react';
 import { Bin } from '../types';
-import { highlightText, highlightNDC } from '../utils/textHighlight';
+import { highlightText, highlightNDC, doesProductMatchSearch } from '../utils/textHighlight';
 
 // Simple string hash so each badge's random-looking assignment stays stable across
 // re-renders (same product always gets the same result) instead of flipping every render.
@@ -125,9 +125,26 @@ export default function BinCard({
   const doorNumber = selectedDoor ? selectedDoor.replace('Door ', '') : '';
   const shouldLimit = doorNumber && doorsWithLimiting.includes(doorNumber) && bin.size !== 'fridge';
 
-  const visibleProducts = shouldLimit && consolidatedProducts.length > 3 
-    ? consolidatedProducts.slice(0, 3) 
-    : consolidatedProducts;
+  // Products matching the active search are floated to the front, and the visible
+  // window grows to fit all of them. Without this a searched-for product sitting at
+  // index 4+ stays hidden behind "+N more": the bin lights up because
+  // binMatchesSearch looks at ALL its products, so the user is pointed at a bin and
+  // then can't see the thing they asked for. Non-matching products keep the 3-item
+  // cap, so a card only grows when it actually holds a match.
+  const visibleProducts = React.useMemo(() => {
+    if (!shouldLimit || consolidatedProducts.length <= 3) return consolidatedProducts;
+
+    const matches = searchQuery.trim()
+      ? consolidatedProducts.filter(product => doesProductMatchSearch(product, searchQuery))
+      : [];
+
+    if (matches.length === 0) return consolidatedProducts.slice(0, 3);
+
+    const matched = new Set(matches);
+    const rest = consolidatedProducts.filter(product => !matched.has(product));
+    return [...matches, ...rest].slice(0, Math.max(3, matches.length));
+  }, [consolidatedProducts, shouldLimit, searchQuery]);
+
   const additionalCount = consolidatedProducts.length - visibleProducts.length;
 
   const renderProduct = (product: any) => {
