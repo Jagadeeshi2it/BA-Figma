@@ -260,7 +260,9 @@ const emptyBin = (shelfId: string, index: number): Bin => ({
   size: 'single',
 });
 
-const hasProducts = (bin: Bin) => (bin.products?.length ?? 0) > 0;
+const productCount = (bin: Bin) => bin.products?.length ?? 0;
+const hasProducts = (bin: Bin) => productCount(bin) > 0;
+const area = (placement: Placement) => placement.width * placement.height;
 
 // Order bins so occupied ones claim placements first, then pad or trim to the
 // placement count. Trimming only ever discards EMPTY bins — an occupied bin is
@@ -350,12 +352,33 @@ const layoutShelf = (
   const bins = fitBinsToPlacements(shelf, placements.length);
   if (!bins) return shelf;
 
+  // Match the fullest bins to the largest footprints. A bin holding three or more
+  // products needs the room — in a 1x1 the names wrap and the quantity badges
+  // crowd each other — while a single-product bin reads fine in one slot. This
+  // only re-pairs bins with SLOTS: no product moves between bins, and no
+  // quantity changes.
+  const byLoad = [...bins].sort((a, b) => productCount(b) - productCount(a));
+
+  const largestFirst = placements
+    .map((placement, index) => ({ placement, index }))
+    .sort((a, b) => area(b.placement) - area(a.placement));
+
+  const binForPlacement = new Map<number, Bin>();
+  largestFirst.forEach((entry, rank) => binForPlacement.set(entry.index, byLoad[rank]));
+
+  // Emit in reading order (top row first, then left to right) so the Bin A/B/C
+  // letters follow the physical layout, and so single doors — which have no
+  // gridPosition to position them — come out in the right column order.
+  const readingOrder = placements
+    .map((placement, index) => ({ placement, index }))
+    .sort((a, b) => a.placement.y - b.placement.y || a.placement.x - b.placement.x);
+
   return {
     ...shelf,
-    bins: bins.map((bin, index) => {
-      const { x, y, width, height } = placements[index];
+    bins: readingOrder.map((entry, index) => {
+      const { x, y, width, height } = entry.placement;
       return {
-        ...bin,
+        ...binForPlacement.get(entry.index)!,
         size: sizeForFootprint(width, height),
         // Single doors render from `size` alone (one row, no vertical spans), so
         // they intentionally keep gridPosition undefined.
