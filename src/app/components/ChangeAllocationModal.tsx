@@ -39,7 +39,6 @@ export default function ChangeAllocationModal({
   const [currentProductIndex, setCurrentProductIndex] = useState<number>(0);
 
   const targetBin = targetBins[currentTargetBinIndex] || null;
-  const sourceBin = sourceBins[currentSourceBinIndex] || null;
 
   // Cheap check first — bin products already carry name/ndc/inventoryType; only fall back to the
   // service lookup (which warns on misses) when the raw row doesn't match.
@@ -58,6 +57,27 @@ export default function ChangeAllocationModal({
     );
     return hasMatch ? query : null;
   }, [sourceProductQuery, sourceBins]);
+
+  // Bins worth paging through. Source bins can be a mix — hand-picked ones plus the ones a search
+  // pick added — and under a focus the hand-picked ones may hold none of the focused product. Those
+  // pages would be dead ends ("Product Not In This Bin"), so keep them out of the pager: select 6
+  // bins, then pick keytruda from search, and this shows the 2 bins that actually stock it. The
+  // focusedQuery invariant guarantees at least one bin survives.
+  const visibleSourceBins = useMemo(() => {
+    if (!focusedQuery) return sourceBins;
+    return sourceBins.filter(bin =>
+      bin.products.some(product => productMatchesQuery(product, focusedQuery))
+    );
+  }, [sourceBins, focusedQuery]);
+
+  const sourceBin = visibleSourceBins[currentSourceBinIndex] || null;
+
+  // Narrowing can leave fewer bins than the page the user was on.
+  useEffect(() => {
+    if (currentSourceBinIndex > 0 && currentSourceBinIndex >= visibleSourceBins.length) {
+      setCurrentSourceBinIndex(0);
+    }
+  }, [currentSourceBinIndex, visibleSourceBins.length]);
 
   // Calculate remaining/available quantities for each product (used for validation and display)
   const currentSourceBinAvailableQuantities = useMemo(() => {
@@ -86,7 +106,7 @@ export default function ChangeAllocationModal({
 
   // Detect products that exist across multiple source bins for product-centric view
   const productsAcrossMultipleBins = useMemo(() => {
-    if (sourceBins.length <= 1) return [];
+    if (visibleSourceBins.length <= 1) return [];
     
     // Group products by name, NDC, and inventory type
     const productMap = new Map<string, {
@@ -100,7 +120,7 @@ export default function ChangeAllocationModal({
       }>;
     }>();
     
-    sourceBins.forEach(bin => {
+    visibleSourceBins.forEach(bin => {
       bin.products.forEach(product => {
         const enhancedProduct = productDataService.enhanceProduct(product);
         const key = `${enhancedProduct.name}|${enhancedProduct.ndc}|${enhancedProduct.inventoryType}`;
@@ -150,7 +170,7 @@ export default function ChangeAllocationModal({
     }
 
     return multiBindProducts;
-  }, [sourceBins, isTargetEmergencyKit, doorShelfConfig, focusedQuery]);
+  }, [visibleSourceBins, isTargetEmergencyKit, doorShelfConfig, focusedQuery]);
 
   // A narrowed focus can leave fewer products than the index the user had paged to.
   useEffect(() => {
@@ -160,8 +180,8 @@ export default function ChangeAllocationModal({
   }, [currentProductIndex, productsAcrossMultipleBins.length]);
 
   useEffect(() => {
-    if (open && sourceBins.length > 0) {
-      const sourceBin = sourceBins[0]; // Use the first source bin initially
+    if (open && visibleSourceBins.length > 0) {
+      const sourceBin = visibleSourceBins[0]; // Use the first source bin initially
       const initialQuantities = sourceBin.products.map(product => ({
         productId: product.id,
         quantity: product.quantity, // Default to full quantity for easy moving
@@ -176,11 +196,11 @@ export default function ChangeAllocationModal({
       setCurrentSourceBinIndex(0);
       setCurrentProductIndex(0);
     }
-  }, [open, sourceBins]);
+  }, [open, visibleSourceBins]);
 
   // Update quantities when source bin changes - default to available quantity
   useEffect(() => {
-    if (sourceBin && sourceBins.length > 1) {
+    if (sourceBin && visibleSourceBins.length > 1) {
       // Set move quantities to available quantity for easy moving
       const newQuantities = sourceBin.products.map(product => {
         // Find how much has been moved from this bin already
@@ -238,7 +258,7 @@ export default function ChangeAllocationModal({
   };
 
   const goToNextSourceBin = () => {
-    if (currentSourceBinIndex < sourceBins.length - 1) {
+    if (currentSourceBinIndex < visibleSourceBins.length - 1) {
       setCurrentSourceBinIndex(currentSourceBinIndex + 1);
     }
   };
@@ -822,10 +842,10 @@ export default function ChangeAllocationModal({
                         </div>
                       </div>
                       
-                      {sourceBins.length > 1 && (
+                      {visibleSourceBins.length > 1 && (
                         <div className="flex items-center gap-3">
                           <span className="text-sm text-gray-600">
-                            {currentSourceBinIndex + 1} of {sourceBins.length}
+                            {currentSourceBinIndex + 1} of {visibleSourceBins.length}
                           </span>
                           <div className="flex items-center gap-1">
                             <div 
@@ -836,8 +856,8 @@ export default function ChangeAllocationModal({
                               <ChevronLeft className="w-4 h-4 text-[#095192]" />
                             </div>
                             <div 
-                              className={`bg-white relative rounded-[4px] h-8 w-8 flex items-center justify-center ${currentSourceBinIndex === sourceBins.length - 1 ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
-                              onClick={currentSourceBinIndex === sourceBins.length - 1 ? undefined : goToNextSourceBin}
+                              className={`bg-white relative rounded-[4px] h-8 w-8 flex items-center justify-center ${currentSourceBinIndex === visibleSourceBins.length - 1 ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
+                              onClick={currentSourceBinIndex === visibleSourceBins.length - 1 ? undefined : goToNextSourceBin}
                             >
                               <div aria-hidden="true" className="absolute border border-[#095192] border-solid inset-0 pointer-events-none rounded-[4px]" />
                               <ChevronRight className="w-4 h-4 text-[#095192]" />

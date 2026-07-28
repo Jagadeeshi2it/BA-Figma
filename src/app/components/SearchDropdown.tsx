@@ -136,18 +136,29 @@ const SearchDropdown = memo(function SearchDropdown({
   // so the "Select All" count should reflect what's actually being selected.
   const totalBinCount = new Set(visibleResults.flatMap(getBinIdsForProduct)).size;
 
+  // Nothing left to offer means every match is already in the selection — name them, so the user
+  // can see the product was found rather than reading the empty list as "not stocked".
+  const names = [...new Set(searchResults.map(result => result.name))];
+  const alreadySelectedMessage = names.length <= 3
+    ? `Already selected: ${names.join(', ')}`
+    : `Already selected: ${names.slice(0, 3).join(', ')} and ${names.length - 3} more`;
+
   return (
     <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-[#bcc3cd] rounded-[4px] shadow-lg z-[60] max-h-96 overflow-y-auto">
       <div className="p-3">
         <div className="flex flex-col font-normal justify-center leading-[0] not-italic relative shrink-0 text-[#9fa9b7] text-xs text-left mb-3">
           <p className="block leading-[16px] text-[14px]">
-            Found {visibleResults.length} matching product{visibleResults.length !== 1 ? 's' : ''}
+            {/* The product WAS found — every bin holding it is just already picked, so there is
+                nothing left to select. Saying "0 matching products" read as "this drug isn't here". */}
+            {visibleResults.length === 0 && searchResults.length > 0
+              ? `Found ${searchResults.length} matching product${searchResults.length !== 1 ? 's' : ''}, none left to add`
+              : `Found ${visibleResults.length} matching product${visibleResults.length !== 1 ? 's' : ''}`}
           </p>
         </div>
 
         {visibleResults.length === 0 ? (
           <div className="text-[13px] text-[#64748b] text-center py-2">
-            {changeAllocationMode ? 'All matching bins are already selected.' : "You've viewed all matching products."}
+            {changeAllocationMode ? alreadySelectedMessage : "You've viewed all matching products."}
           </div>
         ) : (
         <>

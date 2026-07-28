@@ -1,5 +1,11 @@
 import React from 'react';
 
+// Escape every regex metacharacter in a search term before it goes into an alternation. Product
+// names really do contain them — "ALBURX (HUMAN) 25% VIAL 25GM/100ML" — and unescaped parentheses
+// become a capture group, which makes String.split emit `undefined` for the group that didn't
+// participate in the match. That undefined then hit .toLowerCase() and crashed the page.
+const escapeRegExp = (term: string): string => term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 // A query is one or more "|"-separated OR-groups, each an AND'd set of comma-separated terms —
 // same convention as productMatchesQuery/binMatchesSearch. Returns the original-case terms of
 // the first group this product satisfies (so callers can highlight exactly those terms, not the
@@ -68,22 +74,20 @@ export const highlightText = (
     .filter(term => term.length > 0);
 
   // Create a single regex pattern that matches any of the search terms
-  const escapedTerms = searchTerms.map(term => 
-    term.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&')
-  );
-  
+  const escapedTerms = searchTerms.map(escapeRegExp);
+
   // Create regex for case-insensitive matching of any term
   const regex = new RegExp(`(${escapedTerms.join('|')})`, 'gi');
-  
+
   // Split the text by any matching search term
   const parts = text.split(regex);
-  
+
   return parts.map((part, index) => {
     // Check if this part matches any search term (case-insensitive)
-    const isMatch = searchTerms.some(term => 
+    const isMatch = typeof part === 'string' && searchTerms.some(term =>
       part.toLowerCase() === term.toLowerCase()
     );
-    
+
     if (isMatch) {
       return (
         <span
@@ -142,22 +146,20 @@ export const highlightNDC = (
   const allTerms = searchTerms.map(term => term.toLowerCase());
 
   // Create a single regex pattern that matches any of the numeric search terms
-  const escapedTerms = allTerms.map(term => 
-    term.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&')
-  );
-  
+  const escapedTerms = allTerms.map(escapeRegExp);
+
   // Create regex for case-insensitive matching of any numeric term
   const regex = new RegExp(`(${escapedTerms.join('|')})`, 'gi');
-  
+
   // Split the entire text by any matching search term
   const parts = ndcText.split(regex);
-  
+
   return parts.map((part, index) => {
     // Check if this part matches any search term (case-insensitive)
-    const isMatch = allTerms.some(term => 
+    const isMatch = typeof part === 'string' && allTerms.some(term =>
       part.toLowerCase() === term.toLowerCase()
     );
-    
+
     if (isMatch) {
       return (
         <span

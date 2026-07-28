@@ -27,6 +27,16 @@ const resolveProductName = (productId: string, doorShelfConfig: DoorShelfConfig)
   };
 };
 
+// Add one product's AND-group to a query without dropping what's already there. "|" means OR in
+// this grammar, so appending widens the match instead of replacing it — picking a second product
+// during change allocation has to keep the first one highlighted and in scope.
+const appendQueryGroup = (previous: string, incoming: string): string => {
+  const group = incoming.trim();
+  if (!group) return previous;
+  const groups = previous ? previous.split('|').map(part => part.trim()).filter(Boolean) : [];
+  return groups.includes(group) ? previous : [...groups, group].join(' | ');
+};
+
 export const useInventoryState = () => {
   const [selectedCabinet, setSelectedCabinet] = useState<string>("Cabinet 1");
   const [selectedDoor, setSelectedDoor] = useState<string>("Door 1");
@@ -235,11 +245,13 @@ export const useInventoryState = () => {
 
   const handleSearchQueryChange = useCallback((query: string) => {
     setSearchQuery(query);
-    // Clear selected search query when user types to prevent highlighting while typing
-    if (query !== selectedSearchQuery) {
+    // Clear selected search query when user types to prevent highlighting while typing.
+    // Not in change allocation mode: there the highlight marks products already committed to the
+    // selection, so typing a new term must not erase what the user has picked so far.
+    if (query !== selectedSearchQuery && !changeAllocationMode) {
       setSelectedSearchQuery("");
     }
-  }, [selectedSearchQuery]);
+  }, [selectedSearchQuery, changeAllocationMode]);
 
   // A completed transaction ends the task the search was serving, so the home page should come
   // back clean. Both channels have to go: the typed query (still sitting in the search box) and
@@ -388,16 +400,12 @@ export const useInventoryState = () => {
     // Selecting straight from the "Select as Source" button skips the card's own onClick
     // (stopPropagation), so without this the product row never gets highlighted. Only the
     // dedicated highlight channel is set here — leaving the typed searchQuery alone means
-    // the dropdown's own result list keeps showing whatever else still matches.
+    // the dropdown's own result list keeps showing whatever else still matches. Both channels
+    // append: picking a second product adds to the selection, so replacing the query would
+    // un-highlight the first product while its bins stay selected.
     if (highlightQuery) {
-      setSelectedSearchQuery(highlightQuery);
-      // Accumulate as "|"-separated OR-groups (the query grammar already means OR across "|"),
-      // so picking a second product as source widens the focus rather than replacing the first.
-      setChangeAllocationSourceQuery(prev => {
-        const groups = prev ? prev.split('|').map(group => group.trim()).filter(Boolean) : [];
-        const incoming = highlightQuery.trim();
-        return groups.includes(incoming) ? prev : [...groups, incoming].join(' | ');
-      });
+      setSelectedSearchQuery(prev => appendQueryGroup(prev, highlightQuery));
+      setChangeAllocationSourceQuery(prev => appendQueryGroup(prev, highlightQuery));
     }
   }, [doorShelfConfig]);
 
@@ -413,8 +421,9 @@ export const useInventoryState = () => {
       return newSelection;
     });
 
+    // Same as the source handler: append so each target pick adds to the highlight.
     if (highlightQuery) {
-      setSelectedSearchQuery(highlightQuery);
+      setSelectedSearchQuery(prev => appendQueryGroup(prev, highlightQuery));
     }
   }, [changeAllocationSourceBins]);
 
@@ -427,9 +436,14 @@ export const useInventoryState = () => {
 
     // Only the highlight channel narrows to this exact product — leaving the typed
     // searchQuery untouched keeps the dropdown's own result list showing the rest of the matches.
-    setSelectedSearchQuery(specificQuery);
+    // In view mode this replaces the previous pick (one product is "the" selection at a time), but
+    // during change allocation it appends: the highlight there also marks products already added to
+    // the selection, and a preview click must not blank them out.
+    setSelectedSearchQuery(prev =>
+      changeAllocationMode ? appendQueryGroup(prev, specificQuery) : specificQuery
+    );
     console.log(`Search query set to specific product: "${specificQuery}" for ${productName} (NDC: ${ndc}, Type: ${inventoryType})`);
-  }, []);
+  }, [changeAllocationMode]);
 
   // CRITICAL FIX: Function to add products back to unallocated list (for future use)
   const addProductsToUnallocated = (products: any[]) => {
