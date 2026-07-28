@@ -6,7 +6,6 @@ import Sidebar from "./Sidebar";
 import TopNav from "./TopNav";
 import { emergencyKitService } from '../services/EmergencyKitService';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "./ui/dialog";
-import { AlertTriangle } from "lucide-react";
 
 // E-Kit Icon Component - Inline SVG
 const EkitIcon: React.FC = () => {
@@ -115,7 +114,11 @@ const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
 
   // Generate items based on product quantity
   const generateItems = () => {
-    const quantity = parseInt(product.quantity.toString()) || 1;
+    // `|| 1` here used to turn a zero quantity into one item, because parseInt('0')
+    // is falsy — so a product with no inventory still listed a serial. A freshly
+    // allocated product sits at 0 until it's restocked, so that was the common case.
+    const parsedQuantity = parseInt(String(product.quantity ?? ''), 10);
+    const quantity = Number.isNaN(parsedQuantity) ? 0 : Math.max(0, parsedQuantity);
     const items = [];
     
     for (let i = 0; i < quantity; i++) {
@@ -330,6 +333,16 @@ const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
                 <td className="px-4 pt-4 pb-[16.556px] border-b-[0.556px] border-[#e0e0e0] w-[163px]"></td>
               </tr>
 
+              {/* A product with no inventory has no serialised items to list — say so
+                  rather than leaving bare column headers over an empty table. */}
+              {generatedItems.length === 0 && (
+                <tr className="bg-white">
+                  <td colSpan={6} className="p-8 text-center text-[14px] text-[#6b7280]">
+                    No items in stock. This product is allocated to the bin but has no inventory yet.
+                  </td>
+                </tr>
+              )}
+
               {/* Data Rows */}
               {generatedItems.map((item, index) => (
                 <tr key={index} className="bg-white h-[49px]">
@@ -400,38 +413,32 @@ const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
         </div>
       </div>
 
-      {/* Confirmation Modal */}
+      {/* Confirmation Modal — plain title, body copy, then a pair of actions bottom
+          right: outlined secondary alongside a solid primary, both uppercase. No
+          warning icon and no note callout. */}
       <Dialog open={showConfirmModal} onOpenChange={setShowConfirmModal}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <div className="flex items-center gap-3 mb-2">
-              <div className="bg-orange-100 p-2 rounded-full">
-                <AlertTriangle className="w-6 h-6 text-orange-600" />
-              </div>
-              <DialogTitle className="text-xl">Confirm Unallocation</DialogTitle>
-            </div>
-            <DialogDescription className="text-base mt-2">
-              Are you sure you want to unallocate <strong>{product.name}</strong> from bin <strong>{location?.bin}</strong>?
+        <DialogContent className="max-w-lg p-8 gap-0 rounded-lg">
+          <DialogHeader className="space-y-4">
+            <DialogTitle className="text-[24px] font-bold leading-[32px] text-[#1a1a1a] pr-8 text-left">
+              Unallocate this product?
+            </DialogTitle>
+            <DialogDescription className="text-[16px] leading-[24px] text-[#3f4448] text-left">
+              This removes <strong className="font-semibold">{product.name}</strong> from bin{' '}
+              <strong className="font-semibold">{location?.bin}</strong> entirely. You can reallocate it later if needed.
             </DialogDescription>
           </DialogHeader>
 
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 my-4">
-            <p className="text-sm text-blue-900">
-              <strong>Note:</strong> This will remove the product from the bin entirely. You can reallocate it later if needed.
-            </p>
-          </div>
-
-          <div className="flex justify-end gap-3 mt-4">
+          <div className="flex justify-end gap-3 mt-10">
             <Button
               onClick={() => setShowConfirmModal(false)}
               variant="outline"
-              className="px-6"
+              className="h-[44px] px-6 rounded-[4px] border border-[#095192] bg-white text-[#095192] hover:bg-[#095192]/5 hover:text-[#095192] text-[15px] font-medium tracking-wide uppercase"
             >
-              Cancel
+              Keep Product
             </Button>
             <Button
               onClick={handleConfirmUnallocate}
-              className="bg-red-600 hover:bg-red-700 text-white px-6"
+              className="h-[44px] px-6 rounded-[4px] bg-[#095192] hover:bg-[#073e70] text-white text-[15px] font-medium tracking-wide uppercase"
             >
               Unallocate
             </Button>

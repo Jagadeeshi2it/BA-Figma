@@ -18,6 +18,10 @@ interface ShelvesSectionProps {
   showUnallocatedProducts: boolean;
   onBinClick: (binId: string, doorKey: string) => void;
   onProductClick: (product: any, location: any) => void;
+  // "All products" modal state is owned by App so it outlives the product detail page.
+  allProductsBinId?: string | null;
+  onOpenAllProducts?: (binId: string) => void;
+  onCloseAllProducts?: () => void;
 }
 
 export default function ShelvesSection({
@@ -35,7 +39,10 @@ export default function ShelvesSection({
   changeAllocationTargetBins,
   showUnallocatedProducts,
   onBinClick,
-  onProductClick
+  onProductClick,
+  allProductsBinId = null,
+  onOpenAllProducts,
+  onCloseAllProducts,
 }: ShelvesSectionProps) {
   return (
     <div className="space-y-8">
@@ -61,6 +68,9 @@ export default function ShelvesSection({
               showUnallocatedProducts={showUnallocatedProducts}
               onBinClick={onBinClick}
               onProductClick={onProductClick}
+              allProductsBinId={allProductsBinId}
+              onOpenAllProducts={onOpenAllProducts}
+              onCloseAllProducts={onCloseAllProducts}
             />
           </div>
         ))
@@ -96,6 +106,9 @@ export default function ShelvesSection({
               showUnallocatedProducts={showUnallocatedProducts}
               onBinClick={onBinClick}
               onProductClick={onProductClick}
+              allProductsBinId={allProductsBinId}
+              onOpenAllProducts={onOpenAllProducts}
+              onCloseAllProducts={onCloseAllProducts}
             />
           </div>
         ))

@@ -178,11 +178,19 @@ export default function App() {
     console.log("Logout clicked");
   }, []);
 
+  // Which bin's "All Products" modal is open. Held here rather than inside BinCard
+  // because opening a product from that modal renders ProductDetailPage in place of
+  // the whole shelf layout — BinCard unmounts, so local state would be lost and Back
+  // would land the user on the shelf page instead of the modal they came from.
+  const [allProductsBinId, setAllProductsBinId] = useState<string | null>(null);
+
   // Handle product click for product detail page
   const handleProductClick = useCallback((product: any, location: any) => {
     setSelectedProduct(product);
     setProductLocation(location);
     setShowProductDetail(true);
+    // allProductsBinId is intentionally left alone: if the product was opened from a
+    // bin's modal, that id stays set and the modal reappears when the user goes back.
   }, []);
 
   // Handle back from product detail page
@@ -603,6 +611,9 @@ export default function App() {
           />
 
           <ShelvesSection
+            allProductsBinId={allProductsBinId}
+            onOpenAllProducts={setAllProductsBinId}
+            onCloseAllProducts={() => setAllProductsBinId(null)}
             currentShelves={currentShelves}
             searchQuery={inventoryState.selectedSearchQuery}
             searchMatchCount={searchMatchCount}

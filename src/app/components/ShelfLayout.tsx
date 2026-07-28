@@ -27,6 +27,9 @@ interface ShelfLayoutProps {
   showUnallocatedProducts?: boolean;
   onBinClick: (binId: string) => void;
   onProductClick?: (product: any, location: any) => void;
+  allProductsBinId?: string | null;
+  onOpenAllProducts?: (binId: string) => void;
+  onCloseAllProducts?: () => void;
 }
 
 export default function ShelfLayout({
@@ -43,7 +46,10 @@ export default function ShelfLayout({
   changeAllocationTargetBins = [],
   showUnallocatedProducts = false,
   onBinClick,
-  onProductClick
+  onProductClick,
+  allProductsBinId = null,
+  onOpenAllProducts,
+  onCloseAllProducts
 }: ShelfLayoutProps) {
 
   // Render a slotted grid shelf: double doors are 2 rows x 5 cols, bottom doors 5x5.
@@ -79,6 +85,9 @@ export default function ShelfLayout({
                   showUnallocatedProducts={showUnallocatedProducts}
                   onClick={onBinClick}
                   onProductClick={onProductClick}
+                  allProductsBinId={allProductsBinId}
+                  onOpenAllProducts={onOpenAllProducts}
+                  onCloseAllProducts={onCloseAllProducts}
                   selectedDoor={selectedDoor}
                   searchQuery={searchQuery}
                   style={{
@@ -110,6 +119,9 @@ export default function ShelfLayout({
             showUnallocatedProducts={showUnallocatedProducts}
             onClick={onBinClick}
             onProductClick={onProductClick}
+            allProductsBinId={allProductsBinId}
+            onOpenAllProducts={onOpenAllProducts}
+            onCloseAllProducts={onCloseAllProducts}
             selectedDoor={selectedDoor}
             searchQuery={searchQuery}
             // Virtual-cabinet bins hug their contents: no height at all, so the card is as tall
@@ -140,6 +152,9 @@ export default function ShelfLayout({
             showUnallocatedProducts={showUnallocatedProducts}
             onClick={onBinClick}
             onProductClick={onProductClick}
+            allProductsBinId={allProductsBinId}
+            onOpenAllProducts={onOpenAllProducts}
+            onCloseAllProducts={onCloseAllProducts}
             selectedDoor={selectedDoor}
             searchQuery={searchQuery}
             style={{
@@ -183,6 +198,9 @@ export default function ShelfLayout({
           showUnallocatedProducts={showUnallocatedProducts}
           onClick={onBinClick}
           onProductClick={onProductClick}
+          allProductsBinId={allProductsBinId}
+          onOpenAllProducts={onOpenAllProducts}
+          onCloseAllProducts={onCloseAllProducts}
           selectedDoor={selectedDoor}
           searchQuery={searchQuery}
           className={bin.size === 'double' ? 'col-span-2' : 'col-span-1'}

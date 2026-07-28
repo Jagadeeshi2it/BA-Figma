@@ -41,6 +41,10 @@ interface BinCardProps {
   showUnallocatedProducts?: boolean;
   onClick: (binId: string) => void;
   onProductClick?: (product: any, location: any) => void;
+  // "All products" modal state lives in App so it survives the product detail page.
+  allProductsBinId?: string | null;
+  onOpenAllProducts?: (binId: string) => void;
+  onCloseAllProducts?: () => void;
   className?: string;
   style?: React.CSSProperties;
   selectedDoor?: string;
@@ -59,12 +63,21 @@ export default function BinCard({
   showUnallocatedProducts = false,
   onClick,
   onProductClick,
+  allProductsBinId = null,
+  onOpenAllProducts,
+  onCloseAllProducts,
   className = "",
   style,
   selectedDoor,
   searchQuery = ""
 }: BinCardProps) {
-  const [showAllProducts, setShowAllProducts] = React.useState(false);
+  // Owned by App, not local state. Opening a product from this modal navigates to
+  // the product detail page, which replaces the whole layout — so BinCard unmounts
+  // and local state would be gone by the time the user comes back, dropping them on
+  // the shelf page instead of the modal they opened the product from.
+  const showAllProducts = allProductsBinId === bin.id;
+  const setShowAllProducts = (open: boolean) =>
+    open ? onOpenAllProducts?.(bin.id) : onCloseAllProducts?.();
   const popoverRef = React.useRef<HTMLDivElement>(null);
 
   // Convert bin size to numerical format
@@ -164,10 +177,11 @@ export default function BinCard({
             bin: bin.name,
             shelf: 'Shelf'
           };
+          // Deliberately leave the "all products" modal open. The detail page
+          // unmounts this card, and App still holds the open-bin id, so pressing
+          // Back returns the user to the modal they picked the product from
+          // rather than dumping them on the shelf page.
           onProductClick(product, location);
-          if (showAllProducts) {
-            setShowAllProducts(false);
-          }
         } : undefined}
       >
         <div className="flex-1 box-border content-stretch flex flex-col gap-0.5 items-start justify-start min-w-0 p-0 relative">
