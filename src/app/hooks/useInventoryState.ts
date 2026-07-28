@@ -233,6 +233,14 @@ export const useInventoryState = () => {
     }
   }, [selectedSearchQuery]);
 
+  // A completed transaction ends the task the search was serving, so the home page should come
+  // back clean. Both channels have to go: the typed query (still sitting in the search box) and
+  // the highlight-only one (still tinting the bin and product the user was working from).
+  const clearProductSearch = useCallback(() => {
+    setSearchQuery("");
+    setSelectedSearchQuery("");
+  }, []);
+
   const handleUnallocatedProductsClick = () => {
     // CRITICAL FIX: Toggle behavior - if already open, close it; if closed, open it
     if (showUnallocatedProducts) {
@@ -570,6 +578,7 @@ export const useInventoryState = () => {
       });
       setSelectedUnallocatedProducts([]);
       setSelectedBinsForAssignment([]);
+      clearProductSearch();
     }
   };
 
@@ -1398,7 +1407,8 @@ export const useInventoryState = () => {
     setChangeAllocationMode(false);
     setChangeAllocationSourceBins([]);
     setChangeAllocationTargetBins([]);
-    
+    clearProductSearch();
+
     // CRITICAL: Detect zero-quantity products in source bins after move
     // Use setTimeout to ensure state has updated before checking
     setTimeout(() => {

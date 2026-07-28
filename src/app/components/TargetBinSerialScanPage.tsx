@@ -588,23 +588,46 @@ export default function TargetBinSerialScanPage({
           serialScanningRequired
         });
         
-        // CRITICAL FIX: Create ONE consolidated transfer per target bin
-        // Instead of creating multiple transfers (one per source), consolidate them
+        // One transfer per SOURCE bin — NOT one consolidated transfer per target bin.
+        // Collapsing them onto targetBin.transfers[0] billed the whole target quantity to the
+        // first source bin (driving it negative) and left every other source bin untouched, so
+        // no source ever landed on exactly 0 and the zero-quantity unallocate prompt never fired.
+        // Downstream (doorShelfConfig debit, history sourceBins) needs the per-bin split intact.
         if (targetBin.transfers.length > 0) {
-          const firstTransfer = targetBin.transfers[0];
-          
-          finalTransfers.push({
-            ...firstTransfer,
-            quantity: actualQuantityForThisTargetBin,  // Use actual quantity for this target
-            serialNumbers: serialNumbers
-          });
-          
-          console.log('📦 Final Transfer Created:', {
-            productId: firstTransfer.productId,
-            fromBinId: firstTransfer.fromBinId,
-            toBinId: firstTransfer.toBinId,
-            quantity: actualQuantityForThisTargetBin,
-            serialCount: serialNumbers.length
+          // Serials are scanned per target bin, not per source, so hand them out in order as
+          // each source's share is assigned.
+          let serialCursor = 0;
+          let remainingToAssign = actualQuantityForThisTargetBin;
+
+          targetBin.transfers.forEach((sourceTransfer, sourceIndex) => {
+            const isLastSource = sourceIndex === targetBin.transfers.length - 1;
+            const declaredQuantity = sourceTransfer.quantity || 0;
+            // Sources are consumed in the order they were added. The last one absorbs any
+            // difference between what the quantity step declared and what actually got
+            // scanned here, so the per-source quantities always sum to the real total.
+            const assignedQuantity = isLastSource
+              ? remainingToAssign
+              : Math.min(declaredQuantity, remainingToAssign);
+
+            remainingToAssign -= assignedQuantity;
+            if (assignedQuantity <= 0) return; // this source contributed nothing to this target
+
+            const assignedSerials = serialNumbers.slice(serialCursor, serialCursor + assignedQuantity);
+            serialCursor += assignedQuantity;
+
+            finalTransfers.push({
+              ...sourceTransfer,
+              quantity: assignedQuantity,
+              serialNumbers: assignedSerials
+            });
+
+            console.log('📦 Final Transfer Created:', {
+              productId: sourceTransfer.productId,
+              fromBinId: sourceTransfer.fromBinId,
+              toBinId: sourceTransfer.toBinId,
+              quantity: assignedQuantity,
+              serialCount: assignedSerials.length
+            });
           });
         }
       });

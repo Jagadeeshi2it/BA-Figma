@@ -244,9 +244,14 @@ export default function BinCard({
               </div>
             ) : (
               <>
+                {/* Both multi-column layouts use the same grid, but only the Emergency Kit one
+                    scrolls: its card height is fixed, so the grid has to stay inside it. Virtual
+                    (fridge) cards size to their contents, so an inner scroll there is wrong. */}
                 <div className={`box-border content-stretch pb-0 pt-0 px-0 relative shrink-0 w-full ${
-                  bin.size === 'fridge' || (selectedDoor && ['Door 17', 'Door 18', 'Door 19'].includes(selectedDoor)) 
-                    ? 'grid overflow-y-auto max-h-[700px] grid-cols-[repeat(auto-fit,minmax(320px,1fr))] gap-x-[60px] gap-y-3' 
+                  bin.size === 'fridge'
+                    ? 'grid grid-cols-[repeat(auto-fit,minmax(320px,1fr))] gap-x-[60px] gap-y-3'
+                    : selectedDoor && ['Door 17', 'Door 18', 'Door 19'].includes(selectedDoor)
+                    ? 'grid overflow-y-auto max-h-[700px] grid-cols-[repeat(auto-fit,minmax(320px,1fr))] gap-x-[60px] gap-y-3'
                     : 'flex flex-col gap-3'
                 }`}>
                   {visibleProducts.map(renderProduct)}

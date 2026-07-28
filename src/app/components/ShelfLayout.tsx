@@ -162,10 +162,10 @@ export default function ShelfLayout({
             onProductClick={onProductClick}
             selectedDoor={selectedDoor}
             searchQuery={searchQuery}
-            style={{
-              width: bin.style?.width || '100%',
-              height: bin.style?.height || '800px'
-            }}
+            // Virtual-cabinet bins hug their contents: no height at all, so the card is as tall
+            // as the products in it. A fixed height here made the product grid scroll inside the
+            // card; BinCard's own min-h-[140px] still keeps an empty bin from collapsing.
+            style={{ width: bin.style?.width || '100%' }}
           />
         ))}
       </div>
