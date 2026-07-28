@@ -657,6 +657,7 @@ export default function App() {
         sourceBins={getSourceBins}
         targetBins={getTargetBins}
         doorShelfConfig={inventoryState.doorShelfConfig}
+        sourceProductQuery={inventoryState.changeAllocationSourceQuery}
         onConfirmAllocation={handleChangeAllocationConfirm}
       />
 

@@ -49,6 +49,11 @@ export const useInventoryState = () => {
   const [changeAllocationTargetBins, setChangeAllocationTargetBins] = useState<string[]>([]);
   const [changeAllocationStep, setChangeAllocationStep] = useState<1 | 2>(1);
   const [showChangeAllocationModal, setShowChangeAllocationModal] = useState(false);
+  // The product(s) the user explicitly picked from the search bar while choosing SOURCE bins.
+  // Picking "Select as Source" for a product means the intent is to move THAT product, so the
+  // modal narrows its source panel to these instead of listing everything sharing those bins.
+  // Kept separate from selectedSearchQuery, which step 2 overwrites with the target product.
+  const [changeAllocationSourceQuery, setChangeAllocationSourceQuery] = useState<string>("");
   
   // State for zero-quantity products after change allocation
   const [zeroQuantityProducts, setZeroQuantityProducts] = useState<any[]>([]);
@@ -151,6 +156,9 @@ export const useInventoryState = () => {
               // Add this bin to source selection
               setChangeAllocationSourceBins(prev => [...prev, binId]);
             }
+            // Hand-picking bins means the selection is no longer purely "the product I searched
+            // for", so stop narrowing the modal's source panel to that product.
+            setChangeAllocationSourceQuery("");
           }
         } else if (changeAllocationStep === 2) {
           // Step 2: Select target bins (multiple allowed across any cabinet/door)
@@ -383,6 +391,13 @@ export const useInventoryState = () => {
     // the dropdown's own result list keeps showing whatever else still matches.
     if (highlightQuery) {
       setSelectedSearchQuery(highlightQuery);
+      // Accumulate as "|"-separated OR-groups (the query grammar already means OR across "|"),
+      // so picking a second product as source widens the focus rather than replacing the first.
+      setChangeAllocationSourceQuery(prev => {
+        const groups = prev ? prev.split('|').map(group => group.trim()).filter(Boolean) : [];
+        const incoming = highlightQuery.trim();
+        return groups.includes(incoming) ? prev : [...groups, incoming].join(' | ');
+      });
     }
   }, [doorShelfConfig]);
 
@@ -627,6 +642,7 @@ export const useInventoryState = () => {
     setSelectedBin(null);
     setShowUnallocatedProducts(false);
     setSelectedSearchQuery(""); // Clear search highlighting when entering change allocation mode
+    setChangeAllocationSourceQuery("");
   };
 
   const handleExitChangeAllocation = () => {
@@ -636,6 +652,7 @@ export const useInventoryState = () => {
     setChangeAllocationTargetBins([]);
     setShowChangeAllocationModal(false);
     setSelectedSearchQuery(""); // Clear search highlighting when exiting change allocation mode
+    setChangeAllocationSourceQuery("");
   };
 
   const handleNextStep = () => {
@@ -655,10 +672,12 @@ export const useInventoryState = () => {
     setChangeAllocationStep(1);
     setChangeAllocationSourceBins([]);
     setChangeAllocationTargetBins([]);
+    setChangeAllocationSourceQuery("");
   };
 
   const handleClearSourceBins = () => {
     setChangeAllocationSourceBins([]);
+    setChangeAllocationSourceQuery("");
   };
 
   const handleClearTargetBins = () => {
@@ -1509,6 +1528,7 @@ export const useInventoryState = () => {
     changeAllocationStep,
     changeAllocationSourceBins,
     changeAllocationTargetBins,
+    changeAllocationSourceQuery,
     showChangeAllocationModal,
     doorShelfConfig,
     unallocatedProducts, // CRITICAL FIX: Add unallocated products array

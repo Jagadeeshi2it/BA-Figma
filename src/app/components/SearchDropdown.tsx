@@ -18,9 +18,12 @@ interface SearchDropdownProps {
   onSelectTargetBins?: (binIds: string[], productName: string, highlightQuery?: string) => void;
   onProductClick?: (productName: string, ndc: string, inventoryType: string) => void;
   onProductsViewed?: (keys: string[]) => void;
-  // View mode only: jump the main view to wherever the just-picked product actually lives.
+  // Jump the main view to wherever the just-picked product actually lives.
   onDoorClick?: (doorName: string) => void;
   onScrollToBin?: (binId: string) => void;
+  // Bins already taken as source. During step 2 they can't become targets, so they're skipped
+  // when choosing which location to jump to.
+  sourceBinIds?: string[];
   onClose: () => void;
 }
 
@@ -40,6 +43,7 @@ const SearchDropdown = memo(function SearchDropdown({
   onProductsViewed,
   onDoorClick,
   onScrollToBin,
+  sourceBinIds = [],
   onClose
 }: SearchDropdownProps) {
   if (!isVisible || searchResults.length === 0) {
@@ -58,22 +62,33 @@ const SearchDropdown = memo(function SearchDropdown({
       .map(result => [result.name, result.ndc, result.inventoryType].filter(Boolean).join(', '))
       .join(' | ');
 
+  // Take the user to where the picked product actually lives. A product can span several bins and
+  // doors, so aim at one of them — the first, matching view mode. Step 2 skips locations already
+  // taken as source bins, since those are the ones that can't become targets.
+  const jumpToProduct = (result?: ProductSearchResult) => {
+    if (!result) return;
+    const selectable = changeAllocationMode && changeAllocationStep === 2
+      ? result.binLocations.filter(loc => !sourceBinIds.includes(loc.binId))
+      : result.binLocations;
+    const location = selectable[0] || result.binLocations[0];
+    if (!location) return;
+    onDoorClick?.(location.doorName);
+    onScrollToBin?.(location.binId);
+  };
+
   const handleProductClick = (result: ProductSearchResult) => {
     if (onProductClick) {
       // Don't close in change allocation mode - let user see the highlighted bins
       if (changeAllocationMode) {
         onProductClick(result.name, result.ndc, result.inventoryType);
+        jumpToProduct(result);
         return;
       }
       onProductClick(result.name, result.ndc, result.inventoryType);
       // Replaces (not adds to) the previous pick — switching products un-hides whatever
       // was selected before, since only one product is "the" selection at a time now.
       onProductsViewed?.([getResultKey(result)]);
-      const location = result.binLocations[0];
-      if (location) {
-        onDoorClick?.(location.doorName);
-        onScrollToBin?.(location.binId);
-      }
+      jumpToProduct(result);
       onClose();
     }
   };
@@ -93,6 +108,9 @@ const SearchDropdown = memo(function SearchDropdown({
       } else {
         onSelectTargetBins?.(allBinIds, productNames, highlightQuery);
       }
+      // Several products just got selected across who knows how many doors — land on the first
+      // one's bin so the selection isn't left off-screen.
+      jumpToProduct(visibleResults[0]);
       // Everything visible just got added — nothing left to show, so close instead of
       // leaving an empty dropdown hanging open.
       onClose();
@@ -105,11 +123,7 @@ const SearchDropdown = memo(function SearchDropdown({
     }
     // Replaces the previous pick, same as a single click — see handleProductClick.
     onProductsViewed?.(visibleResults.map(getResultKey));
-    const location = visibleResults[0]?.binLocations[0];
-    if (location) {
-      onDoorClick?.(location.doorName);
-      onScrollToBin?.(location.binId);
-    }
+    jumpToProduct(visibleResults[0]);
     onClose();
   };
 
@@ -201,6 +215,9 @@ const SearchDropdown = memo(function SearchDropdown({
                   } else {
                     onSelectTargetBins?.(binIds, result.name, highlightQuery);
                   }
+                  // Land on the bin that was just selected — the product may well live on a door
+                  // the user isn't looking at, and a selection they can't see is easy to lose track of.
+                  jumpToProduct(result);
                   // That was the last remaining match — nothing left to pick, so close.
                   if (visibleResults.length === 1) {
                     onClose();

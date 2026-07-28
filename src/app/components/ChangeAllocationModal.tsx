@@ -8,6 +8,7 @@ import SourceProductCard from "./SourceProductCard";
 import TargetProductCard from "./TargetProductCard";
 import ProductCentricCard from "./ProductCentricCard";
 import { formatBinLocation, getDoorName } from '../utils/changeAllocationUtils';
+import { doesProductMatchSearch } from '../utils/textHighlight';
 import { emergencyKitService } from '../services/EmergencyKitService';
 import { productDataService } from '../services/ProductDataService';
 import { toast } from "sonner@2.0.3";
@@ -26,6 +27,7 @@ export default function ChangeAllocationModal({
   sourceBins,
   targetBins,
   doorShelfConfig,
+  sourceProductQuery,
   onConfirmAllocation
 }: ChangeAllocationModalProps) {
   const [productMoveQuantities, setProductMoveQuantities] = useState<ProductMoveQuantity[]>([]);
@@ -38,6 +40,24 @@ export default function ChangeAllocationModal({
 
   const targetBin = targetBins[currentTargetBinIndex] || null;
   const sourceBin = sourceBins[currentSourceBinIndex] || null;
+
+  // Cheap check first — bin products already carry name/ndc/inventoryType; only fall back to the
+  // service lookup (which warns on misses) when the raw row doesn't match.
+  const productMatchesQuery = (product: any, query: string): boolean =>
+    doesProductMatchSearch(product, query) ||
+    doesProductMatchSearch(productDataService.enhanceProduct(product), query);
+
+  // Reaching this modal via the search bar's "Select as Source" means the user wants to move THAT
+  // product, so the source panel is narrowed to it. Only honour the query when it actually matches
+  // something in the source bins — otherwise a stale query would leave the panel empty.
+  const focusedQuery = useMemo(() => {
+    const query = sourceProductQuery?.trim();
+    if (!query) return null;
+    const hasMatch = sourceBins.some(bin =>
+      bin.products.some(product => productMatchesQuery(product, query))
+    );
+    return hasMatch ? query : null;
+  }, [sourceProductQuery, sourceBins]);
 
   // Calculate remaining/available quantities for each product (used for validation and display)
   const currentSourceBinAvailableQuantities = useMemo(() => {
@@ -103,17 +123,41 @@ export default function ChangeAllocationModal({
       });
     });
     
+    const allEntries = Array.from(productMap.values());
+
+    // Search-driven selection: only the products the user picked are in play.
+    if (focusedQuery) {
+      const picked = allEntries.filter(entry => doesProductMatchSearch(entry.product, focusedQuery));
+      // The panel renders EITHER this product view or the per-bin list, never both. So when any
+      // picked product falls short of the 3-location bar this view requires, hand the whole
+      // selection to the bin view. Two reasons: the short ones would otherwise be invisible and
+      // unmovable (pick all four "carboplatin" variants — three have one location each), and the
+      // bin view is the only one with the target-aware "Allocate only" / "Allocate & Move Qty"
+      // buttons, since ProductCentricCard is never told which target bin is showing.
+      const allQualify = picked.length > 0 && picked.every(entry => entry.binLocations.length > 2);
+      const focused = allQualify ? picked : [];
+      return isTargetEmergencyKit
+        ? focused.filter(entry => entry.product.inventoryType === 'Purchased')
+        : focused;
+    }
+
     // Filter to only products that exist in more than 2 bins (3 or more)
-    const multiBindProducts = Array.from(productMap.values())
-      .filter(entry => entry.binLocations.length > 2);
-    
+    const multiBindProducts = allEntries.filter(entry => entry.binLocations.length > 2);
+
     // If targeting Emergency Kit, filter to only Purchased inventory
     if (isTargetEmergencyKit) {
       return multiBindProducts.filter(entry => entry.product.inventoryType === 'Purchased');
     }
-    
+
     return multiBindProducts;
-  }, [sourceBins, isTargetEmergencyKit, doorShelfConfig]);
+  }, [sourceBins, isTargetEmergencyKit, doorShelfConfig, focusedQuery]);
+
+  // A narrowed focus can leave fewer products than the index the user had paged to.
+  useEffect(() => {
+    if (currentProductIndex > 0 && currentProductIndex >= productsAcrossMultipleBins.length) {
+      setCurrentProductIndex(0);
+    }
+  }, [currentProductIndex, productsAcrossMultipleBins.length]);
 
   useEffect(() => {
     if (open && sourceBins.length > 0) {
@@ -549,6 +593,11 @@ export default function ChangeAllocationModal({
       });
     }
 
+    // Search-driven selection: only the picked product is in scope for this move.
+    if (focusedQuery) {
+      products = products.filter(product => productMatchesQuery(product, focusedQuery));
+    }
+
     return products;
   };
 
@@ -801,6 +850,17 @@ export default function ChangeAllocationModal({
                 </div>
               </div>
               
+              {/* Explains why the source panel is narrowed — the user picked one product in search */}
+              {focusedQuery && (
+                <div className="bg-blue-50 border-b border-blue-200 px-[16px] py-[8px]">
+                  <div className="flex items-center">
+                    <p className="text-sm text-blue-900 font-medium text-left">
+                      Showing only the product you selected from search.
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {/* Emergency Kit Warning Message */}
               {isTargetEmergencyKit && (
                 <div className="bg-orange-50 border-b border-orange-200 px-[16px] py-[10px] py-[8px]">
@@ -830,15 +890,21 @@ export default function ChangeAllocationModal({
                     <div className="flex items-center justify-center h-32 text-gray-500">
                       <div className="text-center">
                         <div className="text-lg mb-2">
-                          {isTargetEmergencyKit ? "No Purchased Products Available" : "All Products Moved"}
+                          {isTargetEmergencyKit
+                            ? "No Purchased Products Available"
+                            : focusedQuery
+                              ? "Product Not In This Bin"
+                              : "All Products Moved"}
                         </div>
                         <div className="text-sm">
-                          {isTargetEmergencyKit 
-                            ? "Only Purchased inventory can be moved to Emergency Kit" 
-                            : "No more products available to move"
+                          {isTargetEmergencyKit
+                            ? "Only Purchased inventory can be moved to Emergency Kit"
+                            : focusedQuery
+                              ? "The product you selected isn't stocked in this bin"
+                              : "No more products available to move"
                           }
                         </div>
-                        {!isTargetEmergencyKit && (
+                        {!isTargetEmergencyKit && !focusedQuery && (
                           <div className="text-xs mt-1">Use "Move Back" to return products</div>
                         )}
                       </div>

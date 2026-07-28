@@ -136,6 +136,9 @@ export interface ChangeAllocationModalProps {
   sourceBins: Bin[];
   targetBins: Bin[];
   doorShelfConfig: DoorShelfConfig;
+  // Query describing the product(s) picked from the search bar when the source bins were chosen.
+  // When set, the source panel shows only those products — see changeAllocationSourceQuery.
+  sourceProductQuery?: string;
   onConfirmAllocation: (transfers: ProductTransfer[], serialNumbers?: { [transferId: string]: string[] }) => void;
 }
 

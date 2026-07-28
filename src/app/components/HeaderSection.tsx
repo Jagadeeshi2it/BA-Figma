@@ -218,6 +218,7 @@ const HeaderSection = memo(function HeaderSection({
               onProductsViewed={handleProductsViewed}
               onDoorClick={handleDoorClick}
               onScrollToBin={handleScrollToBin}
+              sourceBinIds={changeAllocationSourceBins}
               onClose={() => setShowSearchDropdown(false)}
             />
           </div>
