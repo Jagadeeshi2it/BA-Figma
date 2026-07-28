@@ -11,8 +11,15 @@ export interface MasterProduct {
 }
 
 // Real master catalog derived from the OCSRI bin-allocation data (see realData.ts).
-export { pharmaceuticalProducts, UNALLOCATED_RESERVE_IDS } from './realData';
-import { pharmaceuticalProducts, UNALLOCATED_RESERVE_IDS } from './realData';
+// The import stamps every product "Purchased", so inventory types are assigned here
+// instead (see utils/inventoryTypes). Every consumer of the master list — the
+// unallocated tray, ProductDataService, useInventoryState — reads it through this
+// module, so this is the only place the catalogue needs fixing up.
+export { UNALLOCATED_RESERVE_IDS } from './realData';
+import { pharmaceuticalProducts as importedProducts, UNALLOCATED_RESERVE_IDS } from './realData';
+import { withInventoryTypes } from '../utils/inventoryTypes';
+
+export const pharmaceuticalProducts = withInventoryTypes(importedProducts);
 
 
 // Utility function to create a Product from MasterProduct with quantity
