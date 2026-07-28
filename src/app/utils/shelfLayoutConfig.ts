@@ -68,95 +68,187 @@ const BOTTOM_SHELF_PLACEMENTS: Placement[] = [
   { x: 3, y: 3, width: 2, height: 2 }, // D — 2x2
 ];
 
-// Double doors tile 2 rows x 5 columns = 10 slots. The arrangement is chosen by
-// how many bins the shelf actually holds, so no bin is ever added or dropped to
-// make a layout fit. Each entry below sums to exactly 10 slots.
-const DOUBLE_SHELF_PLACEMENTS: Record<number, Placement[]> = {
-  // 2x3 + two stacked 1x2
+// Double doors tile 2 rows x 5 columns = 10 slots. Keyed by how many bins the
+// shelf actually holds, so no bin is ever added or dropped to make a layout fit.
+// Each bin count offers SEVERAL arrangements — the shelves of doors 2/3/6/7 have
+// near-identical bin counts, so a single arrangement per count would make every
+// shelf and every door look the same. Every entry sums to exactly 10 slots.
+const DOUBLE_SHELF_VARIANTS: Record<number, Placement[][]> = {
   3: [
-    { x: 0, y: 0, width: 3, height: 2 },
-    { x: 3, y: 0, width: 2, height: 1 },
-    { x: 3, y: 1, width: 2, height: 1 },
+    // 2x3 with two stacked 1x2 beside it
+    [
+      { x: 0, y: 0, width: 3, height: 2 },
+      { x: 3, y: 0, width: 2, height: 1 },
+      { x: 3, y: 1, width: 2, height: 1 },
+    ],
+    // ...and mirrored, 2x3 on the right
+    [
+      { x: 0, y: 0, width: 2, height: 1 },
+      { x: 0, y: 1, width: 2, height: 1 },
+      { x: 2, y: 0, width: 3, height: 2 },
+    ],
+    // Two 2x2 with a rotated 1x2 filling the last column
+    [
+      { x: 0, y: 0, width: 2, height: 2 },
+      { x: 2, y: 0, width: 2, height: 2 },
+      { x: 4, y: 0, width: 1, height: 2 },
+    ],
   ],
-  // 2x3 + 1x2 + two 1x1
   4: [
-    { x: 0, y: 0, width: 3, height: 2 },
-    { x: 3, y: 0, width: 2, height: 1 },
-    { x: 3, y: 1, width: 1, height: 1 },
-    { x: 4, y: 1, width: 1, height: 1 },
+    // 2x3 + 1x2 over two 1x1
+    [
+      { x: 0, y: 0, width: 3, height: 2 },
+      { x: 3, y: 0, width: 2, height: 1 },
+      { x: 3, y: 1, width: 1, height: 1 },
+      { x: 4, y: 1, width: 1, height: 1 },
+    ],
+    // ...mirrored, 2x3 on the right
+    [
+      { x: 0, y: 0, width: 2, height: 1 },
+      { x: 0, y: 1, width: 1, height: 1 },
+      { x: 1, y: 1, width: 1, height: 1 },
+      { x: 2, y: 0, width: 3, height: 2 },
+    ],
+    // Two 2x2 with a stacked pair of 1x1
+    [
+      { x: 0, y: 0, width: 2, height: 2 },
+      { x: 2, y: 0, width: 2, height: 2 },
+      { x: 4, y: 0, width: 1, height: 1 },
+      { x: 4, y: 1, width: 1, height: 1 },
+    ],
+    // 2x2 + two horizontal 1x2 + a rotated 1x2
+    [
+      { x: 0, y: 0, width: 2, height: 2 },
+      { x: 2, y: 0, width: 2, height: 1 },
+      { x: 2, y: 1, width: 2, height: 1 },
+      { x: 4, y: 0, width: 1, height: 2 },
+    ],
   ],
-  // Reference "shelf config 2": four horizontal 1x2 around one rotated 1x2
   5: [
-    { x: 0, y: 0, width: 2, height: 1 },
-    { x: 0, y: 1, width: 2, height: 1 },
-    { x: 2, y: 0, width: 1, height: 2 }, // rotated 1x2
-    { x: 3, y: 0, width: 2, height: 1 },
-    { x: 3, y: 1, width: 2, height: 1 },
+    // Reference "shelf config 2": four horizontal 1x2 around one rotated 1x2
+    [
+      { x: 0, y: 0, width: 2, height: 1 },
+      { x: 0, y: 1, width: 2, height: 1 },
+      { x: 2, y: 0, width: 1, height: 2 },
+      { x: 3, y: 0, width: 2, height: 1 },
+      { x: 3, y: 1, width: 2, height: 1 },
+    ],
+    // 2x3 with a 2x2 block of 1x1 beside it
+    [
+      { x: 0, y: 0, width: 3, height: 2 },
+      { x: 3, y: 0, width: 1, height: 1 },
+      { x: 4, y: 0, width: 1, height: 1 },
+      { x: 3, y: 1, width: 1, height: 1 },
+      { x: 4, y: 1, width: 1, height: 1 },
+    ],
+    // 2x2 + two 1x2 + two 1x1
+    [
+      { x: 0, y: 0, width: 2, height: 2 },
+      { x: 2, y: 0, width: 2, height: 1 },
+      { x: 2, y: 1, width: 2, height: 1 },
+      { x: 4, y: 0, width: 1, height: 1 },
+      { x: 4, y: 1, width: 1, height: 1 },
+    ],
   ],
-  // Reference "shelf config 5": four 1x2 plus a 1x1 at the end of each row
   6: [
-    { x: 0, y: 0, width: 2, height: 1 },
-    { x: 2, y: 0, width: 2, height: 1 },
-    { x: 4, y: 0, width: 1, height: 1 },
-    { x: 0, y: 1, width: 2, height: 1 },
-    { x: 2, y: 1, width: 2, height: 1 },
-    { x: 4, y: 1, width: 1, height: 1 },
+    // Reference "shelf config 5": four 1x2 plus a 1x1 at the end of each row
+    [
+      { x: 0, y: 0, width: 2, height: 1 },
+      { x: 2, y: 0, width: 2, height: 1 },
+      { x: 4, y: 0, width: 1, height: 1 },
+      { x: 0, y: 1, width: 2, height: 1 },
+      { x: 2, y: 1, width: 2, height: 1 },
+      { x: 4, y: 1, width: 1, height: 1 },
+    ],
+    // 2x2 + 1x2 + four 1x1
+    [
+      { x: 0, y: 0, width: 2, height: 2 },
+      { x: 2, y: 0, width: 2, height: 1 },
+      { x: 4, y: 0, width: 1, height: 1 },
+      { x: 2, y: 1, width: 1, height: 1 },
+      { x: 3, y: 1, width: 1, height: 1 },
+      { x: 4, y: 1, width: 1, height: 1 },
+    ],
   ],
-  // Reference "shelf config 4": 3x2 block of 1x1 alongside a 2x2
   7: [
-    { x: 0, y: 0, width: 1, height: 1 },
-    { x: 1, y: 0, width: 1, height: 1 },
-    { x: 2, y: 0, width: 1, height: 1 },
-    { x: 0, y: 1, width: 1, height: 1 },
-    { x: 1, y: 1, width: 1, height: 1 },
-    { x: 2, y: 1, width: 1, height: 1 },
-    { x: 3, y: 0, width: 2, height: 2 },
+    // Reference "shelf config 4": 3x2 block of 1x1 alongside a 2x2
+    [
+      { x: 0, y: 0, width: 1, height: 1 },
+      { x: 1, y: 0, width: 1, height: 1 },
+      { x: 2, y: 0, width: 1, height: 1 },
+      { x: 0, y: 1, width: 1, height: 1 },
+      { x: 1, y: 1, width: 1, height: 1 },
+      { x: 2, y: 1, width: 1, height: 1 },
+      { x: 3, y: 0, width: 2, height: 2 },
+    ],
+    // ...mirrored, 2x2 on the left
+    [
+      { x: 0, y: 0, width: 2, height: 2 },
+      { x: 2, y: 0, width: 1, height: 1 },
+      { x: 3, y: 0, width: 1, height: 1 },
+      { x: 4, y: 0, width: 1, height: 1 },
+      { x: 2, y: 1, width: 1, height: 1 },
+      { x: 3, y: 1, width: 1, height: 1 },
+      { x: 4, y: 1, width: 1, height: 1 },
+    ],
   ],
-  // One 1x2 per row, remainder 1x1
   8: [
-    { x: 0, y: 0, width: 2, height: 1 },
-    { x: 2, y: 0, width: 1, height: 1 },
-    { x: 3, y: 0, width: 1, height: 1 },
-    { x: 4, y: 0, width: 1, height: 1 },
-    { x: 0, y: 1, width: 2, height: 1 },
-    { x: 2, y: 1, width: 1, height: 1 },
-    { x: 3, y: 1, width: 1, height: 1 },
-    { x: 4, y: 1, width: 1, height: 1 },
+    // One 1x2 per row, remainder 1x1
+    [
+      { x: 0, y: 0, width: 2, height: 1 },
+      { x: 2, y: 0, width: 1, height: 1 },
+      { x: 3, y: 0, width: 1, height: 1 },
+      { x: 4, y: 0, width: 1, height: 1 },
+      { x: 0, y: 1, width: 2, height: 1 },
+      { x: 2, y: 1, width: 1, height: 1 },
+      { x: 3, y: 1, width: 1, height: 1 },
+      { x: 4, y: 1, width: 1, height: 1 },
+    ],
   ],
-  // Single 1x2 on the top row, everything else 1x1
   9: [
-    { x: 0, y: 0, width: 2, height: 1 },
-    { x: 2, y: 0, width: 1, height: 1 },
-    { x: 3, y: 0, width: 1, height: 1 },
-    { x: 4, y: 0, width: 1, height: 1 },
-    { x: 0, y: 1, width: 1, height: 1 },
-    { x: 1, y: 1, width: 1, height: 1 },
-    { x: 2, y: 1, width: 1, height: 1 },
-    { x: 3, y: 1, width: 1, height: 1 },
-    { x: 4, y: 1, width: 1, height: 1 },
+    // Single 1x2 on the top row, everything else 1x1
+    [
+      { x: 0, y: 0, width: 2, height: 1 },
+      { x: 2, y: 0, width: 1, height: 1 },
+      { x: 3, y: 0, width: 1, height: 1 },
+      { x: 4, y: 0, width: 1, height: 1 },
+      { x: 0, y: 1, width: 1, height: 1 },
+      { x: 1, y: 1, width: 1, height: 1 },
+      { x: 2, y: 1, width: 1, height: 1 },
+      { x: 3, y: 1, width: 1, height: 1 },
+      { x: 4, y: 1, width: 1, height: 1 },
+    ],
   ],
-  // Reference "shelf config 1": ten 1x1
-  10: Array.from({ length: 10 }, (_, i) => ({
-    x: i % 5,
-    y: Math.floor(i / 5),
-    width: 1,
-    height: 1,
-  })),
+  10: [
+    // Reference "shelf config 1": ten 1x1
+    Array.from({ length: 10 }, (_, i) => ({
+      x: i % 5,
+      y: Math.floor(i / 5),
+      width: 1,
+      height: 1,
+    })),
+  ],
 };
 
-// Single doors are one row of 5 slots. With K bins, making (5 - K) of them a
-// 1x2 fills the row exactly — so K=5 is all 1x1, K=4 has one 1x2, K=3 has two.
-// That reproduces the three reference configs without adding or removing bins.
-const singleShelfPlacements = (binCount: number): Placement[] | null => {
+// Single doors are one row of 5 slots. With K bins, exactly (5 - K) of them have
+// to be a 1x2 for the row to fill — so K=5 is all 1x1, K=4 has one 1x2, K=3 has
+// two. Which POSITIONS the wide bins take is free, and that's what varies the
+// shelves: every distinct ordering is offered as a variant.
+const singleShelfVariants = (binCount: number): Placement[][] => {
   const doubles = SINGLE_DOOR_SLOTS - binCount;
-  if (doubles < 0 || doubles > binCount) return null;
+  if (doubles < 0 || doubles > binCount) return [];
 
-  let x = 0;
-  return Array.from({ length: binCount }, (_, i) => {
-    const width = i < doubles ? 2 : 1;
-    const placement = { x, y: 0, width, height: 1 };
-    x += width;
-    return placement;
+  // Each variant shifts the run of wide bins one place further along the row.
+  const offsets = Array.from({ length: binCount - doubles + 1 }, (_, i) => i);
+
+  return offsets.map(offset => {
+    let x = 0;
+    return Array.from({ length: binCount }, (_, i) => {
+      const width = i >= offset && i < offset + doubles ? 2 : 1;
+      const placement = { x, y: 0, width, height: 1 };
+      x += width;
+      return placement;
+    });
   });
 };
 
@@ -192,14 +284,67 @@ const fitBinsToPlacements = (shelf: Shelf, count: number): Bin[] | null => {
   return fitted;
 };
 
-const placementsForShelf = (doorType: DoorType, shelf: Shelf): Placement[] | null => {
-  if (doorType === 'unique') return BOTTOM_SHELF_PLACEMENTS;
-  if (doorType === 'double') return DOUBLE_SHELF_PLACEMENTS[shelf.bins.length] ?? null;
-  return singleShelfPlacements(shelf.bins.length);
+const doorNumber = (doorName: string) => parseInt(doorName.replace(/\D/g, ''), 10) || 0;
+
+// A door's position among the doors of its OWN type. Seeding with this rather than
+// the raw door number matters: the raw number collides, because doors 2 and 6 are
+// four apart and 4-bin shelves offer four variants, so (2 + n) and (6 + n) pick the
+// same one. Ranking makes the walk across doors a permutation instead, so no two
+// doors of a type share an arrangement on the same shelf whenever there are at
+// least as many variants as doors.
+const DOOR_RANKS: Record<string, number> = (() => {
+  const ranks: Record<string, number> = {};
+  const byType: Record<string, string[]> = {};
+
+  Object.keys(DOOR_TYPES).forEach(door => {
+    const type = DOOR_TYPES[door];
+    (byType[type] ??= []).push(door);
+  });
+
+  Object.values(byType).forEach(doors => {
+    doors
+      .sort((a, b) => doorNumber(a) - doorNumber(b))
+      .forEach((door, index) => { ranks[door] = index; });
+  });
+
+  return ranks;
+})();
+
+// Choose one arrangement from the available variants. Stable across reloads, and
+// stepping by shelf index keeps consecutive shelves of one door from matching.
+const pickVariant = (
+  variants: Placement[][],
+  doorName: string,
+  shelfIndex: number
+): Placement[] | null => {
+  if (variants.length === 0) return null;
+  const rank = DOOR_RANKS[doorName] ?? 0;
+  return variants[(rank + shelfIndex) % variants.length];
 };
 
-const layoutShelf = (doorType: DoorType, shelf: Shelf): Shelf => {
-  const placements = placementsForShelf(doorType, shelf);
+const placementsForShelf = (
+  doorName: string,
+  doorType: DoorType,
+  shelf: Shelf,
+  shelfIndex: number
+): Placement[] | null => {
+  // Bottom doors are a single fixed configuration — all four shelves alike, by design.
+  if (doorType === 'unique') return BOTTOM_SHELF_PLACEMENTS;
+
+  const variants = doorType === 'double'
+    ? DOUBLE_SHELF_VARIANTS[shelf.bins.length] ?? []
+    : singleShelfVariants(shelf.bins.length);
+
+  return pickVariant(variants, doorName, shelfIndex);
+};
+
+const layoutShelf = (
+  doorName: string,
+  doorType: DoorType,
+  shelf: Shelf,
+  shelfIndex: number
+): Shelf => {
+  const placements = placementsForShelf(doorName, doorType, shelf, shelfIndex);
   if (!placements) return shelf;
 
   const bins = fitBinsToPlacements(shelf, placements.length);
@@ -235,7 +380,9 @@ export const applyShelfLayouts = (config: DoorShelfConfig): DoorShelfConfig => {
       out[doorName] = config[doorName];
       return;
     }
-    out[doorName] = config[doorName].map(shelf => layoutShelf(doorType, shelf));
+    out[doorName] = config[doorName].map((shelf, shelfIndex) =>
+      layoutShelf(doorName, doorType, shelf, shelfIndex)
+    );
   });
 
   return out;
