@@ -1,12 +1,13 @@
 import { DoorType, Bin, Shelf, Cabinet, DoorShelfConfig } from '../types';
 import { cabinets } from '../data/cabinets';
+import { getConfiguredDoorType } from './shelfLayoutConfig';
 
-// Get door type.
-// Structured doors (Cabinets 1 & 2, doors 1-8) all render as a flat bin grid ('single'),
-// since the real OCSRI bins carry no row/gridPosition metadata that the double/unique
-// layouts depend on. Virtual doors (9-14) are handled separately via isFridgeDoor.
+// Get door type. Doors 1/5 are single, 2/3/6/7 are double, 4/8 are the wide
+// "bottom" doors (a 5x5 grid, so 'unique'). The OCSRI import carries no
+// positional metadata, so shelfLayoutConfig supplies the geometry these layouts
+// need. Virtual doors (9-14) are handled separately via isFridgeDoor.
 export const getDoorType = (doorName: string): DoorType => {
-  return 'single';
+  return getConfiguredDoorType(doorName);
 };
 
 // Get slots per shelf based on door type

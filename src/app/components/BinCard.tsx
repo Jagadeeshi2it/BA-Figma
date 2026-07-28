@@ -71,7 +71,9 @@ export default function BinCard({
   const getBinSizeDisplay = (size: string): string => {
     const sizeMap: { [key: string]: string } = {
       'single': '1x1',
-      'double': '2x1',
+      // Footprints are named rows x cols, so a 2-slot bin is 1x2 in either
+      // orientation — gridPosition is what says which way round it sits.
+      'double': '1x2',
       '2x2': '2x2',
       '2x3': '2x3',
       '3x3': '3x3',
