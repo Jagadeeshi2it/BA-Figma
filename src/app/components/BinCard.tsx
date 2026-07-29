@@ -1,6 +1,13 @@
 import React from 'react';
 import { Bin } from '../types';
-import { highlightText, highlightNDC, doesProductMatchSearch, SEARCH_HIGHLIGHT_COLOR } from '../utils/textHighlight';
+import {
+  highlightText,
+  highlightNDC,
+  doesProductMatchSearch,
+  SEARCH_HIGHLIGHT_COLOR,
+  SOURCE_HIGHLIGHT_COLOR,
+  TARGET_HIGHLIGHT_COLOR
+} from '../utils/textHighlight';
 // Grouping and badges are shared with AllProductsPanel so both views of a bin agree.
 import { consolidateBinProducts, getVialType, hasClimateBadge, hasCivBadge } from '../utils/binProducts';
 
@@ -101,6 +108,24 @@ export default function BinCard({
 
   const additionalCount = consolidatedProducts.length - visibleProducts.length;
 
+  // What a match inside this bin means depends on what the bin has become: still just a search hit,
+  // or already committed as a source or a target. Each state colours its own matched text, so the
+  // shelf can be read at a glance without checking every card's label.
+  const productHighlightColor = isChangeAllocationSource
+    ? SOURCE_HIGHLIGHT_COLOR
+    : isChangeAllocationTarget
+      ? TARGET_HIGHLIGHT_COLOR
+      : SEARCH_HIGHLIGHT_COLOR;
+
+  // Any state that draws its own coloured stroke on this card — see the resting outline below.
+  const hasStateStroke =
+    isChangeAllocationSource ||
+    isChangeAllocationTarget ||
+    highlightSearch ||
+    isSelected ||
+    (highlightAvailable && bin.available) ||
+    (isSelectedForAssignment && !changeAllocationMode);
+
   const renderProduct = (product: any) => {
     const isProductClickable = !changeAllocationMode && !showUnallocatedProducts && onProductClick;
 
@@ -127,7 +152,7 @@ export default function BinCard({
       >
         <div className="flex-1 box-border content-stretch flex flex-col gap-0.5 items-start justify-start min-w-0 p-0 relative">
           <div className="w-full flex flex-col font-normal justify-center leading-[0] not-italic relative text-[#020817] text-xs text-left">
-            <p className="block leading-[16px] text-[14px] text-[11px]">{highlightText(product.name, searchQuery, SEARCH_HIGHLIGHT_COLOR, product)}</p>
+            <p className="block leading-[16px] text-[14px] text-[11px]">{highlightText(product.name, searchQuery, productHighlightColor, product)}</p>
           </div>
           <div className="flex items-center gap-1 my-1">
             <span className="bg-[#D1D5DB] text-[#111827] text-[9px] font-medium px-1.5 py-0.5 rounded">{getVialType(product)}</span>
@@ -139,7 +164,7 @@ export default function BinCard({
             )}
           </div>
           <div className="flex flex-col font-normal justify-center leading-[0] not-italic relative shrink-0 text-[#676b74] text-xs text-left w-full">
-            <p className="block leading-[16px] break-words overflow-hidden text-[14px]">{highlightNDC(`${product.ndc} - ${product.inventoryType}`, searchQuery, SEARCH_HIGHLIGHT_COLOR, product)}</p>
+            <p className="block leading-[16px] break-words overflow-hidden text-[14px]">{highlightNDC(`${product.ndc} - ${product.inventoryType}`, searchQuery, productHighlightColor, product)}</p>
           </div>
         </div>
         <div className="bg-[#f7f7f7] box-border content-stretch flex flex-col items-center justify-center p-[4px] relative rounded shrink-0 w-12">
@@ -160,11 +185,9 @@ export default function BinCard({
       <div
         data-bin-id={bin.id}
         className={`relative rounded-lg cursor-pointer transition-all hover:shadow-md ${className} ${
-          isChangeAllocationSource ? 'bg-[#E3F2FD]' :
-          isChangeAllocationTarget ? 'bg-[#E8F5E8]' :
-          // A search hit keeps the white background on purpose: the tinted fill washed out the
-          // highlight colour on the matched product's own text, which is the thing being pointed
-          // at. The yellow border below carries "this bin" on its own.
+          // Source and target bins stay white like a search hit does. A tinted fill washed out the
+          // highlight colour on the matched product's own text — the thing being pointed at — and
+          // the 1px stroke plus the coloured text carry the state on their own.
           isSelectedForAssignment && !changeAllocationMode ? 'bg-[#F7EFFE]' :
           'bg-white'
         } ${
@@ -172,13 +195,14 @@ export default function BinCard({
         } ${
           isSelectedForAssignment && !changeAllocationMode ? 'ring-1 ring-[#8F48D2]' : ''
         } ${
-          isChangeAllocationSource ? 'ring-1 ring-blue-600' : ''
-        } ${
-          isChangeAllocationTarget ? 'ring-1 ring-green-600' : ''
-        } ${
           highlightAvailable && bin.available ? 'border-green-500 border-2 border-solid' : ''
         } ${
-          highlightSearch ? 'border-[#A16207] border border-solid' : ''
+          // Only while the bin is nothing more than a search hit. Once it's a source or a target,
+          // that state owns the stroke — two borders competing on one card would come down to
+          // stylesheet order rather than intent.
+          highlightSearch && !isChangeAllocationSource && !isChangeAllocationTarget
+            ? 'border-[#A16207] border border-solid'
+            : ''
         } ${
           isSelectedForAssignment && !changeAllocationMode ? 'border-[#8F48D2] border-[1px] border-solid' : ''
         } ${
@@ -203,7 +227,12 @@ export default function BinCard({
           </p>
         )}
         
-        <div className="absolute border border-gray-200 border-solid inset-0 pointer-events-none rounded-lg" />
+        {/* The resting card's own outline. It's inset just inside the card's border box, so when the
+            card already carries a state stroke the two sit side by side and read as one 2px line —
+            which is why a "1px" source stroke still looked heavy. Only drawn when nothing else is. */}
+        {!hasStateStroke && (
+          <div className="absolute border border-gray-200 border-solid inset-0 pointer-events-none rounded-lg" />
+        )}
         <div className="min-h-inherit relative size-full">
           <div className="box-border content-stretch flex flex-col items-start justify-start min-h-inherit p-4 relative size-full">
             <div className="box-border content-stretch flex flex-row items-center justify-start p-0 relative shrink-0 w-full mb-2">

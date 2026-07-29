@@ -10,6 +10,22 @@ import { DoorShelfConfig } from '../types';
 // list is noise rather than an answer.
 const MIN_SEARCH_LENGTH = 3;
 
+// How many distinct products a source selection was built from. The highlight query carries one
+// `|`-separated OR-group per product picked from the search list, so counting groups counts
+// products. Returns 0 when the bins were clicked directly rather than searched for, which is the
+// case where a product count would be a guess.
+const countSelectedProducts = (query: string): number =>
+  query.split('|').map(group => group.trim()).filter(group => group.length > 0).length;
+
+// "6 source bins" on its own doesn't say whether that's one product spread wide or six products in
+// six places — the thing the user is actually moving. Bins clicked straight off the shelf carry no
+// product context, so there the bin count stands alone.
+const describeSourceSelection = (binCount: number, query: string): string => {
+  const bins = `${binCount} source bin${binCount !== 1 ? 's' : ''}`;
+  const products = countSelectedProducts(query);
+  return products > 0 ? `${products} product${products !== 1 ? 's' : ''} in ${bins}` : bins;
+};
+
 interface HeaderSectionProps {
   searchQuery: string;
   highlightAvailableBins: boolean;
@@ -19,6 +35,10 @@ interface HeaderSectionProps {
   changeAllocationMode: boolean;
   changeAllocationStep: 1 | 2;
   changeAllocationSourceBins: string[];
+  // The `|`-joined highlight query behind a search-driven source selection — one OR-group per
+  // product picked. Empty when bins were clicked directly, which is how the status line below
+  // knows whether a product count is meaningful.
+  changeAllocationSourceQuery?: string;
   changeAllocationTargetBins: string[];
   unallocatedProductsCount: number; // CRITICAL FIX: Pass unallocated products count as prop
   doorShelfConfig: DoorShelfConfig;
@@ -53,6 +73,7 @@ const HeaderSection = memo(function HeaderSection({
   changeAllocationMode,
   changeAllocationStep,
   changeAllocationSourceBins,
+  changeAllocationSourceQuery = '',
   changeAllocationTargetBins,
   unallocatedProductsCount,
   doorShelfConfig,
@@ -132,6 +153,21 @@ const HeaderSection = memo(function HeaderSection({
     // previously picked, since only one selection's worth stays hidden at a time.
     setViewedProductKeys(keys);
   };
+
+  // A pick belongs to the mode and step it was made in. Switching leaves the typed query in place —
+  // and entering step 1 refocuses the box, so the list reopens immediately — which would otherwise
+  // show browsing picks marked as though they were sources, or step 1's sources marked as targets.
+  useEffect(() => {
+    setViewedProductKeys([]);
+  }, [changeAllocationMode, changeAllocationStep]);
+
+  // A pick belongs to the mode and step it was made in. The keys otherwise only reset when the typed
+  // query changes, and switching modes leaves the query alone — so a product picked while browsing
+  // would still be marked after entering allocation, and a source pick would still be marked while
+  // choosing targets. Both read as "already handled" for work that hasn't been done.
+  useEffect(() => {
+    setViewedProductKeys([]);
+  }, [changeAllocationMode, changeAllocationStep]);
 
   // Entering (or returning to) Step 1 of Change Allocation: put the cursor straight into the
   // existing search bar so the product-first flow (search → "Select as Source") is ready to
@@ -406,7 +442,7 @@ const HeaderSection = memo(function HeaderSection({
                   </p>
                   {changeAllocationSourceBins.length > 0 && (
                     <p className="text-xs text-[#095192] text-[12px]">
-                      Selected: {changeAllocationSourceBins.length} source bin{changeAllocationSourceBins.length !== 1 ? "s" : ""}
+                      Selected: {describeSourceSelection(changeAllocationSourceBins.length, changeAllocationSourceQuery)}
                     </p>
                   )}
                 </div>
@@ -427,7 +463,7 @@ const HeaderSection = memo(function HeaderSection({
                     <span className="text-[14px]">Review your selections and confirm the allocation change</span>
                   </p>
                   <p className="text-xs text-[#095192]">
-                    <span className="text-[12px]">Selected: {changeAllocationSourceBins.length} source bin{changeAllocationSourceBins.length !== 1 ? "s" : ""}, {changeAllocationTargetBins.length} target bin{changeAllocationTargetBins.length !== 1 ? "s" : ""}</span>
+                    <span className="text-[12px]">Selected: {describeSourceSelection(changeAllocationSourceBins.length, changeAllocationSourceQuery)}, {changeAllocationTargetBins.length} target bin{changeAllocationTargetBins.length !== 1 ? "s" : ""}</span>
                   </p>
                 </div>
               )}

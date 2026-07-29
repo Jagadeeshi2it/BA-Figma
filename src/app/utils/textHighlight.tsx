@@ -68,6 +68,18 @@ export const doesProductMatchSearch = (
 // (text-[#A16207]). Change those with this one or the highlight will disagree with itself.
 export const SEARCH_HIGHLIGHT_COLOR = '#A16207';
 
+// Once a bin is committed to an allocation, its matched products stop being "found" and start being
+// "going somewhere" — so they take the colour of that commitment instead of the search amber. Both
+// are the bin's own stroke colour, which is the whole point: the text and the outline around it say
+// the same thing. Amber means the search found this; blue means it's a source; green means a target.
+//
+// Blue is border-blue-600 exactly (3.87:1 against body text, 5.17:1 on white). Green is one step
+// deeper than its border-green-600 stroke: #16A34A reads fine as a 1px outline (non-text only needs
+// 3:1) but only manages 3.30:1 as text, under the ~4.5:1 this file holds itself to. #15803D is the
+// same green at 3.99:1 / 5.02:1.
+export const SOURCE_HIGHLIGHT_COLOR = '#2563EB';
+export const TARGET_HIGHLIGHT_COLOR = '#15803D';
+
 export const highlightText = (
   text: string,
   searchQuery: string,

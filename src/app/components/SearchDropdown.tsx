@@ -65,14 +65,30 @@ const SearchDropdown = memo(function SearchDropdown({
     return null;
   }
 
-  // In change allocation mode a result is "done" once every bin it lives in has already been
-  // picked — drop it, since there's nothing left to select. View mode keeps every result listed
-  // and marks the picked one instead: making a card vanish the moment you click it hides the thing
-  // you just asked for and makes the list feel like it's fighting you.
+  // Which of a product's bins this step could actually still take. Anything already picked for this
+  // step is spent, and on step 2 the source bins are off-limits outright: a bin can't be both where
+  // the products come from and where they go. Everything downstream reads this — the list, the
+  // button's count and what the click commits — so they can't disagree about what's available.
+  const selectableBinIds = (result: ProductSearchResult): string[] => {
+    const binIds = [...new Set(getBinIdsForProduct(result))];
+    if (!changeAllocationMode) return binIds;
+    const blocked = changeAllocationStep === 2
+      ? [...excludeBinIds, ...sourceBinIds]
+      : excludeBinIds;
+    return binIds.filter(binId => !blocked.includes(binId));
+  };
+
+  // In change allocation mode a result is "done" once it has no bin left this step could take —
+  // drop it, since there's nothing to select. View mode keeps every result listed and marks the
+  // picked one instead: making a card vanish the moment you click it hides the thing you just asked
+  // for and makes the list feel like it's fighting you.
   const visibleResults = changeAllocationMode
-    ? searchResults.filter(result => !result.binLocations.every(loc => excludeBinIds.includes(loc.binId)))
+    ? searchResults.filter(result => selectableBinIds(result).length > 0)
     : searchResults;
 
+  // Both modes mark what you picked. Picks made in one mode must not leak into the other — the keys
+  // outlive a mode switch, since they only reset when the typed query changes and switching modes
+  // leaves the query alone — so HeaderSection clears them whenever the mode or step changes.
   const isPicked = (result: ProductSearchResult) => viewedProductKeys.includes(getResultKey(result));
 
   // Picked cards float to the top. The list can hold dozens of matches and reopens scrolled to the
@@ -83,9 +99,12 @@ const SearchDropdown = memo(function SearchDropdown({
   );
 
   // Nothing left for "Select All" to do once every card is ticked — or when there's only one card,
-  // which the row itself already covers. In change allocation mode fully-used results are dropped
-  // from visibleResults instead, and viewedProductKeys is unused there, so this never hides it.
-  const showSelectAll = visibleResults.length > 1 && !visibleResults.every(isPicked);
+  // which the row itself already covers. Allocation mode is exempt from the ticked test: there a
+  // pick is only a preview, and having previewed every match says nothing about whether those bins
+  // are in the selection. What's already committed drops out of visibleResults above instead, so an
+  // exhausted list empties itself and the button goes with it.
+  const showSelectAll =
+    visibleResults.length > 1 && (changeAllocationMode || !visibleResults.every(isPicked));
 
   const buildHighlightQuery = (products: ProductSearchResult[]) =>
     products
@@ -106,20 +125,19 @@ const SearchDropdown = memo(function SearchDropdown({
     onScrollToBin?.(location.binId);
   };
 
+  // One behaviour in both modes: highlight the product, mark the row, go to where it lives, name it
+  // in the search box and get the list out of the way. Only the highlight channel differs, and that
+  // difference lives in the state hook — a view-mode pick replaces the highlight, while in allocation
+  // mode it accumulates, because there the highlight also marks products already committed to the
+  // selection and a preview click must not blank them out.
   const handleProductClick = (result: ProductSearchResult) => {
     if (onProductClick) {
-      // Don't close in change allocation mode - let user see the highlighted bins
-      if (changeAllocationMode) {
-        onProductClick(result.name, result.ndc, result.inventoryType);
-        jumpToProduct(result);
-        return;
-      }
       onProductClick(result.name, result.ndc, result.inventoryType);
-      // Replaces (not adds to) the previous pick — only one product is "the" selection at a time
-      // in view mode, so exactly one card carries the tick.
+      // Replaces (not adds to) the previous pick — one product is "the" selection at a time, so
+      // exactly one row carries the highlight.
       onProductsViewed?.([getResultKey(result)]);
       jumpToProduct(result);
-      // The box now names what was picked and the list closes. The card keeps its tick for when
+      // The box now names what was picked and the list closes. The row keeps its marking for when
       // the user refocuses the box and the list comes back.
       onAutofillSearch?.(result.name);
     }
@@ -129,8 +147,9 @@ const SearchDropdown = memo(function SearchDropdown({
     if (visibleResults.length === 0) return;
 
     if (changeAllocationMode) {
-      // Actually select every matching bin as source/target, not just preview-highlight it.
-      const allBinIds = Array.from(new Set(visibleResults.flatMap(getBinIdsForProduct)));
+      // Actually select every matching bin as source/target, not just preview-highlight it. Only the
+      // bins this step can take — on step 2 that skips the source bins these products also live in.
+      const allBinIds = Array.from(new Set(visibleResults.flatMap(selectableBinIds)));
       const productNames = visibleResults.map(result => result.name).join(', ');
       // Same OR-group query shape as the view-mode branch further down, so every selected
       // product's row (not just its bin) gets highlighted.
@@ -143,9 +162,9 @@ const SearchDropdown = memo(function SearchDropdown({
       // Several products just got selected across who knows how many doors — land on the first
       // one's bin so the selection isn't left off-screen.
       jumpToProduct(visibleResults[0]);
-      // Everything visible just got added — nothing left to show, so close instead of
-      // leaving an empty dropdown hanging open.
-      onClose();
+      // Everything visible just got added — nothing left to show. Dismiss rather than merely close:
+      // this also drops focus, so clicking the box brings the list back instead of staying dead.
+      onDismissList?.();
       return;
     }
 
@@ -166,16 +185,23 @@ const SearchDropdown = memo(function SearchDropdown({
     return quantity === 1 ? 'vial' : 'vials';
   };
 
-  // Change Allocation selects/moves bins, not products — a product can span several bins,
-  // so the "Select All" count should reflect what's actually being selected.
-  const totalBinCount = new Set(visibleResults.flatMap(getBinIdsForProduct)).size;
-
-  // Nothing left to offer means every match is already in the selection — name them, so the user
-  // can see the product was found rather than reading the empty list as "not stocked".
+  // Nothing left to offer — name the matches anyway, so the user can see the product was found
+  // rather than reading the empty list as "not stocked". Two different reasons land here, and saying
+  // the wrong one is worse than saying nothing: a product can be spent because its bins are already
+  // in this step's selection, or — on step 2 only — because it lives solely in source bins, which
+  // were never "selected" as targets at all. A product split across both reasons falls under the
+  // "already selected" wording, since part of it genuinely was.
   const names = [...new Set(searchResults.map(result => result.name))];
+  const onlyInSourceBins =
+    changeAllocationMode &&
+    changeAllocationStep === 2 &&
+    searchResults.every(result =>
+      getBinIdsForProduct(result).every(binId => sourceBinIds.includes(binId))
+    );
+  const unavailablePrefix = onlyInSourceBins ? 'Only stocked in source bins' : 'Already selected';
   const alreadySelectedMessage = names.length <= 3
-    ? `Already selected: ${names.join(', ')}`
-    : `Already selected: ${names.slice(0, 3).join(', ')} and ${names.length - 3} more`;
+    ? `${unavailablePrefix}: ${names.join(', ')}`
+    : `${unavailablePrefix}: ${names.slice(0, 3).join(', ')} and ${names.length - 3} more`;
 
   return (
     <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-[#bcc3cd] rounded-[4px] shadow-lg z-[60] max-h-96 overflow-y-auto">
@@ -197,7 +223,7 @@ const SearchDropdown = memo(function SearchDropdown({
                 className="bg-transparent hover:bg-transparent text-[#095192] hover:text-[#074080] hover:underline text-[14px] font-medium h-auto p-0 shrink-0"
               >
                 {changeAllocationMode
-                  ? `Select All as ${changeAllocationStep === 1 ? 'Source' : 'Target'} (${totalBinCount} bin${totalBinCount !== 1 ? 's' : ''})`
+                  ? `Select All as ${changeAllocationStep === 1 ? 'Source' : 'Target'}`
                   : 'Select All'
                 }
               </Button>
@@ -284,7 +310,9 @@ const SearchDropdown = memo(function SearchDropdown({
                 size="sm"
                 onClick={(e) => {
                   e.stopPropagation(); // Prevent triggering the card's onClick
-                  const binIds = getBinIdsForProduct(result);
+                  // Only the bins this step can still take — on step 2 the product's source bins
+                  // are excluded, so committing a target can't quietly re-use one of them.
+                  const binIds = selectableBinIds(result);
                   // stopPropagation means the card's own highlight-on-click never fires, so
                   // build the same precise query it would have used and pass it through.
                   const highlightQuery = [result.name, result.ndc, result.inventoryType].filter(Boolean).join(', ');
@@ -296,16 +324,19 @@ const SearchDropdown = memo(function SearchDropdown({
                   // Land on the bin that was just selected — the product may well live on a door
                   // the user isn't looking at, and a selection they can't see is easy to lose track of.
                   jumpToProduct(result);
-                  // That was the last remaining match — nothing left to pick, so close.
-                  if (visibleResults.length === 1) {
-                    onClose();
-                  }
+                  // The selection is made, so the list has done its job — get it out of the way
+                  // rather than leaving the user to dismiss it. Dismissing (not just closing) drops
+                  // focus too, so clicking the box brings it back.
+                  onDismissList?.();
                 }}
-                className="w-full bg-[#095192] hover:bg-[#074080] text-white text-[14px] h-10 rounded-[4px]"
+                variant="outline"
+                className="w-full bg-white border-[#095192] text-[#095192] hover:bg-[#F1F6FA] hover:text-[#095192] text-[14px] h-10 rounded-[4px]"
               >
-                {changeAllocationStep === 1 
-                  ? `Select as Source (${result.binLocations.length} bin${result.binLocations.length !== 1 ? 's' : ''})`
-                  : `Select as Target (${result.binLocations.length} bin${result.binLocations.length !== 1 ? 's' : ''})`
+                {/* The count is what this click will actually take, not how many bins the product
+                    lives in — on step 2 those differ wherever a source bin holds the same product. */}
+                {changeAllocationStep === 1
+                  ? `Select as Source (${selectableBinIds(result).length} bin${selectableBinIds(result).length !== 1 ? 's' : ''})`
+                  : `Select as Target (${selectableBinIds(result).length} bin${selectableBinIds(result).length !== 1 ? 's' : ''})`
                 }
               </Button>
             )}
