@@ -287,14 +287,24 @@ export const countSearchMatches = (doorShelfConfig: DoorShelfConfig, searchQuery
 };
 
 // Get bin location details from bin ID
-export const getBinLocationDetails = (binId: string, doorShelfConfig: DoorShelfConfig): string | null => {
+// includeCabinet=false drops the trailing ", Cabinet N" for callers where the door already places
+// the bin well enough (the unallocated panel). History entries and toasts keep the full location.
+export const getBinLocationDetails = (
+  binId: string,
+  doorShelfConfig: DoorShelfConfig,
+  includeCabinet: boolean = true
+): string | null => {
   for (const [doorKey, shelves] of Object.entries(doorShelfConfig)) {
     for (const shelf of shelves) {
       const bin = shelf.bins.find(b => b.id === binId);
       if (bin) {
         // Extract door number from door key (e.g., "Door 1" -> "1")
         const doorNumber = doorKey.split(' ')[1] || doorKey.replace('door-', '');
-        
+
+        if (!includeCabinet) {
+          return `${bin.name} - ${shelf.name}, Door ${doorNumber}`;
+        }
+
         // Extract cabinet number from door number
         // Doors 1-4: Cabinet 1, Doors 5-8: Cabinet 2, Doors 9-14: Virtual (shown as Cabinet 3)
         let cabinetNumber;
@@ -302,7 +312,7 @@ export const getBinLocationDetails = (binId: string, doorShelfConfig: DoorShelfC
         if (doorNum >= 1 && doorNum <= 4) cabinetNumber = 1;
         else if (doorNum >= 5 && doorNum <= 8) cabinetNumber = 2;
         else cabinetNumber = 3; // Virtual cabinet (doors 9-14)
-        
+
         return `${bin.name} - ${shelf.name}, Door ${doorNumber}, Cabinet ${cabinetNumber}`;
       }
     }

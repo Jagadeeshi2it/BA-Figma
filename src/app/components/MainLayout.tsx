@@ -58,7 +58,9 @@ export default function MainLayout({
       {/* Main Content */}
       <div
         className={`flex-1 min-w-0 flex flex-col transition-all duration-300 ${
-          showBinInventory || showUnallocatedProducts ? "mr-[320px]" : ""
+          // The unallocated panel is wider than the bin inventory one, so the reserved margin has
+          // to match whichever is open or the panel overlaps the shelves.
+          showUnallocatedProducts ? "mr-[440px]" : showBinInventory ? "mr-[320px]" : ""
         }`}
       >
         {/* Top Header */}
@@ -96,7 +98,6 @@ export default function MainLayout({
           onProductSelect={handleUnallocatedProductSelect}
           onSearchChange={handleUnallocatedSearchChange}
           onSelectAll={handleSelectAllUnallocatedProducts}
-          onClearSelection={handleClearUnallocatedSelection}
           onConfirmAssignment={handleConfirmAssignment}
         />
       )}

@@ -146,19 +146,21 @@ const SearchDropdown = memo(function SearchDropdown({
   return (
     <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-[#bcc3cd] rounded-[4px] shadow-lg z-[60] max-h-96 overflow-y-auto">
       <div className="p-3">
-        <div className="flex flex-col font-normal justify-center leading-[0] not-italic relative shrink-0 text-[#9fa9b7] text-xs text-left mb-3">
-          <p className="block leading-[16px] text-[14px]">
-            {/* The product WAS found — every bin holding it is just already picked, so there is
-                nothing left to select. Saying "0 matching products" read as "this drug isn't here". */}
-            {visibleResults.length === 0 && searchResults.length > 0
-              ? `Found ${searchResults.length} matching product${searchResults.length !== 1 ? 's' : ''}, none left to add`
-              : `Found ${visibleResults.length} matching product${visibleResults.length !== 1 ? 's' : ''}`}
-          </p>
-        </div>
+        {/* No count when there's nothing left to list — the message below says the whole story,
+            and a count with an empty list under it just reads as a contradiction. */}
+        {visibleResults.length > 0 && (
+          <div className="flex flex-col font-normal justify-center leading-[0] not-italic relative shrink-0 text-[#9fa9b7] text-xs text-left mb-3">
+            <p className="block leading-[16px] text-[14px]">
+              Found {visibleResults.length} matching product{visibleResults.length !== 1 ? 's' : ''}
+            </p>
+          </div>
+        )}
 
         {visibleResults.length === 0 ? (
           <div className="text-[13px] text-[#64748b] text-center py-2">
-            {changeAllocationMode ? alreadySelectedMessage : "You've viewed all matching products."}
+            {changeAllocationMode
+              ? alreadySelectedMessage
+              : 'All matching products and its bins are highlighted'}
           </div>
         ) : (
         <>

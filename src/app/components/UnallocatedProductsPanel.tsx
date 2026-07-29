@@ -1,8 +1,5 @@
 import React from 'react';
-import { X, Check, Search } from 'lucide-react';
-import { Button } from './ui/button';
-import { Badge } from './ui/badge';
-import { Card, CardContent } from './ui/card';
+import { X, Check, Search, Minus, CheckCircle2 } from 'lucide-react';
 import { Input } from './ui/input';
 import { Separator } from './ui/separator';
 // CRITICAL FIX: Remove direct import, will receive as prop
@@ -19,7 +16,6 @@ interface UnallocatedProductsPanelProps {
   onClose: () => void;
   onProductSelect: (productId: string) => void;
   onSearchChange: (query: string) => void;
-  onClearSelection: () => void;
   onConfirmAssignment: () => void;
   onSelectAll: () => void;
 }
@@ -33,15 +29,14 @@ export default function UnallocatedProductsPanel({
   onClose,
   onProductSelect,
   onSearchChange,
-  onClearSelection,
   onConfirmAssignment,
   onSelectAll
 }: UnallocatedProductsPanelProps) {
-  
+
   // Filter products based on search query
   const filteredProducts = unallocatedProducts.filter(product => {
     if (!unallocatedSearchQuery.trim()) return true;
-    
+
     const query = unallocatedSearchQuery.toLowerCase();
     return (
       product.name.toLowerCase().includes(query) ||
@@ -52,15 +47,28 @@ export default function UnallocatedProductsPanel({
   });
 
   // Check if all filtered products are selected
-  const allFilteredProductsSelected = filteredProducts.length > 0 && 
+  const allFilteredProductsSelected = filteredProducts.length > 0 &&
     filteredProducts.every(product => selectedUnallocatedProducts.includes(product.id));
 
+  // Partial selection drives the checkbox's indeterminate (minus) state.
+  const someFilteredProductsSelected = filteredProducts.some(product =>
+    selectedUnallocatedProducts.includes(product.id)
+  );
+
+  const isSelected = (productId: string) => selectedUnallocatedProducts.includes(productId);
+
+  const productCount = selectedUnallocatedProducts.length;
+  const binCount = selectedBinsForAssignment.length;
+
+  // Products alone aren't enough — a target bin has to be picked before anything can be allocated.
+  const canAllocate = productCount > 0 && binCount > 0;
+
   return (
-    <div className="fixed right-0 top-0 h-full w-[320px] bg-white border-l border-gray-200 shadow-lg z-50 flex flex-col">
+    <div className="fixed right-0 top-0 h-full w-[440px] bg-white border-l border-gray-200 shadow-lg z-50 flex flex-col">
       {/* Header */}
       <div className="p-4 border-b border-gray-200 flex items-center justify-between">
-        <h2 className="font-semibold">Unallocated Products</h2>
-        <div 
+        <h2 className="font-semibold">Unallocated Products ({filteredProducts.length})</h2>
+        <div
           className="bg-white relative rounded-[4px] cursor-pointer w-8 h-8 flex items-center justify-center"
           onClick={onClose}
         >
@@ -68,52 +76,41 @@ export default function UnallocatedProductsPanel({
         </div>
       </div>
 
-      {/* Search Bar with Select All */}
-      <div className="p-4 border-b border-gray-200">
-        <div className="flex items-center justify-between gap-3">
-          <div className="relative w-[200px]">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <Input
-              type="text"
-              placeholder="Search products..."
-              value={unallocatedSearchQuery}
-              onChange={(e) => onSearchChange(e.target.value)}
-              className="pl-10 w-full text-[14px]"
-            />
-          </div>
-          <div 
-            className="bg-white relative rounded-[4px] cursor-pointer"
-            onClick={onSelectAll}
+      {/* Search, then a Select All checkbox row. */}
+      <div className="p-4 border-b border-gray-200 space-y-3">
+        <Input
+          type="text"
+          placeholder="Search products"
+          value={unallocatedSearchQuery}
+          onChange={(e) => onSearchChange(e.target.value)}
+          className="w-full text-[14px]"
+        />
+
+        {/* The checkbox clears the selection on its own once everything is ticked, so a separate
+            Clear Selection control would be redundant. */}
+        <div className="flex items-center gap-2 cursor-pointer w-fit" onClick={onSelectAll}>
+          <div
+            className={`w-5 h-5 rounded-[4px] shrink-0 flex items-center justify-center ${
+              someFilteredProductsSelected
+                ? 'bg-[#095192]'
+                : 'border border-gray-300 bg-white'
+            }`}
           >
-            <div aria-hidden="true" className="absolute border border-[#0068FF] border-solid inset-0 pointer-events-none rounded-[4px]" />
-            <div className="flex flex-row items-center justify-end relative size-full">
-              <div className="box-border content-stretch flex gap-2 items-center justify-end px-3 py-2 relative size-full">
-                <div className="capitalize font-['Inter:Regular',_sans-serif] font-normal leading-[0] not-italic relative shrink-0 text-[#0068FF] text-[14px] text-nowrap">
-                  <p className="leading-[20px] whitespace-pre text-[14px]">{allFilteredProductsSelected ? 'Unselect All' : 'Select All'}</p>
-                </div>
-              </div>
-            </div>
+            {allFilteredProductsSelected ? (
+              <Check className="w-3.5 h-3.5 text-white" strokeWidth={3} />
+            ) : someFilteredProductsSelected ? (
+              <Minus className="w-3.5 h-3.5 text-white" strokeWidth={3} />
+            ) : null}
           </div>
+          <span className="text-[14px] text-gray-900">Select All</span>
         </div>
       </div>
 
-      {/* Assignment Instructions - moved above product list for better visibility */}
-      {selectedUnallocatedProducts.length > 0 && (
-        <div className="px-4 py-2 bg-blue-50 border-b border-gray-200">
-          {selectedBinsForAssignment.length === 0 ? (
-            <p className="text-[#0068FF] text-center">Select bin(s) to assign {selectedUnallocatedProducts.length} selected product{selectedUnallocatedProducts.length > 1 ? 's' : ''}</p>
-          ) : (
-            <p className="text-[#0068FF] text-center">
-              Assign {selectedUnallocatedProducts.length} product{selectedUnallocatedProducts.length > 1 ? 's' : ''} to {selectedBinsForAssignment.length} bin{selectedBinsForAssignment.length > 1 ? 's' : ''}
-            </p>
-          )}
-        </div>
-      )}
-
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto p-4">
+      {/* Product list: plain rows split by dividers rather than individual cards. The checkbox and
+          a light tint carry the selected state, so no border is needed. */}
+      <div className="flex-1 overflow-y-auto">
         {filteredProducts.length === 0 ? (
-          <div className="text-center py-8">
+          <div className="text-center py-8 px-4">
             <Search className="w-12 h-12 text-gray-400 mx-auto mb-4" />
             <h3 className="text-lg font-medium text-gray-900 mb-2">No products found</h3>
             <p className="text-gray-600">
@@ -121,104 +118,107 @@ export default function UnallocatedProductsPanel({
             </p>
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="divide-y divide-gray-200">
             {filteredProducts.map((product) => (
-              <Card 
+              <div
                 key={product.id}
                 onClick={() => onProductSelect(product.id)}
-                className={`cursor-pointer transition-all duration-200 ${
-                  selectedUnallocatedProducts.includes(product.id)
-                    ? 'border-[#8F48D2] border-[1px] bg-[#F7EFFE]'
-                    : 'border-gray-200 hover:bg-gray-50'
+                className={`flex gap-3 px-4 py-4 cursor-pointer transition-colors duration-200 ${
+                  isSelected(product.id) ? 'bg-[#F1F6FA]' : 'hover:bg-gray-50'
                 }`}
               >
-                <CardContent className="p-4 m-[0px]">
-                  <div className="space-y-1">
-                    <div className="flex items-start">
-                      <h3 className="font-semibold text-gray-900 leading-tight text-[14px]">
-                        {highlightText(product.name, unallocatedSearchQuery, '#EA4315', product)}
-                      </h3>
-                      <Badge 
-                        variant="secondary" 
-                        className="ml-1 bg-[#000000] text-[#ffffff] text-[8px] px-1 py-0.5 rounded shrink-0"
-                      >
-                        {product.badge}
-                      </Badge>
-                    </div>
-                    
-                    <p className="text-xs text-gray-600 leading-relaxed text-[14px]">
-                      {product.description}
-                    </p>
-                    
-                    <div className="text-xs text-gray-500 text-[14px]">
-                      <span className="font-medium">NDC:</span> {highlightNDC(product.ndc, unallocatedSearchQuery, '#EA4315', product)}
-                    </div>
-                    
-                    <div className="text-xs text-gray-500 text-[14px]">
-                      <span className="font-medium">Inventory Type:</span> {highlightText(product.inventoryType, unallocatedSearchQuery, '#EA4315', product)}
-                    </div>
-                    
-                    {/* Show bin assignments if this product is selected and bins are assigned */}
-                    {selectedUnallocatedProducts.includes(product.id) && selectedBinsForAssignment.length > 0 && (
-                      <>
-                        <Separator className="my-2" />
-                        <div className="space-y-1">
-                          {selectedBinsForAssignment.map((binId, index) => {
-                            const binLocation = getBinLocationDetails(binId, doorShelfConfig);
-                            return binLocation ? (
-                              <div key={binId} className="text-xs text-blue-600 font-medium">
-                                {binLocation}
-                              </div>
-                            ) : null;
-                          })}
-                        </div>
-                      </>
-                    )}
+                <div
+                  className={`mt-0.5 w-5 h-5 rounded-[4px] shrink-0 flex items-center justify-center ${
+                    isSelected(product.id) ? 'bg-[#095192]' : 'border border-gray-300 bg-white'
+                  }`}
+                >
+                  {isSelected(product.id) && (
+                    <Check className="w-3.5 h-3.5 text-white" strokeWidth={3} />
+                  )}
+                </div>
+
+                <div className="min-w-0 flex-1 space-y-1.5">
+                  {/* Name and badge follow BinCard's treatment: normal weight on #020817, and the
+                      grey vial chip rather than a black one. */}
+                  <h3 className="font-normal text-[#020817] leading-[20px] text-[14px]">
+                    {highlightText(product.name, unallocatedSearchQuery, '#EA4315', product)}
+                  </h3>
+
+                  {/* Badge sits on its own line so long product names keep the full width */}
+                  <div className="flex items-center gap-1">
+                    <span className="bg-[#D1D5DB] text-[#111827] text-[9px] font-medium px-1.5 py-0.5 rounded">
+                      {product.badge}
+                    </span>
                   </div>
-                </CardContent>
-              </Card>
+
+                  <p className="italic text-gray-500 leading-relaxed text-[14px]">
+                    {product.description}
+                  </p>
+
+                  <div className="text-gray-500 text-[14px]">
+                    {highlightNDC(product.ndc, unallocatedSearchQuery, '#EA4315', product)}
+                    {' - '}
+                    {highlightText(product.inventoryType, unallocatedSearchQuery, '#EA4315', product)}
+                  </div>
+
+                  {/* Show bin assignments if this product is selected and bins are assigned */}
+                  {isSelected(product.id) && binCount > 0 && (
+                    <>
+                      <Separator className="my-2" />
+                      <div className="space-y-1">
+                        {selectedBinsForAssignment.map((binId) => {
+                          const binLocation = getBinLocationDetails(binId, doorShelfConfig, false);
+                          return binLocation ? (
+                            <div key={binId} className="text-xs text-[#095192] font-medium">
+                              {binLocation}
+                            </div>
+                          ) : null;
+                        })}
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
             ))}
           </div>
         )}
       </div>
 
-      {/* Assignment Actions */}
-      {selectedUnallocatedProducts.length > 0 && (
-        <div className="p-4 border-t border-gray-200 bg-blue-50">
+      {/* Always-present action bar. The status text on the left says what is still missing, and
+          Allocate stays disabled until both a product and a bin are chosen. */}
+      <div className="p-4 border-t border-gray-200 bg-white flex items-center justify-between gap-3">
+        {/* Nothing selected yet needs no instruction — the disabled button already says so. */}
+        <div className="text-[14px] leading-[20px]">
+          {productCount > 0 && (
+            <>
+              <p className="text-[#095192]">
+                {productCount} Product{productCount > 1 ? 's' : ''} selected
+              </p>
+              {binCount === 0 ? (
+                <p className="text-[#8F48D2]">Select bin(s) to allocate</p>
+              ) : (
+                <p className="text-[#095192]">
+                  {binCount} Bin{binCount > 1 ? 's' : ''} selected
+                </p>
+              )}
+            </>
+          )}
+        </div>
 
-          
-          <div className="flex gap-2">
-            <div 
-              className={`bg-white relative rounded-[4px] flex-1 ${selectedUnallocatedProducts.length === 0 && selectedBinsForAssignment.length === 0 ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
-              onClick={selectedUnallocatedProducts.length === 0 && selectedBinsForAssignment.length === 0 ? undefined : onClearSelection}
-            >
-              <div aria-hidden="true" className="absolute border border-[#095192] border-solid inset-0 pointer-events-none rounded-[4px]" />
-              <div className="flex flex-row items-center justify-center relative size-full">
-                <div className="box-border content-stretch flex gap-2 items-center justify-center px-3 py-2 relative size-full">
-                  <div className="capitalize font-['Inter:Regular',_sans-serif] font-normal leading-[0] not-italic relative shrink-0 text-[#095192] text-[14px] text-nowrap">
-                    <p className="leading-[20px] whitespace-pre text-[14px]">Clear Selection</p>
-                  </div>
-                </div>
-              </div>
+        <div
+          className={`relative rounded-[4px] shrink-0 bg-[#095192] ${
+            canAllocate ? 'cursor-pointer' : 'opacity-50 cursor-not-allowed'
+          }`}
+          onClick={canAllocate ? onConfirmAssignment : undefined}
+        >
+          <div className="box-border flex gap-2 items-center justify-center px-4 py-2">
+            <CheckCircle2 className="w-4 h-4 text-white" />
+            <div className="capitalize font-['Inter:Regular',_sans-serif] font-normal leading-[0] not-italic shrink-0 text-[14px] text-nowrap text-white">
+              <p className="leading-[20px] whitespace-pre text-[14px]">Allocate</p>
             </div>
-            {selectedBinsForAssignment.length > 0 && (
-              <div 
-                className="bg-[#095192] relative rounded-[4px] cursor-pointer flex-1"
-                onClick={onConfirmAssignment}
-              >
-                <div className="flex flex-row items-center justify-center relative size-full">
-                  <div className="box-border content-stretch flex gap-2 items-center justify-center px-3 py-2 relative size-full">
-                    <Check className="w-4 h-4 text-white" />
-                    <div className="capitalize font-['Inter:Regular',_sans-serif] font-normal leading-[0] not-italic relative shrink-0 text-[14px] text-nowrap text-white">
-                      <p className="leading-[20px] whitespace-pre text-[14px]">Assign</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
         </div>
-      )}
+      </div>
     </div>
   );
 }
