@@ -13,11 +13,14 @@ import TargetBinSerialScanPage from "./components/TargetBinSerialScanPage";
 import ProductDetailPage from "./components/ProductDetailPage";
 import UnallocateConfirmModal from "./components/UnallocateConfirmModal";
 import ErrorBoundary from "./components/ErrorBoundary";
+import AllocationBottomBar from "./components/AllocationBottomBar";
+import AllocationSelectionPanel from "./components/AllocationSelectionPanel";
 import { useDebounce } from "./hooks/useDebounce";
 
 import { useInventoryState } from "./hooks/useInventoryState";
 import { useSerialNumberModal } from "./hooks/useSerialNumberModal";
 import { cabinets } from "./data/cabinets";
+import { countSelectedProducts } from "./utils/allocationSelection";
 import { ProductTransfer } from "./types";
 import {
   getCurrentShelves,
@@ -184,6 +187,9 @@ export default function App() {
   // would land the user on the shelf page instead of the modal they came from.
   const [allProductsBinId, setAllProductsBinId] = useState<string | null>(null);
 
+  // Which half of the allocation selection is open for review in the side panel.
+  const [allocationPanel, setAllocationPanel] = useState<'source' | 'target' | null>(null);
+
   // Handle product click for product detail page
   const handleProductClick = useCallback((product: any, location: any) => {
     setSelectedProduct(product);
@@ -328,6 +334,34 @@ export default function App() {
       return [];
     }
   }, [inventoryState.changeAllocationSourceBins, inventoryState.changeAllocationTargetBins, binLookupMap]);
+
+  // The review panel is only ever a window onto a live selection, so it closes with the thing it was
+  // showing: leaving the mode, or clearing the half that was open.
+  const sourceBinCount = inventoryState.changeAllocationSourceBins?.length ?? 0;
+  const targetBinCount = inventoryState.changeAllocationTargetBins?.length ?? 0;
+  useEffect(() => {
+    if (!inventoryState.changeAllocationMode) {
+      setAllocationPanel(null);
+      return;
+    }
+    if (allocationPanel === 'source' && sourceBinCount === 0) setAllocationPanel(null);
+    if (allocationPanel === 'target' && targetBinCount === 0) setAllocationPanel(null);
+  }, [inventoryState.changeAllocationMode, allocationPanel, sourceBinCount, targetBinCount]);
+
+  // Clear acts on whichever step the user is on — sources on step 1, targets on step 2 — matching
+  // what the bar's Clear button is sitting next to.
+  const handleAllocationClear = useCallback(() => {
+    if (inventoryState.changeAllocationStep === 1) {
+      (inventoryState.handleClearSourceBins ?? inventoryState.handleClearChangeAllocationSelection)?.();
+    } else {
+      (inventoryState.handleClearTargetBins ?? inventoryState.handleClearChangeAllocationSelection)?.();
+    }
+  }, [
+    inventoryState.changeAllocationStep,
+    inventoryState.handleClearSourceBins,
+    inventoryState.handleClearTargetBins,
+    inventoryState.handleClearChangeAllocationSelection
+  ]);
 
   // Add loading state to prevent timeout during heavy operations
   if (!inventoryState.doorShelfConfig) {
@@ -574,6 +608,35 @@ export default function App() {
           handleSelectAllUnallocatedProducts={inventoryState.handleSelectAllUnallocatedProducts}
           handleClearUnallocatedSelection={inventoryState.handleClearUnallocatedSelection}
           handleConfirmAssignment={inventoryState.handleConfirmAssignment}
+          bottomBar={
+            inventoryState.changeAllocationMode ? (
+              <AllocationBottomBar
+                step={inventoryState.changeAllocationStep}
+                sourceBinCount={sourceBinCount}
+                sourceProductCount={countSelectedProducts(inventoryState.changeAllocationSourceQuery)}
+                targetBinCount={targetBinCount}
+                openPanel={allocationPanel}
+                onOpenSource={() => setAllocationPanel(current => (current === 'source' ? null : 'source'))}
+                onOpenTarget={() => setAllocationPanel(current => (current === 'target' ? null : 'target'))}
+                onCancel={inventoryState.handleExitChangeAllocation}
+                onBackToSource={inventoryState.handlePreviousStep}
+                onClear={handleAllocationClear}
+                onNext={inventoryState.handleNextStep}
+                onConfirm={inventoryState.handleOpenChangeAllocationModal}
+              />
+            ) : null
+          }
+          sidePanelOpen={allocationPanel !== null}
+          sidePanel={
+            allocationPanel ? (
+              <AllocationSelectionPanel
+                role={allocationPanel}
+                bins={allocationPanel === 'source' ? getSourceBins : getTargetBins}
+                sourceQuery={inventoryState.changeAllocationSourceQuery ?? ''}
+                onClose={() => setAllocationPanel(null)}
+              />
+            ) : null
+          }
         >
           <HeaderSection
             searchQuery={inventoryState.searchQuery}
@@ -584,7 +647,6 @@ export default function App() {
             changeAllocationMode={inventoryState.changeAllocationMode}
             changeAllocationStep={inventoryState.changeAllocationStep}
             changeAllocationSourceBins={inventoryState.changeAllocationSourceBins}
-            changeAllocationSourceQuery={inventoryState.changeAllocationSourceQuery}
             changeAllocationTargetBins={inventoryState.changeAllocationTargetBins}
             unallocatedProductsCount={inventoryState.unallocatedProductsCount}
             doorShelfConfig={inventoryState.doorShelfConfig}
@@ -596,12 +658,6 @@ export default function App() {
             handleUnallocatedProductsClick={inventoryState.handleUnallocatedProductsClick}
             handleExitChangeAllocation={inventoryState.handleExitChangeAllocation}
             handleHistoryClick={inventoryState.handleHistoryClick}
-            handleNextStep={inventoryState.handleNextStep}
-            handlePreviousStep={inventoryState.handlePreviousStep}
-            handleClearChangeAllocationSelection={inventoryState.handleClearChangeAllocationSelection}
-            handleClearSourceBins={inventoryState.handleClearSourceBins}
-            handleClearTargetBins={inventoryState.handleClearTargetBins}
-            handleOpenChangeAllocationModal={inventoryState.handleOpenChangeAllocationModal}
             handleSelectBinsForAssignment={inventoryState.handleSelectBinsForAssignment}
             handleSelectSourceBinsFromSearch={inventoryState.handleSelectSourceBinsFromSearch}
             handleSelectTargetBinsFromSearch={inventoryState.handleSelectTargetBinsFromSearch}

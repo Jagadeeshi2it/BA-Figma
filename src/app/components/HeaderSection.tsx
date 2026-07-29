@@ -10,22 +10,6 @@ import { DoorShelfConfig } from '../types';
 // list is noise rather than an answer.
 const MIN_SEARCH_LENGTH = 3;
 
-// How many distinct products a source selection was built from. The highlight query carries one
-// `|`-separated OR-group per product picked from the search list, so counting groups counts
-// products. Returns 0 when the bins were clicked directly rather than searched for, which is the
-// case where a product count would be a guess.
-const countSelectedProducts = (query: string): number =>
-  query.split('|').map(group => group.trim()).filter(group => group.length > 0).length;
-
-// "6 source bins" on its own doesn't say whether that's one product spread wide or six products in
-// six places — the thing the user is actually moving. Bins clicked straight off the shelf carry no
-// product context, so there the bin count stands alone.
-const describeSourceSelection = (binCount: number, query: string): string => {
-  const bins = `${binCount} source bin${binCount !== 1 ? 's' : ''}`;
-  const products = countSelectedProducts(query);
-  return products > 0 ? `${products} product${products !== 1 ? 's' : ''} in ${bins}` : bins;
-};
-
 interface HeaderSectionProps {
   searchQuery: string;
   highlightAvailableBins: boolean;
@@ -35,10 +19,6 @@ interface HeaderSectionProps {
   changeAllocationMode: boolean;
   changeAllocationStep: 1 | 2;
   changeAllocationSourceBins: string[];
-  // The `|`-joined highlight query behind a search-driven source selection — one OR-group per
-  // product picked. Empty when bins were clicked directly, which is how the status line below
-  // knows whether a product count is meaningful.
-  changeAllocationSourceQuery?: string;
   changeAllocationTargetBins: string[];
   unallocatedProductsCount: number; // CRITICAL FIX: Pass unallocated products count as prop
   doorShelfConfig: DoorShelfConfig;
@@ -50,12 +30,6 @@ interface HeaderSectionProps {
   handleUnallocatedProductsClick: () => void;
   handleExitChangeAllocation: () => void;
   handleHistoryClick: () => void;
-  handleNextStep: () => void;
-  handlePreviousStep: () => void;
-  handleClearChangeAllocationSelection: () => void;
-  handleOpenChangeAllocationModal: () => void;
-  handleClearSourceBins?: () => void;
-  handleClearTargetBins?: () => void;
   handleSelectBinsForAssignment?: (binIds: string[]) => void;
   handleSelectSourceBinsFromSearch?: (binIds: string[], productName: string, highlightQuery?: string) => void;
   handleSelectTargetBinsFromSearch?: (binIds: string[], productName: string, highlightQuery?: string) => void;
@@ -73,7 +47,6 @@ const HeaderSection = memo(function HeaderSection({
   changeAllocationMode,
   changeAllocationStep,
   changeAllocationSourceBins,
-  changeAllocationSourceQuery = '',
   changeAllocationTargetBins,
   unallocatedProductsCount,
   doorShelfConfig,
@@ -85,12 +58,6 @@ const HeaderSection = memo(function HeaderSection({
   handleUnallocatedProductsClick,
   handleExitChangeAllocation,
   handleHistoryClick,
-  handleNextStep,
-  handlePreviousStep,
-  handleClearChangeAllocationSelection,
-  handleOpenChangeAllocationModal,
-  handleClearSourceBins,
-  handleClearTargetBins,
   handleSelectBinsForAssignment,
   handleSelectSourceBinsFromSearch,
   handleSelectTargetBinsFromSearch,
@@ -233,20 +200,6 @@ const HeaderSection = memo(function HeaderSection({
     dismissSearchList();
   };
 
-  // Step-specific clear handler
-  const handleStepSpecificClear = () => {
-    if (changeAllocationStep === 1) {
-      // Clear only source bins on step 1
-      if (handleClearSourceBins) {
-        handleClearSourceBins();
-      }
-    } else if (changeAllocationStep === 2) {
-      // Clear only target bins on step 2
-      if (handleClearTargetBins) {
-        handleClearTargetBins();
-      }
-    }
-  };
 
   return (
     <>
@@ -426,130 +379,6 @@ const HeaderSection = memo(function HeaderSection({
         </div>
       </div>
 
-      {/* Change Allocation Instructions */}
-      {changeAllocationMode && (
-        <div className={`mb-6 p-4 bg-[#edf1f5] border border-[rgba(9,81,146,0.2)] rounded-[10px] ${
-          changeAllocationMode 
-            ? 'sticky top-0 z-50 shadow-sm' 
-            : ''
-        }`}>
-          <div className="flex items-center justify-between">
-            <div className="flex-1">
-              {changeAllocationStep === 1 ? (
-                <div className="space-y-1">
-                  <p className="text-sm text-[rgba(0,0,0,1)] text-[14px]">
-                    Step 1. Select source bins containing products to move
-                  </p>
-                  {changeAllocationSourceBins.length > 0 && (
-                    <p className="text-xs text-[#095192] text-[12px]">
-                      Selected: {describeSourceSelection(changeAllocationSourceBins.length, changeAllocationSourceQuery)}
-                    </p>
-                  )}
-                </div>
-              ) : changeAllocationStep === 2 && changeAllocationTargetBins.length === 0 ? (
-                <div className="space-y-1">
-                  <p className="text-sm text-[rgba(0,0,0,1)] text-[14px]">
-                    <span className="text-[14px]">Step 2.</span>{" "}
-                    <span className="text-[14px]">Select one or more target bins for the products</span>
-                  </p>
-                  <p className="text-xs text-[#095192] text-[12px]">
-                    Note: Target bins can be from any cabinet or door
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-1">
-                  <p className="text-sm text-[rgba(0,0,0,1)]">
-                    <span className="text-[14px]">Step 2.</span>{" "}
-                    <span className="text-[14px]">Review your selections and confirm the allocation change</span>
-                  </p>
-                  <p className="text-xs text-[#095192]">
-                    <span className="text-[12px]">Selected: {describeSourceSelection(changeAllocationSourceBins.length, changeAllocationSourceQuery)}, {changeAllocationTargetBins.length} target bin{changeAllocationTargetBins.length !== 1 ? "s" : ""}</span>
-                  </p>
-                </div>
-              )}
-            </div>
-            <div className="flex items-center gap-2">
-              {changeAllocationStep === 2 && (
-                <div 
-                  className="bg-white relative rounded-[4px] cursor-pointer"
-                  onClick={handlePreviousStep}
-                >
-                  <div aria-hidden="true" className="absolute border border-[#095192] border-solid inset-0 pointer-events-none rounded-[4px]" />
-                  <div className="flex flex-row items-center justify-end relative size-full">
-                    <div className="box-border content-stretch flex gap-2 items-center justify-end px-3 py-2 relative size-full">
-                      <div className="capitalize font-['Inter:Regular',_sans-serif] font-normal leading-[0] not-italic relative shrink-0 text-[#095192] text-[14px] text-nowrap">
-                        <p className="leading-[20px] whitespace-pre text-[14px]">Change Source Bin</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-              {changeAllocationStep === 1 && changeAllocationSourceBins.length > 0 && (
-                <div 
-                  className="bg-white relative rounded-[4px] cursor-pointer"
-                  onClick={handleStepSpecificClear}
-                >
-                  <div aria-hidden="true" className="absolute border border-[#095192] border-solid inset-0 pointer-events-none rounded-[4px]" />
-                  <div className="flex flex-row items-center justify-end relative size-full">
-                    <div className="box-border content-stretch flex gap-2 items-center justify-end px-3 py-2 relative size-full">
-                      <div className="capitalize font-['Inter:Regular',_sans-serif] font-normal leading-[0] not-italic relative shrink-0 text-[#095192] text-[14px] text-nowrap">
-                        <p className="leading-[20px] whitespace-pre text-[14px]">Clear</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-              {changeAllocationStep === 2 && changeAllocationTargetBins.length > 0 && (
-                <div 
-                  className="bg-white relative rounded-[4px] cursor-pointer"
-                  onClick={handleStepSpecificClear}
-                >
-                  <div aria-hidden="true" className="absolute border border-[#095192] border-solid inset-0 pointer-events-none rounded-[4px]" />
-                  <div className="flex flex-row items-center justify-end relative size-full">
-                    <div className="box-border content-stretch flex gap-2 items-center justify-end px-3 py-2 relative size-full">
-                      <div className="capitalize font-['Inter:Regular',_sans-serif] font-normal leading-[0] not-italic relative shrink-0 text-[#095192] text-[14px] text-nowrap">
-                        <p className="leading-[20px] whitespace-pre text-[14px]">Clear</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-              {changeAllocationStep === 1 && changeAllocationSourceBins.length > 0 && (
-                <div 
-                  className="bg-[#095192] relative rounded-[4px] cursor-pointer"
-                  onClick={handleNextStep}
-                >
-                  <div className="flex flex-row items-center justify-end relative size-full">
-                    <div className="box-border content-stretch flex gap-2 items-center justify-end px-3 py-2 relative size-full">
-                      <div className="capitalize font-['Inter:Regular',_sans-serif] font-normal leading-[0] not-italic relative shrink-0 text-[14px] text-nowrap text-white">
-                        <p className="leading-[20px] whitespace-pre text-[14px]">Select Target</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-              {changeAllocationStep === 2 && (
-                <>
-                  {changeAllocationTargetBins.length > 0 && (
-                    <div 
-                      className="bg-[#095192] relative rounded-[4px] cursor-pointer"
-                      onClick={handleOpenChangeAllocationModal}
-                    >
-                      <div className="flex flex-row items-center justify-end relative size-full">
-                        <div className="box-border content-stretch flex gap-2 items-center justify-end px-3 py-2 relative size-full">
-                          <div className="capitalize font-['Inter:Regular',_sans-serif] font-normal leading-[0] not-italic relative shrink-0 text-[14px] text-nowrap text-white">
-                            <p className="leading-[20px] whitespace-pre text-[14px]">Confirm Selection</p>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
     </>
   );
 });

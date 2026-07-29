@@ -31,6 +31,13 @@ interface MainLayoutProps {
   handleSelectAllUnallocatedProducts: () => void;
   handleClearUnallocatedSelection: () => void;
   handleConfirmAssignment: () => void;
+  // Pinned below the scrolling content, inside the content column — so it can't cover the shelves
+  // and it shifts with the column when a side panel opens, which position:fixed wouldn't.
+  bottomBar?: React.ReactNode;
+  // An extra fixed right-hand panel (the allocation review). Passed as a node with its own open
+  // flag so the column's reserved margin can account for it.
+  sidePanel?: React.ReactNode;
+  sidePanelOpen?: boolean;
   children: React.ReactNode;
   removePadding?: boolean;
 }
@@ -59,6 +66,9 @@ export default function MainLayout({
   handleSelectAllUnallocatedProducts,
   handleClearUnallocatedSelection,
   handleConfirmAssignment,
+  bottomBar,
+  sidePanel,
+  sidePanelOpen = false,
   children,
   removePadding
 }: MainLayoutProps) {
@@ -72,7 +82,9 @@ export default function MainLayout({
         className={`flex-1 min-w-0 flex flex-col transition-all duration-300 ${
           // The unallocated panel is wider than the bin inventory one, so the reserved margin has
           // to match whichever is open or the panel overlaps the shelves.
-          showUnallocatedProducts || allProductsBin ? "mr-[440px]" : showBinInventory ? "mr-[320px]" : ""
+          showUnallocatedProducts || allProductsBin || sidePanelOpen
+            ? "mr-[440px]"
+            : showBinInventory ? "mr-[320px]" : ""
         }`}
       >
         {/* Top Header */}
@@ -85,10 +97,14 @@ export default function MainLayout({
         </div>
 
         {/* Main Content Area */}
-        <div className={`flex-1 ${removePadding ? 'overflow-hidden' : 'overflow-y-auto p-6'}`}>
+        <div className={`flex-1 min-h-0 ${removePadding ? 'overflow-hidden' : 'overflow-y-auto p-6'}`}>
           {children}
         </div>
+
+        {bottomBar}
       </div>
+
+      {sidePanel}
 
       {/* Fixed Bin Inventory Side Panel */}
       {showBinInventory && !showUnallocatedProducts && (
