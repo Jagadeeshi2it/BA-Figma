@@ -1,7 +1,7 @@
 import React, { memo } from 'react';
 import { Button } from './ui/button';
-import { Check } from 'lucide-react';
 import { ProductSearchResult, getBinIdsForProduct } from '../utils/productSearchUtils';
+import { getVialType, hasClimateBadge, hasCivBadge } from '../utils/binProducts';
 
 interface SearchDropdownProps {
   searchResults: ProductSearchResult[];
@@ -25,14 +25,22 @@ interface SearchDropdownProps {
   // Bins already taken as source. During step 2 they can't become targets, so they're skipped
   // when choosing which location to jump to.
   sourceBinIds?: string[];
-  // View mode only: fill the search box with what was picked and dismiss the list. restoreOnFocus
-  // marks the text as a summary ("4 products selected") that should be swapped back for the typed
-  // keyword when the user clicks into the box again.
-  onAutofillSearch?: (text: string, restoreOnFocus?: boolean) => void;
+  // View mode only: fill the search box with what was picked and dismiss the list.
+  onAutofillSearch?: (text: string) => void;
+  // Dismiss the list without touching the query, so a reopened list still matches what's typed.
+  onDismissList?: () => void;
   onClose: () => void;
 }
 
-const getResultKey = (result: ProductSearchResult) => `${result.ndc}-${result.inventoryType}`;
+export const getResultKey = (result: ProductSearchResult) => `${result.ndc}-${result.inventoryType}`;
+
+// Where the product actually sits, in the same shape getBinLocationDetails produces without the
+// cabinet ("Bin A - Shelf 2, Door 6") — built from the result's own locations, which already carry
+// the names. Deduped because one bin can hold several lots of the same NDC. No product group spans
+// more than four bins in the real data, so every location can be listed without truncating.
+const formatBinLocations = (result: ProductSearchResult): string[] => [
+  ...new Set(result.binLocations.map(loc => `${loc.binName} - ${loc.shelfName}, ${loc.doorName}`))
+];
 
 const SearchDropdown = memo(function SearchDropdown({
   searchResults,
@@ -50,6 +58,7 @@ const SearchDropdown = memo(function SearchDropdown({
   onScrollToBin,
   sourceBinIds = [],
   onAutofillSearch,
+  onDismissList,
   onClose
 }: SearchDropdownProps) {
   if (!isVisible || searchResults.length === 0) {
@@ -65,6 +74,13 @@ const SearchDropdown = memo(function SearchDropdown({
     : searchResults;
 
   const isPicked = (result: ProductSearchResult) => viewedProductKeys.includes(getResultKey(result));
+
+  // Picked cards float to the top. The list can hold dozens of matches and reopens scrolled to the
+  // top, so a tick further down is a tick the user has to go hunting for. sort is stable, so the
+  // search's own ordering still holds within the picked and unpicked halves.
+  const orderedResults = [...visibleResults].sort(
+    (a, b) => Number(isPicked(b)) - Number(isPicked(a))
+  );
 
   // Nothing left for "Select All" to do once every card is ticked — or when there's only one card,
   // which the row itself already covers. In change allocation mode fully-used results are dropped
@@ -116,7 +132,7 @@ const SearchDropdown = memo(function SearchDropdown({
       // Actually select every matching bin as source/target, not just preview-highlight it.
       const allBinIds = Array.from(new Set(visibleResults.flatMap(getBinIdsForProduct)));
       const productNames = visibleResults.map(result => result.name).join(', ');
-      // Same OR-group query shape as the view-only "Select All" below, so every selected
+      // Same OR-group query shape as the view-mode branch further down, so every selected
       // product's row (not just its bin) gets highlighted.
       const highlightQuery = buildHighlightQuery(visibleResults);
       if (changeAllocationStep === 1) {
@@ -140,12 +156,9 @@ const SearchDropdown = memo(function SearchDropdown({
     // Replaces the previous pick, same as a single click — see handleProductClick.
     onProductsViewed?.(visibleResults.map(getResultKey));
     jumpToProduct(visibleResults[0]);
-    // No single name to show, so the box reports the count instead — and flags it as a summary, so
-    // clicking back into the box restores the keyword rather than leaving a dead query there.
-    onAutofillSearch?.(
-      `${visibleResults.length} product${visibleResults.length !== 1 ? 's' : ''} selected`,
-      true
-    );
+    // Unlike a single pick there's no one name to put in the box, and the typed keyword is what
+    // describes this selection best — so leave the query alone and just dismiss the list.
+    onDismissList?.();
   };
 
   // Determine unit based on total quantity
@@ -166,70 +179,91 @@ const SearchDropdown = memo(function SearchDropdown({
 
   return (
     <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-[#bcc3cd] rounded-[4px] shadow-lg z-[60] max-h-96 overflow-y-auto">
-      <div className="p-3">
+      <div>
         {/* No count when there's nothing left to list — the message below says the whole story,
             and a count with an empty list under it just reads as a contradiction. */}
         {visibleResults.length > 0 && (
-          <div className="flex flex-col font-normal justify-center leading-[0] not-italic relative shrink-0 text-[#9fa9b7] text-xs text-left mb-3">
-            <p className="block leading-[16px] text-[14px]">
-              Found {visibleResults.length} matching product{visibleResults.length !== 1 ? 's' : ''}
+          <div className="box-border content-stretch flex flex-row gap-3 items-center justify-between relative shrink-0 w-full px-4 py-3">
+            <p className="block font-normal leading-[16px] not-italic text-[#020817] text-[14px] text-left">
+              <span className="font-semibold">{visibleResults.length}</span> matching product{visibleResults.length !== 1 ? 's' : ''}
             </p>
+            {/* Shares the count's row rather than taking a full-width one of its own. In view mode the
+                count next to it already says how many, so the label doesn't repeat it — change
+                allocation mode keeps its count, which is bins, not products, and so isn't a repeat. */}
+            {showSelectAll && (
+              <Button
+                variant="ghost"
+                onClick={handleSelectAll}
+                className="bg-transparent hover:bg-transparent text-[#095192] hover:text-[#074080] hover:underline text-[14px] font-medium h-auto p-0 shrink-0"
+              >
+                {changeAllocationMode
+                  ? `Select All as ${changeAllocationStep === 1 ? 'Source' : 'Target'} (${totalBinCount} bin${totalBinCount !== 1 ? 's' : ''})`
+                  : 'Select All'
+                }
+              </Button>
+            )}
           </div>
         )}
 
         {/* Only change allocation mode can empty this list — view mode keeps every match listed,
             and the component returns null when the search itself found nothing. */}
         {visibleResults.length === 0 ? (
-          <div className="text-[13px] text-[#64748b] text-center py-2">
+          <div className="text-[13px] text-[#64748b] text-center px-4 pb-3">
             {alreadySelectedMessage}
           </div>
         ) : (
-        <>
-        {/* Select All Button — see showSelectAll: hidden with a single result, and once every card
-            is already ticked. */}
-        {showSelectAll && (
-        <Button
-          onClick={handleSelectAll}
-          className="w-full bg-[#095192] hover:bg-[#074080] text-white text-[14px] h-10 rounded-[4px] mb-3"
-        >
-          {changeAllocationMode
-            ? `Select All as ${changeAllocationStep === 1 ? 'Source' : 'Target'} (${totalBinCount} bin${totalBinCount !== 1 ? 's' : ''})`
-            : `Select All (${visibleResults.length} product${visibleResults.length !== 1 ? 's' : ''})`
-          }
-        </Button>
-        )}
-
-        {visibleResults.map((result, index) => (
+        // Divider-separated rows, same as the unallocated list: a list of matches reads as one list,
+        // where a stack of bordered cards reads as several unrelated things.
+        <div className="divide-y divide-gray-200 border-t border-gray-200">
+        {orderedResults.map((result, index) => (
           <div
             key={`${result.ndc}-${result.inventoryType}-${index}`}
-            className={`border border-solid rounded-lg mb-3 last:mb-0 hover:shadow-md transition-all p-4 cursor-pointer ${
-              isPicked(result)
-                ? 'border-[#095192] bg-[#F1F6FA]'
-                : 'border-gray-200 bg-white'
-            }`}
+            // No tint on the picked row either — same reason as the bins: the highlight colour on
+            // the name and locations is the signal, and a filled background only mutes it. Hover
+            // still tints, since that's transient rather than a state.
+            className="px-4 py-4 cursor-pointer transition-colors duration-200 hover:bg-gray-50"
             onClick={() => handleProductClick(result)}
           >
-            {/* Product Layout - matching BinCard structure */}
-            <div className="box-border content-stretch flex flex-row items-start justify-between gap-2 p-0 relative shrink-0 w-full mb-4">
+            {/* Product Layout - matching BinCard structure. The bottom gap is only there to separate
+                this row from the action button below it, which only change allocation mode renders —
+                in view mode it would just leave the card padded out with nothing under the text. */}
+            <div className={`box-border content-stretch flex flex-row items-start justify-between gap-2 p-0 relative shrink-0 w-full ${changeAllocationMode ? 'mb-4' : ''}`}>
               <div className="flex-1 box-border content-stretch flex flex-col gap-0.5 items-start justify-start min-w-0 p-0 relative">
                 <div className="box-border content-stretch flex flex-row items-start justify-start p-0 relative w-full min-w-0">
-                  {isPicked(result) && (
-                    <Check className="w-4 h-4 text-[#095192] shrink-0 mr-1 mt-0.5" strokeWidth={3} />
+                  {/* A picked row wears the same highlight colour the bins use for a matched product,
+                      rather than a tick of its own — one visual language for "this is the one you
+                      asked about", whether you're reading the list or the shelf it points at. */}
+                  <div className={`flex-1 flex flex-col font-normal justify-center leading-[0] not-italic relative text-xs text-left min-w-0 ${isPicked(result) ? 'text-[#A16207]' : 'text-[#020817]'}`}>
+                    <p className="block leading-[16px] text-[14px] font-medium break-words">{result.name}</p>
+                  </div>
+                </div>
+                {/* Badges sit under the name, not beside it, and come from the same helpers the bin
+                    rows use — keyed on name + NDC + inventory type, which is exactly what a search
+                    result is grouped by, so a hit and the bin row it points at always agree. */}
+                <div className="flex items-center gap-1 my-1">
+                  <span className="bg-[#D1D5DB] text-[#111827] text-[9px] font-medium px-1.5 py-0.5 rounded">
+                    {getVialType(result)}
+                  </span>
+                  {hasClimateBadge(result) && (
+                    <span className="bg-[#DBEAFE] text-[#1D4ED8] text-[9px] font-medium px-1.5 py-0.5 rounded">CLIMATE</span>
                   )}
-                  <div className="w-fit flex flex-col font-normal justify-center leading-[0] not-italic relative text-[#020817] text-xs text-left pr-1">
-                    <p className="block leading-[16px] text-[14px] font-medium">{result.name}</p>
-                  </div>
-                  <div className="bg-[#000000] box-border content-stretch flex flex-row gap-2.5 items-center justify-center px-1 py-0.5 relative rounded shrink-0 ml-1">
-                    <div className="flex flex-col font-bold justify-center leading-[0] not-italic relative shrink-0 text-[#ffffff] text-[8px] text-left text-nowrap">
-                      <p className="block leading-[normal] whitespace-pre">
-                        {result.inventoryType === 'Charity Care' ? 'MDV' : 'SDV'}
-                      </p>
-                    </div>
-                  </div>
+                  {hasCivBadge(result) && (
+                    <span className="bg-[#FEF3C7] text-[#B45309] text-[9px] font-medium px-1.5 py-0.5 rounded">CIV</span>
+                  )}
                 </div>
                 <div className="flex flex-col font-normal justify-center leading-[0] not-italic relative shrink-0 text-[#676b74] text-xs text-left w-full">
                   <p className="block leading-[16px] break-words overflow-hidden text-[14px]">{result.ndc} - {result.inventoryType}</p>
                 </div>
+                {/* Which bins hold it — a search hit is only actionable once you know where to walk. */}
+                {result.binLocations.length > 0 && (
+                  <div className="flex flex-col gap-0.5 items-start justify-start mt-1 relative shrink-0 w-full">
+                    {formatBinLocations(result).map(location => (
+                      <p key={location} className={`block font-normal leading-[16px] not-italic text-[12px] text-left break-words ${isPicked(result) ? 'text-[#A16207]' : 'text-[#020817]'}`}>
+                        {location}
+                      </p>
+                    ))}
+                  </div>
+                )}
               </div>
               
               {/* Quantity Display - matching BinCard structure */}
@@ -277,7 +311,7 @@ const SearchDropdown = memo(function SearchDropdown({
             )}
           </div>
         ))}
-        </>
+        </div>
         )}
       </div>
     </div>

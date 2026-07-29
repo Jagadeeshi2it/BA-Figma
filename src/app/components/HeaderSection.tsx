@@ -2,9 +2,14 @@ import React, { memo, useState, useEffect, useRef } from 'react';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { Clock, X } from 'lucide-react';
-import SearchDropdown from './SearchDropdown';
+import SearchDropdown, { getResultKey } from './SearchDropdown';
 import { searchProducts, getBinIdsForProduct } from '../utils/productSearchUtils';
 import { DoorShelfConfig } from '../types';
+
+// Shortest query that gets searched. Anything shorter matches so much of the catalogue that the
+// list is noise rather than an answer.
+const MIN_SEARCH_LENGTH = 3;
+
 interface HeaderSectionProps {
   searchQuery: string;
   highlightAvailableBins: boolean;
@@ -83,32 +88,44 @@ const HeaderSection = memo(function HeaderSection({
   const searchContainerRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
-  // Update search results when query changes
-  useEffect(() => {
-    if (searchQuery.trim() && doorShelfConfig) {
-      const results = searchProducts(doorShelfConfig, searchQuery);
-      setSearchResults(results);
-      setShowSearchDropdown(results.length > 0 && isSearchFocused);
-    } else {
-      setSearchResults([]);
-      setShowSearchDropdown(false);
-    }
-  }, [searchQuery, doorShelfConfig, isSearchFocused]);
-
-  // A query the app wrote itself — the product name after a pick, or the keyword restored on
-  // refocus — must not count as a new search. Both change searchQuery, and without this exemption
-  // the effect below would clear the pick the autofill was announcing: the box would name a product
-  // while its card showed as unselected.
+  // A query the app wrote itself — the product name written into the box after a pick — must not
+  // count as a new search. It changes searchQuery like typing does, and the prune below would then
+  // be free to drop the very pick the autofill was announcing, leaving the box naming a product
+  // whose card showed as unselected.
   const autofilledQuery = useRef<string | null>(null);
 
-  // A genuinely new typed query starts the "already viewed" tracking over.
-  useEffect(() => {
+  // Refining a query keeps the picks it still applies to. Typing "carbop" after picking all four
+  // "carbo" results leaves those four on screen, so clearing them would silently untick cards the
+  // user can still see; only keys whose product dropped out of the results are forgotten.
+  const prunePicksToResults = (results: any[]) => {
     if (autofilledQuery.current === searchQuery) {
       autofilledQuery.current = null;
       return;
     }
-    setViewedProductKeys([]);
-  }, [searchQuery]);
+    const liveKeys = new Set(results.map(getResultKey));
+    setViewedProductKeys(previous => {
+      const kept = previous.filter(key => liveKeys.has(key));
+      // Same array back when nothing went stale, so re-running on focus changes is a no-op
+      // instead of a fresh array that forces another render on every keystroke.
+      return kept.length === previous.length ? previous : kept;
+    });
+  };
+
+  // Update search results when query changes
+  useEffect(() => {
+    // One or two characters match too much of the catalogue to be worth reading, so the list stays
+    // quiet until the query is specific enough.
+    if (searchQuery.trim().length >= MIN_SEARCH_LENGTH && doorShelfConfig) {
+      const results = searchProducts(doorShelfConfig, searchQuery);
+      setSearchResults(results);
+      setShowSearchDropdown(results.length > 0 && isSearchFocused);
+      prunePicksToResults(results);
+    } else {
+      setSearchResults([]);
+      setShowSearchDropdown(false);
+      setViewedProductKeys([]);
+    }
+  }, [searchQuery, doorShelfConfig, isSearchFocused]);
 
   const handleProductsViewed = (keys: string[]) => {
     // Replaces, not accumulates: switching to a new product un-hides whatever was
@@ -157,37 +174,27 @@ const HeaderSection = memo(function HeaderSection({
   };
 
   // Handle search input focus
-  // "4 products selected" is a summary, not a query — searching for it finds nothing. So the
-  // keyword that produced the selection is kept here, and clicking back into the box swaps the
-  // summary out for it, bringing the results back with the picked cards still ticked.
-  const summarySearch = useRef<{ summary: string; keyword: string } | null>(null);
-
   const handleSearchFocus = () => {
     setIsSearchFocused(true);
-    if (summarySearch.current && searchQuery === summarySearch.current.summary) {
-      // Exempt from the reset above, so the restored results keep their ticks.
-      autofilledQuery.current = summarySearch.current.keyword;
-      handleSearchAutofill?.(summarySearch.current.keyword);
-      summarySearch.current = null;
-      // The effect above reopens the dropdown once the restored keyword produces results.
-      return;
-    }
     if (searchResults.length > 0) {
       setShowSearchDropdown(true);
     }
   };
 
-  // A view-mode pick fills the box with what was picked and dismisses the list. Dropping the focus
-  // flag is the load-bearing part: the effect above reopens the dropdown whenever the query changes
-  // while the box still counts as focused, so closing alone would flicker straight back open.
-  // restoreOnFocus marks the text as a summary to be swapped back for the keyword on refocus.
-  const handleSelectionAutofill = (text: string, restoreOnFocus = false) => {
-    summarySearch.current = restoreOnFocus ? { summary: text, keyword: searchQuery } : null;
-    autofilledQuery.current = text;
-    handleSearchAutofill?.(text);
+  // Blurring is the load-bearing part, not just closing: the effect above reopens the dropdown
+  // whenever the query changes while the box still counts as focused, and a box that never lost
+  // focus won't fire onFocus again — so the list could never be brought back by clicking it.
+  const dismissSearchList = () => {
     setIsSearchFocused(false);
     setShowSearchDropdown(false);
     searchInputRef.current?.blur();
+  };
+
+  // A single view-mode pick fills the box with what was picked and dismisses the list.
+  const handleSelectionAutofill = (text: string) => {
+    autofilledQuery.current = text;
+    handleSearchAutofill?.(text);
+    dismissSearchList();
   };
 
   // Step-specific clear handler
@@ -215,7 +222,10 @@ const HeaderSection = memo(function HeaderSection({
         <div className="flex items-center gap-2 h-full">
           {/* Always visible search bar with dropdown */}
           <div className="relative flex items-center" ref={searchContainerRef}>
-            <div className="bg-white relative rounded-[4px] w-[320px] h-[36px] border border-[#bcc3cd] focus-within:border-[#666666] focus-within:ring-[3px] focus-within:ring-[#666666]/50">
+            {/* The dropdown below is pinned to this box's edges, so its width comes from here —
+                widening the box widens the result rows and gives long product names a line to
+                themselves instead of wrapping onto three. */}
+            <div className="bg-white relative rounded-[4px] w-[350px] h-[36px] border border-[#bcc3cd] focus-within:border-[#666666] focus-within:ring-[3px] focus-within:ring-[#666666]/50">
               <input
                 ref={searchInputRef}
                 type="text"
@@ -258,6 +268,7 @@ const HeaderSection = memo(function HeaderSection({
               onScrollToBin={handleScrollToBin}
               sourceBinIds={changeAllocationSourceBins}
               onAutofillSearch={handleSelectionAutofill}
+              onDismissList={dismissSearchList}
               onClose={() => setShowSearchDropdown(false)}
             />
           </div>

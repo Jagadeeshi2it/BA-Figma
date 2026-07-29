@@ -1,6 +1,6 @@
 import React from 'react';
 import { Bin } from '../types';
-import { highlightText, highlightNDC, doesProductMatchSearch } from '../utils/textHighlight';
+import { highlightText, highlightNDC, doesProductMatchSearch, SEARCH_HIGHLIGHT_COLOR } from '../utils/textHighlight';
 // Grouping and badges are shared with AllProductsPanel so both views of a bin agree.
 import { consolidateBinProducts, getVialType, hasClimateBadge, hasCivBadge } from '../utils/binProducts';
 
@@ -127,7 +127,7 @@ export default function BinCard({
       >
         <div className="flex-1 box-border content-stretch flex flex-col gap-0.5 items-start justify-start min-w-0 p-0 relative">
           <div className="w-full flex flex-col font-normal justify-center leading-[0] not-italic relative text-[#020817] text-xs text-left">
-            <p className="block leading-[16px] text-[14px] text-[11px]">{highlightText(product.name, searchQuery, '#EA4315', product)}</p>
+            <p className="block leading-[16px] text-[14px] text-[11px]">{highlightText(product.name, searchQuery, SEARCH_HIGHLIGHT_COLOR, product)}</p>
           </div>
           <div className="flex items-center gap-1 my-1">
             <span className="bg-[#D1D5DB] text-[#111827] text-[9px] font-medium px-1.5 py-0.5 rounded">{getVialType(product)}</span>
@@ -139,7 +139,7 @@ export default function BinCard({
             )}
           </div>
           <div className="flex flex-col font-normal justify-center leading-[0] not-italic relative shrink-0 text-[#676b74] text-xs text-left w-full">
-            <p className="block leading-[16px] break-words overflow-hidden text-[14px]">{highlightNDC(`${product.ndc} - ${product.inventoryType}`, searchQuery, '#EA4315', product)}</p>
+            <p className="block leading-[16px] break-words overflow-hidden text-[14px]">{highlightNDC(`${product.ndc} - ${product.inventoryType}`, searchQuery, SEARCH_HIGHLIGHT_COLOR, product)}</p>
           </div>
         </div>
         <div className="bg-[#f7f7f7] box-border content-stretch flex flex-col items-center justify-center p-[4px] relative rounded shrink-0 w-12">
@@ -162,7 +162,9 @@ export default function BinCard({
         className={`relative rounded-lg cursor-pointer transition-all hover:shadow-md ${className} ${
           isChangeAllocationSource ? 'bg-[#E3F2FD]' :
           isChangeAllocationTarget ? 'bg-[#E8F5E8]' :
-          highlightSearch ? 'bg-[#FEFCE8]' :
+          // A search hit keeps the white background on purpose: the tinted fill washed out the
+          // highlight colour on the matched product's own text, which is the thing being pointed
+          // at. The yellow border below carries "this bin" on its own.
           isSelectedForAssignment && !changeAllocationMode ? 'bg-[#F7EFFE]' :
           'bg-white'
         } ${
@@ -176,7 +178,7 @@ export default function BinCard({
         } ${
           highlightAvailable && bin.available ? 'border-green-500 border-2 border-solid' : ''
         } ${
-          highlightSearch ? 'border-[#FACC14] border-2 border-solid' : ''
+          highlightSearch ? 'border-[#A16207] border border-solid' : ''
         } ${
           isSelectedForAssignment && !changeAllocationMode ? 'border-[#8F48D2] border-[1px] border-solid' : ''
         } ${

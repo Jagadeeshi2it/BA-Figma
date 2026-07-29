@@ -7,6 +7,7 @@ import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { Clock, X, RotateCcw, ArrowLeft, ChevronDown } from 'lucide-react';
 import { AllocationHistoryEntry } from '../types';
 import { pluralizeUnit } from '../utils/pluralizeUnit';
+import { getVialType } from '../utils/binProducts';
 import { productDataService } from '../services/ProductDataService';
 import { getSourceDisplayName, shouldHaveSourceBin } from '../utils/historyUtils';
 import { doorShelfConfig as defaultDoorConfig } from '../data/doorConfigurations';
@@ -232,9 +233,11 @@ export default function HistoryPage({
           if (!hay.includes(q)) return;
         }
 
+        // Fall back to the shared derivation, not a local one: a history row names the same drug
+        // the bins and search list do, so it has to reach the same badge.
         const vialType: 'SDV' | 'MDV' = (ep.vialType === 'MDV' || ep.vialType === 'SDV')
           ? ep.vialType
-          : (product.id.split('').reduce((a: number, c: string) => a + c.charCodeAt(0), 0) % 2 === 0 ? 'MDV' : 'SDV');
+          : getVialType({ name, ndc, inventoryType });
 
         out.push({
           key: `${entry.id}-${product.id}`,

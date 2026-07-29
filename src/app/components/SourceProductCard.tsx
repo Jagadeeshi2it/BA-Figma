@@ -4,6 +4,7 @@ import { pluralizeUnit } from '../utils/pluralizeUnit';
 import { emergencyKitService } from '../services/EmergencyKitService';
 import { productDataService } from '../services/ProductDataService';
 import { Product } from '../types';
+import { getVialType } from '../utils/binProducts';
 
 interface SourceProductCardProps {
   product: Product & { remainingQuantity: number };
@@ -99,7 +100,7 @@ export default function SourceProductCard({
                 </h4>
                 <div className="bg-black flex items-center justify-center px-[3.5px] py-[1.75px] rounded-[4px] shrink-0">
                   <div className="font-['Inter:Bold',_sans-serif] font-bold text-white text-[10px] leading-[12px]">
-                    {enhancedProduct.inventoryType === 'Charity Care' ? 'MDV' : 'SDV'}
+                    {getVialType(enhancedProduct)}
                   </div>
                 </div>
               </div>

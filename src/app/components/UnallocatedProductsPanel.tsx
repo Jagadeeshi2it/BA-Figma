@@ -5,7 +5,7 @@ import { Separator } from './ui/separator';
 // CRITICAL FIX: Remove direct import, will receive as prop
 import { DoorShelfConfig } from '../types';
 import { getBinLocationDetails } from '../utils/doorUtils';
-import { highlightText, highlightNDC } from '../utils/textHighlight';
+import { highlightText, highlightNDC, SEARCH_HIGHLIGHT_COLOR } from '../utils/textHighlight';
 import { getVialType } from '../utils/binProducts';
 
 interface UnallocatedProductsPanelProps {
@@ -142,7 +142,7 @@ export default function UnallocatedProductsPanel({
                   {/* Name and badge follow BinCard's treatment: normal weight on #020817, and the
                       grey vial chip rather than a black one. */}
                   <h3 className="font-normal text-[#020817] leading-[20px] text-[14px]">
-                    {highlightText(product.name, unallocatedSearchQuery, '#EA4315', product)}
+                    {highlightText(product.name, unallocatedSearchQuery, SEARCH_HIGHLIGHT_COLOR, product)}
                   </h3>
 
                   <p className="italic text-gray-500 leading-relaxed text-[14px]">
@@ -158,9 +158,9 @@ export default function UnallocatedProductsPanel({
                   </div>
 
                   <div className="text-gray-500 text-[14px]">
-                    {highlightNDC(product.ndc, unallocatedSearchQuery, '#EA4315', product)}
+                    {highlightNDC(product.ndc, unallocatedSearchQuery, SEARCH_HIGHLIGHT_COLOR, product)}
                     {' - '}
-                    {highlightText(product.inventoryType, unallocatedSearchQuery, '#EA4315', product)}
+                    {highlightText(product.inventoryType, unallocatedSearchQuery, SEARCH_HIGHLIGHT_COLOR, product)}
                   </div>
 
                   {/* Show bin assignments if this product is selected and bins are assigned */}

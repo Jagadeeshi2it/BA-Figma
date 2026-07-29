@@ -4,6 +4,7 @@ import { Badge } from "./ui/badge";
 import { Card, CardContent } from "./ui/card";
 import { pluralizeUnit } from '../utils/pluralizeUnit';
 import { Product, Bin } from '../types';
+import { getVialType } from '../utils/binProducts';
 
 interface SourceBinInfo {
   binId: string;
@@ -86,7 +87,7 @@ export default function TargetProductCard({
                 </h4>
                 <div className="bg-black flex items-center justify-center px-[3.5px] py-[1.75px] rounded-[4px] shrink-0">
                   <div className="font-['Inter:Bold',_sans-serif] font-bold text-white text-[8px] leading-[12px]">
-                    {product.inventoryType === 'Charity Care' ? 'MDV' : 'SDV'}
+                    {getVialType(product)}
                   </div>
                 </div>
               </div>

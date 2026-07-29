@@ -4,6 +4,7 @@ import { Badge } from "./ui/badge";
 import { Card, CardContent } from "./ui/card";
 import { X } from "lucide-react";
 import { Bin } from '../types';
+import { getVialType } from '../utils/binProducts';
 
 // Helper function to properly pluralize medical units
 const pluralizeUnit = (unit: string, quantity: number): string => {
@@ -111,7 +112,7 @@ export default function BinInventoryPanel({ bin, onClose }: BinInventoryPanelPro
                         variant="secondary" 
                         className="ml-1 bg-[#000000] text-[#ffffff] text-[8px] px-1 py-0.5 rounded shrink-0"
                       >
-                        {product.inventoryType === 'Charity Care' ? 'MDV' : 'SDV'}
+                        {getVialType(product)}
                       </Badge>
                     </div>
                     

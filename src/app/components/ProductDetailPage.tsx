@@ -2,6 +2,7 @@ import React from 'react';
 import { Button } from "./ui/button";
 import { ArrowLeft, Printer } from "lucide-react";
 import { Product } from '../types';
+import { getVialType } from '../utils/binProducts';
 import Sidebar from "./Sidebar";
 import TopNav from "./TopNav";
 import { emergencyKitService } from '../services/EmergencyKitService';
@@ -197,7 +198,7 @@ const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
               </h1>
               <div className="bg-[#3c464c] px-1.5 py-[3px] rounded-[5px]">
                 <span className="text-[12px] font-semibold text-white">
-                  {product.inventoryType === 'Charity Care' ? 'MDV' : 'SDV'}
+                  {getVialType(product)}
                 </span>
               </div>
             </div>

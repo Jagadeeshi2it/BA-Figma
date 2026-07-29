@@ -47,14 +47,31 @@ export const doesProductMatchSearch = (
  * Supports both single terms and comma-separated search queries
  * @param text - The text to search within
  * @param searchQuery - The query to highlight (can be comma-separated like "product, ndc, type")
- * @param highlightColor - The color to use for highlighting (default: #EA4315)
+ * @param highlightColor - The color to use for highlighting (default: SEARCH_HIGHLIGHT_COLOR)
  * @param product - The product context to determine if highlighting should occur
  * @returns JSX element with highlighted text
  */
+// The colour a search match is called out in — bin cards, both product panels and the search list.
+// One constant so every surface highlights the same way — and not just the text: the bin's stroke,
+// the emergency kit's outline and the dot on a door with matches all take this value too, so one
+// search paints one colour everywhere it lands. It's the deep end of the yellow the bins used to
+// highlight in (a #FACC14 border on a #FEFCE8 fill), dark enough to read as body text.
+//
+// Contrast, measured: 4.06:1 against #020817 body text and 4.92:1 on white. Both numbers matter and
+// they pull against each other — anything dark enough to sit comfortably on white starts to read as
+// black. The app's own #095192 managed only 2.48:1 against the text, which is why matches were easy
+// to miss; the old #EA4315 separated fine at 5.06:1 but sat at 3.95:1 on white and was loud with it.
+// Keep any replacement above ~3.5:1 on the first number and ~4.5:1 on the second.
+//
+// Two places mirror this value as a literal because Tailwind arbitrary values have to be static at
+// build time: the bin stroke in BinCard (border-[#A16207]) and the picked row in SearchDropdown
+// (text-[#A16207]). Change those with this one or the highlight will disagree with itself.
+export const SEARCH_HIGHLIGHT_COLOR = '#A16207';
+
 export const highlightText = (
   text: string,
   searchQuery: string,
-  highlightColor: string = '#EA4315',
+  highlightColor: string = SEARCH_HIGHLIGHT_COLOR,
   product?: any
 ): React.ReactNode => {
   if (!searchQuery.trim()) {
@@ -95,7 +112,9 @@ export const highlightText = (
           style={{ 
             backgroundColor: 'transparent',
             color: highlightColor,
-            fontWeight: 'inherit'
+            // Bolder than the text around it, so a match reads as a match at a glance rather
+            // than relying on colour alone — which also keeps it legible for colour-blind users.
+            fontWeight: 500
           }}
         >
           {part}
@@ -113,14 +132,14 @@ export const highlightText = (
  * Supports both single terms and comma-separated search queries
  * @param ndcText - The NDC text to search within (e.g., "12345-6789 - Inventory Type")
  * @param searchQuery - The query to highlight (can be comma-separated)
- * @param highlightColor - The color to use for highlighting (default: #EA4315)
+ * @param highlightColor - The color to use for highlighting (default: SEARCH_HIGHLIGHT_COLOR)
  * @param product - The product context to determine if highlighting should occur
  * @returns JSX element with highlighted NDC numbers
  */
 export const highlightNDC = (
   ndcText: string,
   searchQuery: string,
-  highlightColor: string = '#EA4315',
+  highlightColor: string = SEARCH_HIGHLIGHT_COLOR,
   product?: any
 ): React.ReactNode => {
   if (!searchQuery.trim()) {
@@ -167,7 +186,9 @@ export const highlightNDC = (
           style={{ 
             backgroundColor: 'transparent',
             color: highlightColor,
-            fontWeight: 'inherit'
+            // Bolder than the text around it, so a match reads as a match at a glance rather
+            // than relying on colour alone — which also keeps it legible for colour-blind users.
+            fontWeight: 500
           }}
         >
           {part}

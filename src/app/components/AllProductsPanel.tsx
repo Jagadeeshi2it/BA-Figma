@@ -2,7 +2,7 @@ import React from 'react';
 import { X, Search } from 'lucide-react';
 import { Input } from './ui/input';
 import { Bin } from '../types';
-import { highlightText, highlightNDC } from '../utils/textHighlight';
+import { highlightText, highlightNDC, SEARCH_HIGHLIGHT_COLOR } from '../utils/textHighlight';
 import { consolidateBinProducts, getVialType, hasClimateBadge, hasCivBadge } from '../utils/binProducts';
 
 interface AllProductsPanelProps {
@@ -115,7 +115,7 @@ export default function AllProductsPanel({
               >
                 <div className="min-w-0 flex-1 space-y-1.5">
                   <h3 className="font-normal text-[#020817] leading-[20px] text-[14px]">
-                    {highlightText(product.name, searchQuery, '#EA4315', product)}
+                    {highlightText(product.name, searchQuery, SEARCH_HIGHLIGHT_COLOR, product)}
                   </h3>
 
                   <p className="italic text-gray-500 leading-relaxed text-[14px]">
@@ -136,7 +136,7 @@ export default function AllProductsPanel({
                   </div>
 
                   <div className="text-gray-500 text-[14px] break-words">
-                    {highlightNDC(`${product.ndc} - ${product.inventoryType}`, searchQuery, '#EA4315', product)}
+                    {highlightNDC(`${product.ndc} - ${product.inventoryType}`, searchQuery, SEARCH_HIGHLIGHT_COLOR, product)}
                   </div>
                 </div>
 

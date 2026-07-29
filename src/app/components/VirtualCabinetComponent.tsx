@@ -1,4 +1,5 @@
 import React from 'react';
+import { SEARCH_HIGHLIGHT_COLOR } from '../utils/textHighlight';
 
 interface VirtualCabinetComponentProps {
   cabinetName: string;
@@ -89,7 +90,7 @@ function FridgeButton({
           <svg className="block size-full" fill="none" preserveAspectRatio="none" viewBox="0 0 14 6">
             <g>
               {showSearchDot && (
-                <circle cx={showAvailableDot ? "3" : "11"} cy="3" fill="#DCB518" r="3" />
+                <circle cx={showAvailableDot ? "3" : "11"} cy="3" fill={SEARCH_HIGHLIGHT_COLOR} r="3" />
               )}
               {showAvailableDot && (
                 <circle cx="11" cy="3" fill="#00C951" r="3" />

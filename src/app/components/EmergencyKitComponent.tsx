@@ -80,7 +80,7 @@ function FloorButton({
           : shouldHighlightAllocation
             ? 'border-[#8F48D2] border-1'
             : shouldHighlightSearch
-              ? 'border-[#FACC14] border-2'
+              ? 'border-[#A16207] border'
               : shouldHighlightGreen 
                 ? 'border-green-500 border-2' 
                 : isSelected 
