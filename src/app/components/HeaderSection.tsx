@@ -19,6 +19,7 @@ interface HeaderSectionProps {
   doorShelfConfig: DoorShelfConfig;
   selectedBinsForAssignment?: string[];
   handleSearchQueryChange: (query: string) => void;
+  handleSearchAutofill?: (query: string) => void;
   handleAvailableBinsClick: () => void;
   handleChangeAllocationClick: () => void;
   handleUnallocatedProductsClick: () => void;
@@ -52,6 +53,7 @@ const HeaderSection = memo(function HeaderSection({
   doorShelfConfig,
   selectedBinsForAssignment = [],
   handleSearchQueryChange,
+  handleSearchAutofill,
   handleAvailableBinsClick,
   handleChangeAllocationClick,
   handleUnallocatedProductsClick,
@@ -93,8 +95,18 @@ const HeaderSection = memo(function HeaderSection({
     }
   }, [searchQuery, doorShelfConfig, isSearchFocused]);
 
+  // A query the app wrote itself — the product name after a pick, or the keyword restored on
+  // refocus — must not count as a new search. Both change searchQuery, and without this exemption
+  // the effect below would clear the pick the autofill was announcing: the box would name a product
+  // while its card showed as unselected.
+  const autofilledQuery = useRef<string | null>(null);
+
   // A genuinely new typed query starts the "already viewed" tracking over.
   useEffect(() => {
+    if (autofilledQuery.current === searchQuery) {
+      autofilledQuery.current = null;
+      return;
+    }
     setViewedProductKeys([]);
   }, [searchQuery]);
 
@@ -145,11 +157,37 @@ const HeaderSection = memo(function HeaderSection({
   };
 
   // Handle search input focus
+  // "4 products selected" is a summary, not a query — searching for it finds nothing. So the
+  // keyword that produced the selection is kept here, and clicking back into the box swaps the
+  // summary out for it, bringing the results back with the picked cards still ticked.
+  const summarySearch = useRef<{ summary: string; keyword: string } | null>(null);
+
   const handleSearchFocus = () => {
     setIsSearchFocused(true);
+    if (summarySearch.current && searchQuery === summarySearch.current.summary) {
+      // Exempt from the reset above, so the restored results keep their ticks.
+      autofilledQuery.current = summarySearch.current.keyword;
+      handleSearchAutofill?.(summarySearch.current.keyword);
+      summarySearch.current = null;
+      // The effect above reopens the dropdown once the restored keyword produces results.
+      return;
+    }
     if (searchResults.length > 0) {
       setShowSearchDropdown(true);
     }
+  };
+
+  // A view-mode pick fills the box with what was picked and dismisses the list. Dropping the focus
+  // flag is the load-bearing part: the effect above reopens the dropdown whenever the query changes
+  // while the box still counts as focused, so closing alone would flicker straight back open.
+  // restoreOnFocus marks the text as a summary to be swapped back for the keyword on refocus.
+  const handleSelectionAutofill = (text: string, restoreOnFocus = false) => {
+    summarySearch.current = restoreOnFocus ? { summary: text, keyword: searchQuery } : null;
+    autofilledQuery.current = text;
+    handleSearchAutofill?.(text);
+    setIsSearchFocused(false);
+    setShowSearchDropdown(false);
+    searchInputRef.current?.blur();
   };
 
   // Step-specific clear handler
@@ -219,6 +257,7 @@ const HeaderSection = memo(function HeaderSection({
               onDoorClick={handleDoorClick}
               onScrollToBin={handleScrollToBin}
               sourceBinIds={changeAllocationSourceBins}
+              onAutofillSearch={handleSelectionAutofill}
               onClose={() => setShowSearchDropdown(false)}
             />
           </div>

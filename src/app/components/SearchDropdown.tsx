@@ -1,5 +1,6 @@
 import React, { memo } from 'react';
 import { Button } from './ui/button';
+import { Check } from 'lucide-react';
 import { ProductSearchResult, getBinIdsForProduct } from '../utils/productSearchUtils';
 
 interface SearchDropdownProps {
@@ -24,6 +25,10 @@ interface SearchDropdownProps {
   // Bins already taken as source. During step 2 they can't become targets, so they're skipped
   // when choosing which location to jump to.
   sourceBinIds?: string[];
+  // View mode only: fill the search box with what was picked and dismiss the list. restoreOnFocus
+  // marks the text as a summary ("4 products selected") that should be swapped back for the typed
+  // keyword when the user clicks into the box again.
+  onAutofillSearch?: (text: string, restoreOnFocus?: boolean) => void;
   onClose: () => void;
 }
 
@@ -44,18 +49,27 @@ const SearchDropdown = memo(function SearchDropdown({
   onDoorClick,
   onScrollToBin,
   sourceBinIds = [],
+  onAutofillSearch,
   onClose
 }: SearchDropdownProps) {
   if (!isVisible || searchResults.length === 0) {
     return null;
   }
 
-  // A result is "done" once every bin it lives in has already been picked — drop it so the
-  // list only shows products that still have something left to select. In view mode there's
-  // no bin selection to check against, so a product is "done" once it's simply been clicked.
+  // In change allocation mode a result is "done" once every bin it lives in has already been
+  // picked — drop it, since there's nothing left to select. View mode keeps every result listed
+  // and marks the picked one instead: making a card vanish the moment you click it hides the thing
+  // you just asked for and makes the list feel like it's fighting you.
   const visibleResults = changeAllocationMode
     ? searchResults.filter(result => !result.binLocations.every(loc => excludeBinIds.includes(loc.binId)))
-    : searchResults.filter(result => !viewedProductKeys.includes(getResultKey(result)));
+    : searchResults;
+
+  const isPicked = (result: ProductSearchResult) => viewedProductKeys.includes(getResultKey(result));
+
+  // Nothing left for "Select All" to do once every card is ticked — or when there's only one card,
+  // which the row itself already covers. In change allocation mode fully-used results are dropped
+  // from visibleResults instead, and viewedProductKeys is unused there, so this never hides it.
+  const showSelectAll = visibleResults.length > 1 && !visibleResults.every(isPicked);
 
   const buildHighlightQuery = (products: ProductSearchResult[]) =>
     products
@@ -85,11 +99,13 @@ const SearchDropdown = memo(function SearchDropdown({
         return;
       }
       onProductClick(result.name, result.ndc, result.inventoryType);
-      // Replaces (not adds to) the previous pick — switching products un-hides whatever
-      // was selected before, since only one product is "the" selection at a time now.
+      // Replaces (not adds to) the previous pick — only one product is "the" selection at a time
+      // in view mode, so exactly one card carries the tick.
       onProductsViewed?.([getResultKey(result)]);
       jumpToProduct(result);
-      onClose();
+      // The box now names what was picked and the list closes. The card keeps its tick for when
+      // the user refocuses the box and the list comes back.
+      onAutofillSearch?.(result.name);
     }
   };
 
@@ -124,7 +140,12 @@ const SearchDropdown = memo(function SearchDropdown({
     // Replaces the previous pick, same as a single click — see handleProductClick.
     onProductsViewed?.(visibleResults.map(getResultKey));
     jumpToProduct(visibleResults[0]);
-    onClose();
+    // No single name to show, so the box reports the count instead — and flags it as a summary, so
+    // clicking back into the box restores the keyword rather than leaving a dead query there.
+    onAutofillSearch?.(
+      `${visibleResults.length} product${visibleResults.length !== 1 ? 's' : ''} selected`,
+      true
+    );
   };
 
   // Determine unit based on total quantity
@@ -156,15 +177,17 @@ const SearchDropdown = memo(function SearchDropdown({
           </div>
         )}
 
+        {/* Only change allocation mode can empty this list — view mode keeps every match listed,
+            and the component returns null when the search itself found nothing. */}
         {visibleResults.length === 0 ? (
           <div className="text-[13px] text-[#64748b] text-center py-2">
-            {changeAllocationMode
-              ? alreadySelectedMessage
-              : 'All matching products and its bins are highlighted'}
+            {alreadySelectedMessage}
           </div>
         ) : (
         <>
-        {/* Select All Button */}
+        {/* Select All Button — see showSelectAll: hidden with a single result, and once every card
+            is already ticked. */}
+        {showSelectAll && (
         <Button
           onClick={handleSelectAll}
           className="w-full bg-[#095192] hover:bg-[#074080] text-white text-[14px] h-10 rounded-[4px] mb-3"
@@ -174,17 +197,25 @@ const SearchDropdown = memo(function SearchDropdown({
             : `Select All (${visibleResults.length} product${visibleResults.length !== 1 ? 's' : ''})`
           }
         </Button>
+        )}
 
         {visibleResults.map((result, index) => (
-          <div 
+          <div
             key={`${result.ndc}-${result.inventoryType}-${index}`}
-            className={`border border-gray-200 border-solid rounded-lg mb-3 last:mb-0 hover:shadow-md transition-all p-4 bg-white cursor-pointer`}
+            className={`border border-solid rounded-lg mb-3 last:mb-0 hover:shadow-md transition-all p-4 cursor-pointer ${
+              isPicked(result)
+                ? 'border-[#095192] bg-[#F1F6FA]'
+                : 'border-gray-200 bg-white'
+            }`}
             onClick={() => handleProductClick(result)}
           >
             {/* Product Layout - matching BinCard structure */}
             <div className="box-border content-stretch flex flex-row items-start justify-between gap-2 p-0 relative shrink-0 w-full mb-4">
               <div className="flex-1 box-border content-stretch flex flex-col gap-0.5 items-start justify-start min-w-0 p-0 relative">
                 <div className="box-border content-stretch flex flex-row items-start justify-start p-0 relative w-full min-w-0">
+                  {isPicked(result) && (
+                    <Check className="w-4 h-4 text-[#095192] shrink-0 mr-1 mt-0.5" strokeWidth={3} />
+                  )}
                   <div className="w-fit flex flex-col font-normal justify-center leading-[0] not-italic relative text-[#020817] text-xs text-left pr-1">
                     <p className="block leading-[16px] text-[14px] font-medium">{result.name}</p>
                   </div>

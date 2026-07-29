@@ -253,6 +253,14 @@ export const useInventoryState = () => {
     }
   }, [selectedSearchQuery, changeAllocationMode]);
 
+  // Autofill the search box from a dropdown pick. Deliberately NOT handleSearchQueryChange: that
+  // clears the highlight whenever the typed text diverges from it, which would wipe the highlight
+  // the pick just set. Here the two are meant to differ — the box shows the product's name while
+  // the highlight stays scoped to its exact name + NDC + inventory type.
+  const handleSearchAutofill = useCallback((query: string) => {
+    setSearchQuery(query);
+  }, []);
+
   // A completed transaction ends the task the search was serving, so the home page should come
   // back clean. Both channels have to go: the typed query (still sitting in the search box) and
   // the highlight-only one (still tinting the bin and product the user was working from).
@@ -1559,6 +1567,7 @@ export const useInventoryState = () => {
     handleAvailableBinsClick,
     handleSearchClick,
     handleSearchQueryChange,
+    handleSearchAutofill,
     handleUnallocatedProductsClick,
     closeUnallocatedProducts,
     handleUnallocatedProductSelect,

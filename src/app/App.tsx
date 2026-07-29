@@ -589,6 +589,7 @@ export default function App() {
             doorShelfConfig={inventoryState.doorShelfConfig}
             selectedBinsForAssignment={inventoryState.selectedBinsForAssignment}
             handleSearchQueryChange={inventoryState.handleSearchQueryChange}
+            handleSearchAutofill={inventoryState.handleSearchAutofill}
             handleAvailableBinsClick={inventoryState.handleAvailableBinsClick}
             handleChangeAllocationClick={inventoryState.handleChangeAllocationClick}
             handleUnallocatedProductsClick={inventoryState.handleUnallocatedProductsClick}
