@@ -73,25 +73,31 @@ export default function BinCard({
   const doorNumber = selectedDoor ? selectedDoor.replace('Door ', '') : '';
   const shouldLimit = doorNumber && doorsWithLimiting.includes(doorNumber) && bin.size !== 'fridge';
 
+  // How many products fit before "+N more". Three per grid row the bin spans, because a taller
+  // bin has proportionally more room to stack them — a flat cap of 3 showed "+1 more" under
+  // half a card's worth of blank space in a 2x3.
+  const rowSpan = bin.gridPosition?.height ?? 1;
+  const displayLimit = 3 * rowSpan;
+
   // Products matching the active search are floated to the front, and the visible
-  // window grows to fit all of them. Without this a searched-for product sitting at
-  // index 4+ stays hidden behind "+N more": the bin lights up because
+  // window grows to fit all of them. Without this a searched-for product sitting past
+  // the limit stays hidden behind "+N more": the bin lights up because
   // binMatchesSearch looks at ALL its products, so the user is pointed at a bin and
-  // then can't see the thing they asked for. Non-matching products keep the 3-item
+  // then can't see the thing they asked for. Non-matching products keep the
   // cap, so a card only grows when it actually holds a match.
   const visibleProducts = React.useMemo(() => {
-    if (!shouldLimit || consolidatedProducts.length <= 3) return consolidatedProducts;
+    if (!shouldLimit || consolidatedProducts.length <= displayLimit) return consolidatedProducts;
 
     const matches = searchQuery.trim()
       ? consolidatedProducts.filter(product => doesProductMatchSearch(product, searchQuery))
       : [];
 
-    if (matches.length === 0) return consolidatedProducts.slice(0, 3);
+    if (matches.length === 0) return consolidatedProducts.slice(0, displayLimit);
 
     const matched = new Set(matches);
     const rest = consolidatedProducts.filter(product => !matched.has(product));
-    return [...matches, ...rest].slice(0, Math.max(3, matches.length));
-  }, [consolidatedProducts, shouldLimit, searchQuery]);
+    return [...matches, ...rest].slice(0, Math.max(displayLimit, matches.length));
+  }, [consolidatedProducts, shouldLimit, searchQuery, displayLimit]);
 
   const additionalCount = consolidatedProducts.length - visibleProducts.length;
 

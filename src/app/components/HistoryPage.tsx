@@ -3,7 +3,8 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Checkbox } from './ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-import { Clock, X, RotateCcw, ArrowLeft } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
+import { Clock, X, RotateCcw, ArrowLeft, ChevronDown } from 'lucide-react';
 import { AllocationHistoryEntry } from '../types';
 import { pluralizeUnit } from '../utils/pluralizeUnit';
 import { productDataService } from '../services/ProductDataService';
@@ -83,6 +84,22 @@ export default function HistoryPage({
     () => (history || []).filter(e => e?.transactionType === 'Unallocated').length,
     [history]
   );
+
+  // One list drives both the dropdown's items and its trigger text, so the two can't disagree.
+  const typeFilters = useMemo(() => [
+    { id: 'bin-changes', label: 'Bin Changes', count: binChangesCount, checked: showBinChanges, onChange: setShowBinChanges },
+    { id: 'bin-allocation', label: 'Bin Allocation', count: binAllocationCount, checked: showBinAllocation, onChange: setShowBinAllocation },
+    { id: 'unallocated', label: 'Unallocated', count: unallocatedCount, checked: showUnallocated, onChange: setShowUnallocated },
+  ], [binChangesCount, binAllocationCount, unallocatedCount, showBinChanges, showBinAllocation, showUnallocated]);
+
+  // Name the types while they fit; past that a count reads better than a truncated list.
+  const typeFilterSummary = useMemo(() => {
+    const selected = typeFilters.filter(filter => filter.checked);
+    if (selected.length === 0) return 'None selected';
+    if (selected.length === typeFilters.length) return 'All types';
+    if (selected.length === 1) return selected[0].label;
+    return `${selected.length} of ${typeFilters.length} types`;
+  }, [typeFilters]);
 
   const enhance = useCallback((product: any) => {
     try {
@@ -323,17 +340,42 @@ export default function HistoryPage({
                   </Select>
                 </div>
 
-                <div className="flex items-center gap-2 h-9">
-                  <Checkbox id="bin-changes" checked={showBinChanges} onCheckedChange={(v) => setShowBinChanges(!!v)} className="w-4 h-4" />
-                  <label htmlFor="bin-changes" className="text-[14px] text-[#020817] cursor-pointer">Bin Changes ({binChangesCount})</label>
-                </div>
-                <div className="flex items-center gap-2 h-9">
-                  <Checkbox id="bin-allocation" checked={showBinAllocation} onCheckedChange={(v) => setShowBinAllocation(!!v)} className="w-4 h-4" />
-                  <label htmlFor="bin-allocation" className="text-[14px] text-[#020817] cursor-pointer">Bin Allocation ({binAllocationCount})</label>
-                </div>
-                <div className="flex items-center gap-2 h-9">
-                  <Checkbox id="unallocated" checked={showUnallocated} onCheckedChange={(v) => setShowUnallocated(!!v)} className="w-4 h-4" />
-                  <label htmlFor="unallocated" className="text-[14px] text-[#020817] cursor-pointer">Unallocated ({unallocatedCount})</label>
+                {/* The three type checkboxes collapse into one dropdown so the filter row reads as
+                    three controls (Product / Date / Type) instead of a spread-out checkbox strip. */}
+                <div className="flex flex-col gap-1">
+                  <label className="text-[13px] text-[#020817]">Transaction Type</label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <button
+                        type="button"
+                        className="w-[220px] h-9 bg-white border border-[#bcc3cd] rounded px-3 text-[14px] text-[#020817] flex items-center justify-between gap-2 cursor-pointer"
+                      >
+                        <span className="truncate">{typeFilterSummary}</span>
+                        <ChevronDown className="w-4 h-4 text-[#9fa9b7] shrink-0" />
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent align="start" className="w-[220px] p-2">
+                      <div className="flex flex-col gap-1">
+                        {typeFilters.map(filter => (
+                          <label
+                            key={filter.id}
+                            htmlFor={filter.id}
+                            className="flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer hover:bg-gray-50"
+                          >
+                            <Checkbox
+                              id={filter.id}
+                              checked={filter.checked}
+                              onCheckedChange={(v) => filter.onChange(!!v)}
+                              className="w-4 h-4"
+                            />
+                            <span className="text-[14px] text-[#020817]">
+                              {filter.label} ({filter.count})
+                            </span>
+                          </label>
+                        ))}
+                      </div>
+                    </PopoverContent>
+                  </Popover>
                 </div>
 
                 <div className="flex items-center gap-2 ml-auto h-9">

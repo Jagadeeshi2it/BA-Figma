@@ -74,41 +74,30 @@ const BOTTOM_SHELF_PLACEMENTS: Placement[] = [
 // near-identical bin counts, so a single arrangement per count would make every
 // shelf and every door look the same. Every entry sums to exactly 10 slots.
 const DOUBLE_SHELF_VARIANTS: Record<number, Placement[][]> = {
+  // A double door is 2 rows x 5 columns, so 2x3 would fit — but it isn't part of the double-door
+  // reference, so these variants top out at 2x2. With only three bins to fill ten slots the shapes
+  // are forced (two 2x2 and one rotated 1x2); only where the narrow bin sits can change.
   3: [
-    // 2x3 with two stacked 1x2 beside it
-    [
-      { x: 0, y: 0, width: 3, height: 2 },
-      { x: 3, y: 0, width: 2, height: 1 },
-      { x: 3, y: 1, width: 2, height: 1 },
-    ],
-    // ...and mirrored, 2x3 on the right
-    [
-      { x: 0, y: 0, width: 2, height: 1 },
-      { x: 0, y: 1, width: 2, height: 1 },
-      { x: 2, y: 0, width: 3, height: 2 },
-    ],
     // Two 2x2 with a rotated 1x2 filling the last column
     [
       { x: 0, y: 0, width: 2, height: 2 },
       { x: 2, y: 0, width: 2, height: 2 },
       { x: 4, y: 0, width: 1, height: 2 },
     ],
+    // ...rotated 1x2 leading, both 2x2 pushed right
+    [
+      { x: 0, y: 0, width: 1, height: 2 },
+      { x: 1, y: 0, width: 2, height: 2 },
+      { x: 3, y: 0, width: 2, height: 2 },
+    ],
+    // ...rotated 1x2 sandwiched between the two 2x2
+    [
+      { x: 0, y: 0, width: 2, height: 2 },
+      { x: 2, y: 0, width: 1, height: 2 },
+      { x: 3, y: 0, width: 2, height: 2 },
+    ],
   ],
   4: [
-    // 2x3 + 1x2 over two 1x1
-    [
-      { x: 0, y: 0, width: 3, height: 2 },
-      { x: 3, y: 0, width: 2, height: 1 },
-      { x: 3, y: 1, width: 1, height: 1 },
-      { x: 4, y: 1, width: 1, height: 1 },
-    ],
-    // ...mirrored, 2x3 on the right
-    [
-      { x: 0, y: 0, width: 2, height: 1 },
-      { x: 0, y: 1, width: 1, height: 1 },
-      { x: 1, y: 1, width: 1, height: 1 },
-      { x: 2, y: 0, width: 3, height: 2 },
-    ],
     // Two 2x2 with a stacked pair of 1x1
     [
       { x: 0, y: 0, width: 2, height: 2 },
@@ -116,12 +105,26 @@ const DOUBLE_SHELF_VARIANTS: Record<number, Placement[][]> = {
       { x: 4, y: 0, width: 1, height: 1 },
       { x: 4, y: 1, width: 1, height: 1 },
     ],
+    // ...mirrored, the stacked 1x1 pair on the left
+    [
+      { x: 0, y: 0, width: 1, height: 1 },
+      { x: 0, y: 1, width: 1, height: 1 },
+      { x: 1, y: 0, width: 2, height: 2 },
+      { x: 3, y: 0, width: 2, height: 2 },
+    ],
     // 2x2 + two horizontal 1x2 + a rotated 1x2
     [
       { x: 0, y: 0, width: 2, height: 2 },
       { x: 2, y: 0, width: 2, height: 1 },
       { x: 2, y: 1, width: 2, height: 1 },
       { x: 4, y: 0, width: 1, height: 2 },
+    ],
+    // ...mirrored, rotated 1x2 leading
+    [
+      { x: 0, y: 0, width: 1, height: 2 },
+      { x: 1, y: 0, width: 2, height: 2 },
+      { x: 3, y: 0, width: 2, height: 1 },
+      { x: 3, y: 1, width: 2, height: 1 },
     ],
   ],
   5: [
@@ -133,14 +136,6 @@ const DOUBLE_SHELF_VARIANTS: Record<number, Placement[][]> = {
       { x: 3, y: 0, width: 2, height: 1 },
       { x: 3, y: 1, width: 2, height: 1 },
     ],
-    // 2x3 with a 2x2 block of 1x1 beside it
-    [
-      { x: 0, y: 0, width: 3, height: 2 },
-      { x: 3, y: 0, width: 1, height: 1 },
-      { x: 4, y: 0, width: 1, height: 1 },
-      { x: 3, y: 1, width: 1, height: 1 },
-      { x: 4, y: 1, width: 1, height: 1 },
-    ],
     // 2x2 + two 1x2 + two 1x1
     [
       { x: 0, y: 0, width: 2, height: 2 },
@@ -148,6 +143,14 @@ const DOUBLE_SHELF_VARIANTS: Record<number, Placement[][]> = {
       { x: 2, y: 1, width: 2, height: 1 },
       { x: 4, y: 0, width: 1, height: 1 },
       { x: 4, y: 1, width: 1, height: 1 },
+    ],
+    // ...mirrored, the 2x2 on the right and the 1x1 pair leading
+    [
+      { x: 0, y: 0, width: 1, height: 1 },
+      { x: 0, y: 1, width: 1, height: 1 },
+      { x: 1, y: 0, width: 2, height: 1 },
+      { x: 1, y: 1, width: 2, height: 1 },
+      { x: 3, y: 0, width: 2, height: 2 },
     ],
   ],
   6: [
