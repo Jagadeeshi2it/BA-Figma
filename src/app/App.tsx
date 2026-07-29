@@ -633,6 +633,16 @@ export default function App() {
                 role={allocationPanel}
                 bins={allocationPanel === 'source' ? getSourceBins : getTargetBins}
                 sourceQuery={inventoryState.changeAllocationSourceQuery ?? ''}
+                onRemoveBin={
+                  allocationPanel === 'source'
+                    ? inventoryState.handleRemoveSourceBin
+                    : inventoryState.handleRemoveTargetBin
+                }
+                // Target bins hold no product-level selection — their rows are the bin's existing
+                // contents, so there is nothing there to remove from the allocation.
+                onRemoveProduct={
+                  allocationPanel === 'source' ? inventoryState.handleRemoveSourceProduct : undefined
+                }
                 onClose={() => setAllocationPanel(null)}
               />
             ) : null

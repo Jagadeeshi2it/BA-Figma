@@ -6,7 +6,7 @@ import { doorShelfConfig as initialDoorConfig } from '../data/doorConfigurations
 import { cabinets } from '../data/cabinets';
 import { generateUnallocatedProducts } from '../data/unallocatedProducts';
 import { generateSeedHistory } from '../data/seedHistory';
-import { getCurrentShelves, initializeDoorConfigs, getBinLocationDetails } from '../utils/doorUtils';
+import { getCurrentShelves, initializeDoorConfigs, getBinLocationDetails, binMatchesSearch } from '../utils/doorUtils';
 import { migrateHistoryEntriesWithSourceBin } from '../utils/historyUtils';
 import { DoorShelfConfig, Bin, AllocationHistoryEntry, Product } from '../types';
 import { productDataService } from '../services/ProductDataService';
@@ -35,6 +35,34 @@ const appendQueryGroup = (previous: string, incoming: string): string => {
   if (!group) return previous;
   const groups = previous ? previous.split('|').map(part => part.trim()).filter(Boolean) : [];
   return groups.includes(group) ? previous : [...groups, group].join(' | ');
+};
+
+// appendQueryGroup's counterpart: take one product's group back out. Compared case-insensitively
+// because the group is rebuilt from a product's own fields at removal time, not held onto.
+const removeQueryGroup = (previous: string, outgoing: string): string => {
+  const group = outgoing.trim().toLowerCase();
+  if (!group) return previous;
+  return (previous || '')
+    .split('|')
+    .map(part => part.trim())
+    .filter(part => part && part.toLowerCase() !== group)
+    .join(' | ');
+};
+
+// The query shape every selection path builds for a product: "name, ndc, inventory type".
+const queryGroupForProduct = (product: { name?: string; ndc?: string; inventoryType?: string }): string =>
+  [product.name, product.ndc, product.inventoryType].filter(Boolean).join(', ');
+
+// A bin from anywhere in the cabinet, by id. The panel's bins span doors, so the current door's
+// shelves — all handleBinClick has to work with — aren't enough to find them.
+const findBinById = (binId: string, config: DoorShelfConfig): Bin | undefined => {
+  for (const shelves of Object.values(config || {})) {
+    for (const shelf of shelves || []) {
+      const bin = (shelf.bins || []).find(candidate => candidate.id === binId);
+      if (bin) return bin;
+    }
+  }
+  return undefined;
 };
 
 export const useInventoryState = () => {
@@ -705,6 +733,43 @@ export const useInventoryState = () => {
   const handleClearTargetBins = () => {
     setChangeAllocationTargetBins([]);
   };
+
+  // Drop one bin from a selection. Separate from handleBinClick's toggle because that resolves the
+  // bin from the current door's shelves — the review panel lists bins from every door, so half of
+  // them would be unreachable through it.
+  const handleRemoveSourceBin = useCallback((binId: string) => {
+    setChangeAllocationSourceBins(prev => prev.filter(id => id !== binId));
+  }, []);
+
+  const handleRemoveTargetBin = useCallback((binId: string) => {
+    setChangeAllocationTargetBins(prev => prev.filter(id => id !== binId));
+  }, []);
+
+  // Drop one product from the source selection. The product-level selection lives in the query, so
+  // removal means taking its OR-group back out of both the source query and the highlight — and then
+  // releasing any source bin left holding nothing that's still being moved. Without that a bin would
+  // sit in the selection with no reason to be there, and the review panel, having nothing of the
+  // query to show for it, would fall back to listing everything in it as though it were all moving.
+  const handleRemoveSourceProduct = useCallback((product: { name?: string; ndc?: string; inventoryType?: string }) => {
+    const group = queryGroupForProduct(product);
+    if (!group) return;
+
+    const nextQuery = removeQueryGroup(changeAllocationSourceQuery, group);
+    setChangeAllocationSourceQuery(nextQuery);
+    setSelectedSearchQuery(previous => removeQueryGroup(previous, group));
+
+    // An emptied query means "no product scope left", which is the same state as bins picked by
+    // hand — so the bins stay and the panel shows their full contents, rather than every bin
+    // dropping out because nothing matches any more.
+    if (nextQuery.trim()) {
+      setChangeAllocationSourceBins(bins =>
+        bins.filter(binId => {
+          const bin = findBinById(binId, doorShelfConfig);
+          return bin ? binMatchesSearch(bin, nextQuery) : false;
+        })
+      );
+    }
+  }, [changeAllocationSourceQuery, doorShelfConfig]);
 
   const handleOpenChangeAllocationModal = () => {
     if (changeAllocationSourceBins.length > 0 && changeAllocationTargetBins.length > 0) {
@@ -1589,6 +1654,9 @@ export const useInventoryState = () => {
     handleClearChangeAllocationSelection,
     handleClearSourceBins,
     handleClearTargetBins,
+    handleRemoveSourceBin,
+    handleRemoveTargetBin,
+    handleRemoveSourceProduct,
     handleOpenChangeAllocationModal,
     handleConfirmChangeAllocation,
     handleUnallocateProduct,
