@@ -28,7 +28,6 @@ interface HeaderSectionProps {
   handleAvailableBinsClick: () => void;
   handleChangeAllocationClick: () => void;
   handleUnallocatedProductsClick: () => void;
-  handleExitChangeAllocation: () => void;
   handleHistoryClick: () => void;
   handleSelectBinsForAssignment?: (binIds: string[]) => void;
   handleSelectSourceBinsFromSearch?: (binIds: string[], productName: string, highlightQuery?: string) => void;
@@ -56,7 +55,6 @@ const HeaderSection = memo(function HeaderSection({
   handleAvailableBinsClick,
   handleChangeAllocationClick,
   handleUnallocatedProductsClick,
-  handleExitChangeAllocation,
   handleHistoryClick,
   handleSelectBinsForAssignment,
   handleSelectSourceBinsFromSearch,
@@ -121,17 +119,11 @@ const HeaderSection = memo(function HeaderSection({
     setViewedProductKeys(keys);
   };
 
-  // A pick belongs to the mode and step it was made in. Switching leaves the typed query in place —
-  // and entering step 1 refocuses the box, so the list reopens immediately — which would otherwise
-  // show browsing picks marked as though they were sources, or step 1's sources marked as targets.
-  useEffect(() => {
-    setViewedProductKeys([]);
-  }, [changeAllocationMode, changeAllocationStep]);
-
   // A pick belongs to the mode and step it was made in. The keys otherwise only reset when the typed
-  // query changes, and switching modes leaves the query alone — so a product picked while browsing
-  // would still be marked after entering allocation, and a source pick would still be marked while
-  // choosing targets. Both read as "already handled" for work that hasn't been done.
+  // query changes, and switching modes leaves the query alone — and entering step 1 refocuses the
+  // box, so the list reopens immediately — which would otherwise show browsing picks marked as
+  // though they were sources, or step 1's sources marked as targets: "already handled" for work
+  // that hasn't been done.
   useEffect(() => {
     setViewedProductKeys([]);
   }, [changeAllocationMode, changeAllocationStep]);
@@ -318,22 +310,9 @@ const HeaderSection = memo(function HeaderSection({
             </>
           )}
 
-          {/* Show change allocation mode buttons */}
-          {changeAllocationMode && (
-            <div 
-              className="bg-white relative rounded-[4px] cursor-pointer"
-              onClick={handleExitChangeAllocation}
-            >
-              <div aria-hidden="true" className="absolute border border-[rgba(184,59,59,1)] border-solid inset-0 pointer-events-none rounded-[4px]" />
-              <div className="flex flex-row items-center justify-end relative size-full">
-                <div className="box-border content-stretch flex gap-2 items-center justify-end px-3 py-2 relative size-full">
-                  <div className="capitalize font-['Inter:Regular',_sans-serif] font-normal leading-[0] not-italic relative shrink-0 text-[rgba(184,59,59,1)] text-[14px] text-nowrap">
-                    <p className="leading-[20px] whitespace-pre text-[14px]">Exit Change Allocation</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
+          {/* Leaving the mode lives on the bottom bar's Cancel, which calls the same handler — two
+              buttons for one action, at opposite ends of the screen, only raised the question of
+              whether they did different things. */}
 
           {/* Show active state when in unallocated products mode */}
           {showUnallocatedProducts && (

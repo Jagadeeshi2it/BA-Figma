@@ -120,11 +120,6 @@ export default function AllocationBottomBar({
 
   const targetValue = targetBinCount === 0 ? 'None selected' : plural(targetBinCount, 'Bin');
 
-  const hint =
-    step === 1
-      ? 'Select the bins holding the products you want to move'
-      : 'Select where those products should go';
-
   return (
     <div className="shrink-0 bg-white border-t border-gray-200 shadow-[0_-2px_8px_0_rgba(0,0,0,0.04)] px-4 py-3">
       {/* Wraps rather than clipping: with a review panel open the column loses 440px, and the
@@ -148,11 +143,6 @@ export default function AllocationBottomBar({
           onClick={onOpenTarget}
         />
 
-        {/* Takes the slack so the actions stay right-aligned, and drops the hint first when the
-            window is narrow — the counts and the buttons matter more than the prompt. */}
-        <p className="flex-1 min-w-[8rem] text-[12px] leading-[16px] text-[#676b74] truncate hidden xl:block">
-          {hint}
-        </p>
 
         <div className="flex items-center gap-2 shrink-0 ml-auto">
           <BarButton label="Cancel" variant="ghost-danger" enabled onClick={onCancel} />

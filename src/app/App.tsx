@@ -656,7 +656,6 @@ export default function App() {
             handleAvailableBinsClick={inventoryState.handleAvailableBinsClick}
             handleChangeAllocationClick={inventoryState.handleChangeAllocationClick}
             handleUnallocatedProductsClick={inventoryState.handleUnallocatedProductsClick}
-            handleExitChangeAllocation={inventoryState.handleExitChangeAllocation}
             handleHistoryClick={inventoryState.handleHistoryClick}
             handleSelectBinsForAssignment={inventoryState.handleSelectBinsForAssignment}
             handleSelectSourceBinsFromSearch={inventoryState.handleSelectSourceBinsFromSearch}
