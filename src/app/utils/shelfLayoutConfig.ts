@@ -340,6 +340,22 @@ const placementsForShelf = (
   return pickVariant(variants, doorName, shelfIndex);
 };
 
+// How many of a shelf's bins the geometry can actually place. Bottom doors are a fixed 4-slot
+// tiling but arrive with 5 bins in the source data — the extra one only fits because it's empty and
+// gets dropped. redistributeProducts needs this so it doesn't fill a bin that has nowhere to go,
+// which would make the whole shelf fall back to its positionless state.
+// null means no constraint (fridge/virtual doors carry no geometry).
+export const placementCapacityForShelf = (
+  doorName: string,
+  shelf: Shelf,
+  shelfIndex: number
+): number | null => {
+  const doorType = DOOR_TYPES[doorName];
+  if (!doorType) return null;
+  const placements = placementsForShelf(doorName, doorType, shelf, shelfIndex);
+  return placements ? placements.length : null;
+};
+
 const layoutShelf = (
   doorName: string,
   doorType: DoorType,

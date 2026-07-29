@@ -1,6 +1,7 @@
 import { DoorShelfConfig } from '../types';
 import { realDoorShelfConfig } from './realData';
 import { applyShelfLayouts } from '../utils/shelfLayoutConfig';
+import { redistributeProducts } from '../utils/redistributeProducts';
 import { withInventoryType } from '../utils/inventoryTypes';
 
 // Spread bin products across the four inventory types. Keyed on the master product
@@ -26,6 +27,10 @@ const applyInventoryTypes = (config: DoorShelfConfig): DoorShelfConfig => {
 //   Virtual   = Doors 9-14 (bulk/fridge storage, one pooled bin per door)
 // The import supplies inventory only — every bin arrives as a positionless 1x1.
 // applyShelfLayouts layers the physical geometry on top (see shelfLayoutConfig).
+//
+// redistributeProducts runs first: the import piles almost everything into the Virtual cabinet's
+// pooled bins, and applyShelfLayouts sizes each bin from how much it holds — so the spread has to
+// happen before the geometry is derived from it.
 export const doorShelfConfig: DoorShelfConfig = applyShelfLayouts(
-  applyInventoryTypes(realDoorShelfConfig)
+  redistributeProducts(applyInventoryTypes(realDoorShelfConfig))
 );
