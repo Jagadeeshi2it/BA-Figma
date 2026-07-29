@@ -1,33 +1,8 @@
 import React from 'react';
 import { Bin } from '../types';
 import { highlightText, highlightNDC, doesProductMatchSearch } from '../utils/textHighlight';
-
-// Simple string hash so each badge's random-looking assignment stays stable across
-// re-renders (same product always gets the same result) instead of flipping every render.
-const hashString = (s: string): number => {
-  let hash = 0;
-  for (let i = 0; i < s.length; i++) {
-    hash = (hash * 31 + s.charCodeAt(i)) & 0xffffffff;
-  }
-  return Math.abs(hash);
-};
-
-// Deterministic pseudo-random SDV/MDV split, ~50/50 across products.
-const getVialType = (product: any): 'SDV' | 'MDV' => {
-  const key = `vial-${product.id || ''}${product.ndc || ''}`;
-  return hashString(key) % 2 === 0 ? 'MDV' : 'SDV';
-};
-
-// CLIMATE shows on about half of products; CIV (controlled substance) is rare (~1 in 12).
-const hasClimateBadge = (product: any): boolean => {
-  const key = `climate-${product.id || ''}${product.ndc || ''}`;
-  return hashString(key) % 2 === 0;
-};
-
-const hasCivBadge = (product: any): boolean => {
-  const key = `civ-${product.id || ''}${product.ndc || ''}`;
-  return hashString(key) % 12 === 0;
-};
+// Grouping and badges are shared with AllProductsPanel so both views of a bin agree.
+import { consolidateBinProducts, getVialType, hasClimateBadge, hasCivBadge } from '../utils/binProducts';
 
 interface BinCardProps {
   bin: Bin;
@@ -71,15 +46,6 @@ export default function BinCard({
   selectedDoor,
   searchQuery = ""
 }: BinCardProps) {
-  // Owned by App, not local state. Opening a product from this modal navigates to
-  // the product detail page, which replaces the whole layout — so BinCard unmounts
-  // and local state would be gone by the time the user comes back, dropping them on
-  // the shelf page instead of the modal they opened the product from.
-  const showAllProducts = allProductsBinId === bin.id;
-  const setShowAllProducts = (open: boolean) =>
-    open ? onOpenAllProducts?.(bin.id) : onCloseAllProducts?.();
-  const popoverRef = React.useRef<HTMLDivElement>(null);
-
   // Convert bin size to numerical format
   const getBinSizeDisplay = (size: string): string => {
     const sizeMap: { [key: string]: string } = {
@@ -96,42 +62,11 @@ export default function BinCard({
     return sizeMap[size] || size;
   };
 
-  // Close popover when clicking outside
-  React.useEffect(() => {
-    if (!showAllProducts) return;
-
-    const handleClickOutside = (event: MouseEvent) => {
-      if (popoverRef.current && !popoverRef.current.contains(event.target as Node)) {
-        setShowAllProducts(false);
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [showAllProducts]);
-
   // Group identical products by name, NDC, and inventory type to avoid duplicates
-  const consolidatedProducts = React.useMemo(() => {
-    if (bin.available) return [];
-    
-    const groupedProducts = bin.products.reduce((acc, product) => {
-      const key = `${product.name}-${product.ndc}-${product.inventoryType}`;
-      if (!acc[key]) {
-        acc[key] = {
-          ...product,
-          quantity: 0,
-          productIds: [] // Keep track of original product IDs for click handling
-        };
-      }
-      acc[key].quantity += product.quantity;
-      acc[key].productIds.push(product.id);
-      return acc;
-    }, {} as Record<string, any>);
-
-    return Object.values(groupedProducts);
-  }, [bin.products, bin.available]);
+  const consolidatedProducts = React.useMemo(
+    () => consolidateBinProducts(bin),
+    [bin.products, bin.available]
+  );
 
   // Define doors where product limiting applies (extract number from "Door X" format)
   const doorsWithLimiting = ['1', '2', '3', '5', '6', '7', '9', '10', '11'];
@@ -296,7 +231,7 @@ export default function BinCard({
                       className="flex flex-col font-normal justify-start items-start leading-[0] not-italic relative text-[#176cff] text-xs hover:underline cursor-pointer bg-transparent border-none min-h-[44px] min-w-[44px] pt-2 -mt-2"
                       onClick={(e) => {
                         e.stopPropagation();
-                        setShowAllProducts(true);
+                        onOpenAllProducts?.(bin.id);
                       }}
                     >
                       <p className="block leading-[16px] text-[14px] text-left">+{additionalCount} more</p>
@@ -309,40 +244,8 @@ export default function BinCard({
         </div>
       </div>
 
-      {/* Popover overlay */}
-      {showAllProducts && (
-        <div 
-          className="fixed inset-0 bg-black bg-opacity-40 z-50 flex items-center justify-center p-8 transition-opacity duration-300 ease-in-out"
-          onClick={() => setShowAllProducts(false)}
-        >
-          <div 
-            ref={popoverRef}
-            className="bg-white rounded-lg shadow-2xl border border-gray-300 max-w-5xl w-full max-h-[80vh] overflow-y-auto transform transition-all duration-300 ease-in-out scale-100 opacity-100 animate-in"
-            style={{
-              animation: 'fadeInScale 0.3s ease-out'
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="box-border content-stretch flex flex-col items-start justify-start p-6 relative">
-              <div className="flex items-center justify-between w-full mb-4 pb-3 border-b border-gray-200">
-                <div className="flex flex-col font-bold justify-center leading-[0] not-italic relative text-[#020817] text-xs text-left">
-                  <p className="block leading-[12px] text-[16px]">{bin.name} ({getBinSizeDisplay(bin.size)}) - All Products</p>
-                </div>
-                <button
-                  className="text-gray-500 hover:text-gray-700 text-2xl leading-none cursor-pointer bg-transparent border-none p-0"
-                  onClick={() => setShowAllProducts(false)}
-                >
-                  ×
-                </button>
-              </div>
-              
-              <div className="grid grid-cols-3 gap-x-6 gap-y-4 w-full">
-                {consolidatedProducts.map(renderProduct)}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* "+N more" opens AllProductsPanel (rendered by MainLayout from App's allProductsBinId)
+          rather than a modal, so the list is searchable and doesn't cover the shelves. */}
     </>
   );
 }

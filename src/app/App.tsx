@@ -293,6 +293,14 @@ export default function App() {
     return map;
   }, [inventoryState.doorShelfConfig]);
 
+  // The bin behind allProductsBinId, resolved for AllProductsPanel. Declared after binLookupMap
+  // because it reads from it. Held here rather than in BinCard so the panel survives the product
+  // detail page unmounting the shelves — Back returns the user to it.
+  const allProductsBin = useMemo(
+    () => (allProductsBinId ? binLookupMap.get(allProductsBinId) ?? null : null),
+    [allProductsBinId, binLookupMap]
+  );
+
   // Get individual source bins with location info for the modal
   const getSourceBins = useMemo(() => {
     if (!inventoryState.changeAllocationSourceBins?.length || binLookupMap.size === 0) return [];
@@ -544,6 +552,11 @@ export default function App() {
       ) : (
         <MainLayout
           showBinInventory={inventoryState.showBinInventory}
+          allProductsBin={allProductsBin}
+          selectedDoor={inventoryState.selectedDoor}
+          searchQuery={inventoryState.selectedSearchQuery}
+          onAllProductsProductClick={handleProductClick}
+          closeAllProducts={() => setAllProductsBinId(null)}
           showUnallocatedProducts={inventoryState.showUnallocatedProducts}
           currentBin={currentBin}
           selectedUnallocatedProducts={inventoryState.selectedUnallocatedProducts}

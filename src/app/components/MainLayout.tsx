@@ -2,11 +2,18 @@ import React from 'react';
 import Sidebar from './Sidebar';
 import TopNav from './TopNav';
 import BinInventoryPanel from './BinInventoryPanel';
+import AllProductsPanel from './AllProductsPanel';
 import UnallocatedProductsPanel from './UnallocatedProductsPanel';
 import { Toaster } from './ui/sonner';
 
 interface MainLayoutProps {
   showBinInventory: boolean;
+  // Bin whose full product list is open in the side panel ("+N more"), owned by App.
+  allProductsBin?: any;
+  selectedDoor?: string | null;
+  searchQuery?: string;
+  onAllProductsProductClick?: (product: any, location: any) => void;
+  closeAllProducts?: () => void;
   showUnallocatedProducts: boolean;
   currentBin: any;
   selectedUnallocatedProducts: string[];
@@ -30,6 +37,11 @@ interface MainLayoutProps {
 
 export default function MainLayout({
   showBinInventory,
+  allProductsBin,
+  selectedDoor,
+  searchQuery,
+  onAllProductsProductClick,
+  closeAllProducts,
   showUnallocatedProducts,
   currentBin,
   selectedUnallocatedProducts,
@@ -60,7 +72,7 @@ export default function MainLayout({
         className={`flex-1 min-w-0 flex flex-col transition-all duration-300 ${
           // The unallocated panel is wider than the bin inventory one, so the reserved margin has
           // to match whichever is open or the panel overlaps the shelves.
-          showUnallocatedProducts ? "mr-[440px]" : showBinInventory ? "mr-[320px]" : ""
+          showUnallocatedProducts || allProductsBin ? "mr-[440px]" : showBinInventory ? "mr-[320px]" : ""
         }`}
       >
         {/* Top Header */}
@@ -83,6 +95,17 @@ export default function MainLayout({
         <BinInventoryPanel
           bin={currentBin}
           onClose={closeBinInventory}
+        />
+      )}
+
+      {/* A bin's full product list, opened from "+N more" on the bin card */}
+      {allProductsBin && !showUnallocatedProducts && (
+        <AllProductsPanel
+          bin={allProductsBin}
+          selectedDoor={selectedDoor ?? null}
+          searchQuery={searchQuery ?? ''}
+          onProductClick={onAllProductsProductClick}
+          onClose={closeAllProducts ?? (() => {})}
         />
       )}
 

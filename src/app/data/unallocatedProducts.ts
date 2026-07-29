@@ -68,6 +68,12 @@ export const generateUnallocatedProducts = (doorShelfConfig: DoorShelfConfig): U
   // Convert to unallocated product format
   return fallbackProducts.map((product, index) => ({
     id: `unalloc-${index + 1}`,
+    // Carry the master id, same as the module-level list above. Without it, allocation has to
+    // guess the master from name + NDC, and PROD348/PROD350 are both "VYLOY 100 MG VIAL" with
+    // the same NDC — find() returns the wrong one, the bin product is stamped with it, and the
+    // real master never counts as assigned. The emptied tray then regenerates and VYLOY comes
+    // back, which looked like "allocate everything and one product is still left".
+    masterId: product.id,
     name: product.displayName,
     description: product.genericName,
     ndc: product.ndc,

@@ -6,6 +6,7 @@ import { Separator } from './ui/separator';
 import { DoorShelfConfig } from '../types';
 import { getBinLocationDetails } from '../utils/doorUtils';
 import { highlightText, highlightNDC } from '../utils/textHighlight';
+import { getVialType } from '../utils/binProducts';
 
 interface UnallocatedProductsPanelProps {
   selectedUnallocatedProducts: string[];
@@ -144,16 +145,17 @@ export default function UnallocatedProductsPanel({
                     {highlightText(product.name, unallocatedSearchQuery, '#EA4315', product)}
                   </h3>
 
-                  {/* Badge sits on its own line so long product names keep the full width */}
-                  <div className="flex items-center gap-1">
-                    <span className="bg-[#D1D5DB] text-[#111827] text-[9px] font-medium px-1.5 py-0.5 rounded">
-                      {product.badge}
-                    </span>
-                  </div>
-
                   <p className="italic text-gray-500 leading-relaxed text-[14px]">
                     {product.description}
                   </p>
+
+                  {/* Badge sits under the generic name, matching AllProductsPanel. Derived rather
+                      than read from product.badge, which is 'SDV' for all eight tray products. */}
+                  <div className="flex items-center gap-1">
+                    <span className="bg-[#D1D5DB] text-[#111827] text-[9px] font-medium px-1.5 py-0.5 rounded">
+                      {getVialType(product)}
+                    </span>
+                  </div>
 
                   <div className="text-gray-500 text-[14px]">
                     {highlightNDC(product.ndc, unallocatedSearchQuery, '#EA4315', product)}
