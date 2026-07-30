@@ -121,7 +121,7 @@ export default function AllocationBottomBar({
   const targetValue = targetBinCount === 0 ? 'None selected' : plural(targetBinCount, 'Bin');
 
   return (
-    <div className="shrink-0 bg-white border-t border-gray-200 shadow-[0_-2px_8px_0_rgba(0,0,0,0.04)] px-4 py-3">
+    <div className="shrink-0 bg-white border-t border-gray-200 shadow-[0_-2px_8px_0_rgba(0,0,0,0.04)] px-4 py-2">
       {/* Wraps rather than clipping: with a review panel open the column loses 440px, and the
           actions are the last thing that should disappear off the edge. */}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">

@@ -1,7 +1,6 @@
 import React from 'react';
-import { X, Search } from 'lucide-react';
+import { X, Search, CircleMinus } from 'lucide-react';
 import { Input } from './ui/input';
-import { RadioGroup, RadioGroupItem } from './ui/radio-group';
 import { Separator } from './ui/separator';
 import { doesProductMatchSearch } from '../utils/textHighlight';
 import { consolidateBinProducts, getVialType, hasClimateBadge, hasCivBadge } from '../utils/binProducts';
@@ -13,12 +12,12 @@ interface AllocationSelectionPanelProps {
   // The `|`-joined query behind a search-driven source selection. Where it exists it says which
   // products are actually being moved, so a source bin holding forty other lots doesn't drown them.
   sourceQuery: string;
-  // Drop one bin from this half of the selection. Both groupings offer it, since a bin is a bin
-  // whichever way the list is nested.
+  // Drop one bin from this half of the selection — under a product in the source view, on the bin
+  // header in the target view.
   onRemoveBin: (binId: string) => void;
-  // Drop a product from the selection entirely. Source only, and only in the product grouping: the
-  // selection tracks products at the identity level, not per bin, so there is no such thing as
-  // removing a product "from this one bin" — offering it under a bin header would promise that.
+  // Drop a product from the selection entirely. Source only: the selection tracks products by
+  // identity, not per bin, so there is no such thing as removing one "from this bin alone" — and a
+  // target bin's rows are its existing contents, which aren't part of the selection to begin with.
   onRemoveProduct?: (product: { name?: string; ndc?: string; inventoryType?: string }) => void;
   onClose: () => void;
 }
@@ -48,10 +47,9 @@ const binLabel = (bin: any): string =>
 const productIdentity = (product: any): string =>
   `${product.name}|${product.ndc}|${product.inventoryType}`.toLowerCase();
 
-type Grouping = 'product' | 'bin';
-
-// Takes something out of the selection. Deliberately quiet until hovered — this panel is for reading
-// the selection back, and a column of red crosses down the side reads as a list of problems.
+// Takes something out of the selection. A circled minus rather than a cross: a cross is what closes
+// this panel (top right), and the same glyph doing two different jobs on one surface is worth
+// avoiding. Red from the start, since removal is the one destructive thing in here.
 function RemoveButton({ label, onClick }: { label: string; onClick: () => void }) {
   return (
     <button
@@ -59,9 +57,9 @@ function RemoveButton({ label, onClick }: { label: string; onClick: () => void }
       aria-label={label}
       title={label}
       onClick={onClick}
-      className="shrink-0 w-6 h-6 rounded flex items-center justify-center text-[#9fa9b7] hover:text-[#C6362C] hover:bg-[#FDF2F2] transition-colors cursor-pointer"
+      className="shrink-0 w-6 h-6 rounded flex items-center justify-center text-[#C6362C] hover:bg-[#FDF2F2] transition-colors cursor-pointer"
     >
-      <X className="w-3.5 h-3.5" />
+      <CircleMinus className="w-4 h-4" />
     </button>
   );
 }
@@ -75,15 +73,10 @@ export default function AllocationSelectionPanel({
   onClose
 }: AllocationSelectionPanelProps) {
   const [panelSearch, setPanelSearch] = React.useState('');
-  const [grouping, setGrouping] = React.useState<Grouping>(role === 'source' ? 'product' : 'bin');
 
-  // Switching between the two halves of the selection starts with a clean filter, and back on the
-  // grouping each half reads best in: a source selection is about the products being moved, while a
-  // target selection is about the bins receiving them — several of which are empty and have no
-  // products to group by at all.
+  // Switching between the two halves of the selection starts with a clean filter.
   React.useEffect(() => {
     setPanelSearch('');
-    setGrouping(role === 'source' ? 'product' : 'bin');
   }, [role]);
 
   const isSource = role === 'source';
@@ -113,23 +106,32 @@ export default function AllocationSelectionPanel({
 
   const visibleGroups = query ? groups.filter(group => group.rows.length > 0) : groups;
 
-  // The same selection turned inside out: one entry per product, carrying the bins it sits in. This
-  // is the shape the unallocated list uses — the product first, its bins listed under it — and it's
-  // the question a source selection actually poses ("what am I moving, and where is it?"), where the
-  // bin grouping answers "what's in each bin I picked?".
+  // The selection turned inside out: one entry per product, carrying the bins it sits in. This is the
+  // shape the unallocated list uses — the product first, its bins listed under it — and it answers
+  // the question a source selection poses: what am I moving, and where is it?
   const productGroups = React.useMemo(() => {
-    const byIdentity = new Map<string, { product: any; totalQuantity: number; locations: { bin: any; quantity: number }[] }>();
+    const byIdentity = new Map<string, { product: any; totalQuantity: number; locations: { bin: any; quantity: number }[]; trackedByQuery: boolean }>();
     groups.forEach(({ bin, rows }) => {
       rows.forEach(product => {
         const key = productIdentity(product);
-        const entry = byIdentity.get(key) ?? { product, totalQuantity: 0, locations: [] };
+        const entry = byIdentity.get(key) ?? {
+          product,
+          totalQuantity: 0,
+          locations: [],
+          // Whether removing this product is a real, representable action: the source query has an
+          // OR-group naming this exact identity. Products that only show up because they happen to
+          // share a hand-picked bin with something else were never tracked at that level — there is
+          // no "remove just this one" for them, only "remove the bin" — so offering the button would
+          // promise an action that silently does nothing.
+          trackedByQuery: isSource && sourceQuery.trim() ? doesProductMatchSearch(product, sourceQuery) : false
+        };
         entry.totalQuantity += product.quantity ?? 0;
         entry.locations.push({ bin, quantity: product.quantity ?? 0 });
         byIdentity.set(key, entry);
       });
     });
     return [...byIdentity.values()];
-  }, [groups]);
+  }, [groups, isSource, sourceQuery]);
 
   // Distinct products, not rows: one drug spread across three bins is one product listed three
   // times, and counting the rows would contradict the bar that opened this panel.
@@ -156,7 +158,7 @@ export default function AllocationSelectionPanel({
         </div>
       </div>
 
-      <div className="p-4 border-b border-gray-200 space-y-3">
+      <div className="p-4 border-b border-gray-200">
         <Input
           type="text"
           placeholder="Search products"
@@ -164,24 +166,6 @@ export default function AllocationSelectionPanel({
           onChange={(e) => setPanelSearch(e.target.value)}
           className="w-full text-[14px]"
         />
-
-        {/* Same selection, two questions. Product-first answers "what am I moving, and where is it?";
-            bin-first answers "what's in each bin I picked?". Neither is a filter — the contents are
-            identical, only the nesting flips — so this is a radio rather than a set of tabs. */}
-        <RadioGroup
-          value={grouping}
-          onValueChange={(value) => setGrouping(value as Grouping)}
-          className="flex flex-row items-center gap-4"
-        >
-          <label className="flex items-center gap-2 cursor-pointer">
-            <RadioGroupItem value="product" id="group-by-product" />
-            <span className="text-[13px] leading-[16px] text-[#020817]">Grouped by product</span>
-          </label>
-          <label className="flex items-center gap-2 cursor-pointer">
-            <RadioGroupItem value="bin" id="group-by-bin" />
-            <span className="text-[13px] leading-[16px] text-[#020817]">Grouped by bin</span>
-          </label>
-        </RadioGroup>
       </div>
 
       <div className="flex-1 overflow-y-auto">
@@ -202,24 +186,32 @@ export default function AllocationSelectionPanel({
               Try searching for a different product name, NDC code, or keyword.
             </p>
           </div>
-        ) : grouping === 'product' && productGroups.length === 0 ? (
-          /* Reachable on the target side, where a selection is often nothing but empty bins: there's
-             genuinely no product to group by, and the bin view is the one that can show them. */
-          <div className="text-center py-8 px-4">
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No products in these bins</h3>
-            <p className="text-gray-600">
-              Every selected bin is empty. Switch to <span className="font-medium">Grouped by bin</span> to see them.
-            </p>
-          </div>
-        ) : grouping === 'product' ? (
+        ) : isSource ? (
+          /* Source is always product-first: it's the half where the products *are* the selection, so
+             "what am I moving, and where is it?" is the only question worth answering. Target stays
+             bin-first below — its rows are the bins' existing contents rather than a selection, and
+             a target selection is usually several empty bins, which a product-first list can't show
+             at all. One fixed view each, so there's nothing to choose. */
           <div className="divide-y divide-gray-200">
-            {productGroups.map(({ product, totalQuantity, locations }) => (
+            {productGroups.map(({ product, totalQuantity, locations, trackedByQuery }) => (
               <div key={productIdentity(product)} className="px-4 py-4">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 flex-1 space-y-1.5">
-                    <h3 className="font-normal leading-[20px] text-[14px] text-[#020817]">
-                      {product.name}
-                    </h3>
+                    {/* Name and generic name are one block: the row's space-y separates it from the
+                        badges below, but the generic name should sit directly under the name it
+                        describes rather than float halfway between the two. */}
+                    <div>
+                      <h3 className="font-normal leading-[20px] text-[14px] text-[#020817]">
+                        {product.name}
+                      </h3>
+                      {/* The generic name, same italic treatment the unallocated list and the history
+                          table give it — the display name alone doesn't say what the drug is. */}
+                      {(product.genericName || product.description) && (
+                        <p className="italic text-gray-500 leading-snug text-[14px]">
+                          {product.genericName || product.description}
+                        </p>
+                      )}
+                    </div>
 
                     <div className="flex items-center gap-1">
                       <span className="bg-[#D1D5DB] text-[#111827] text-[9px] font-medium px-1.5 py-0.5 rounded">
@@ -245,7 +237,11 @@ export default function AllocationSelectionPanel({
                     <p className="text-[10px] leading-[normal] font-semibold text-[#676b74]">{product.unit}</p>
                   </div>
 
-                  {onRemoveProduct && (
+                  {/* Only where removal is a real, representable action — see trackedByQuery. A
+                      product that merely shares a hand-picked bin with something else has no
+                      per-product state to remove; its bin-level control below is the one that
+                      actually does something. */}
+                  {onRemoveProduct && trackedByQuery && (
                     <RemoveButton
                       label={`Remove ${product.name} from the selection`}
                       onClick={() => onRemoveProduct(product)}
@@ -309,9 +305,19 @@ export default function AllocationSelectionPanel({
                   {rows.map(product => (
                     <div key={product.id} className="flex items-start justify-between gap-3 px-4 py-4">
                       <div className="min-w-0 flex-1 space-y-1.5">
-                        <h3 className="font-normal leading-[20px] text-[14px] text-[#020817]">
-                          {product.name}
-                        </h3>
+                        {/* Name and generic name are one block: the row's space-y separates it from the
+                            badges below, but the generic name should sit directly under the name it
+                            describes rather than float halfway between the two. */}
+                        <div>
+                          <h3 className="font-normal leading-[20px] text-[14px] text-[#020817]">
+                            {product.name}
+                          </h3>
+                          {(product.genericName || product.description) && (
+                            <p className="italic text-gray-500 leading-snug text-[14px]">
+                              {product.genericName || product.description}
+                            </p>
+                          )}
+                        </div>
 
                         <div className="flex items-center gap-1">
                           <span className="bg-[#D1D5DB] text-[#111827] text-[9px] font-medium px-1.5 py-0.5 rounded">

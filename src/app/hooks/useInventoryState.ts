@@ -758,10 +758,14 @@ export const useInventoryState = () => {
     setChangeAllocationSourceQuery(nextQuery);
     setSelectedSearchQuery(previous => removeQueryGroup(previous, group));
 
-    // An emptied query means "no product scope left", which is the same state as bins picked by
-    // hand — so the bins stay and the panel shows their full contents, rather than every bin
-    // dropping out because nothing matches any more.
-    if (nextQuery.trim()) {
+    // Only prune if this removal actually changed the query — that's the one signal that tells
+    // apart "this product really was tracked" from "bins picked by hand happen to hold it too,
+    // and the click was a no-op." Gating on nextQuery being non-empty instead (an earlier version
+    // of this) got exactly the one case that matters backwards: removing the LAST tracked product
+    // empties the query, which is precisely when every bin it was scoping loses its only reason to
+    // be selected — and binMatchesSearch already returns false for an empty query, so pruning
+    // against it correctly clears them all rather than leaving them stranded.
+    if (nextQuery !== changeAllocationSourceQuery) {
       setChangeAllocationSourceBins(bins =>
         bins.filter(binId => {
           const bin = findBinById(binId, doorShelfConfig);

@@ -134,10 +134,17 @@ export default function App() {
   // Debounce selected search query (only set when user picks from dropdown) to prevent excessive calculations
   const debouncedSelectedSearchQuery = useDebounce(inventoryState.selectedSearchQuery, 300);
 
+  // Same reasoning as ShelfLayout's resolveSearchQuery: in change allocation mode, selectedSearchQuery
+  // only ever grows alongside changeAllocationSourceBins/TargetBins (every commit path adds both
+  // together), so there is no way left to acquire a real "found, not yet selected" door. A door that
+  // still matches a leftover query after its only matching bin was removed from the panel would light
+  // up as found for a product that was just taken back out — doorsWithChangeAllocationBins already
+  // covers the doors that genuinely hold a selection.
   const doorsWithSearchMatches = useMemo(() => {
+    if (inventoryState.changeAllocationMode) return [];
     if (!debouncedSelectedSearchQuery.trim() || !inventoryState.doorShelfConfig) return [];
     return getDoorsWithSearchMatches(inventoryState.doorShelfConfig, debouncedSelectedSearchQuery);
-  }, [inventoryState.doorShelfConfig, debouncedSelectedSearchQuery]);
+  }, [inventoryState.doorShelfConfig, debouncedSelectedSearchQuery, inventoryState.changeAllocationMode]);
 
   const doorsWithSelectedBins = useMemo(() => {
     if (inventoryState.selectedBinsForAssignment.length === 0 || !inventoryState.doorShelfConfig) return [];
@@ -608,6 +615,34 @@ export default function App() {
           handleSelectAllUnallocatedProducts={inventoryState.handleSelectAllUnallocatedProducts}
           handleClearUnallocatedSelection={inventoryState.handleClearUnallocatedSelection}
           handleConfirmAssignment={inventoryState.handleConfirmAssignment}
+          topBar={
+            <HeaderSection
+              searchQuery={inventoryState.searchQuery}
+              highlightAvailableBins={inventoryState.highlightAvailableBins}
+              allAvailableBins={allAvailableBins}
+              showUnallocatedProducts={inventoryState.showUnallocatedProducts}
+              showUnallocatedButton={showUnallocatedButton}
+              changeAllocationMode={inventoryState.changeAllocationMode}
+              changeAllocationStep={inventoryState.changeAllocationStep}
+              changeAllocationSourceBins={inventoryState.changeAllocationSourceBins}
+              changeAllocationTargetBins={inventoryState.changeAllocationTargetBins}
+              unallocatedProductsCount={inventoryState.unallocatedProductsCount}
+              doorShelfConfig={inventoryState.doorShelfConfig}
+              selectedBinsForAssignment={inventoryState.selectedBinsForAssignment}
+              handleSearchQueryChange={inventoryState.handleSearchQueryChange}
+              handleSearchAutofill={inventoryState.handleSearchAutofill}
+              handleAvailableBinsClick={inventoryState.handleAvailableBinsClick}
+              handleChangeAllocationClick={inventoryState.handleChangeAllocationClick}
+              handleUnallocatedProductsClick={inventoryState.handleUnallocatedProductsClick}
+              handleHistoryClick={inventoryState.handleHistoryClick}
+              handleSelectBinsForAssignment={inventoryState.handleSelectBinsForAssignment}
+              handleSelectSourceBinsFromSearch={inventoryState.handleSelectSourceBinsFromSearch}
+              handleSelectTargetBinsFromSearch={inventoryState.handleSelectTargetBinsFromSearch}
+              handleSearchProductClick={inventoryState.handleSearchProductClick}
+              handleDoorClick={inventoryState.handleDoorClick}
+              handleScrollToBin={setPendingScrollBinId}
+            />
+          }
           bottomBar={
             inventoryState.changeAllocationMode ? (
               <AllocationBottomBar
@@ -648,33 +683,6 @@ export default function App() {
             ) : null
           }
         >
-          <HeaderSection
-            searchQuery={inventoryState.searchQuery}
-            highlightAvailableBins={inventoryState.highlightAvailableBins}
-            allAvailableBins={allAvailableBins}
-            showUnallocatedProducts={inventoryState.showUnallocatedProducts}
-            showUnallocatedButton={showUnallocatedButton}
-            changeAllocationMode={inventoryState.changeAllocationMode}
-            changeAllocationStep={inventoryState.changeAllocationStep}
-            changeAllocationSourceBins={inventoryState.changeAllocationSourceBins}
-            changeAllocationTargetBins={inventoryState.changeAllocationTargetBins}
-            unallocatedProductsCount={inventoryState.unallocatedProductsCount}
-            doorShelfConfig={inventoryState.doorShelfConfig}
-            selectedBinsForAssignment={inventoryState.selectedBinsForAssignment}
-            handleSearchQueryChange={inventoryState.handleSearchQueryChange}
-            handleSearchAutofill={inventoryState.handleSearchAutofill}
-            handleAvailableBinsClick={inventoryState.handleAvailableBinsClick}
-            handleChangeAllocationClick={inventoryState.handleChangeAllocationClick}
-            handleUnallocatedProductsClick={inventoryState.handleUnallocatedProductsClick}
-            handleHistoryClick={inventoryState.handleHistoryClick}
-            handleSelectBinsForAssignment={inventoryState.handleSelectBinsForAssignment}
-            handleSelectSourceBinsFromSearch={inventoryState.handleSelectSourceBinsFromSearch}
-            handleSelectTargetBinsFromSearch={inventoryState.handleSelectTargetBinsFromSearch}
-            handleSearchProductClick={inventoryState.handleSearchProductClick}
-            handleDoorClick={inventoryState.handleDoorClick}
-            handleScrollToBin={setPendingScrollBinId}
-          />
-
           <CabinetSelection
             selectedCabinet={inventoryState.selectedCabinet}
             selectedDoor={inventoryState.selectedDoor}

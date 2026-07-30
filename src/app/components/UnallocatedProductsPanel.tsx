@@ -141,13 +141,18 @@ export default function UnallocatedProductsPanel({
                 <div className="min-w-0 flex-1 space-y-1.5">
                   {/* Name and badge follow BinCard's treatment: normal weight on #020817, and the
                       grey vial chip rather than a black one. */}
-                  <h3 className="font-normal text-[#020817] leading-[20px] text-[14px]">
-                    {highlightText(product.name, unallocatedSearchQuery, SEARCH_HIGHLIGHT_COLOR, product)}
-                  </h3>
+                  {/* Name and generic name are one block: the row's space-y separates it from the
+                      badges below, but the generic name should sit directly under the name it
+                      describes rather than float halfway between the two. */}
+                  <div>
+                    <h3 className="font-normal text-[#020817] leading-[20px] text-[14px]">
+                      {highlightText(product.name, unallocatedSearchQuery, SEARCH_HIGHLIGHT_COLOR, product)}
+                    </h3>
 
-                  <p className="italic text-gray-500 leading-relaxed text-[14px]">
-                    {product.description}
-                  </p>
+                    <p className="italic text-gray-500 leading-snug text-[14px]">
+                      {product.description}
+                    </p>
+                  </div>
 
                   {/* Badge sits under the generic name, matching AllProductsPanel. Derived rather
                       than read from product.badge, which is 'SDV' for all eight tray products. */}

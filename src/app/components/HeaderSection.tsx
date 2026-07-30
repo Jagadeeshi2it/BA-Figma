@@ -195,8 +195,14 @@ const HeaderSection = memo(function HeaderSection({
 
   return (
     <>
-      {/* Page Header */}
-      <div className="flex items-center justify-between mb-6">
+      {/* Page header row — rendered by MainLayout as `topBar`, a sibling of the scrollable shelf area
+          rather than a child inside it, so it's exempt from scrolling by construction instead of by
+          sticky positioning racing a scroll container. White to read as a continuation of TopNav
+          above it (this bar plus TopNav together read as one nav chrome); its own border-b marks the
+          seam into the gray, scrollable page below. It needs its own horizontal padding now — it no
+          longer sits inside the content column's p-6, so px-6 reproduces that inset to keep the
+          title and search aligned with the shelf cards underneath. */}
+      <div className="bg-white px-6 py-3 border-b border-gray-200 flex items-center justify-between">
         <div className="flex items-center gap-4">
           <h1 className="text-2xl font-normal text-[24px]">Allocation</h1>
         </div>

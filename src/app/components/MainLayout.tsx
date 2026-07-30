@@ -31,6 +31,10 @@ interface MainLayoutProps {
   handleSelectAllUnallocatedProducts: () => void;
   handleClearUnallocatedSelection: () => void;
   handleConfirmAssignment: () => void;
+  // Rendered as its own row between TopNav and the scrolling content — a sibling of the scroll
+  // container, not a child of it, so it never scrolls out of view no matter how far down the page
+  // goes. Optional: pages that don't pass one (the quantity/serial-scan flows) just don't get a row.
+  topBar?: React.ReactNode;
   // Pinned below the scrolling content, inside the content column — so it can't cover the shelves
   // and it shifts with the column when a side panel opens, which position:fixed wouldn't.
   bottomBar?: React.ReactNode;
@@ -66,6 +70,7 @@ export default function MainLayout({
   handleSelectAllUnallocatedProducts,
   handleClearUnallocatedSelection,
   handleConfirmAssignment,
+  topBar,
   bottomBar,
   sidePanel,
   sidePanelOpen = false,
@@ -95,6 +100,10 @@ export default function MainLayout({
             onStationClick={onStationClick}
           />
         </div>
+
+        {/* Page header row — a plain sibling of the scroll area below, so it's exempt from scrolling
+            by construction rather than by sticky positioning fighting a scroll container. */}
+        {topBar}
 
         {/* Main Content Area */}
         <div className={`flex-1 min-h-0 ${removePadding ? 'overflow-hidden' : 'overflow-y-auto p-6'}`}>

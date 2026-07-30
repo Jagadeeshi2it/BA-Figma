@@ -1,6 +1,6 @@
 import React from 'react';
 import BinCard from './BinCard';
-import { Shelf } from '../types';
+import { Shelf, Bin } from '../types';
 import {
   isDoubleDoor,
   isUniqueDoor,
@@ -52,6 +52,22 @@ export default function ShelfLayout({
   onCloseAllProducts
 }: ShelfLayoutProps) {
 
+  // What a bin should be highlighted against. A bin already committed as a source or target keeps
+  // the real query, so the one product that earned it that status still gets its blue/green text.
+  // Any other bin gets none at all — in change allocation mode there is no longer a way to acquire a
+  // non-empty query without also being added to one of those two arrays (every commit path adds
+  // both together), so a bin here holding a leftover query and no source/target flag can only mean
+  // one thing: it used to be selected and was removed from the panel afterwards, while the query
+  // itself survives because another bin still needs it. Showing that leftover as "found by search"
+  // would read as the opposite of what just happened. Outside change allocation mode this is just
+  // the literal typed search, unchanged.
+  const resolveSearchQuery = (bin: Bin): string => {
+    if (!changeAllocationMode) return searchQuery;
+    const isSource = changeAllocationSourceBins.includes(bin.id);
+    const isTarget = changeAllocationTargetBins.includes(bin.id);
+    return isSource || isTarget ? searchQuery : '';
+  };
+
   // Render a slotted grid shelf: double doors are 2 rows x 5 cols, bottom doors 5x5.
   // Placement comes straight from bin.gridPosition and is applied as explicit start
   // lines rather than relying on grid auto-flow, so a bin can never drift into the
@@ -77,7 +93,7 @@ export default function ShelfLayout({
                   bin={bin}
                   isSelected={selectedBin === bin.id && showBinInventory}
                   highlightAvailable={highlightAvailableBins}
-                  highlightSearch={binMatchesSearch(bin, searchQuery)}
+                  highlightSearch={binMatchesSearch(bin, resolveSearchQuery(bin))}
                   isSelectedForAssignment={selectedBinsForAssignment.includes(bin.id)}
                   isChangeAllocationSource={changeAllocationSourceBins.includes(bin.id)}
                   isChangeAllocationTarget={changeAllocationTargetBins.includes(bin.id)}
@@ -89,7 +105,7 @@ export default function ShelfLayout({
                   onOpenAllProducts={onOpenAllProducts}
                   onCloseAllProducts={onCloseAllProducts}
                   selectedDoor={selectedDoor}
-                  searchQuery={searchQuery}
+                  searchQuery={resolveSearchQuery(bin)}
                   style={{
                     gridColumn: `${x + 1} / span ${width}`,
                     gridRow: `${y + 1} / span ${height}`
@@ -111,7 +127,7 @@ export default function ShelfLayout({
             bin={bin}
             isSelected={selectedBin === bin.id && showBinInventory}
             highlightAvailable={highlightAvailableBins}
-            highlightSearch={binMatchesSearch(bin, searchQuery)}
+            highlightSearch={binMatchesSearch(bin, resolveSearchQuery(bin))}
             isSelectedForAssignment={selectedBinsForAssignment.includes(bin.id)}
             isChangeAllocationSource={changeAllocationSourceBins.includes(bin.id)}
             isChangeAllocationTarget={changeAllocationTargetBins.includes(bin.id)}
@@ -123,7 +139,7 @@ export default function ShelfLayout({
             onOpenAllProducts={onOpenAllProducts}
             onCloseAllProducts={onCloseAllProducts}
             selectedDoor={selectedDoor}
-            searchQuery={searchQuery}
+            searchQuery={resolveSearchQuery(bin)}
             // Virtual-cabinet bins hug their contents: no height at all, so the card is as tall
             // as the products in it. A fixed height here made the product grid scroll inside the
             // card; BinCard's own min-h-[140px] still keeps an empty bin from collapsing.
@@ -144,7 +160,7 @@ export default function ShelfLayout({
             bin={bin}
             isSelected={selectedBin === bin.id && showBinInventory}
             highlightAvailable={highlightAvailableBins}
-            highlightSearch={binMatchesSearch(bin, searchQuery)}
+            highlightSearch={binMatchesSearch(bin, resolveSearchQuery(bin))}
             isSelectedForAssignment={selectedBinsForAssignment.includes(bin.id)}
             isChangeAllocationSource={changeAllocationSourceBins.includes(bin.id)}
             isChangeAllocationTarget={changeAllocationTargetBins.includes(bin.id)}
@@ -156,7 +172,7 @@ export default function ShelfLayout({
             onOpenAllProducts={onOpenAllProducts}
             onCloseAllProducts={onCloseAllProducts}
             selectedDoor={selectedDoor}
-            searchQuery={searchQuery}
+            searchQuery={resolveSearchQuery(bin)}
             style={{
               width: bin.style?.width || '100%',
               height: bin.style?.height || '800px'
@@ -190,7 +206,7 @@ export default function ShelfLayout({
           bin={bin}
           isSelected={selectedBin === bin.id && showBinInventory}
           highlightAvailable={highlightAvailableBins}
-          highlightSearch={binMatchesSearch(bin, searchQuery)}
+          highlightSearch={binMatchesSearch(bin, resolveSearchQuery(bin))}
           isSelectedForAssignment={selectedBinsForAssignment.includes(bin.id)}
           isChangeAllocationSource={changeAllocationSourceBins.includes(bin.id)}
           isChangeAllocationTarget={changeAllocationTargetBins.includes(bin.id)}
@@ -202,7 +218,7 @@ export default function ShelfLayout({
           onOpenAllProducts={onOpenAllProducts}
           onCloseAllProducts={onCloseAllProducts}
           selectedDoor={selectedDoor}
-          searchQuery={searchQuery}
+          searchQuery={resolveSearchQuery(bin)}
           className={bin.size === 'double' ? 'col-span-2' : 'col-span-1'}
         />
       ))}

@@ -125,11 +125,8 @@ const SearchDropdown = memo(function SearchDropdown({
     onScrollToBin?.(location.binId);
   };
 
-  // One behaviour in both modes: highlight the product, mark the row, go to where it lives, name it
-  // in the search box and get the list out of the way. Only the highlight channel differs, and that
-  // difference lives in the state hook — a view-mode pick replaces the highlight, while in allocation
-  // mode it accumulates, because there the highlight also marks products already committed to the
-  // selection and a preview click must not blank them out.
+  // View mode only — see the row's onClick. Highlight the product, mark the row, go to where it
+  // lives, name it in the search box and get the list out of the way.
   const handleProductClick = (result: ProductSearchResult) => {
     if (onProductClick) {
       onProductClick(result.name, result.ndc, result.inventoryType);
@@ -244,16 +241,19 @@ const SearchDropdown = memo(function SearchDropdown({
         {orderedResults.map((result, index) => (
           <div
             key={`${result.ndc}-${result.inventoryType}-${index}`}
+            // A result has exactly one way to act on it, in either mode: its own button below the
+            // text — Select as Source/Target in allocation mode, a plain highlight-and-locate button
+            // in view mode. Tapping the row itself used to do the view-mode action, which made the
+            // same gesture mean two different things depending on mode. The row is inert everywhere
+            // now, and dressed as inert — no cursor, no hover tint.
+            //
             // No tint on the picked row either — same reason as the bins: the highlight colour on
-            // the name and locations is the signal, and a filled background only mutes it. Hover
-            // still tints, since that's transient rather than a state.
-            className="px-4 py-4 cursor-pointer transition-colors duration-200 hover:bg-gray-50"
-            onClick={() => handleProductClick(result)}
+            // the name and locations is the signal, and a filled background only mutes it.
+            className="px-4 py-4"
           >
-            {/* Product Layout - matching BinCard structure. The bottom gap is only there to separate
-                this row from the action button below it, which only change allocation mode renders —
-                in view mode it would just leave the card padded out with nothing under the text. */}
-            <div className={`box-border content-stretch flex flex-row items-start justify-between gap-2 p-0 relative shrink-0 w-full ${changeAllocationMode ? 'mb-4' : ''}`}>
+            {/* Product Layout - matching BinCard structure. The bottom gap always applies now: every
+                row renders its own action button below this block, in both modes. */}
+            <div className="box-border content-stretch flex flex-row items-start justify-between gap-2 p-0 relative shrink-0 w-full mb-4">
               <div className="flex-1 box-border content-stretch flex flex-col gap-0.5 items-start justify-start min-w-0 p-0 relative">
                 <div className="box-border content-stretch flex flex-row items-start justify-start p-0 relative w-full min-w-0">
                   {/* A picked row wears the same highlight colour the bins use for a matched product,
@@ -309,12 +309,14 @@ const SearchDropdown = memo(function SearchDropdown({
               <Button 
                 size="sm"
                 onClick={(e) => {
-                  e.stopPropagation(); // Prevent triggering the card's onClick
+                  // The row itself is inert in this mode, so nothing to stop — kept so the button
+                  // stays self-contained if the row ever becomes clickable again.
+                  e.stopPropagation();
                   // Only the bins this step can still take — on step 2 the product's source bins
                   // are excluded, so committing a target can't quietly re-use one of them.
                   const binIds = selectableBinIds(result);
-                  // stopPropagation means the card's own highlight-on-click never fires, so
-                  // build the same precise query it would have used and pass it through.
+                  // Nothing highlights this product until it's committed, so the query the bins will
+                  // be highlighted by is built here, precise to this one product variant.
                   const highlightQuery = [result.name, result.ndc, result.inventoryType].filter(Boolean).join(', ');
                   if (changeAllocationStep === 1) {
                     onSelectSourceBins?.(binIds, result.name, highlightQuery);
@@ -338,6 +340,20 @@ const SearchDropdown = memo(function SearchDropdown({
                   ? `Select as Source (${selectableBinIds(result).length} bin${selectableBinIds(result).length !== 1 ? 's' : ''})`
                   : `Select as Target (${selectableBinIds(result).length} bin${selectableBinIds(result).length !== 1 ? 's' : ''})`
                 }
+              </Button>
+            )}
+
+            {/* View mode's counterpart to the button above — same slot, same style, but the click
+                does everything handleProductClick always did: highlight, jump to the bin, name it in
+                the box and dismiss the list. Only the trigger moved from the row to here. */}
+            {!changeAllocationMode && (
+              <Button
+                size="sm"
+                onClick={() => handleProductClick(result)}
+                variant="outline"
+                className="w-full bg-white border-[#095192] text-[#095192] hover:bg-[#F1F6FA] hover:text-[#095192] text-[14px] h-10 rounded-[4px]"
+              >
+                Highlight in Bin
               </Button>
             )}
           </div>
