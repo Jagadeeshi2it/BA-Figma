@@ -47,6 +47,67 @@ const binLabel = (bin: any): string =>
 const productIdentity = (product: any): string =>
   `${product.name}|${product.ndc}|${product.inventoryType}`.toLowerCase();
 
+// The identifying block of a row — shared so a product listed on its own and the same product listed
+// inside an expanded bin are visibly the same thing, and so a bin row can borrow the exact treatment.
+function RowDetails({
+  title,
+  titleSuffix,
+  subtitle,
+  subtitleItalic = false,
+  children
+}: {
+  title: string;
+  titleSuffix?: React.ReactNode;
+  subtitle?: string;
+  subtitleItalic?: boolean;
+  children?: React.ReactNode;
+}) {
+  return (
+    <div className="min-w-0 flex-1 space-y-1.5">
+      {/* Title and subtitle are one block: the row's space-y separates it from whatever follows, but
+          the subtitle should sit directly under the line it describes rather than float between. */}
+      <div>
+        <h3 className="font-normal leading-[20px] text-[14px] text-[#020817]">
+          {title}
+          {titleSuffix}
+        </h3>
+        {subtitle && (
+          <p className={`text-gray-500 leading-snug text-[14px] ${subtitleItalic ? 'italic' : ''}`}>
+            {subtitle}
+          </p>
+        )}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+// The boxed figure on the right of a row: a quantity for a product, a product count for a bin.
+function RowFigure({ value, label }: { value: React.ReactNode; label: string }) {
+  return (
+    <div className="bg-[#f7f7f7] border border-[#e9e9e9] rounded flex flex-col items-center justify-center p-[4px] shrink-0 w-16">
+      <p className="text-[14px] leading-[16px] font-medium text-[#020817]">{value}</p>
+      <p className="text-[10px] leading-[normal] font-semibold text-[#676b74]">{label}</p>
+    </div>
+  );
+}
+
+function ProductBadges({ product }: { product: any }) {
+  return (
+    <div className="flex items-center gap-1">
+      <span className="bg-[#D1D5DB] text-[#111827] text-[9px] font-medium px-1.5 py-0.5 rounded">
+        {getVialType(product)}
+      </span>
+      {hasClimateBadge(product) && (
+        <span className="bg-[#DBEAFE] text-[#1D4ED8] text-[9px] font-medium px-1.5 py-0.5 rounded">CLIMATE</span>
+      )}
+      {hasCivBadge(product) && (
+        <span className="bg-[#FEF3C7] text-[#B45309] text-[9px] font-medium px-1.5 py-0.5 rounded">CIV</span>
+      )}
+    </div>
+  );
+}
+
 // Takes something out of the selection. A circled minus rather than a cross: a cross is what closes
 // this panel (top right), and the same glyph doing two different jobs on one surface is worth
 // avoiding. Red from the start, since removal is the one destructive thing in here.
@@ -73,10 +134,21 @@ export default function AllocationSelectionPanel({
   onClose
 }: AllocationSelectionPanelProps) {
   const [panelSearch, setPanelSearch] = React.useState('');
+  // Bins whose contents the user has asked to see. Collapsed by default: a bin picked off the shelf
+  // was picked as a unit, so its name, place and how much is in it is the whole answer most of the
+  // time — the products are detail to reach for, not detail to wade through.
+  const [expandedBins, setExpandedBins] = React.useState<string[]>([]);
 
-  // Switching between the two halves of the selection starts with a clean filter.
+  const toggleBin = (binId: string) =>
+    setExpandedBins(previous =>
+      previous.includes(binId) ? previous.filter(id => id !== binId) : [...previous, binId]
+    );
+
+  // Switching between the two halves of the selection starts with a clean filter, and nothing
+  // held open from the other half.
   React.useEffect(() => {
     setPanelSearch('');
+    setExpandedBins([]);
   }, [role]);
 
   const isSource = role === 'source';
@@ -106,36 +178,67 @@ export default function AllocationSelectionPanel({
 
   const visibleGroups = query ? groups.filter(group => group.rows.length > 0) : groups;
 
+  // Two ways a bin ends up in this selection, and each gets the nesting that answers the question it
+  // actually poses. Search for a product and commit it as source, and `scoped` is true — the bin was
+  // picked *because of* that product, so "what am I moving, and where is it?" is what matters, and
+  // the product belongs on top with its bins underneath. Click a bin directly on the shelf and
+  // nothing scopes it — the bin itself was the decision, so it stays bin-first with everything it
+  // holds listed inside it, same as target bins always are (a destination is picked for itself, not
+  // for a product, so target rows never carry a scoped flag at all). A single source selection can
+  // freely mix both — some products searched for, other bins grabbed by hand — so this splits on
+  // `scoped` rather than picking one nesting for the whole panel.
+  const scopedGroups = visibleGroups.filter(group => group.scoped);
+  const unscopedGroups = visibleGroups.filter(group => !group.scoped);
+
   // The selection turned inside out: one entry per product, carrying the bins it sits in. This is the
   // shape the unallocated list uses — the product first, its bins listed under it — and it answers
-  // the question a source selection poses: what am I moving, and where is it?
+  // the question a source selection poses: what am I moving, and where is it? Built only from scoped
+  // groups — a hand-picked bin gets its own entry in the list instead, not folded into these.
   const productGroups = React.useMemo(() => {
-    const byIdentity = new Map<string, { product: any; totalQuantity: number; locations: { bin: any; quantity: number }[]; trackedByQuery: boolean }>();
-    groups.forEach(({ bin, rows }) => {
+    // No trackedByQuery flag needed here any more: every row reaching this map already came from a
+    // scoped bin, meaning it already passed doesProductMatchSearch to be in `rows` at all — removal
+    // is unconditionally representable for anything that shows up as a product entry. It's the
+    // hand-picked bins where a product might have no per-product state to remove, and those never
+    // build this map in the first place.
+    const byIdentity = new Map<string, { product: any; totalQuantity: number; locations: { bin: any; quantity: number }[] }>();
+    scopedGroups.forEach(({ bin, rows }) => {
       rows.forEach(product => {
         const key = productIdentity(product);
-        const entry = byIdentity.get(key) ?? {
-          product,
-          totalQuantity: 0,
-          locations: [],
-          // Whether removing this product is a real, representable action: the source query has an
-          // OR-group naming this exact identity. Products that only show up because they happen to
-          // share a hand-picked bin with something else were never tracked at that level — there is
-          // no "remove just this one" for them, only "remove the bin" — so offering the button would
-          // promise an action that silently does nothing.
-          trackedByQuery: isSource && sourceQuery.trim() ? doesProductMatchSearch(product, sourceQuery) : false
-        };
+        const entry = byIdentity.get(key) ?? { product, totalQuantity: 0, locations: [] };
         entry.totalQuantity += product.quantity ?? 0;
         entry.locations.push({ bin, quantity: product.quantity ?? 0 });
         byIdentity.set(key, entry);
       });
     });
     return [...byIdentity.values()];
-  }, [groups, isSource, sourceQuery]);
+  }, [scopedGroups]);
 
   // Distinct products, not rows: one drug spread across three bins is one product listed three
   // times, and counting the rows would contradict the bar that opened this panel.
   const productTotal = productGroups.length;
+
+  // One list, newest first. `bins` arrives in the order bins were added to the selection, which makes
+  // that array the record of what happened when — so a product's recency is the latest bin its own
+  // selection contributed (all of them land together on one "Select as Source"), and a hand-picked
+  // bin's is simply its own position. Sorting both by that interleaves the two kinds correctly
+  // without needing to timestamp anything, and it's why no grouping labels are needed: the newest
+  // thing you did is at the top whichever kind it was.
+  const entries = React.useMemo(() => {
+    const positionOf = new Map(bins.map((bin, index) => [bin.id, index]));
+    const productEntries = productGroups.map(entry => ({
+      kind: 'product' as const,
+      key: `product:${productIdentity(entry.product)}`,
+      recency: Math.max(...entry.locations.map(location => positionOf.get(location.bin.id) ?? -1)),
+      entry
+    }));
+    const binEntries = unscopedGroups.map(group => ({
+      kind: 'bin' as const,
+      key: `bin:${group.bin.id}`,
+      recency: positionOf.get(group.bin.id) ?? -1,
+      group
+    }));
+    return [...productEntries, ...binEntries].sort((a, b) => b.recency - a.recency);
+  }, [bins, productGroups, unscopedGroups]);
 
   return (
     <div className="fixed right-0 top-0 h-full w-[440px] bg-white border-l border-gray-200 shadow-lg z-50 flex flex-col">
@@ -186,166 +289,139 @@ export default function AllocationSelectionPanel({
               Try searching for a different product name, NDC code, or keyword.
             </p>
           </div>
-        ) : isSource ? (
-          /* Source is always product-first: it's the half where the products *are* the selection, so
-             "what am I moving, and where is it?" is the only question worth answering. Target stays
-             bin-first below — its rows are the bins' existing contents rather than a selection, and
-             a target selection is usually several empty bins, which a product-first list can't show
-             at all. One fixed view each, so there's nothing to choose. */
+        ) : (
           <div className="divide-y divide-gray-200">
-            {productGroups.map(({ product, totalQuantity, locations, trackedByQuery }) => (
-              <div key={productIdentity(product)} className="px-4 py-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0 flex-1 space-y-1.5">
-                    {/* Name and generic name are one block: the row's space-y separates it from the
-                        badges below, but the generic name should sit directly under the name it
-                        describes rather than float halfway between the two. */}
-                    <div>
-                      <h3 className="font-normal leading-[20px] text-[14px] text-[#020817]">
-                        {product.name}
-                      </h3>
-                      {/* The generic name, same italic treatment the unallocated list and the history
-                          table give it — the display name alone doesn't say what the drug is. */}
-                      {(product.genericName || product.description) && (
-                        <p className="italic text-gray-500 leading-snug text-[14px]">
-                          {product.genericName || product.description}
-                        </p>
-                      )}
-                    </div>
+            {entries.map(item =>
+              item.kind === 'product' ? (
+                <div key={item.key} className="px-4 py-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <RowDetails
+                      title={item.entry.product.name}
+                      subtitle={item.entry.product.genericName || item.entry.product.description}
+                      subtitleItalic
+                    >
+                      <ProductBadges product={item.entry.product} />
+                      <div className="text-gray-500 text-[14px]">
+                        {item.entry.product.ndc} - {item.entry.product.inventoryType}
+                      </div>
+                    </RowDetails>
 
-                    <div className="flex items-center gap-1">
-                      <span className="bg-[#D1D5DB] text-[#111827] text-[9px] font-medium px-1.5 py-0.5 rounded">
-                        {getVialType(product)}
-                      </span>
-                      {hasClimateBadge(product) && (
-                        <span className="bg-[#DBEAFE] text-[#1D4ED8] text-[9px] font-medium px-1.5 py-0.5 rounded">CLIMATE</span>
-                      )}
-                      {hasCivBadge(product) && (
-                        <span className="bg-[#FEF3C7] text-[#B45309] text-[9px] font-medium px-1.5 py-0.5 rounded">CIV</span>
-                      )}
-                    </div>
+                    {/* The total across every bin below, so the number answers "how much of this am I
+                        moving?" rather than repeating one bin's share. */}
+                    <RowFigure value={item.entry.totalQuantity} label={item.entry.product.unit} />
 
-                    <div className="text-gray-500 text-[14px]">
-                      {product.ndc} - {product.inventoryType}
-                    </div>
+                    {onRemoveProduct && (
+                      <RemoveButton
+                        label={`Remove ${item.entry.product.name} from the selection`}
+                        onClick={() => onRemoveProduct(item.entry.product)}
+                      />
+                    )}
                   </div>
 
-                  {/* The total across every bin below, so the number answers "how much of this am I
-                      moving?" rather than repeating one bin's share. */}
-                  <div className="bg-[#f7f7f7] border border-[#e9e9e9] rounded flex flex-col items-center justify-center p-[4px] shrink-0 w-16">
-                    <p className="text-[14px] leading-[16px] font-medium text-[#020817]">{totalQuantity}</p>
-                    <p className="text-[10px] leading-[normal] font-semibold text-[#676b74]">{product.unit}</p>
+                  {/* Its bins listed underneath, the same treatment the unallocated list gives a
+                      product's assigned bins — with each bin's own share, since that's the part the
+                      total above can't tell you. */}
+                  <Separator className="my-2" />
+                  <div className="space-y-1">
+                    {item.entry.locations.map(({ bin, quantity }) => (
+                      <div
+                        key={bin.id}
+                        className="flex items-baseline justify-between gap-2 text-[12px] leading-[16px] font-medium text-[#020817]"
+                      >
+                        <span className="truncate">{binLabel(bin)}</span>
+                        <span className="ml-auto shrink-0 text-[#676b74] font-normal">
+                          {quantity} {item.entry.product.unit}
+                        </span>
+                        <RemoveButton
+                          label={`Remove ${bin.name} from the selection`}
+                          onClick={() => onRemoveBin(bin.id)}
+                        />
+                      </div>
+                    ))}
                   </div>
-
-                  {/* Only where removal is a real, representable action — see trackedByQuery. A
-                      product that merely shares a hand-picked bin with something else has no
-                      per-product state to remove; its bin-level control below is the one that
-                      actually does something. */}
-                  {onRemoveProduct && trackedByQuery && (
-                    <RemoveButton
-                      label={`Remove ${product.name} from the selection`}
-                      onClick={() => onRemoveProduct(product)}
+                </div>
+              ) : (
+                <div key={item.key} className="px-4 py-4">
+                  <div className="flex items-start justify-between gap-3">
+                    {/* Same shape as a product row above — a bin picked as a unit is one entry in the
+                        selection just as a product is, so it reads as a peer rather than as a
+                        differently-shaped container. */}
+                    <RowDetails
+                      title={item.group.bin.name}
+                      titleSuffix={
+                        <span className="text-[#7A7D85]"> ({getBinSizeDisplay(item.group.bin.size)})</span>
+                      }
+                      subtitle={[item.group.bin.shelfName, trimCabinet(item.group.bin.location)]
+                        .filter(Boolean)
+                        .join(', ')}
                     />
+
+                    <RowFigure
+                      value={item.group.totalInBin}
+                      label={item.group.totalInBin === 1 ? 'product' : 'products'}
+                    />
+
+                    <RemoveButton
+                      label={`Remove ${item.group.bin.name} from the selection`}
+                      onClick={() => onRemoveBin(item.group.bin.id)}
+                    />
+                  </div>
+
+                  {item.group.bin.available ? (
+                    <>
+                      <Separator className="my-2" />
+                      <p className="text-[12px] leading-[16px] text-[#676b74]">
+                        Available bin — currently empty
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <Separator className="my-2" />
+                      {/* An active panel search forces the contents open: the match it found is in
+                          here, and reporting a hit while hiding it would be worse than not filtering
+                          at all. Otherwise it's the user's toggle. */}
+                      {query ? (
+                        <p className="text-[12px] leading-[16px] text-[#676b74]">
+                          {item.group.rows.length} matching product
+                          {item.group.rows.length !== 1 ? 's' : ''} in this bin
+                        </p>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => toggleBin(item.group.bin.id)}
+                          className="text-[12px] leading-[16px] font-medium text-[#095192] hover:underline cursor-pointer"
+                        >
+                          {expandedBins.includes(item.group.bin.id)
+                            ? 'Hide products'
+                            : `View ${item.group.totalInBin} product${item.group.totalInBin !== 1 ? 's' : ''}`}
+                        </button>
+                      )}
+
+                      {(query || expandedBins.includes(item.group.bin.id)) && (
+                        <div className="mt-2 space-y-3">
+                          {item.group.rows.map(product => (
+                            <div key={product.id} className="flex items-start justify-between gap-3">
+                              <RowDetails
+                                title={product.name}
+                                subtitle={product.genericName || product.description}
+                                subtitleItalic
+                              >
+                                <ProductBadges product={product} />
+                                <div className="text-gray-500 text-[14px]">
+                                  {product.ndc} - {product.inventoryType}
+                                </div>
+                              </RowDetails>
+                              <RowFigure value={product.quantity} label={product.unit} />
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
-
-                {/* Its bins listed underneath, the same treatment the unallocated list gives a
-                    product's assigned bins — with each bin's own share, since that's the part the
-                    total above can't tell you. */}
-                <Separator className="my-2" />
-                <div className="space-y-1">
-                  {locations.map(({ bin, quantity }) => (
-                    <div
-                      key={bin.id}
-                      className="flex items-baseline justify-between gap-2 text-[12px] leading-[16px] font-medium text-[#020817]"
-                    >
-                      <span className="truncate">{binLabel(bin)}</span>
-                      <span className="ml-auto shrink-0 text-[#676b74] font-normal">
-                        {quantity} {product.unit}
-                      </span>
-                      <RemoveButton
-                        label={`Remove ${bin.name} from the selection`}
-                        onClick={() => onRemoveBin(bin.id)}
-                      />
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
+              )
+            )}
           </div>
-        ) : (
-          visibleGroups.map(({ bin, rows, scoped, totalInBin }) => (
-            <div key={bin.id}>
-              {/* Bin header sticks so the rows below it always have an owner while scrolling. */}
-              <div className="sticky top-0 z-10 bg-[#F7F8FA] border-y border-gray-200 px-4 py-2">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-[14px] leading-[20px] font-semibold text-[#020817] truncate">
-                    {bin.name} <span className="text-[#7A7D85] font-normal">({getBinSizeDisplay(bin.size)})</span>
-                  </p>
-                  <p className="ml-auto text-[12px] leading-[16px] text-[#676b74] shrink-0">
-                    {[bin.shelfName, trimCabinet(bin.location)].filter(Boolean).join(', ')}
-                  </p>
-                  <RemoveButton
-                    label={`Remove ${bin.name} from the selection`}
-                    onClick={() => onRemoveBin(bin.id)}
-                  />
-                </div>
-                {/* Says why the list is short, so a scoped bin doesn't look like a partial read. */}
-                {scoped && (
-                  <p className="text-[12px] leading-[16px] text-[#676b74] mt-0.5">
-                    Moving {rows.length} of {totalInBin} product{totalInBin !== 1 ? 's' : ''} in this bin
-                  </p>
-                )}
-              </div>
-
-              {bin.available ? (
-                <div className="px-4 py-4 text-[14px] text-gray-500">Available bin — currently empty</div>
-              ) : (
-                <div className="divide-y divide-gray-200">
-                  {rows.map(product => (
-                    <div key={product.id} className="flex items-start justify-between gap-3 px-4 py-4">
-                      <div className="min-w-0 flex-1 space-y-1.5">
-                        {/* Name and generic name are one block: the row's space-y separates it from the
-                            badges below, but the generic name should sit directly under the name it
-                            describes rather than float halfway between the two. */}
-                        <div>
-                          <h3 className="font-normal leading-[20px] text-[14px] text-[#020817]">
-                            {product.name}
-                          </h3>
-                          {(product.genericName || product.description) && (
-                            <p className="italic text-gray-500 leading-snug text-[14px]">
-                              {product.genericName || product.description}
-                            </p>
-                          )}
-                        </div>
-
-                        <div className="flex items-center gap-1">
-                          <span className="bg-[#D1D5DB] text-[#111827] text-[9px] font-medium px-1.5 py-0.5 rounded">
-                            {getVialType(product)}
-                          </span>
-                          {hasClimateBadge(product) && (
-                            <span className="bg-[#DBEAFE] text-[#1D4ED8] text-[9px] font-medium px-1.5 py-0.5 rounded">CLIMATE</span>
-                          )}
-                          {hasCivBadge(product) && (
-                            <span className="bg-[#FEF3C7] text-[#B45309] text-[9px] font-medium px-1.5 py-0.5 rounded">CIV</span>
-                          )}
-                        </div>
-
-                        <div className="text-gray-500 text-[14px]">
-                          {product.ndc} - {product.inventoryType}
-                        </div>
-                      </div>
-
-                      <div className="bg-[#f7f7f7] border border-[#e9e9e9] rounded flex flex-col items-center justify-center p-[4px] shrink-0 w-16">
-                        <p className="text-[14px] leading-[16px] font-medium text-[#020817]">{product.quantity}</p>
-                        <p className="text-[10px] leading-[normal] font-semibold text-[#676b74]">{product.unit}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          ))
         )}
       </div>
     </div>

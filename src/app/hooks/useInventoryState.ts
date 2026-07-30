@@ -65,6 +65,24 @@ const findBinById = (binId: string, config: DoorShelfConfig): Bin | undefined =>
   return undefined;
 };
 
+// removeQueryGroup's counterpart in the other direction: drop OR-groups a specific set of bins no
+// longer backs, rather than dropping one named group. Removing a BIN can just as easily orphan a
+// group as removing a PRODUCT does — a bin that was the only one holding some product takes that
+// product's whole group down with it — and a group nothing in binIds still matches is exactly the
+// leftover state that read as "found by search" on a bin that's no longer part of the selection.
+const pruneQueryToBins = (query: string, binIds: string[], config: DoorShelfConfig): string =>
+  query
+    .split('|')
+    .map(group => group.trim())
+    .filter(Boolean)
+    .filter(group =>
+      binIds.some(binId => {
+        const bin = findBinById(binId, config);
+        return bin ? binMatchesSearch(bin, group) : false;
+      })
+    )
+    .join(' | ');
+
 export const useInventoryState = () => {
   const [selectedCabinet, setSelectedCabinet] = useState<string>("Cabinet 1");
   const [selectedDoor, setSelectedDoor] = useState<string>("Door 1");
@@ -194,9 +212,12 @@ export const useInventoryState = () => {
               // Add this bin to source selection
               setChangeAllocationSourceBins(prev => [...prev, binId]);
             }
-            // Hand-picking bins means the selection is no longer purely "the product I searched
-            // for", so stop narrowing the modal's source panel to that product.
-            setChangeAllocationSourceQuery("");
+            // The source query is deliberately left alone. Hand-picking a bin says something about
+            // THIS bin — take everything in it — and nothing about bins that were added by searching
+            // for a product; clearing the query here used to erase the product scope from those too,
+            // collapsing a mixed selection into "every product in every bin". Both the review panel
+            // and the modal now scope per bin (a bin that matches the query shows just that product,
+            // a bin that doesn't shows all of its contents), so a mix survives as a mix.
           }
         } else if (changeAllocationStep === 2) {
           // Step 2: Select target bins (multiple allowed across any cabinet/door)
@@ -737,13 +758,29 @@ export const useInventoryState = () => {
   // Drop one bin from a selection. Separate from handleBinClick's toggle because that resolves the
   // bin from the current door's shelves — the review panel lists bins from every door, so half of
   // them would be unreachable through it.
+  // Removing a bin can orphan a product exactly the way removing a product can orphan a bin: if this
+  // was the only bin holding some product, that product's OR-group no longer matches anything and
+  // has to go too — otherwise the query still names it, the "N products" count in the bottom bar
+  // still includes it, and nothing about the bin ever having existed is left to explain why.
+  // selectedSearchQuery is pruned against source bins AND target bins together, since it's a shared
+  // accumulator for both — pruning it against source bins alone would strip groups a target bin
+  // still needs highlighted.
   const handleRemoveSourceBin = useCallback((binId: string) => {
-    setChangeAllocationSourceBins(prev => prev.filter(id => id !== binId));
-  }, []);
+    const nextSourceBins = changeAllocationSourceBins.filter(id => id !== binId);
+    setChangeAllocationSourceBins(nextSourceBins);
+    setChangeAllocationSourceQuery(pruneQueryToBins(changeAllocationSourceQuery, nextSourceBins, doorShelfConfig));
+    setSelectedSearchQuery(
+      pruneQueryToBins(selectedSearchQuery, [...nextSourceBins, ...changeAllocationTargetBins], doorShelfConfig)
+    );
+  }, [changeAllocationSourceBins, changeAllocationTargetBins, changeAllocationSourceQuery, selectedSearchQuery, doorShelfConfig]);
 
   const handleRemoveTargetBin = useCallback((binId: string) => {
-    setChangeAllocationTargetBins(prev => prev.filter(id => id !== binId));
-  }, []);
+    const nextTargetBins = changeAllocationTargetBins.filter(id => id !== binId);
+    setChangeAllocationTargetBins(nextTargetBins);
+    setSelectedSearchQuery(
+      pruneQueryToBins(selectedSearchQuery, [...changeAllocationSourceBins, ...nextTargetBins], doorShelfConfig)
+    );
+  }, [changeAllocationTargetBins, changeAllocationSourceBins, selectedSearchQuery, doorShelfConfig]);
 
   // Drop one product from the source selection. The product-level selection lives in the query, so
   // removal means taking its OR-group back out of both the source query and the highlight — and then

@@ -58,17 +58,16 @@ export default function ChangeAllocationModal({
     return hasMatch ? query : null;
   }, [sourceProductQuery, sourceBins]);
 
-  // Bins worth paging through. Source bins can be a mix — hand-picked ones plus the ones a search
-  // pick added — and under a focus the hand-picked ones may hold none of the focused product. Those
-  // pages would be dead ends ("Product Not In This Bin"), so keep them out of the pager: select 6
-  // bins, then pick keytruda from search, and this shows the 2 bins that actually stock it. The
-  // focusedQuery invariant guarantees at least one bin survives.
-  const visibleSourceBins = useMemo(() => {
-    if (!focusedQuery) return sourceBins;
-    return sourceBins.filter(bin =>
-      bin.products.some(product => productMatchesQuery(product, focusedQuery))
-    );
-  }, [sourceBins, focusedQuery]);
+  // Whether this specific bin is scoped by the query. A bin added by searching for a product stocks
+  // it and comes out true; a bin hand-picked off the shelf holds whatever it holds and comes out
+  // false. Every source bin is in the selection for a reason, so all of them stay in the pager —
+  // what differs is how much of each one is in scope, decided per bin just below and in
+  // getSourceProducts. Dropping the unscoped ones (which this used to do) meant hand-picking a bin
+  // during a product-focused move silently removed it from the only screen that can commit it.
+  const isBinScopedByQuery = (bin: any): boolean =>
+    !!focusedQuery && bin.products.some((product: any) => productMatchesQuery(product, focusedQuery));
+
+  const visibleSourceBins = sourceBins;
 
   const sourceBin = visibleSourceBins[currentSourceBinIndex] || null;
 
@@ -154,7 +153,12 @@ export default function ChangeAllocationModal({
       // unmovable (pick all four "carboplatin" variants — three have one location each), and the
       // bin view is the only one with the target-aware "Allocate only" / "Allocate & Move Qty"
       // buttons, since ProductCentricCard is never told which target bin is showing.
-      const allQualify = picked.length > 0 && picked.every(entry => entry.binLocations.length > 2);
+      // A hand-picked bin is also disqualifying, for the same reason: this view lists products the
+      // query names, so a bin chosen for its own contents has nothing representing it here, and
+      // since the two views never render together its products would be unreachable.
+      const everyBinScoped = visibleSourceBins.every(isBinScopedByQuery);
+      const allQualify =
+        picked.length > 0 && everyBinScoped && picked.every(entry => entry.binLocations.length > 2);
       const focused = allQualify ? picked : [];
       return isTargetEmergencyKit
         ? focused.filter(entry => entry.product.inventoryType === 'Purchased')
@@ -613,8 +617,11 @@ export default function ChangeAllocationModal({
       });
     }
 
-    // Search-driven selection: only the picked product is in scope for this move.
-    if (focusedQuery) {
+    // Search-driven selection: only the picked product is in scope for this move — but only for the
+    // bins the search actually put here. A bin hand-picked off the shelf during the same session was
+    // chosen for its whole contents, so scoping it to another bin's searched product would hide the
+    // very products the user picked it for.
+    if (focusedQuery && isBinScopedByQuery(sourceBin)) {
       products = products.filter(product => productMatchesQuery(product, focusedQuery));
     }
 
