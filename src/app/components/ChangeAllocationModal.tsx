@@ -9,6 +9,7 @@ import TargetProductCard from "./TargetProductCard";
 import ProductCentricCard from "./ProductCentricCard";
 import { formatBinLocation, getDoorName } from '../utils/changeAllocationUtils';
 import { doesProductMatchSearch } from '../utils/textHighlight';
+import { getVialType, hasClimateBadge, hasCivBadge } from '../utils/binProducts';
 import { emergencyKitService } from '../services/EmergencyKitService';
 import { productDataService } from '../services/ProductDataService';
 import { toast } from "sonner@2.0.3";
@@ -182,6 +183,20 @@ export default function ChangeAllocationModal({
       setCurrentProductIndex(0);
     }
   }, [currentProductIndex, productsAcrossMultipleBins.length]);
+
+  // The product the product-centric view is paged to. Read once rather than re-indexed at each use:
+  // the badge helpers dereference the product, so a stale index (possible for one render, before the
+  // clamp effect above lands) has to be a single null check rather than one per call.
+  const focusedProduct = productsAcrossMultipleBins[currentProductIndex]?.product;
+
+  // Whether what's on screen is actually narrowed by the search. The product view is only ever
+  // reached through a query that scoped every bin, so it always is; the per-bin list is narrowed
+  // only for bins the search put here, because a hand-picked bin keeps its whole contents (see
+  // getSourceProducts). Keying the banner and the empty state off the bare query instead claimed a
+  // filter was in force while the user was looking at a hand-picked bin in full.
+  const sourceListNarrowed =
+    !!focusedQuery &&
+    (productsAcrossMultipleBins.length > 0 || (!!sourceBin && isBinScopedByQuery(sourceBin)));
 
   useEffect(() => {
     if (open && visibleSourceBins.length > 0) {
@@ -637,7 +652,14 @@ export default function ChangeAllocationModal({
     }));
     
     const transfersForThisBin = pendingTransfers.filter(pt => pt.toBinId === targetBin.id);
-    
+
+    // Recency comes from the order of pendingTransfers, not from a timestamp taken here: this
+    // function runs on every render, so Date.now() re-stamped every pending move with the same
+    // instant and the sort at the bottom had nothing to order by. Last transfer wins, so a product
+    // touched twice ranks by its latest move.
+    const transferRank = new Map<string, number>();
+    transfersForThisBin.forEach((transfer, index) => transferRank.set(transfer.productId, index));
+
     // Group transfers by product ID and accumulate quantities
     const transfersByProduct = transfersForThisBin.reduce((acc, transfer) => {
       if (!acc[transfer.productId]) {
@@ -688,8 +710,7 @@ export default function ChangeAllocationModal({
           // CRITICAL FIX: Keep the source product ID for move back functionality
           // This ensures the move back button works correctly with pendingTransfers
           sourceProductId: productTransfers.productId,
-          // CRITICAL FIX: Add move timestamp to track order of moves
-          moveTimestamp: Date.now()
+          moveRank: transferRank.get(productTransfers.productId) ?? -1
         };
         
         // Removed debug logging for performance
@@ -699,32 +720,24 @@ export default function ChangeAllocationModal({
           ...sourceProduct,
           quantity: productTransfers.totalQuantity,
           movedQuantity: productTransfers.totalQuantity,
-          // CRITICAL FIX: Add move timestamp to track order of moves
-          moveTimestamp: Date.now()
+          moveRank: transferRank.get(productTransfers.productId) ?? -1
         });
         
         // Removed debug logging for performance
       }
     });
     
-    // CRITICAL FIX: Sort products so that newly moved products appear at the top in proper order
-    // This ensures users can immediately see what was moved without scrolling, in the order they were moved
+    // Anything the user just allocated or moved into this bin goes on top, most recent first, so the
+    // result of the last tap is where the eye already is. Two things kept that from happening: the
+    // old test was movedQuantity > 0, which an "Allocate only" fails by design (it carries no
+    // quantity — the amount is named in the next step), and a product the bin already stocked is
+    // updated in place above, so it held its alphabetical slot however it was allocated. Ranking on
+    // the transfer covers both: the transfer exists either way, and it doesn't care whether the
+    // product is new to the bin. Everything untouched stays alphabetical beneath.
     const sortedProducts = allProducts.sort((a, b) => {
-      // Products with movedQuantity > 0 (newly moved) should appear first
-      const aHasMoved = a.movedQuantity > 0;
-      const bHasMoved = b.movedQuantity > 0;
-      
-      if (aHasMoved && !bHasMoved) return -1; // a comes first
-      if (!aHasMoved && bHasMoved) return 1;  // b comes first
-      
-      // If both have moved, sort by move timestamp (most recent first)
-      if (aHasMoved && bHasMoved) {
-        const aTimestamp = (a as any).moveTimestamp || 0;
-        const bTimestamp = (b as any).moveTimestamp || 0;
-        return bTimestamp - aTimestamp; // Most recent moves first
-      }
-      
-      // If neither has moved, maintain original order (by name)
+      const aRank = (a as any).moveRank ?? -1;
+      const bRank = (b as any).moveRank ?? -1;
+      if (aRank !== bRank) return bRank - aRank;
       return a.name.localeCompare(b.name);
     });
     
@@ -737,7 +750,10 @@ export default function ChangeAllocationModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="!w-[1100px] !max-w-[1100px] !min-w-[1100px] !h-[800px] !max-h-[800px] !min-h-[800px] overflow-hidden flex flex-col" style={{ width: '1100px', maxWidth: '1100px', minWidth: '1100px', height: '800px', maxHeight: '800px', minHeight: '800px' }}>
+      {/* !pb-0: the dialog's own p-6 left a 24px white strip under the footer bar, on top of the
+          bar's own 16px, so the buttons sat well off the bottom edge. The bar supplies its own
+          padding — the dialog shouldn't pad it again. */}
+      <DialogContent className="!w-[1100px] !max-w-[1100px] !min-w-[1100px] !h-[800px] !max-h-[800px] !min-h-[800px] !pb-0 overflow-hidden flex flex-col" style={{ width: '1100px', maxWidth: '1100px', minWidth: '1100px', height: '800px', maxHeight: '800px', minHeight: '800px' }}>
         <DialogHeader>
           <DialogTitle>Change Allocation</DialogTitle>
           <DialogDescription className="sr-only">
@@ -767,44 +783,36 @@ export default function ChangeAllocationModal({
                           </div>
                         </div>
                         
-                        <div className="flex-1">
-                          {/* Product Name and Badge */}
-                          <div className="flex items-center gap-2 mb-1">
-                            <h4 className="font-['Inter:Semi_Bold',sans-serif] font-semibold text-[14px] leading-[20px] text-[#020817]">
-                              {productsAcrossMultipleBins[currentProductIndex]?.product.name}
+                        {/* The same block the source and target cards use — this header names one of
+                            the products those cards list, so it shouldn't present it differently. */}
+                        <div className="flex-1 flex flex-col space-y-1.5 min-w-0">
+                          <div>
+                            <h4 className="font-normal text-[#020817] text-[14px] leading-[20px]">
+                              {focusedProduct?.name}
                             </h4>
-                            {productsAcrossMultipleBins[currentProductIndex]?.product.vialType && (
-                              <div className="bg-black rounded-[4px] px-[3.5px] py-[1.75px] h-[15.5px] flex items-center justify-center">
-                                <span className="font-['Inter:Bold',sans-serif] font-bold text-[10px] leading-[12px] text-white">
-                                  {productsAcrossMultipleBins[currentProductIndex]?.product.vialType}
-                                </span>
-                              </div>
+                            {focusedProduct?.description && (
+                              <p className="italic text-gray-500 leading-snug text-[14px]">
+                                {focusedProduct.description}
+                              </p>
                             )}
                           </div>
-                          
-                          {/* Description */}
-                          <p className="font-['Inter:Regular',sans-serif] font-normal text-[14px] leading-[20px] text-[#4a5565] mb-1">
-                            {productsAcrossMultipleBins[currentProductIndex]?.product.description}
-                          </p>
-                          
-                          {/* NDC and Inventory Type */}
-                          <div className="flex flex-col gap-1">
-                            <div className="flex items-center gap-2">
-                              <span className="font-['Inter:Regular',sans-serif] font-normal text-[14px] leading-[20px] text-[#4a5565]">
-                                NDC:
+
+                          {focusedProduct && (
+                            <div className="flex items-center gap-1">
+                              <span className="bg-[#D1D5DB] text-[#111827] text-[9px] font-medium px-1.5 py-0.5 rounded">
+                                {getVialType(focusedProduct)}
                               </span>
-                              <span className="font-['Inter:Regular',sans-serif] font-normal text-[14px] leading-[20px] text-[#020817]">
-                                {productsAcrossMultipleBins[currentProductIndex]?.product.ndc}
-                              </span>
+                              {hasClimateBadge(focusedProduct) && (
+                                <span className="bg-[#DBEAFE] text-[#1D4ED8] text-[9px] font-medium px-1.5 py-0.5 rounded">CLIMATE</span>
+                              )}
+                              {hasCivBadge(focusedProduct) && (
+                                <span className="bg-[#FEF3C7] text-[#B45309] text-[9px] font-medium px-1.5 py-0.5 rounded">CIV</span>
+                              )}
                             </div>
-                            <div className="flex items-center gap-2">
-                              <span className="font-['Inter:Regular',sans-serif] font-normal text-[14px] leading-[20px] text-[#4a5565]">
-                                Inventory Type:
-                              </span>
-                              <span className="font-['Inter:Regular',sans-serif] font-normal text-[14px] leading-[20px] text-[#020817]">
-                                {productsAcrossMultipleBins[currentProductIndex]?.product.inventoryType}
-                              </span>
-                            </div>
+                          )}
+
+                          <div className="text-gray-500 text-[14px] break-words">
+                            {focusedProduct?.ndc} - {focusedProduct?.inventoryType}
                           </div>
                         </div>
                       </div>
@@ -878,7 +886,7 @@ export default function ChangeAllocationModal({
               </div>
               
               {/* Explains why the source panel is narrowed — the user picked one product in search */}
-              {focusedQuery && (
+              {sourceListNarrowed && (
                 <div className="bg-blue-50 border-b border-blue-200 px-[16px] py-[8px]">
                   <div className="flex items-center">
                     <p className="text-sm text-blue-900 font-medium text-left">
@@ -919,19 +927,19 @@ export default function ChangeAllocationModal({
                         <div className="text-lg mb-2">
                           {isTargetEmergencyKit
                             ? "No Purchased Products Available"
-                            : focusedQuery
+                            : sourceListNarrowed
                               ? "Product Not In This Bin"
                               : "All Products Moved"}
                         </div>
                         <div className="text-sm">
                           {isTargetEmergencyKit
                             ? "Only Purchased inventory can be moved to Emergency Kit"
-                            : focusedQuery
+                            : sourceListNarrowed
                               ? "The product you selected isn't stocked in this bin"
                               : "No more products available to move"
                           }
                         </div>
-                        {!isTargetEmergencyKit && !focusedQuery && (
+                        {!isTargetEmergencyKit && !sourceListNarrowed && (
                           <div className="text-xs mt-1">Use "Move Back" to return products</div>
                         )}
                       </div>

@@ -4,7 +4,7 @@ import { Badge } from "./ui/badge";
 import { Card, CardContent } from "./ui/card";
 import { pluralizeUnit } from '../utils/pluralizeUnit';
 import { Product, Bin } from '../types';
-import { getVialType } from '../utils/binProducts';
+import { getVialType, hasClimateBadge, hasCivBadge } from '../utils/binProducts';
 
 interface SourceBinInfo {
   binId: string;
@@ -74,30 +74,44 @@ export default function TargetProductCard({
         ? 'ring-2 ring-blue-200 bg-blue-50'
         : ''
     }`}>
-      <CardContent className="p-[16px] m-[0px]">
+      {/* !pb-[16px]: CardContent's own [&:last-child]:pb-6 outranks a plain p-[16px], so the card was
+          padded 16px on three sides and 24px at the bottom. */}
+      <CardContent className="p-[16px] !pb-[16px] m-[0px]">
         <div className="flex flex-col gap-2 p-[0px]">
           {/* Top row - Product name, badge, and quantity */}
           <div className="flex items-start justify-between w-full">
             {/* Left side - Product name and badge */}
-            <div className="flex flex-col gap-2 flex-1 min-w-0">
-              {/* Product name with badge */}
-              <div className="flex items-center gap-2 w-full">
-                <h4 className="font-semibold text-[#020817] text-[14px] leading-[20px]">
+            <div className="flex flex-col space-y-1.5 flex-1 min-w-0">
+              {/* Same block as the source card: name, generic name directly beneath it, shared badges
+                  below both. The two cards sit side by side in this modal, so any difference in how
+                  they present the same product reads as a difference in the product. */}
+              <div>
+                <h4 className="font-normal text-[#020817] text-[14px] leading-[20px]">
                   {product.name}
                 </h4>
-                <div className="bg-black flex items-center justify-center px-[3.5px] py-[1.75px] rounded-[4px] shrink-0">
-                  <div className="font-['Inter:Bold',_sans-serif] font-bold text-white text-[8px] leading-[12px]">
-                    {getVialType(product)}
-                  </div>
-                </div>
+                {product.description && (
+                  <p className="italic text-gray-500 leading-snug text-[14px]">
+                    {product.description}
+                  </p>
+                )}
               </div>
-              
-              {/* Description */}
-              {product.description && (
-                <p className="font-['Inter:Regular',_sans-serif] font-normal text-[#4a5565] text-[14px] leading-[20px] w-full">
-                  {product.description}
-                </p>
-              )}
+
+              <div className="flex items-center gap-1">
+                <span className="bg-[#D1D5DB] text-[#111827] text-[9px] font-medium px-1.5 py-0.5 rounded">
+                  {getVialType(product)}
+                </span>
+                {hasClimateBadge(product) && (
+                  <span className="bg-[#DBEAFE] text-[#1D4ED8] text-[9px] font-medium px-1.5 py-0.5 rounded">CLIMATE</span>
+                )}
+                {hasCivBadge(product) && (
+                  <span className="bg-[#FEF3C7] text-[#B45309] text-[9px] font-medium px-1.5 py-0.5 rounded">CIV</span>
+                )}
+              </div>
+
+              {/* One line for both, as everywhere else — same block as the source card. */}
+              <div className="text-gray-500 text-[14px] break-words">
+                {product.ndc} - {product.inventoryType}
+              </div>
             </div>
             
             {/* Right side - Quantity box */}
@@ -113,19 +127,6 @@ export default function TargetProductCard({
               </div>
             )}
           </div>
-          
-          {/* NDC section */}
-          <div className="flex gap-2 items-start font-['Inter:Regular',_sans-serif] font-normal text-[14px] leading-[20px] w-full">
-            <div className="text-[#4a5565]">NDC:</div>
-            <div className="text-[#020817]">{product.ndc}</div>
-          </div>
-          
-          {/* Inventory Type section */}
-          <div className="flex gap-2 items-start font-['Inter:Regular',_sans-serif] font-normal text-[14px] leading-[20px] w-full">
-            <div className="text-[#4a5565]">Inventory Type:</div>
-            <div className="text-[#020817]">{product.inventoryType}</div>
-          </div>
-          
           
           {/* Move Back/Remove button (only show when needed) */}
           {((actualMovedQuantity ?? 0) > 0 || (isNewlyAllocated ?? false) || shouldShowRemoveButton) && (

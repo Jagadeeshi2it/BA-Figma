@@ -19,6 +19,8 @@ interface AllocationSelectionPanelProps {
   // identity, not per bin, so there is no such thing as removing one "from this bin alone" — and a
   // target bin's rows are its existing contents, which aren't part of the selection to begin with.
   onRemoveProduct?: (product: { name?: string; ndc?: string; inventoryType?: string }) => void;
+  // Empty this half of the selection outright — source bins and their product scope, or target bins.
+  onRemoveAll: () => void;
   onClose: () => void;
 }
 
@@ -131,6 +133,7 @@ export default function AllocationSelectionPanel({
   sourceQuery,
   onRemoveBin,
   onRemoveProduct,
+  onRemoveAll,
   onClose
 }: AllocationSelectionPanelProps) {
   const [panelSearch, setPanelSearch] = React.useState('');
@@ -241,189 +244,226 @@ export default function AllocationSelectionPanel({
   }, [bins, productGroups, unscopedGroups]);
 
   return (
-    <div className="fixed right-0 top-0 h-full w-[440px] bg-white border-l border-gray-200 shadow-lg z-50 flex flex-col">
-      {/* Header */}
-      <div className="p-4 border-b border-gray-200 flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h2 className="font-semibold text-[16px] leading-[24px]">
-            {isSource ? 'Source' : 'Target'} Selection
-          </h2>
-          <p className="text-sm text-gray-500">
-            {bins.length} bin{bins.length !== 1 ? 's' : ''}
-            {productTotal > 0 && ` · ${productTotal} product${productTotal !== 1 ? 's' : ''}`}
-          </p>
-        </div>
-        <div
-          className="bg-white relative rounded-[4px] cursor-pointer w-8 h-8 flex items-center justify-center shrink-0"
-          onClick={onClose}
-        >
-          <X className="w-4 h-4 text-gray-600" />
-        </div>
-      </div>
-
-      <div className="p-4 border-b border-gray-200">
-        <Input
-          type="text"
-          placeholder="Search products"
-          value={panelSearch}
-          onChange={(e) => setPanelSearch(e.target.value)}
-          className="w-full text-[14px]"
-        />
-      </div>
-
-      <div className="flex-1 overflow-y-auto">
-        {bins.length === 0 ? (
-          <div className="text-center py-8 px-4">
-            <h3 className="text-lg font-medium text-gray-900 mb-2">
-              No {isSource ? 'source' : 'target'} bins yet
-            </h3>
-            <p className="text-gray-600">
-              Pick bins on the shelves, or search for a product and select it {isSource ? 'as source' : 'as target'}.
+    <>
+      {/* Dims everything behind the panel, and closes on click — with the scrim covering the bottom
+          bar, the Source/Target button that opened this can't be used to toggle it shut again, so the
+          scrim and the X are the two ways out. Sits just under the panel's own layer.
+          z-[70]/z-[65] clear every other fixed layer in the app: the search dropdown at z-[60] and
+          the toast container at z-50. */}
+      <div
+        className="fixed inset-0 bg-black/50 z-[65]"
+        onClick={onClose}
+        aria-hidden="true"
+      />
+      <div className="fixed inset-y-0 right-0 w-[440px] bg-white border-l border-gray-200 shadow-lg z-[70] flex flex-col">
+        {/* Header */}
+        <div className="p-4 border-b border-gray-200 flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h2 className="font-semibold text-[16px] leading-[24px]">
+              {isSource ? 'Source' : 'Target'} Selection
+            </h2>
+            <p className="text-sm text-gray-500">
+              {bins.length} bin{bins.length !== 1 ? 's' : ''}
+              {productTotal > 0 && ` · ${productTotal} product${productTotal !== 1 ? 's' : ''}`}
             </p>
           </div>
-        ) : visibleGroups.length === 0 ? (
-          <div className="text-center py-8 px-4">
-            <Search className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No products found</h3>
-            <p className="text-gray-600">
-              Try searching for a different product name, NDC code, or keyword.
-            </p>
+          <div
+            className="bg-white relative rounded-[4px] cursor-pointer w-8 h-8 flex items-center justify-center shrink-0"
+            onClick={onClose}
+          >
+            <X className="w-4 h-4 text-gray-600" />
           </div>
-        ) : (
-          <div className="divide-y divide-gray-200">
-            {entries.map(item =>
-              item.kind === 'product' ? (
-                <div key={item.key} className="px-4 py-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <RowDetails
-                      title={item.entry.product.name}
-                      subtitle={item.entry.product.genericName || item.entry.product.description}
-                      subtitleItalic
-                    >
-                      <ProductBadges product={item.entry.product} />
-                      <div className="text-gray-500 text-[14px]">
-                        {item.entry.product.ndc} - {item.entry.product.inventoryType}
-                      </div>
-                    </RowDetails>
+        </div>
 
-                    {/* The total across every bin below, so the number answers "how much of this am I
-                        moving?" rather than repeating one bin's share. */}
-                    <RowFigure value={item.entry.totalQuantity} label={item.entry.product.unit} />
+        <div className="p-4 border-b border-gray-200">
+          <Input
+            type="text"
+            placeholder="Search products"
+            value={panelSearch}
+            onChange={(e) => setPanelSearch(e.target.value)}
+            className="w-full text-[14px]"
+          />
+        </div>
 
-                    {onRemoveProduct && (
-                      <RemoveButton
-                        label={`Remove ${item.entry.product.name} from the selection`}
-                        onClick={() => onRemoveProduct(item.entry.product)}
+        <div className="flex-1 overflow-y-auto">
+          {bins.length === 0 ? (
+            <div className="text-center py-8 px-4">
+              <h3 className="text-lg font-medium text-gray-900 mb-2">
+                No {isSource ? 'source' : 'target'} bins yet
+              </h3>
+              <p className="text-gray-600">
+                Pick bins on the shelves, or search for a product and select it {isSource ? 'as source' : 'as target'}.
+              </p>
+            </div>
+          ) : visibleGroups.length === 0 ? (
+            <div className="text-center py-8 px-4">
+              <Search className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">No products found</h3>
+              <p className="text-gray-600">
+                Try searching for a different product name, NDC code, or keyword.
+              </p>
+            </div>
+          ) : (
+            <div className="divide-y divide-gray-200">
+              {entries.map(item =>
+                item.kind === 'product' ? (
+                  <div key={item.key} className="px-4 py-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <RowDetails
+                        title={item.entry.product.name}
+                        subtitle={item.entry.product.genericName || item.entry.product.description}
+                        subtitleItalic
+                      >
+                        <ProductBadges product={item.entry.product} />
+                        <div className="text-gray-500 text-[14px]">
+                          {item.entry.product.ndc} - {item.entry.product.inventoryType}
+                        </div>
+                      </RowDetails>
+
+                      {/* The total across every bin below, so the number answers "how much of this am I
+                          moving?" rather than repeating one bin's share. */}
+                      <RowFigure value={item.entry.totalQuantity} label={item.entry.product.unit} />
+
+                      {onRemoveProduct && (
+                        <RemoveButton
+                          label={`Remove ${item.entry.product.name} from the selection`}
+                          onClick={() => onRemoveProduct(item.entry.product)}
+                        />
+                      )}
+                    </div>
+
+                    {/* Its bins listed underneath, the same treatment the unallocated list gives a
+                        product's assigned bins — with each bin's own share, since that's the part the
+                        total above can't tell you. */}
+                    <Separator className="my-2" />
+                    <div className="space-y-1">
+                      {item.entry.locations.map(({ bin, quantity }) => (
+                        <div
+                          key={bin.id}
+                          className="flex items-baseline justify-between gap-2 text-[12px] leading-[16px] font-medium text-[#020817]"
+                        >
+                          <span className="truncate">{binLabel(bin)}</span>
+                          <span className="ml-auto shrink-0 text-[#676b74] font-normal">
+                            {quantity} {item.entry.product.unit}
+                          </span>
+                          <RemoveButton
+                            label={`Remove ${bin.name} from the selection`}
+                            onClick={() => onRemoveBin(bin.id)}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div key={item.key} className="px-4 py-4">
+                    <div className="flex items-start justify-between gap-3">
+                      {/* Same shape as a product row above — a bin picked as a unit is one entry in the
+                          selection just as a product is, so it reads as a peer rather than as a
+                          differently-shaped container. */}
+                      <RowDetails
+                        title={item.group.bin.name}
+                        titleSuffix={
+                          <span className="text-[#7A7D85]"> ({getBinSizeDisplay(item.group.bin.size)})</span>
+                        }
+                        subtitle={[item.group.bin.shelfName, trimCabinet(item.group.bin.location)]
+                          .filter(Boolean)
+                          .join(', ')}
                       />
+
+                      <RowFigure
+                        value={item.group.totalInBin}
+                        label={item.group.totalInBin === 1 ? 'product' : 'products'}
+                      />
+
+                      <RemoveButton
+                        label={`Remove ${item.group.bin.name} from the selection`}
+                        onClick={() => onRemoveBin(item.group.bin.id)}
+                      />
+                    </div>
+
+                    {item.group.bin.available ? (
+                      <>
+                        <Separator className="my-2" />
+                        <p className="text-[12px] leading-[16px] text-[#676b74]">
+                          Available bin — currently empty
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <Separator className="my-2" />
+                        {/* An active panel search forces the contents open: the match it found is in
+                            here, and reporting a hit while hiding it would be worse than not filtering
+                            at all. Otherwise it's the user's toggle. */}
+                        {query ? (
+                          <p className="text-[12px] leading-[16px] text-[#676b74]">
+                            {item.group.rows.length} matching product
+                            {item.group.rows.length !== 1 ? 's' : ''} in this bin
+                          </p>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => toggleBin(item.group.bin.id)}
+                            className="text-[12px] leading-[16px] font-medium text-[#095192] hover:underline cursor-pointer"
+                          >
+                            {expandedBins.includes(item.group.bin.id)
+                              ? 'Hide products'
+                              : `View ${item.group.totalInBin} product${item.group.totalInBin !== 1 ? 's' : ''}`}
+                          </button>
+                        )}
+
+                        {(query || expandedBins.includes(item.group.bin.id)) && (
+                          <div className="mt-2 space-y-3">
+                            {item.group.rows.map(product => (
+                              <div key={product.id} className="flex items-start justify-between gap-3">
+                                <RowDetails
+                                  title={product.name}
+                                  subtitle={product.genericName || product.description}
+                                  subtitleItalic
+                                >
+                                  <ProductBadges product={product} />
+                                  <div className="text-gray-500 text-[14px]">
+                                    {product.ndc} - {product.inventoryType}
+                                  </div>
+                                </RowDetails>
+                                <RowFigure value={product.quantity} label={product.unit} />
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </>
                     )}
                   </div>
+                )
+              )}
+            </div>
+          )}
+        </div>
 
-                  {/* Its bins listed underneath, the same treatment the unallocated list gives a
-                      product's assigned bins — with each bin's own share, since that's the part the
-                      total above can't tell you. */}
-                  <Separator className="my-2" />
-                  <div className="space-y-1">
-                    {item.entry.locations.map(({ bin, quantity }) => (
-                      <div
-                        key={bin.id}
-                        className="flex items-baseline justify-between gap-2 text-[12px] leading-[16px] font-medium text-[#020817]"
-                      >
-                        <span className="truncate">{binLabel(bin)}</span>
-                        <span className="ml-auto shrink-0 text-[#676b74] font-normal">
-                          {quantity} {item.entry.product.unit}
-                        </span>
-                        <RemoveButton
-                          label={`Remove ${bin.name} from the selection`}
-                          onClick={() => onRemoveBin(bin.id)}
-                        />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ) : (
-                <div key={item.key} className="px-4 py-4">
-                  <div className="flex items-start justify-between gap-3">
-                    {/* Same shape as a product row above — a bin picked as a unit is one entry in the
-                        selection just as a product is, so it reads as a peer rather than as a
-                        differently-shaped container. */}
-                    <RowDetails
-                      title={item.group.bin.name}
-                      titleSuffix={
-                        <span className="text-[#7A7D85]"> ({getBinSizeDisplay(item.group.bin.size)})</span>
-                      }
-                      subtitle={[item.group.bin.shelfName, trimCabinet(item.group.bin.location)]
-                        .filter(Boolean)
-                        .join(', ')}
-                    />
+        {/* Always present, like the unallocated panel's footer: a panel you can act in shouldn't make
+            you hunt for the way out, and "how do I undo all of this" is the question a review screen
+            invites. Remove all empties this half — App's effect then closes the panel, since a panel
+            reviewing nothing has nothing to review. */}
+        <div className="p-4 border-t border-gray-200 bg-white flex items-center justify-between gap-3">
+          <button
+            type="button"
+            onClick={onRemoveAll}
+            disabled={bins.length === 0}
+            className={`rounded-[4px] text-[14px] leading-[20px] px-3 py-2 whitespace-nowrap transition-colors border border-[#C6362C] text-[#C6362C] ${
+              bins.length === 0 ? 'opacity-50 cursor-not-allowed' : 'hover:bg-[#FDF2F2] cursor-pointer'
+            }`}
+          >
+            Remove all
+          </button>
 
-                    <RowFigure
-                      value={item.group.totalInBin}
-                      label={item.group.totalInBin === 1 ? 'product' : 'products'}
-                    />
-
-                    <RemoveButton
-                      label={`Remove ${item.group.bin.name} from the selection`}
-                      onClick={() => onRemoveBin(item.group.bin.id)}
-                    />
-                  </div>
-
-                  {item.group.bin.available ? (
-                    <>
-                      <Separator className="my-2" />
-                      <p className="text-[12px] leading-[16px] text-[#676b74]">
-                        Available bin — currently empty
-                      </p>
-                    </>
-                  ) : (
-                    <>
-                      <Separator className="my-2" />
-                      {/* An active panel search forces the contents open: the match it found is in
-                          here, and reporting a hit while hiding it would be worse than not filtering
-                          at all. Otherwise it's the user's toggle. */}
-                      {query ? (
-                        <p className="text-[12px] leading-[16px] text-[#676b74]">
-                          {item.group.rows.length} matching product
-                          {item.group.rows.length !== 1 ? 's' : ''} in this bin
-                        </p>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => toggleBin(item.group.bin.id)}
-                          className="text-[12px] leading-[16px] font-medium text-[#095192] hover:underline cursor-pointer"
-                        >
-                          {expandedBins.includes(item.group.bin.id)
-                            ? 'Hide products'
-                            : `View ${item.group.totalInBin} product${item.group.totalInBin !== 1 ? 's' : ''}`}
-                        </button>
-                      )}
-
-                      {(query || expandedBins.includes(item.group.bin.id)) && (
-                        <div className="mt-2 space-y-3">
-                          {item.group.rows.map(product => (
-                            <div key={product.id} className="flex items-start justify-between gap-3">
-                              <RowDetails
-                                title={product.name}
-                                subtitle={product.genericName || product.description}
-                                subtitleItalic
-                              >
-                                <ProductBadges product={product} />
-                                <div className="text-gray-500 text-[14px]">
-                                  {product.ndc} - {product.inventoryType}
-                                </div>
-                              </RowDetails>
-                              <RowFigure value={product.quantity} label={product.unit} />
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </>
-                  )}
-                </div>
-              )
-            )}
-          </div>
-        )}
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-[4px] text-[14px] leading-[20px] px-4 py-2 whitespace-nowrap bg-[#095192] text-white hover:bg-[#074080] transition-colors cursor-pointer"
+          >
+            Close
+          </button>
+        </div>
       </div>
-    </div>
+    </>
   );
 }

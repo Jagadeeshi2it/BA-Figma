@@ -38,10 +38,9 @@ interface MainLayoutProps {
   // Pinned below the scrolling content, inside the content column — so it can't cover the shelves
   // and it shifts with the column when a side panel opens, which position:fixed wouldn't.
   bottomBar?: React.ReactNode;
-  // An extra fixed right-hand panel (the allocation review). Passed as a node with its own open
-  // flag so the column's reserved margin can account for it.
+  // An extra right-hand panel (the allocation review). Unlike the panels below it reserves no
+  // margin — it's a modal overlay that dims and covers everything, so the shelves never reflow.
   sidePanel?: React.ReactNode;
-  sidePanelOpen?: boolean;
   children: React.ReactNode;
   removePadding?: boolean;
 }
@@ -73,7 +72,6 @@ export default function MainLayout({
   topBar,
   bottomBar,
   sidePanel,
-  sidePanelOpen = false,
   children,
   removePadding
 }: MainLayoutProps) {
@@ -86,8 +84,10 @@ export default function MainLayout({
       <div
         className={`flex-1 min-w-0 flex flex-col transition-all duration-300 ${
           // The unallocated panel is wider than the bin inventory one, so the reserved margin has
-          // to match whichever is open or the panel overlaps the shelves.
-          showUnallocatedProducts || allProductsBin || sidePanelOpen
+          // to match whichever is open or the panel overlaps the shelves. The allocation review
+          // panel is deliberately absent here — it overlays the content region instead of pushing
+          // it, so opening it doesn't reflow the shelves.
+          showUnallocatedProducts || allProductsBin
             ? "mr-[440px]"
             : showBinInventory ? "mr-[320px]" : ""
         }`}
@@ -113,6 +113,8 @@ export default function MainLayout({
         {bottomBar}
       </div>
 
+      {/* Rendered outside the content column so it sits above everything in it, and so the column's
+          transition can never trap it in a stacking context of its own. */}
       {sidePanel}
 
       {/* Fixed Bin Inventory Side Panel */}

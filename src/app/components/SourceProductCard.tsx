@@ -4,7 +4,7 @@ import { pluralizeUnit } from '../utils/pluralizeUnit';
 import { emergencyKitService } from '../services/EmergencyKitService';
 import { productDataService } from '../services/ProductDataService';
 import { Product } from '../types';
-import { getVialType } from '../utils/binProducts';
+import { getVialType, hasClimateBadge, hasCivBadge } from '../utils/binProducts';
 
 interface SourceProductCardProps {
   product: Product & { remainingQuantity: number };
@@ -87,30 +87,46 @@ export default function SourceProductCard({
 
   return (
     <Card className="border border-gray-200 bg-white">
-      <CardContent className="p-4 m-[0px]">
+      {/* !pb-4: CardContent's own [&:last-child]:pb-6 outranks a plain p-4, so the card was padded
+          16px on three sides and 24px at the bottom. */}
+      <CardContent className="p-4 !pb-4 m-[0px]">
         <div className="flex flex-col gap-2 p-[0px]">
           {/* Main content section with product info and quantity */}
           <div className="flex items-start justify-between w-full">
             {/* Left side - Product details with enhanced data */}
-            <div className="flex flex-col gap-2 flex-1 min-w-0">
-              {/* Product name with badge */}
-              <div className="flex items-center gap-2 w-full">
-                <h4 className="font-semibold text-[#020817] text-[14px] leading-[20px]">
+            <div className="flex flex-col space-y-1.5 flex-1 min-w-0">
+              {/* Name and generic name are one block, with the badges below both — the same shape the
+                  search list and the side panels use, so a product reads the same wherever it turns
+                  up. The badge markup and colours are the shared set too; the black pill this used
+                  to carry appeared nowhere else. */}
+              <div>
+                <h4 className="font-normal text-[#020817] text-[14px] leading-[20px]">
                   {enhancedProduct.name}
                 </h4>
-                <div className="bg-black flex items-center justify-center px-[3.5px] py-[1.75px] rounded-[4px] shrink-0">
-                  <div className="font-['Inter:Bold',_sans-serif] font-bold text-white text-[10px] leading-[12px]">
-                    {getVialType(enhancedProduct)}
-                  </div>
-                </div>
+                {enhancedProduct.description && (
+                  <p className="italic text-gray-500 leading-snug text-[14px]">
+                    {enhancedProduct.description}
+                  </p>
+                )}
               </div>
-              
-              {/* Description */}
-              {enhancedProduct.description && (
-                <p className="font-['Inter:Regular',_sans-serif] font-normal text-[#4a5565] text-[14px] leading-[20px] w-full">
-                  {enhancedProduct.description}
-                </p>
-              )}
+
+              <div className="flex items-center gap-1">
+                <span className="bg-[#D1D5DB] text-[#111827] text-[9px] font-medium px-1.5 py-0.5 rounded">
+                  {getVialType(enhancedProduct)}
+                </span>
+                {hasClimateBadge(enhancedProduct) && (
+                  <span className="bg-[#DBEAFE] text-[#1D4ED8] text-[9px] font-medium px-1.5 py-0.5 rounded">CLIMATE</span>
+                )}
+                {hasCivBadge(enhancedProduct) && (
+                  <span className="bg-[#FEF3C7] text-[#B45309] text-[9px] font-medium px-1.5 py-0.5 rounded">CIV</span>
+                )}
+              </div>
+
+              {/* One line for both, as everywhere else. The "NDC:" and "Inventory Type:" labels cost
+                  two rows to say what the values already say — an NDC is recognisable as an NDC. */}
+              <div className="text-gray-500 text-[14px] break-words">
+                {enhancedProduct.ndc} - {enhancedProduct.inventoryType}
+              </div>
             </div>
             
             {/* Right side - Quantity box */}
@@ -123,18 +139,6 @@ export default function SourceProductCard({
                 {pluralizeUnit(enhancedProduct.unit, enhancedProduct.remainingQuantity)}
               </div>
             </div>
-          </div>
-          
-          {/* NDC section with enhanced data */}
-          <div className="flex gap-2 items-start font-['Inter:Regular',_sans-serif] font-normal text-[14px] leading-[20px] w-full">
-            <div className="text-[#4a5565]">NDC:</div>
-            <div className="text-[#020817]">{enhancedProduct.ndc}</div>
-          </div>
-          
-          {/* Inventory Type section with enhanced data */}
-          <div className="flex gap-2 items-start font-['Inter:Regular',_sans-serif] font-normal text-[14px] leading-[20px] w-full">
-            <div className="text-[#4a5565]">Inventory Type:</div>
-            <div className="text-[#020817]">{enhancedProduct.inventoryType}</div>
           </div>
           
           {/* Emergency Kit Restriction Message - only for move operations */}
@@ -176,7 +180,7 @@ export default function SourceProductCard({
                         <div className="flex items-center justify-end px-3 py-2 h-8 rounded-[4px] bg-[#095192]">
                           <button
                             onClick={() => onMoveProduct(enhancedProduct.id)}
-                            className="font-['Inter:Semi_Bold',_sans-serif] font-semibold text-white text-[14px] leading-[20px]"
+                            className="font-['Inter:Regular',_sans-serif] font-normal text-white text-[14px] leading-[20px]"
                           >
                             Allocate & Move Qty
                           </button>
@@ -193,7 +197,7 @@ export default function SourceProductCard({
                       <div className="flex items-center justify-end px-3 py-2 h-8 rounded-[4px] bg-[#095192] cursor-pointer">
                         <button
                           onClick={() => onMoveProduct(enhancedProduct.id)}
-                          className="font-['Inter:Semi_Bold',_sans-serif] font-semibold text-[14px] leading-[20px] text-white"
+                          className="font-['Inter:Regular',_sans-serif] font-normal text-[14px] leading-[20px] text-white"
                         >
                           Move qty
                         </button>

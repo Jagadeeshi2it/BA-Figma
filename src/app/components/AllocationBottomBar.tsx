@@ -8,12 +8,14 @@ interface AllocationBottomBarProps {
   // the shelf, where there's no product context to report.
   sourceProductCount: number;
   targetBinCount: number;
+  // Distinct products the target bins already hold — nearly always 0, since destinations are usually
+  // available bins, which is itself the useful signal when reviewing where things are going.
+  targetProductCount: number;
   openPanel: 'source' | 'target' | null;
   onOpenSource: () => void;
   onOpenTarget: () => void;
   onCancel: () => void;
   onBackToSource: () => void;
-  onClear: () => void;
   onNext: () => void;
   onConfirm: () => void;
 }
@@ -67,7 +69,7 @@ function BarButton({
   onClick
 }: {
   label: string;
-  variant: 'primary' | 'secondary' | 'ghost-danger';
+  variant: 'primary' | 'secondary' | 'outline-danger';
   enabled: boolean;
   onClick: () => void;
 }) {
@@ -77,7 +79,9 @@ function BarButton({
       ? 'bg-[#095192] text-white hover:bg-[#074080]'
       : variant === 'secondary'
         ? 'bg-white text-[#095192] border border-[#095192] hover:bg-[#F1F6FA]'
-        : 'bg-transparent text-[#C6362C] hover:underline';
+        // Outlined rather than bare text, matching the panel footer's Remove all: leaving the mode
+        // discards a selection, so it reads as an action with weight rather than an aside.
+        : 'bg-white text-[#C6362C] border border-[#C6362C] hover:bg-[#FDF2F2]';
   return (
     <button
       type="button"
@@ -102,23 +106,24 @@ export default function AllocationBottomBar({
   sourceBinCount,
   sourceProductCount,
   targetBinCount,
+  targetProductCount,
   openPanel,
   onOpenSource,
   onOpenTarget,
   onCancel,
   onBackToSource,
-  onClear,
   onNext,
   onConfirm
 }: AllocationBottomBarProps) {
-  const sourceValue =
-    sourceBinCount === 0
-      ? 'None selected'
-      : sourceProductCount > 0
-        ? `${plural(sourceBinCount, 'Bin')}, ${plural(sourceProductCount, 'Product')}`
-        : plural(sourceBinCount, 'Bin');
+  // Both halves always report both figures, including zeros. "None selected" said the same thing in
+  // fewer words but changed shape as soon as something was picked, so the two summaries kept
+  // disagreeing about what they were counting; a count that starts at 0 and only ever goes up reads
+  // as a running tally instead.
+  const summaryValue = (binCount: number, productCount: number) =>
+    `${plural(binCount, 'Bin')}, ${plural(productCount, 'Product')}`;
 
-  const targetValue = targetBinCount === 0 ? 'None selected' : plural(targetBinCount, 'Bin');
+  const sourceValue = summaryValue(sourceBinCount, sourceProductCount);
+  const targetValue = summaryValue(targetBinCount, targetProductCount);
 
   return (
     <div className="shrink-0 bg-white border-t border-gray-200 shadow-[0_-2px_8px_0_rgba(0,0,0,0.04)] px-4 py-2">
@@ -145,18 +150,10 @@ export default function AllocationBottomBar({
 
 
         <div className="flex items-center gap-2 shrink-0 ml-auto">
-          <BarButton label="Cancel" variant="ghost-danger" enabled onClick={onCancel} />
+          <BarButton label="Cancel" variant="outline-danger" enabled onClick={onCancel} />
           {step === 2 && (
             <BarButton label="Source Bin Selection" variant="secondary" enabled onClick={onBackToSource} />
           )}
-          {/* Always present, disabled when there's nothing to clear: a button that appears and
-              disappears as the count crosses zero makes the bar jump under the pointer. */}
-          <BarButton
-            label="Clear"
-            variant="secondary"
-            enabled={step === 1 ? sourceBinCount > 0 : targetBinCount > 0}
-            onClick={onClear}
-          />
           {step === 1 ? (
             <BarButton
               label="Select Target"

@@ -346,6 +346,19 @@ export default function App() {
   // showing: leaving the mode, or clearing the half that was open.
   const sourceBinCount = inventoryState.changeAllocationSourceBins?.length ?? 0;
   const targetBinCount = inventoryState.changeAllocationTargetBins?.length ?? 0;
+
+  // Distinct products already sitting in the target bins. Deduped on the same name + NDC + inventory
+  // type identity the rest of the app groups by, so one drug spread across two target bins counts
+  // once — matching how the source figure counts products rather than rows.
+  const targetProductCount = useMemo(() => {
+    const identities = new Set<string>();
+    getTargetBins.forEach(bin => {
+      (bin?.products ?? []).forEach((product: any) => {
+        identities.add(`${product.name}|${product.ndc}|${product.inventoryType}`.toLowerCase());
+      });
+    });
+    return identities.size;
+  }, [getTargetBins]);
   useEffect(() => {
     if (!inventoryState.changeAllocationMode) {
       setAllocationPanel(null);
@@ -354,21 +367,6 @@ export default function App() {
     if (allocationPanel === 'source' && sourceBinCount === 0) setAllocationPanel(null);
     if (allocationPanel === 'target' && targetBinCount === 0) setAllocationPanel(null);
   }, [inventoryState.changeAllocationMode, allocationPanel, sourceBinCount, targetBinCount]);
-
-  // Clear acts on whichever step the user is on — sources on step 1, targets on step 2 — matching
-  // what the bar's Clear button is sitting next to.
-  const handleAllocationClear = useCallback(() => {
-    if (inventoryState.changeAllocationStep === 1) {
-      (inventoryState.handleClearSourceBins ?? inventoryState.handleClearChangeAllocationSelection)?.();
-    } else {
-      (inventoryState.handleClearTargetBins ?? inventoryState.handleClearChangeAllocationSelection)?.();
-    }
-  }, [
-    inventoryState.changeAllocationStep,
-    inventoryState.handleClearSourceBins,
-    inventoryState.handleClearTargetBins,
-    inventoryState.handleClearChangeAllocationSelection
-  ]);
 
   // Add loading state to prevent timeout during heavy operations
   if (!inventoryState.doorShelfConfig) {
@@ -650,18 +648,17 @@ export default function App() {
                 sourceBinCount={sourceBinCount}
                 sourceProductCount={countSelectedProducts(inventoryState.changeAllocationSourceQuery)}
                 targetBinCount={targetBinCount}
+                targetProductCount={targetProductCount}
                 openPanel={allocationPanel}
                 onOpenSource={() => setAllocationPanel(current => (current === 'source' ? null : 'source'))}
                 onOpenTarget={() => setAllocationPanel(current => (current === 'target' ? null : 'target'))}
                 onCancel={inventoryState.handleExitChangeAllocation}
                 onBackToSource={inventoryState.handlePreviousStep}
-                onClear={handleAllocationClear}
                 onNext={inventoryState.handleNextStep}
                 onConfirm={inventoryState.handleOpenChangeAllocationModal}
               />
             ) : null
           }
-          sidePanelOpen={allocationPanel !== null}
           sidePanel={
             allocationPanel ? (
               <AllocationSelectionPanel
@@ -677,6 +674,13 @@ export default function App() {
                 // contents, so there is nothing there to remove from the allocation.
                 onRemoveProduct={
                   allocationPanel === 'source' ? inventoryState.handleRemoveSourceProduct : undefined
+                }
+                // Clears the half being reviewed, not the step the bar happens to be on — the panel is
+                // openable from either summary, so it has to act on what it's showing.
+                onRemoveAll={
+                  allocationPanel === 'source'
+                    ? (inventoryState.handleClearSourceBins ?? (() => {}))
+                    : (inventoryState.handleClearTargetBins ?? (() => {}))
                 }
                 onClose={() => setAllocationPanel(null)}
               />
