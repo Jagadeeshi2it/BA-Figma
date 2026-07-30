@@ -1001,9 +1001,6 @@ export default function TargetBinSerialScanPage({
                   </p>
                 </div>
                 <div className="flex flex-col items-end gap-1 shrink-0">
-                  {isCurrent && (
-                    <span className="text-[10px] font-semibold text-white bg-[#095192] rounded-full px-2 py-0.5">Current</span>
-                  )}
                   {isDone && (
                     <span className="text-[10px] font-semibold text-[#12805C] bg-[#E1F5EC] rounded-full px-2 py-0.5">Done</span>
                   )}
@@ -1049,9 +1046,6 @@ export default function TargetBinSerialScanPage({
                   </p>
                 </div>
                 <div className="flex flex-col items-end gap-1 shrink-0">
-                  {isCurrent && (
-                    <span className="text-[10px] font-semibold text-white bg-[#095192] rounded-full px-2 py-0.5">Current</span>
-                  )}
                   {isDone && (
                     <span className="text-[10px] font-semibold text-[#12805C] bg-[#E1F5EC] rounded-full px-2 py-0.5">Done</span>
                   )}

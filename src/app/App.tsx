@@ -20,7 +20,7 @@ import { useDebounce } from "./hooks/useDebounce";
 import { useInventoryState } from "./hooks/useInventoryState";
 import { useSerialNumberModal } from "./hooks/useSerialNumberModal";
 import { cabinets } from "./data/cabinets";
-import { countSelectedProducts } from "./utils/allocationSelection";
+import { doesProductMatchSearch } from "./utils/textHighlight";
 import { ProductTransfer } from "./types";
 import {
   getCurrentShelves,
@@ -64,7 +64,6 @@ export default function App() {
   // Quantity selection modal state
   const [showQuantityModal, setShowQuantityModal] = useState(false);
   const [pendingQuantityTransfers, setPendingQuantityTransfers] = useState<ProductTransfer[]>([]);
-  const [remainingQuantityTransfers, setRemainingQuantityTransfers] = useState<ProductTransfer[]>([]);
 
   // Target bin serial scan state
   const [showTargetBinScanPage, setShowTargetBinScanPage] = useState(false);
@@ -359,6 +358,31 @@ export default function App() {
     });
     return identities.size;
   }, [getTargetBins]);
+
+  // Distinct products the source selection actually puts in play, counted the same way the target
+  // figure is — off the bins' contents — so a selected bin reports what's in it instead of nothing.
+  // It used to count OR-groups in the highlight query, which meant a bin clicked straight off the
+  // shelf contributed 0 and the bar read "1 Bin, 0 Products" over a bin holding three.
+  //
+  // The query still matters, per bin: a bin the search put here is only contributing the product
+  // that was searched for, so counting its whole contents would overstate the move. A bin picked by
+  // hand was chosen for everything in it. Deduped on the shared name + NDC + inventory type identity,
+  // so one drug across three bins counts once.
+  const sourceProductCount = useMemo(() => {
+    const query = inventoryState.changeAllocationSourceQuery?.trim();
+    const identities = new Set<string>();
+
+    getSourceBins.forEach(bin => {
+      const products = bin?.products ?? [];
+      const scoped = !!query && products.some((product: any) => doesProductMatchSearch(product, query));
+      products.forEach((product: any) => {
+        if (scoped && !doesProductMatchSearch(product, query!)) return;
+        identities.add(`${product.name}|${product.ndc}|${product.inventoryType}`.toLowerCase());
+      });
+    });
+
+    return identities.size;
+  }, [getSourceBins, inventoryState.changeAllocationSourceQuery]);
   useEffect(() => {
     if (!inventoryState.changeAllocationMode) {
       setAllocationPanel(null);
@@ -405,7 +429,6 @@ export default function App() {
           <TargetBinSerialScanPage
             transfers={pendingSerialTransfers}
             doorShelfConfig={inventoryState.doorShelfConfig}
-            remainingTransfers={remainingQuantityTransfers}
             unlockedDoors={unlockedDoors}
             onDoorUnlocked={handleDoorUnlocked}
             onConfirm={(transfers) => {
@@ -413,29 +436,18 @@ export default function App() {
               console.log('🔧 Serial Scan Confirmation:', {
                 transferCount: transfers.length,
                 totalSerials: transfers.reduce((sum, t) => sum + (t.serialNumbers?.length || 0), 0),
-                hasRemainingProducts: remainingQuantityTransfers.length > 0,
                 previousCompletedTransfers: completedTransfers.length
               });
-              
+
               // Accumulate completed transfers
               const allCompletedTransfers = [...completedTransfers, ...transfers];
               setCompletedTransfers(allCompletedTransfers);
-              
-              // Check if there are more products to process
-              if (remainingQuantityTransfers.length > 0) {
-                console.log('🔧 More products remaining, returning to Quantity Selection Page', {
-                  remainingProducts: remainingQuantityTransfers.length,
-                  accumulatedTransfers: allCompletedTransfers.length
-                });
-                // Return to quantity selection for the next product
-                setPendingQuantityTransfers(remainingQuantityTransfers);
-                setRemainingQuantityTransfers([]);
-                setShowQuantityModal(true);
-                setShowTargetBinScanPage(false);
-                setPendingSerialTransfers([]);
-              } else {
-                console.log('🔧 No more products, completing all transfers');
-                // No more products, complete the process
+
+              {
+                // Saving here always finishes the move now: the quantity step hands over every
+                // product at once, so this page is never showing a partial batch with more queued
+                // behind it. The branch that returned to the quantity step for the next product is
+                // gone with the round trip it existed to drive.
                 // Combine ALL completed move transfers with allocate-only transfers (if any)
                 const allocateOnlyTransfers = (window as any).allocateOnlyTransfers || [];
                 const allTransfers = [...allCompletedTransfers, ...allocateOnlyTransfers];
@@ -458,8 +470,7 @@ export default function App() {
                 setShowTargetBinScanPage(false);
                 setPendingSerialTransfers([]);
                 setCompletedTransfers([]);
-                setRemainingQuantityTransfers([]);
-                setPendingQuantityTransfers([]);
+                  setPendingQuantityTransfers([]);
                 setShowQuantityModal(false);
                 
                 // Use setTimeout to ensure state cleanup completes before the handler runs
@@ -477,7 +488,6 @@ export default function App() {
               delete (window as any).allocateOnlyTransfers;
               setShowTargetBinScanPage(false);
               setPendingSerialTransfers([]);
-              setRemainingQuantityTransfers([]);
               setCompletedTransfers([]);
               setPendingQuantityTransfers([]);
               setUnlockedDoors(new Set());
@@ -489,8 +499,7 @@ export default function App() {
               // dropping every other queued product/bin from the allocation.
               setShowTargetBinScanPage(false);
               setShowQuantityModal(true);
-              setPendingQuantityTransfers([...pendingSerialTransfers, ...remainingQuantityTransfers]);
-              setRemainingQuantityTransfers([]);
+              setPendingQuantityTransfers(pendingSerialTransfers);
               setPendingSerialTransfers([]);
             }}
           />
@@ -523,39 +532,40 @@ export default function App() {
             doorShelfConfig={inventoryState.doorShelfConfig}
             unlockedDoors={unlockedDoors}
             onDoorUnlocked={handleDoorUnlocked}
-            onConfirm={(currentProductTransfers, remainingProductTransfers) => {
-              // Handle multi-transfer quantity confirmation
-              console.log('🔧 App.tsx - Multi-Transfer Quantity Confirmation:', {
-                currentProductTransferCount: currentProductTransfers.length,
-                remainingProductTransferCount: remainingProductTransfers.length,
-                currentProductQuantity: currentProductTransfers.reduce((sum, transfer) => sum + transfer.quantity, 0),
-                currentProductName: (currentProductTransfers[0] as any)?.productName,
-                hasMoreProducts: remainingProductTransfers.length > 0,
-                detailedCurrentTransfers: currentProductTransfers.map(t => ({
-                  productId: t.productId,
-                  fromBinId: t.fromBinId,
-                  toBinId: t.toBinId,
-                  quantity: t.quantity,
-                  productName: (t as any).productName
-                }))
+            onConfirm={(allTransfers) => {
+              // The quantity step walks every product itself and hands the whole move over in one
+              // go — see its finalizeAll. It used to report one product at a time, and this handler
+              // walked to the target bin for each one, so emptying a bin of four products meant four
+              // source-to-target round trips over the same two doors. That is what the operator
+              // experiences as switching between product and target again and again. Taking every
+              // quantity at the source and carrying the lot across once matches how the work is
+              // actually done — and TargetBinSerialScanPage already pages through several products,
+              // so it needed no change to receive them all.
+              console.log('🔧 App.tsx - Quantity step complete:', {
+                transferCount: allTransfers.length,
+                totalQuantity: allTransfers.reduce((sum, transfer) => sum + transfer.quantity, 0),
+                products: new Set(allTransfers.map(t => (t as any).productName)).size
               });
-              
-              // Store remaining transfers for later processing
-              setRemainingQuantityTransfers(remainingProductTransfers);
-              
-              // ALWAYS move to target bin page (for user awareness/friction)
-              // The page will determine if serial scanning is needed
-              setPendingSerialTransfers(currentProductTransfers);
+
+              setPendingQuantityTransfers([]);
+
+              // Skipping every product leaves nothing to carry, and the target page renders behind
+              // `pendingSerialTransfers.length > 0` — entering it empty was a blank screen with no
+              // way back. Nothing to carry means nothing to carry: close the step, selection intact.
+              if (allTransfers.length === 0) {
+                setShowQuantityModal(false);
+                return;
+              }
+
+              setPendingSerialTransfers(allTransfers);
               setShowTargetBinScanPage(true);
               setShowQuantityModal(false);
-              setPendingQuantityTransfers([]);
             }}
             onCancel={() => {
               // Full-flow abort: also clear remaining/completed state so a later Change
               // Allocation attempt never inherits leftovers from this cancelled one.
               setShowQuantityModal(false);
               setPendingQuantityTransfers([]);
-              setRemainingQuantityTransfers([]);
               setCompletedTransfers([]);
               delete (window as any).allocateOnlyTransfers;
               setUnlockedDoors(new Set());
@@ -646,7 +656,7 @@ export default function App() {
               <AllocationBottomBar
                 step={inventoryState.changeAllocationStep}
                 sourceBinCount={sourceBinCount}
-                sourceProductCount={countSelectedProducts(inventoryState.changeAllocationSourceQuery)}
+                sourceProductCount={sourceProductCount}
                 targetBinCount={targetBinCount}
                 targetProductCount={targetProductCount}
                 openPanel={allocationPanel}

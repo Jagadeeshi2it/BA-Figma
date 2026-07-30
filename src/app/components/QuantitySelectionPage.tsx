@@ -64,6 +64,9 @@ export default function QuantitySelectionPage({
   onDoorUnlocked
 }: QuantitySelectionPageProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
+  // Products the operator chose not to move. The walk stays on one list now rather than the parent
+  // handing back a shorter one each time, so skips have to be remembered rather than left behind.
+  const [skippedProductKeys, setSkippedProductKeys] = useState<Set<string>>(new Set());
   const [transferQuantities, setTransferQuantities] = useState<{ [key: string]: number }>({});
   const [editingQuantity, setEditingQuantity] = useState(false);
   const [tempQuantity, setTempQuantity] = useState('');
@@ -266,34 +269,63 @@ export default function QuantitySelectionPage({
     setTempQuantity('');
   };
 
-  const handleSkip = () => {
-    // CRITICAL FIX: Skip the entire current product and move to the next product
-    // Get the current product identifier
-    const currentProductKey = `${currentGroup.productName}-${currentGroup.ndc}-${currentGroup.inventoryType}`;
-    
-    // Find the next group with a different productId
-    const nextProductIndex = groupedTransfers.findIndex((g, idx) => {
-      const groupProductKey = `${g.productName}-${g.ndc}-${g.inventoryType}`;
-      return idx > currentIndex && groupProductKey !== currentProductKey;
-    });
-    
-    if (nextProductIndex !== -1) {
-      // Move to next product
-      console.log('🔧 Skip & Continue - Moving to next product:', {
-        currentProduct: currentGroup.productName,
-        currentIndex,
-        nextIndex: nextProductIndex,
-        nextProduct: groupedTransfers[nextProductIndex].productName
+  const productKeyOf = (group: GroupedTransfer) =>
+    `${group.productName}-${group.ndc}-${group.inventoryType}`;
+
+  // The first group belonging to a product other than the one on screen, or -1 if this is the last.
+  const findNextProductIndex = () => {
+    const currentProductKey = productKeyOf(currentGroup);
+    return groupedTransfers.findIndex(
+      (group, idx) => idx > currentIndex && productKeyOf(group) !== currentProductKey
+    );
+  };
+
+  // Hand the whole move over at once, at the quantities the operator set, leaving out any product
+  // they skipped. Called only from the last product — quantities for everything are taken here,
+  // at the source, before anything is carried to the target bin.
+  //
+  // Takes the skip set as an argument rather than reading state: a skip on the last product has to
+  // finish in the same tick it was recorded, and setState hasn't landed by then.
+  const finalizeAll = (skipped: Set<string>) => {
+    setIsSaving(true);
+
+    const finalTransfers: TransferWithQuantity[] = [];
+    groupedTransfers.forEach(group => {
+      if (skipped.has(productKeyOf(group))) return;
+      group.transfers.forEach(transfer => {
+        const key = `${transfer.productId}-${transfer.fromBinId}-${transfer.toBinId}`;
+        const updatedQuantity = transferQuantities[key] ?? transfer.moveQuantity;
+        finalTransfers.push({
+          ...transfer,
+          quantity: updatedQuantity,
+          moveQuantity: updatedQuantity
+        });
       });
+    });
+
+    console.log('🔧 QuantitySelectionPage - Handing over the whole move:', {
+      products: new Set(groupedTransfers.map(productKeyOf)).size,
+      skipped: skipped.size,
+      transfers: finalTransfers.length
+    });
+
+    onConfirm(finalTransfers, []);
+  };
+
+  const handleSkip = () => {
+    // Skip the entire current product: record it so finalizeAll leaves it out, then move on.
+    const skipped = new Set(skippedProductKeys).add(productKeyOf(currentGroup));
+    setSkippedProductKeys(skipped);
+
+    const nextProductIndex = findNextProductIndex();
+
+    if (nextProductIndex !== -1) {
       setCurrentIndex(nextProductIndex);
       setEditingQuantity(false);
-    } else {
-      // No more products left - skip this product and complete with no transfers for it
-      console.log('🔧 Skip & Continue - No more products, completing with skipped product');
-      
-      // Return empty array for current product transfers and all remaining as skipped
-      onConfirm([], []);
+      return;
     }
+
+    finalizeAll(skipped);
   };
 
   const handleSave = () => {
@@ -321,73 +353,23 @@ export default function QuantitySelectionPage({
       return;
     }
     
-    // No more source bins for this product, proceed to target bin scanning
-    setIsSaving(true);
-    
-    console.log('🔧 QuantitySelectionPage - No more source bins, preparing transfers for target bin scanning');
-    
-    // Get all transfers for the current product (all source bins we've visited)
-    const currentProductTransfers: TransferWithQuantity[] = [];
-    
-    groupedTransfers.forEach((group, idx) => {
-      const groupProductKey = `${group.productName}-${group.ndc}-${group.inventoryType}`;
-      if (groupProductKey === currentProductKey && idx <= currentIndex) {
-        group.transfers.forEach(transfer => {
-          const key = `${transfer.productId}-${transfer.fromBinId}-${transfer.toBinId}`;
-          const updatedQuantity = transferQuantities[key] || transfer.moveQuantity;
-          
-          console.log('🔧 QuantitySelectionPage - Creating Final Transfer:', {
-            productId: transfer.productId,
-            productName: transfer.productName,
-            fromBinId: transfer.fromBinId,
-            toBinId: transfer.toBinId,
-            sourceBinName: group.sourceBinName,
-            key,
-            originalQuantity: transfer.originalQuantity,
-            moveQuantity: transfer.moveQuantity,
-            transferQuantitiesValue: transferQuantities[key],
-            updatedQuantity: updatedQuantity
-          });
-          
-          currentProductTransfers.push({
-            ...transfer,
-            quantity: updatedQuantity,
-            moveQuantity: updatedQuantity
-          });
-        });
-      }
-    });
-    
-    // Get remaining groups (products not yet processed)
-    const remainingGroups = groupedTransfers.filter((g, idx) => {
-      const groupProductKey = `${g.productName}-${g.ndc}-${g.inventoryType}`;
-      return idx > currentIndex && groupProductKey !== currentProductKey;
-    });
-    
-    const remainingTransfers = remainingGroups.flatMap(group => 
-      group.transfers.map(transfer => ({
-        ...transfer,
-        quantity: transfer.moveQuantity,
-        moveQuantity: transfer.moveQuantity
-      }))
-    );
-    
-    console.log('🔧 QuantitySelectionPage - Final Transfers Summary:', {
-      currentProductTransfers: currentProductTransfers.length,
-      remainingProductTransfers: remainingTransfers.length,
-      totalTransfers: currentProductTransfers.length + remainingTransfers.length,
-      currentProduct: {
-        name: currentGroup.productName,
-        transfers: currentProductTransfers.map(t => ({
-          productName: (t as any).productName,
-          quantity: t.quantity,
-          toBinId: t.toBinId
-        }))
-      },
-      hasMoreProducts: remainingTransfers.length > 0
-    });
-    
-    onConfirm(currentProductTransfers, remainingTransfers);
+    // This product is done. Another one still to take from? Stay here and advance to it — the whole
+    // move's quantities are taken at the source before anything is carried to the target, so the
+    // parent is only told once, at the end. That is also what keeps the footer's "1/4" honest: the
+    // list stays the whole move instead of being handed back a shorter one after every product.
+    const nextProductIndex = findNextProductIndex();
+
+    if (nextProductIndex !== -1) {
+      console.log('🔧 QuantitySelectionPage - Advancing to next product:', {
+        from: currentGroup.productName,
+        to: groupedTransfers[nextProductIndex].productName
+      });
+      setCurrentIndex(nextProductIndex);
+      setEditingQuantity(false);
+      return;
+    }
+
+    finalizeAll(skippedProductKeys);
   };
 
   if (!currentGroup) return null;
@@ -428,7 +410,20 @@ export default function QuantitySelectionPage({
     idx > currentIndex &&
     `${g.productName}-${g.ndc}-${g.inventoryType}` === currentProductKeyForNav
   );
-  const primaryActionLabel = hasMoreSourceBinsForProduct ? 'Next Source Bin' : 'Proceed to Target Bin';
+  // And is there another product still to take quantities for? Every product's quantity is taken at
+  // the source before anything is carried anywhere, so exhausting this product's source bins usually
+  // means the next product, not the target bin. Promising the target bin three products early was
+  // what made the flow feel like it was bouncing between source and target.
+  const hasMoreProductsAfterThis = groupedTransfers.some((g, idx) =>
+    idx > currentIndex &&
+    `${g.productName}-${g.ndc}-${g.inventoryType}` !== currentProductKeyForNav
+  );
+
+  const primaryActionLabel = hasMoreSourceBinsForProduct
+    ? 'Next Source Bin'
+    : hasMoreProductsAfterThis
+      ? 'Save & Continue'
+      : 'Proceed to Target Bin';
   
   // Show Skip button ONLY if:
   // 1. This is the first source bin of the product AND
@@ -649,7 +644,7 @@ export default function QuantitySelectionPage({
         <div className="bg-white border-b px-6 py-10">
           <div className="text-center text-[14px] text-[#020817]">
             <p className="mb-0">Remove the quantity shown from this bin, then</p>
-            <p>tap "{primaryActionLabel}" to continue.</p>
+            <p>tap "{primaryActionLabel}".</p>
           </div>
         </div>
       </div>
@@ -728,7 +723,7 @@ export default function QuantitySelectionPage({
                 <div className="flex flex-row items-center justify-end relative size-full">
                   <div className="box-border content-stretch flex gap-2 items-center justify-end px-3 py-2 relative size-full">
                     <div className="capitalize font-['Inter:Regular',_sans-serif] font-normal leading-[0] not-italic relative shrink-0 text-[#095192] text-[14px] text-nowrap">
-                      <p className="leading-[20px] whitespace-pre text-[14px]">Skip & Continue</p>
+                      <p className="leading-[20px] whitespace-pre text-[14px]">Skip Product</p>
                     </div>
                   </div>
                 </div>
@@ -785,9 +780,6 @@ export default function QuantitySelectionPage({
                   </p>
                 </div>
                 <div className="flex flex-col items-end gap-1 shrink-0">
-                  {isCurrent && (
-                    <span className="text-[10px] font-semibold text-white bg-[#095192] rounded-full px-2 py-0.5">Current</span>
-                  )}
                   {isDone && !isCurrent && (
                     <span className="text-[10px] font-semibold text-[#12805C] bg-[#E1F5EC] rounded-full px-2 py-0.5">Done</span>
                   )}
@@ -824,9 +816,6 @@ export default function QuantitySelectionPage({
                 </p>
               </div>
               <div className="flex flex-col items-end gap-1 shrink-0">
-                {s.isCurrent && (
-                  <span className="text-[10px] font-semibold text-white bg-[#095192] rounded-full px-2 py-0.5">Current</span>
-                )}
                 {s.isDone && (
                   <span className="text-[10px] font-semibold text-[#12805C] bg-[#E1F5EC] rounded-full px-2 py-0.5">Done</span>
                 )}
