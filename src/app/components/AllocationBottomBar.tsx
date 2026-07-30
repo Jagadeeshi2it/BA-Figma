@@ -1,5 +1,5 @@
 import React from 'react';
-import { ChevronRight, LogOut, LogIn } from 'lucide-react';
+import { ChevronRight, LogOut, LogIn, ArrowLeft, ArrowRight } from 'lucide-react';
 
 interface AllocationBottomBarProps {
   step: 1 | 2;
@@ -66,14 +66,21 @@ function BarButton({
   label,
   variant,
   enabled,
-  onClick
+  onClick,
+  leadingIcon,
+  trailingIcon
 }: {
   label: string;
   variant: 'primary' | 'secondary' | 'outline-danger';
   enabled: boolean;
   onClick: () => void;
+  // Which side an arrow sits on is the whole message on the two step buttons: leading points back to
+  // the step you came from, trailing points on to the next one.
+  leadingIcon?: React.ReactNode;
+  trailingIcon?: React.ReactNode;
 }) {
-  const base = 'rounded-[4px] text-[14px] leading-[20px] px-3 py-2 whitespace-nowrap transition-colors';
+  const base =
+    'inline-flex items-center gap-1.5 rounded-[4px] text-[14px] leading-[20px] px-3 py-2 whitespace-nowrap transition-colors';
   const look =
     variant === 'primary'
       ? 'bg-[#095192] text-white hover:bg-[#074080]'
@@ -89,7 +96,9 @@ function BarButton({
       disabled={!enabled}
       className={`${base} ${look} ${enabled ? 'cursor-pointer' : 'opacity-50 cursor-not-allowed'}`}
     >
+      {leadingIcon}
       {label}
+      {trailingIcon}
     </button>
   );
 }
@@ -152,14 +161,21 @@ export default function AllocationBottomBar({
         <div className="flex items-center gap-2 shrink-0 ml-auto">
           <BarButton label="Cancel" variant="outline-danger" enabled onClick={onCancel} />
           {step === 2 && (
-            <BarButton label="Source Bin Selection" variant="secondary" enabled onClick={onBackToSource} />
+            <BarButton
+              label="Source Selection"
+              variant="secondary"
+              enabled
+              onClick={onBackToSource}
+              leadingIcon={<ArrowLeft className="w-4 h-4" />}
+            />
           )}
           {step === 1 ? (
             <BarButton
-              label="Select Target"
+              label="Target Selection"
               variant="primary"
               enabled={sourceBinCount > 0}
               onClick={onNext}
+              trailingIcon={<ArrowRight className="w-4 h-4" />}
             />
           ) : (
             <BarButton

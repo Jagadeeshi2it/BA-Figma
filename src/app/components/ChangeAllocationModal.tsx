@@ -643,6 +643,69 @@ export default function ChangeAllocationModal({
     return products;
   };
 
+  // The whole bin in one action, for the case the per-product buttons handle badly: emptying a bin
+  // means making the same decision twelve times down a list of twelve. Deliberately narrow.
+  //
+  // One target bin only, as the user asked. With several targets the right panel pages through them,
+  // so "all" would have to mean "all of this bin into whichever target happens to be showing" — a
+  // choice the user hasn't made, and one they'd have to undo product by product.
+  //
+  // It also acts on exactly what getSourceProducts returns, never on the bin's raw contents. That is
+  // what keeps it honest when the E-Kit filter is hiding ineligible inventory types, and it's why
+  // it's withheld entirely while a search has the list narrowed: a "move all" that moved the one
+  // visible product of four would be lying, and one that moved all four would be moving three the
+  // user can't see.
+  const moveAllCandidates = (): any[] => {
+    if (!sourceBin || !targetBin || targetBins.length !== 1 || sourceListNarrowed) return [];
+    const visible = new Set(getSourceProducts().map(product => product.id));
+    return sourceBin.products.filter(product =>
+      visible.has(product.id) &&
+      !pendingTransfers.some(pt => pt.productId === product.id && pt.toBinId === targetBin.id)
+    );
+  };
+
+  // Read once — the count row and the guard below would otherwise rebuild the list to count it.
+  const visibleSourceProductCount = getSourceProducts().length;
+
+  // Offered on structure, disabled on state: the control stays put once you've started staging
+  // products rather than vanishing under the cursor as the last few are picked off.
+  const canOfferMoveAll = (): boolean =>
+    !!sourceBin && !!targetBin && targetBins.length === 1 && !sourceListNarrowed &&
+    visibleSourceProductCount > 1;
+
+  const handleMoveAllFromBin = () => {
+    const candidates = moveAllCandidates();
+    if (!sourceBin || !targetBin || candidates.length === 0) return;
+
+    setMovedProducts(prev => {
+      const known = new Set(prev.map(mp => mp.id));
+      return [
+        ...prev,
+        ...candidates
+          .filter(product => !known.has(product.id))
+          .map(product => ({ ...product, quantity: 0, movedQuantity: 0 }))
+      ];
+    });
+
+    // One append rather than one per product: setPendingTransfers inside a loop can't see what
+    // earlier iterations added, which is the bug handleMoveAllFromProduct only avoids because its
+    // bin/product pairs are distinct by construction.
+    setPendingTransfers(prev => [
+      ...prev,
+      ...candidates.map(product => ({
+        productId: product.id,
+        fromBinId: sourceBin.id,
+        toBinId: targetBin.id,
+        quantity: 0,
+        actionType: 'move' as const
+      }))
+    ]);
+
+    toast.success(
+      `Moving ${candidates.length} product${candidates.length > 1 ? 's' : ''} from ${sourceBin.name}`
+    );
+  };
+
   const getTargetProducts = () => {
     if (!targetBin) return [];
     
@@ -863,14 +926,14 @@ export default function ChangeAllocationModal({
                             {currentSourceBinIndex + 1} of {visibleSourceBins.length}
                           </span>
                           <div className="flex items-center gap-1">
-                            <div 
+                            <div
                               className={`bg-white relative rounded-[4px] h-8 w-8 flex items-center justify-center ${currentSourceBinIndex === 0 ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
                               onClick={currentSourceBinIndex === 0 ? undefined : goToPreviousSourceBin}
                             >
                               <div aria-hidden="true" className="absolute border border-[#095192] border-solid inset-0 pointer-events-none rounded-[4px]" />
                               <ChevronLeft className="w-4 h-4 text-[#095192]" />
                             </div>
-                            <div 
+                            <div
                               className={`bg-white relative rounded-[4px] h-8 w-8 flex items-center justify-center ${currentSourceBinIndex === visibleSourceBins.length - 1 ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
                               onClick={currentSourceBinIndex === visibleSourceBins.length - 1 ? undefined : goToNextSourceBin}
                             >
@@ -908,6 +971,37 @@ export default function ChangeAllocationModal({
               )}
               
               <div className="flex-1 overflow-y-auto p-4 min-h-0">
+                {/* Move all, with the count as its label — same shape as ProductCentricCard's own
+                    header row, which is why this is scoped to the bin-centric view: the product view
+                    already brings one. The whole row lives or dies with the button, so there's no
+                    bare count sitting above the list in the cases where Move all doesn't apply
+                    (several target bins, a search-narrowed list, a bin holding one product) — a
+                    divider and a number that lead to nothing read as something having gone missing.
+                    The count reports what's listed rather than what the bin holds, so it agrees with
+                    what Move all will do when the E-Kit filter hides ineligible inventory types. */}
+                {productsAcrossMultipleBins.length === 0 && canOfferMoveAll() && (
+                  <div className="mb-3 pb-3 border-b border-gray-200 flex items-center justify-between gap-3">
+                    <span className="text-sm text-gray-600">
+                      <span className="font-medium text-[#020817]">{visibleSourceProductCount}</span>{' '}
+                      {visibleSourceProductCount === 1 ? 'Product' : 'Products'}
+                    </span>
+
+                    <button
+                      type="button"
+                      onClick={handleMoveAllFromBin}
+                      disabled={moveAllCandidates().length === 0}
+                      title={`Move every product shown here to ${getDoorName(targetBin)} - ${targetBin?.name}`}
+                      className={`h-8 px-3 rounded-[4px] border border-[#095192] bg-white text-[#095192] text-[14px] leading-[20px] whitespace-nowrap transition-colors ${
+                        moveAllCandidates().length === 0
+                          ? 'opacity-50 cursor-not-allowed'
+                          : 'cursor-pointer hover:bg-[#F1F6FA]'
+                      }`}
+                    >
+                      Move all
+                    </button>
+                  </div>
+                )}
+
                 <div className="space-y-3">
                   {/* Show product-centric view if products exist across multiple bins */}
                   {productsAcrossMultipleBins.length > 0 ? (
@@ -1180,7 +1274,7 @@ export default function ChangeAllocationModal({
                 <div className="flex flex-row items-center justify-end relative size-full">
                   <div className="box-border content-stretch flex gap-2 items-center justify-end px-3 py-2 relative size-full">
                     <div className="capitalize font-['Inter:Regular',_sans-serif] font-normal leading-[0] not-italic relative shrink-0 text-[#095192] text-[14px] text-nowrap">
-                      <p className="leading-[20px] whitespace-pre text-[14px]">Cancel</p>
+                      <p className="leading-[20px] whitespace-pre text-[14px]">Close</p>
                     </div>
                   </div>
                 </div>
