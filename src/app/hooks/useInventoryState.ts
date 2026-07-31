@@ -97,6 +97,9 @@ export const useInventoryState = () => {
   const [showUnallocatedProducts, setShowUnallocatedProducts] = useState(false);
   const [selectedUnallocatedProducts, setSelectedUnallocatedProducts] = useState<string[]>([]);
   const [selectedBinsForAssignment, setSelectedBinsForAssignment] = useState<string[]>([]);
+  // Allocate/Unallocate workflow — see handleAllocateProductsClick for why it is its own flag
+  // rather than a third state of changeAllocationMode.
+  const [showAllocateProducts, setShowAllocateProducts] = useState(false);
   const [unallocatedSearchQuery, setUnallocatedSearchQuery] = useState<string>("");
   const [allocationHistory, setAllocationHistory] = useState<AllocationHistoryEntry[]>(generateSeedHistory);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
@@ -235,6 +238,20 @@ export const useInventoryState = () => {
         return;
       }
 
+      // Allocate/Unallocate: a bin tap picks where the panel's chosen products should live. It rides
+      // the same selectedBinsForAssignment channel as the unallocated tray below, so the shelf
+      // highlight and the clearing all come for free.
+      //
+      // Unlike that branch this one doesn't gate on having products chosen first — which products
+      // are ticked is the panel's own state, and the panel's confirm button already says "Select a
+      // product" while none are. Gating here would have meant a tap that silently did nothing.
+      if (showAllocateProducts) {
+        setSelectedBinsForAssignment(prev =>
+          prev.includes(binId) ? prev.filter(id => id !== binId) : [...prev, binId]
+        );
+        return;
+      }
+
       // If in unallocated products mode, check if products are selected first
       if (showUnallocatedProducts) {
         if (selectedUnallocatedProducts.length === 0) {
@@ -267,7 +284,7 @@ export const useInventoryState = () => {
       // Normal bin click behavior
       setSelectedBin(binId);
     }
-  }, [selectedDoor, doorShelfConfig, changeAllocationMode, changeAllocationStep, changeAllocationSourceBins, changeAllocationTargetBins, showUnallocatedProducts, selectedUnallocatedProducts.length, selectedBinsForAssignment]);
+  }, [selectedDoor, doorShelfConfig, changeAllocationMode, changeAllocationStep, changeAllocationSourceBins, changeAllocationTargetBins, showUnallocatedProducts, showAllocateProducts, selectedUnallocatedProducts.length, selectedBinsForAssignment]);
 
   const handleAvailableSlotClick = () => {
     setShowProductDialog(true);
@@ -714,6 +731,123 @@ export const useInventoryState = () => {
     setShowUnallocatedProducts(false);
     setSelectedSearchQuery(""); // Clear search highlighting when entering change allocation mode
     setChangeAllocationSourceQuery("");
+  };
+
+  // The allocate/unallocate workflow. Deliberately not a third state of changeAllocationMode: that
+  // machine exists to sequence two sets against each other (source bins, then target bins, with a
+  // step deciding what a bin tap means). This one is one-sided — products, then the bins they should
+  // live in — so it reuses the assignment channel the unallocated-products panel already drives
+  // (selectedBinsForAssignment) rather than adding a third meaning to every bin tap.
+  const handleAllocateProductsClick = () => {
+    setShowAllocateProducts(true);
+    setShowUnallocatedProducts(false);
+    setShowBinInventory(false);
+    setSelectedBin(null);
+    setSelectedBinsForAssignment([]);
+    setSelectedSearchQuery("");
+  };
+
+  const handleCloseAllocateProducts = () => {
+    setShowAllocateProducts(false);
+    setSelectedBinsForAssignment([]);
+    setSelectedSearchQuery("");
+  };
+
+  // Give already-stocked products an additional bin. Kept apart from handleConfirmAssignment, which
+  // resolves ids out of the unallocated tray and invents an opening quantity: here the product
+  // already exists somewhere in the cabinet, so the new location copies a row that already works and
+  // opens at zero. Stock arrives by moving it in — that is the other workflow's job, and the reason
+  // this one never asks for a quantity.
+  const handleAssignProductsToBins = (
+    products: Array<{ ndc: string; inventoryType: string; name: string }>,
+    binIds: string[]
+  ) => {
+    if (products.length === 0 || binIds.length === 0) return;
+
+    // The app's one real business rule. The unallocated tray enforces it on the bin tap, because it
+    // owns the product selection and can check it there; this workflow's selection lives in the
+    // panel, so the check lands here instead — the only point that holds both halves. Refusing the
+    // whole confirm rather than quietly dropping the offending pairs: a partial allocation the user
+    // didn't ask for is worse than being told to fix the selection.
+    const ekitBins = binIds.filter(binId =>
+      emergencyKitService.isBinInEmergencyKit(binId, doorShelfConfig as any)
+    );
+    if (ekitBins.length > 0) {
+      const disallowed = products.filter(
+        product => (product.inventoryType || '').toLowerCase() !== 'purchased'
+      );
+      if (disallowed.length > 0) {
+        toast.custom(
+          () => React.createElement(ValidationToast, {
+            message: 'Only Purchased products can be allocated to an E‑Kit bin. Deselect the E‑Kit bin or the non‑Purchased products.'
+          }),
+          { duration: 4000 }
+        );
+        return;
+      }
+    }
+
+    // A row already in the cabinet for this identity, to copy unit/source/description from.
+    const templateFor = (ndc: string, inventoryType: string): any => {
+      for (const doorKey of Object.keys(doorShelfConfig)) {
+        for (const shelf of doorShelfConfig[doorKey]) {
+          for (const bin of shelf.bins) {
+            const match = bin.products.find(
+              (candidate: any) => candidate.ndc === ndc && candidate.inventoryType === inventoryType
+            );
+            if (match) return match;
+          }
+        }
+      }
+      return null;
+    };
+
+    let assigned = 0;
+
+    setDoorShelfConfig(prev => {
+      const next = { ...prev };
+
+      Object.keys(next).forEach(doorKey => {
+        next[doorKey] = next[doorKey].map(shelf => ({
+          ...shelf,
+          bins: shelf.bins.map(bin => {
+            if (!binIds.includes(bin.id)) return bin;
+
+            const additions = products
+              // Already in this bin? Adding it again would split one product across two rows in the
+              // same bin, and every count in the app would then report it twice.
+              .filter(product => !bin.products.some(
+                (existing: any) =>
+                  existing.ndc === product.ndc && existing.inventoryType === product.inventoryType
+              ))
+              .map(product => {
+                const template = templateFor(product.ndc, product.inventoryType);
+                const masterId = template ? String(template.id).split('_')[0] : product.ndc;
+                return {
+                  ...(template || {}),
+                  id: `${masterId}_${Date.now()}_${bin.id}`,
+                  name: product.name,
+                  ndc: product.ndc,
+                  inventoryType: product.inventoryType,
+                  quantity: 0
+                };
+              });
+
+            if (additions.length === 0) return bin;
+            assigned += additions.length;
+            return { ...bin, products: [...bin.products, ...additions], available: false };
+          })
+        }));
+      });
+
+      return next;
+    });
+
+    setSelectedBinsForAssignment([]);
+    toast.success(
+      `Allocated ${products.length} ${products.length === 1 ? 'product' : 'products'} to ` +
+      `${binIds.length} ${binIds.length === 1 ? 'bin' : 'bins'}`
+    );
   };
 
   const handleExitChangeAllocation = () => {
@@ -1661,6 +1795,7 @@ export const useInventoryState = () => {
     doorShelfConfig,
     unallocatedProducts, // CRITICAL FIX: Add unallocated products array
     unallocatedProductsCount: unallocatedProducts.length, // CRITICAL FIX: Add unallocated products count
+    showAllocateProducts,
     zeroQuantityProducts, // Zero-quantity products after change allocation
     
     // Handlers
@@ -1689,6 +1824,9 @@ export const useInventoryState = () => {
     getCurrentBin,
     handleHistoryClick,
     handleChangeAllocationClick,
+    handleAllocateProductsClick,
+    handleCloseAllocateProducts,
+    handleAssignProductsToBins,
     handleExitChangeAllocation,
     handleNextStep,
     handlePreviousStep,

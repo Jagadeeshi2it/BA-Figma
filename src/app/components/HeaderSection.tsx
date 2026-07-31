@@ -1,7 +1,8 @@
 import React, { memo, useState, useEffect, useRef } from 'react';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
-import { Clock, X } from 'lucide-react';
+import { Clock, X, ChevronDown } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import SearchDropdown, { getResultKey } from './SearchDropdown';
 import { searchProducts, getBinIdsForProduct } from '../utils/productSearchUtils';
 import { DoorShelfConfig } from '../types';
@@ -27,6 +28,7 @@ interface HeaderSectionProps {
   handleSearchAutofill?: (query: string) => void;
   handleAvailableBinsClick: () => void;
   handleChangeAllocationClick: () => void;
+  handleAllocateProductsClick: () => void;
   handleUnallocatedProductsClick: () => void;
   handleHistoryClick: () => void;
   handleSelectBinsForAssignment?: (binIds: string[]) => void;
@@ -35,6 +37,29 @@ interface HeaderSectionProps {
   handleSearchProductClick?: (productName: string, ndc: string, inventoryType: string) => void;
   handleDoorClick?: (doorName: string) => void;
   handleScrollToBin?: (binId: string) => void;
+}
+
+// One row of the Change Allocation menu. The description is the point: the two workflows are close
+// enough in name that a bare pair of labels would leave the choice to guesswork.
+function WorkflowOption({
+  title,
+  description,
+  onSelect
+}: {
+  title: string;
+  description: string;
+  onSelect: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      className="w-full text-left rounded-[4px] px-3 py-2.5 hover:bg-[#F1F6FA] transition-colors cursor-pointer"
+    >
+      <span className="block text-[14px] leading-[20px] font-medium text-[#020817]">{title}</span>
+      <span className="block text-[13px] leading-[18px] text-[#676b74] mt-0.5">{description}</span>
+    </button>
+  );
 }
 
 const HeaderSection = memo(function HeaderSection({
@@ -54,6 +79,7 @@ const HeaderSection = memo(function HeaderSection({
   handleSearchAutofill,
   handleAvailableBinsClick,
   handleChangeAllocationClick,
+  handleAllocateProductsClick,
   handleUnallocatedProductsClick,
   handleHistoryClick,
   handleSelectBinsForAssignment,
@@ -68,6 +94,7 @@ const HeaderSection = memo(function HeaderSection({
   const [showSearchDropdown, setShowSearchDropdown] = useState(false);
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [isSearchFocused, setIsSearchFocused] = useState(false);
+  const [workflowMenuOpen, setWorkflowMenuOpen] = useState(false);
   // View-mode products already clicked/selected from the current search — mirrors
   // changeAllocationSourceBins/TargetBins so the dropdown list shrinks the same way.
   const [viewedProductKeys, setViewedProductKeys] = useState<string[]>([]);
@@ -266,19 +293,44 @@ const HeaderSection = memo(function HeaderSection({
           {/* Conditionally show buttons based on unallocated products mode */}
           {!showUnallocatedProducts && !changeAllocationMode && (
             <>
-              <div 
-                className="bg-white relative rounded-[4px] cursor-pointer"
-                onClick={handleChangeAllocationClick}
-              >
-                <div aria-hidden="true" className="absolute border border-[#095192] border-solid inset-0 pointer-events-none rounded-[4px]" />
-                <div className="flex flex-row items-center justify-end relative size-full">
-                  <div className="box-border content-stretch flex gap-2 items-center justify-end px-3 py-2 relative size-full">
-                    <div className="capitalize font-['Inter:Regular',_sans-serif] font-normal leading-[0] not-italic relative shrink-0 text-[#095192] text-[14px] text-nowrap">
-                      <p className="leading-[20px] whitespace-pre text-[14px]">Change Allocation</p>
+              {/* Two workflows behind one button. They were one before, which meant entering the
+                  mode without having said which of two quite different jobs you were doing —
+                  giving a product a bin, or moving stock between bins it already has. The menu
+                  makes that the first decision instead of an assumption. */}
+              <Popover open={workflowMenuOpen} onOpenChange={setWorkflowMenuOpen}>
+                <PopoverTrigger asChild>
+                  <div className="bg-white relative rounded-[4px] cursor-pointer">
+                    <div aria-hidden="true" className="absolute border border-[#095192] border-solid inset-0 pointer-events-none rounded-[4px]" />
+                    <div className="flex flex-row items-center justify-end relative size-full">
+                      <div className="box-border content-stretch flex gap-2 items-center justify-end px-3 py-2 relative size-full">
+                        <div className="capitalize font-['Inter:Regular',_sans-serif] font-normal leading-[0] not-italic relative shrink-0 text-[#095192] text-[14px] text-nowrap">
+                          <p className="leading-[20px] whitespace-pre text-[14px]">Change Allocation</p>
+                        </div>
+                        <ChevronDown className="w-4 h-4 text-[#095192] shrink-0" />
+                      </div>
                     </div>
                   </div>
-                </div>
-              </div>
+                </PopoverTrigger>
+
+                <PopoverContent align="start" sideOffset={6} className="w-[360px] p-1">
+                  <WorkflowOption
+                    title="Allocate / Unallocate Product"
+                    description="Give a product a bin, or take an empty bin back. A bin can only be released once its quantity is 0."
+                    onSelect={() => {
+                      setWorkflowMenuOpen(false);
+                      handleAllocateProductsClick();
+                    }}
+                  />
+                  <WorkflowOption
+                    title="Move Quantity"
+                    description="Move stock between bins a product already occupies — some of it, or all of it."
+                    onSelect={() => {
+                      setWorkflowMenuOpen(false);
+                      handleChangeAllocationClick();
+                    }}
+                  />
+                </PopoverContent>
+              </Popover>
               {/* Only show Unallocated Products button if there are products to allocate and keyboard shortcut was pressed */}
               {unallocatedProductsCount > 0 && showUnallocatedButton && (
                 <div className="relative">

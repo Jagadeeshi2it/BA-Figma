@@ -5,6 +5,8 @@ export interface ProductSearchResult {
   ndc: string;
   inventoryType: string;
   name: string;
+  // Generic name, for callers that show it under the display name the way the bin rows do.
+  description?: string;
   totalQuantity: number;
   binLocations: Array<{
     binId: string;
@@ -39,10 +41,12 @@ const productMatchesQuery = (product: any, searchQuery: string): boolean => {
   });
 };
 
-// Search for products across all doors and bins, grouped by NDC and inventory type
-export const searchProducts = (doorShelfConfig: DoorShelfConfig, searchQuery: string): ProductSearchResult[] => {
-  if (!searchQuery.trim()) return [];
-
+// Walk every bin in the cabinet, keeping the products a predicate accepts, grouped by NDC +
+// inventory type with one entry per location. Both exports below are this with a different filter.
+const collectProducts = (
+  doorShelfConfig: DoorShelfConfig,
+  matches: (product: any) => boolean
+): ProductSearchResult[] => {
   const productGroupMap = new Map<string, ProductSearchResult>();
   
   // Iterate through all doors and shelves
@@ -50,10 +54,7 @@ export const searchProducts = (doorShelfConfig: DoorShelfConfig, searchQuery: st
     shelves.forEach(shelf => {
       shelf.bins.forEach(bin => {
         bin.products.forEach(product => {
-          // Check if product matches search query (any OR-group's terms all match)
-          const matchesSearch = productMatchesQuery(product, searchQuery);
-            
-          if (matchesSearch) {
+          if (matches(product)) {
             // Get enhanced product data for consistent information
             const enhancedProduct = productDataService.enhanceProduct(product);
             
@@ -79,6 +80,7 @@ export const searchProducts = (doorShelfConfig: DoorShelfConfig, searchQuery: st
                 ndc: enhancedProduct.ndc || product.ndc,
                 inventoryType: enhancedProduct.inventoryType || product.inventoryType,
                 name: enhancedProduct.name || product.name,
+                description: enhancedProduct.description || product.description,
                 totalQuantity: product.quantity,
                 binLocations: [{
                   binId: bin.id,
@@ -99,6 +101,18 @@ export const searchProducts = (doorShelfConfig: DoorShelfConfig, searchQuery: st
   // Convert map to array and sort by total quantity (highest first)
   return Array.from(productGroupMap.values()).sort((a, b) => b.totalQuantity - a.totalQuantity);
 };
+
+// Search for products across all doors and bins, grouped by NDC and inventory type
+export const searchProducts = (doorShelfConfig: DoorShelfConfig, searchQuery: string): ProductSearchResult[] =>
+  searchQuery.trim()
+    ? collectProducts(doorShelfConfig, product => productMatchesQuery(product, searchQuery))
+    : [];
+
+// Everything in the cabinet, shaped exactly like a search result. The allocate/unallocate panel
+// needs the catalogue before anything is typed — its "empty locations" filter is a way of browsing,
+// not of searching, so it cannot wait for a query the way the header's dropdown does.
+export const listAllProducts = (doorShelfConfig: DoorShelfConfig): ProductSearchResult[] =>
+  collectProducts(doorShelfConfig, () => true);
 
 // Helper function to get cabinet name from door name
 const getCabinetNameFromDoorName = (doorName: string): string => {

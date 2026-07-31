@@ -212,16 +212,28 @@ export default function UnallocatedProductsPanel({
           )}
         </div>
 
-        <div
-          className={`relative rounded-[4px] shrink-0 bg-[#095192] ${
-            canAllocate ? 'cursor-pointer' : 'opacity-50 cursor-not-allowed'
-          }`}
-          onClick={canAllocate ? onConfirmAssignment : undefined}
-        >
-          <div className="box-border flex gap-2 items-center justify-center px-4 py-2">
-            <CheckCircle2 className="w-4 h-4 text-white" />
-            <div className="capitalize font-['Inter:Regular',_sans-serif] font-normal leading-[0] not-italic shrink-0 text-[14px] text-nowrap text-white">
-              <p className="leading-[20px] whitespace-pre text-[14px]">Allocate</p>
+        <div className="flex items-center gap-2 shrink-0">
+          {/* A way out that doesn't involve hunting for the X in the header, and the same pairing the
+              allocate/unallocate panel uses — leave without allocating, or allocate. */}
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-3 py-2 rounded-[4px] text-[14px] leading-[20px] bg-white text-[#095192] border border-[#095192] hover:bg-[#F1F6FA] transition-colors cursor-pointer"
+          >
+            Cancel
+          </button>
+
+          <div
+            className={`relative rounded-[4px] shrink-0 bg-[#095192] ${
+              canAllocate ? 'cursor-pointer' : 'opacity-50 cursor-not-allowed'
+            }`}
+            onClick={canAllocate ? onConfirmAssignment : undefined}
+          >
+            <div className="box-border flex gap-2 items-center justify-center px-4 py-2">
+              <CheckCircle2 className="w-4 h-4 text-white" />
+              <div className="capitalize font-['Inter:Regular',_sans-serif] font-normal leading-[0] not-italic shrink-0 text-[14px] text-nowrap text-white">
+                <p className="leading-[20px] whitespace-pre text-[14px]">Allocate</p>
+              </div>
             </div>
           </div>
         </div>

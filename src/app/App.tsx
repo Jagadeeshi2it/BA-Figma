@@ -15,6 +15,7 @@ import UnallocateConfirmModal from "./components/UnallocateConfirmModal";
 import ErrorBoundary from "./components/ErrorBoundary";
 import AllocationBottomBar from "./components/AllocationBottomBar";
 import AllocationSelectionPanel from "./components/AllocationSelectionPanel";
+import AllocateProductsPanel from "./components/AllocateProductsPanel";
 import { useDebounce } from "./hooks/useDebounce";
 
 import { useInventoryState } from "./hooks/useInventoryState";
@@ -641,6 +642,7 @@ export default function App() {
               handleSearchAutofill={inventoryState.handleSearchAutofill}
               handleAvailableBinsClick={inventoryState.handleAvailableBinsClick}
               handleChangeAllocationClick={inventoryState.handleChangeAllocationClick}
+              handleAllocateProductsClick={inventoryState.handleAllocateProductsClick}
               handleUnallocatedProductsClick={inventoryState.handleUnallocatedProductsClick}
               handleHistoryClick={inventoryState.handleHistoryClick}
               handleSelectBinsForAssignment={inventoryState.handleSelectBinsForAssignment}
@@ -669,8 +671,27 @@ export default function App() {
               />
             ) : null
           }
+          showAllocateProducts={inventoryState.showAllocateProducts}
           sidePanel={
-            allocationPanel ? (
+            inventoryState.showAllocateProducts ? (
+              <AllocateProductsPanel
+                doorShelfConfig={inventoryState.doorShelfConfig}
+                selectedBinsForAssignment={inventoryState.selectedBinsForAssignment}
+                onConfirmAssignment={inventoryState.handleAssignProductsToBins}
+                onUnallocate={(product, binId) => {
+                  // The panel identifies a product by NDC + inventory type, which is how the whole
+                  // app groups them; handleUnallocateProduct wants the row id inside that one bin,
+                  // so resolve it here rather than making the panel carry bin-local ids around.
+                  const bin = binLookupMap.get(binId);
+                  const row = bin?.products?.find(
+                    (candidate: any) =>
+                      candidate.ndc === product.ndc && candidate.inventoryType === product.inventoryType
+                  );
+                  if (row) inventoryState.handleUnallocateProduct(row.id, binId);
+                }}
+                onClose={inventoryState.handleCloseAllocateProducts}
+              />
+            ) : allocationPanel ? (
               <AllocationSelectionPanel
                 role={allocationPanel}
                 bins={allocationPanel === 'source' ? getSourceBins : getTargetBins}
@@ -728,7 +749,13 @@ export default function App() {
             changeAllocationStep={inventoryState.changeAllocationStep}
             changeAllocationSourceBins={inventoryState.changeAllocationSourceBins}
             changeAllocationTargetBins={inventoryState.changeAllocationTargetBins}
-            showUnallocatedProducts={inventoryState.showUnallocatedProducts}
+            // This prop does exactly one thing by the time it reaches BinCard: it stops the product
+            // rows inside a bin from being tappable. Both bin-picking workflows need that — while
+            // you are choosing bins, a tap has to mean the bin and not something inside it — so both
+            // feed it, despite the name only describing the older one.
+            showUnallocatedProducts={
+              inventoryState.showUnallocatedProducts || inventoryState.showAllocateProducts
+            }
             onBinClick={inventoryState.handleBinClick}
             onProductClick={handleProductClick}
           />

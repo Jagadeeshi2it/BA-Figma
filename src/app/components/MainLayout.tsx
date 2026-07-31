@@ -15,6 +15,9 @@ interface MainLayoutProps {
   onAllProductsProductClick?: (product: any, location: any) => void;
   closeAllProducts?: () => void;
   showUnallocatedProducts: boolean;
+  // Allocate/Unallocate panel — same width as the unallocated tray, and like it a place
+  // the user works from, so it reserves a column instead of covering the shelves.
+  showAllocateProducts?: boolean;
   currentBin: any;
   selectedUnallocatedProducts: string[];
   selectedBinsForAssignment: string[];
@@ -53,6 +56,7 @@ export default function MainLayout({
   onAllProductsProductClick,
   closeAllProducts,
   showUnallocatedProducts,
+  showAllocateProducts,
   currentBin,
   selectedUnallocatedProducts,
   selectedBinsForAssignment,
@@ -87,7 +91,7 @@ export default function MainLayout({
           // to match whichever is open or the panel overlaps the shelves. The allocation review
           // panel is deliberately absent here — it overlays the content region instead of pushing
           // it, so opening it doesn't reflow the shelves.
-          showUnallocatedProducts || allProductsBin
+          showUnallocatedProducts || allProductsBin || showAllocateProducts
             ? "mr-[440px]"
             : showBinInventory ? "mr-[320px]" : ""
         }`}
