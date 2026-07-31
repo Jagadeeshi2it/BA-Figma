@@ -584,6 +584,15 @@ export default function ChangeAllocationModal({
     return pendingTransfers.length > 0;
   };
 
+  // What this button actually does depends on what's staged, so it can't carry one fixed word.
+  // An all-"Allocate only" selection commits from here — no quantity is being moved, so there is
+  // nothing to count out and nothing to place. Anything with a move in it goes to the quantity step
+  // first, two screens ahead of the real commit. The same split App applies when it routes.
+  const hasMoveTransfers = pendingTransfers.some(
+    transfer => transfer.quantity > 0 || (transfer as any).actionType === 'move'
+  );
+  const confirmActionLabel = hasMoveTransfers ? 'Set Quantities' : 'Confirm Changes';
+
   const handleConfirm = () => {
     if (!validateTransfers() || !sourceBin || !targetBin) return;
 
@@ -1292,7 +1301,7 @@ export default function ChangeAllocationModal({
                     <div className={`capitalize font-['Inter:Regular',_sans-serif] font-normal leading-[0] not-italic relative shrink-0 text-[14px] text-nowrap ${
                       !validateTransfers() ? 'text-gray-500' : 'text-white'
                     }`}>
-                      <p className="leading-[20px] whitespace-pre text-[14px]">Confirm Changes</p>
+                      <p className="leading-[20px] whitespace-pre text-[14px]">{confirmActionLabel}</p>
                     </div>
                   </div>
                 </div>

@@ -120,21 +120,11 @@ const HeaderSection = memo(function HeaderSection({
   };
 
   // A pick belongs to the mode and step it was made in. The keys otherwise only reset when the typed
-  // query changes, and switching modes leaves the query alone — and entering step 1 refocuses the
-  // box, so the list reopens immediately — which would otherwise show browsing picks marked as
-  // though they were sources, or step 1's sources marked as targets: "already handled" for work
-  // that hasn't been done.
+  // query changes, and switching modes leaves the query alone, so a query carried across a mode
+  // change would show browsing picks marked as though they were sources, or step 1's sources marked
+  // as targets: "already handled" for work that hasn't been done.
   useEffect(() => {
     setViewedProductKeys([]);
-  }, [changeAllocationMode, changeAllocationStep]);
-
-  // Entering (or returning to) Step 1 of Change Allocation: put the cursor straight into the
-  // existing search bar so the product-first flow (search → "Select as Source") is ready to
-  // go immediately, keyboard included, without an extra tap to focus it.
-  useEffect(() => {
-    if (changeAllocationMode && changeAllocationStep === 1) {
-      searchInputRef.current?.focus();
-    }
   }, [changeAllocationMode, changeAllocationStep]);
 
   // Handle taps/clicks outside search container to close dropdown.

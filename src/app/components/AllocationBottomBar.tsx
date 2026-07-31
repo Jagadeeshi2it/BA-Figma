@@ -179,10 +179,15 @@ export default function AllocationBottomBar({
             />
           ) : (
             <BarButton
-              label="Confirm Selection"
+              label="Review Selection"
               variant="primary"
               enabled={targetBinCount > 0}
               onClick={onConfirm}
+              // Third step in the same sequence as the two beside it, so it takes the same arrow.
+              // It was left bare while it said "Confirm", on the grounds that it opens a panel
+              // rather than advancing — but that was the misleading part: it does advance, and the
+              // commit is two screens further on.
+              trailingIcon={<ArrowRight className="w-4 h-4" />}
             />
           )}
         </div>
