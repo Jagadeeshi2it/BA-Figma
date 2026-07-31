@@ -539,9 +539,10 @@ export default function ChangeAllocationModal({
   };
 
   // Every transfer this modal can stage is a move now — "Allocate only" was the other kind, and it
-  // has gone to the Allocate Product workflow — so this always leads to the quantity step. The label
-  // used to switch to "Confirm Changes" for an all-allocate selection, which is no longer reachable.
-  const confirmActionLabel = 'Set Quantities';
+  // has gone to the Allocate Product workflow — so this always leads on to the quantity step rather
+  // than committing. It named that next screen ("Set Quantities"); naming the whole errand instead
+  // matches the workflow the operator picked from the menu, and matches Select on the cards above.
+  const confirmActionLabel = 'Move Qty';
 
   const handleConfirm = () => {
     if (!validateTransfers() || !sourceBin || !targetBin) return;

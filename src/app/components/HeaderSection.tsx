@@ -312,7 +312,15 @@ const HeaderSection = memo(function HeaderSection({
                   </div>
                 </PopoverTrigger>
 
-                <PopoverContent align="start" sideOffset={6} className="w-[320px] p-1">
+                {/* collisionPadding: the trigger sits near the right of the header, so Radix shifts
+                    the panel left to fit — and with the default padding of 0 it shifts until it is
+                    flush against the window edge. This keeps a margin there instead. */}
+                <PopoverContent
+                  align="start"
+                  sideOffset={6}
+                  collisionPadding={16}
+                  className="w-[320px] p-1"
+                >
                   <WorkflowOption
                     title="Allocate Product"
                     description="Give a product another bin. Search for it, then tap the bins it should live in."
