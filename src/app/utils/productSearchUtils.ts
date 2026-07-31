@@ -108,11 +108,6 @@ export const searchProducts = (doorShelfConfig: DoorShelfConfig, searchQuery: st
     ? collectProducts(doorShelfConfig, product => productMatchesQuery(product, searchQuery))
     : [];
 
-// Everything in the cabinet, shaped exactly like a search result. The allocate/unallocate panel
-// needs the catalogue before anything is typed — its "empty locations" filter is a way of browsing,
-// not of searching, so it cannot wait for a query the way the header's dropdown does.
-export const listAllProducts = (doorShelfConfig: DoorShelfConfig): ProductSearchResult[] =>
-  collectProducts(doorShelfConfig, () => true);
 
 // Helper function to get cabinet name from door name
 const getCabinetNameFromDoorName = (doorName: string): string => {

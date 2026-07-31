@@ -1,9 +1,9 @@
 import React, { useMemo, useState } from 'react';
-import { X, Search, CircleMinus, Check, Minus, CheckCircle2 } from 'lucide-react';
+import { X, Search, Check, Minus, CheckCircle2 } from 'lucide-react';
 import { Input } from './ui/input';
 import { Separator } from './ui/separator';
 import { getBinLocationDetails } from '../utils/doorUtils';
-import { listAllProducts, searchProducts, ProductSearchResult } from '../utils/productSearchUtils';
+import { searchProducts, ProductSearchResult } from '../utils/productSearchUtils';
 import { getVialType, hasClimateBadge, hasCivBadge } from '../utils/binProducts';
 import { pluralizeUnit } from '../utils/pluralizeUnit';
 import { DoorShelfConfig } from '../types';
@@ -13,7 +13,6 @@ interface AllocateProductsPanelProps {
   // Bins tapped on the canvas, owned by the same channel the unallocated-products flow uses.
   selectedBinsForAssignment: string[];
   onConfirmAssignment: (products: ProductSearchResult[], binIds: string[]) => void;
-  onUnallocate: (productKey: ProductSearchResult, binId: string) => void;
   onClose: () => void;
 }
 
@@ -36,28 +35,25 @@ function ProductBadges({ product }: { product: any }) {
 }
 
 /**
- * Allocate / Unallocate, as one list rather than two tabs.
+ * Giving products additional bins. Search for products, tick them, tap bins on the shelves.
  *
- * Both halves answer the same question — which bins does this product live in? — so splitting them
- * would force the user to declare which one they wanted before they had found the product and seen
- * the answer. Often you don't know until you look: a drug turns out to sit in three bins, one of
- * them empty, and the thing to do becomes obvious only then. A tab would have made that a wrong
- * turn. The menu that opens this panel already names both operations, so nothing is hidden by
- * having one list.
+ * This deliberately does NOT unallocate. Releasing a bin used to live here too — a control on any
+ * location sitting at 0 — and having both directions on one screen made the screen hard to read:
+ * the same row offered to give a product a home and to take one away, gated on a quantity rule that
+ * had to be explained before either made sense. Unallocation still happens where it always did,
+ * as the prompt that follows a move emptying a bin, which is the moment it is actually wanted.
  *
- * Assignment is multi-select, because clearing a delivery into bins is a batch job. Release is
- * per-location, because "unallocate" means one specific bin stops holding one specific product —
- * there is no sensible batch reading of it — and it is only offered where the location is empty.
+ * Multi-select, because clearing a delivery into bins is a batch job. Each product still lists the
+ * bins it already occupies: that is the context for choosing another one, and it is what stops a
+ * second bin being picked for stock that is already there.
  */
 export default function AllocateProductsPanel({
   doorShelfConfig,
   selectedBinsForAssignment,
   onConfirmAssignment,
-  onUnallocate,
   onClose
 }: AllocateProductsPanelProps) {
   const [query, setQuery] = useState('');
-  const [emptyOnly, setEmptyOnly] = useState(false);
   // The picked products themselves, not their keys. Keys plus a lookup in `results` looked
   // equivalent, but `results` changes with every search — so a product picked under one query
   // silently vanished from the selection as soon as the query moved on, which is the reset. Holding
@@ -67,22 +63,12 @@ export default function AllocateProductsPanel({
 
   const hasQuery = query.trim().length > 0;
 
-  const results = useMemo(() => {
-    // Nothing until asked for. Opening straight onto all 262 products made this a catalogue to
-    // scroll rather than a tool — you arrive already knowing which product you mean. The filter is
-    // the one exception: it IS a way of asking, and its whole point is finding products you could
-    // not have named in advance.
-    if (!hasQuery && !emptyOnly) return [];
-
-    const base = hasQuery
-      ? searchProducts(doorShelfConfig, query)
-      : listAllProducts(doorShelfConfig);
-
-    // Products holding nothing anywhere. Every bin such a product occupies is empty by definition,
-    // so the whole row is releasable — which is what makes this the shortlist for unallocating
-    // rather than just a way of narrowing the catalogue.
-    return emptyOnly ? base.filter(product => product.totalQuantity === 0) : base;
-  }, [doorShelfConfig, query, emptyOnly, hasQuery]);
+  // Nothing until asked for. Listing all 262 products on open made this a catalogue to scroll
+  // rather than a tool — you arrive already knowing which product you mean.
+  const results = useMemo(
+    () => (hasQuery ? searchProducts(doorShelfConfig, query) : []),
+    [doorShelfConfig, query, hasQuery]
+  );
 
   const selectedKeys = useMemo(() => new Set(selectedProducts.map(productKeyOf)), [selectedProducts]);
 
@@ -125,7 +111,7 @@ export default function AllocateProductsPanel({
     <div className="fixed inset-y-0 right-0 w-[440px] bg-white border-l border-gray-200 shadow-lg z-[70] flex flex-col">
       <div className="px-4 py-3 border-b border-gray-200 flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h2 className="text-[16px] font-medium text-[#020817]">Allocate / Unallocate</h2>
+          <h2 className="text-[16px] font-medium text-[#020817]">Allocate Product</h2>
         </div>
         <button
           type="button"
@@ -148,51 +134,31 @@ export default function AllocateProductsPanel({
           />
         </div>
 
-        <div className="flex items-center justify-between gap-3">
-          {/* Same control as the unallocated list: ticking everything and clearing it are the same
-              tap, so no separate Clear. Withheld when the list is empty — there is nothing to
-              select, and a control that cannot act reads as broken rather than as unavailable. */}
-          {results.length > 0 ? (
-            <div className="flex items-center gap-2 cursor-pointer w-fit" onClick={toggleAll}>
-              <div
-                className={`w-5 h-5 rounded-[4px] shrink-0 flex items-center justify-center ${
-                  someVisibleSelected ? 'bg-[#095192]' : 'border border-gray-300 bg-white'
-                }`}
-              >
-                {allVisibleSelected ? (
-                  <Check className="w-3.5 h-3.5 text-white" strokeWidth={3} />
-                ) : someVisibleSelected ? (
-                  <Minus className="w-3.5 h-3.5 text-white" strokeWidth={3} />
-                ) : null}
-              </div>
-              <span className="text-[14px] text-gray-900">Select All</span>
+        {/* Same control as the unallocated list: ticking everything and clearing it are the same
+            tap, so no separate Clear. Withheld when nothing is listed — a control that cannot act
+            reads as broken rather than as unavailable. */}
+        {results.length > 0 && (
+          <div className="flex items-center gap-2 cursor-pointer w-fit" onClick={toggleAll}>
+            <div
+              className={`w-5 h-5 rounded-[4px] shrink-0 flex items-center justify-center ${
+                someVisibleSelected ? 'bg-[#095192]' : 'border border-gray-300 bg-white'
+              }`}
+            >
+              {allVisibleSelected ? (
+                <Check className="w-3.5 h-3.5 text-white" strokeWidth={3} />
+              ) : someVisibleSelected ? (
+                <Minus className="w-3.5 h-3.5 text-white" strokeWidth={3} />
+              ) : null}
             </div>
-          ) : (
-            <span />
-          )}
-
-          {/* A view of the same list, not a mode — which is the whole reason this panel doesn't need
-              tabs. It narrows to what can actually be released, without reading every product. */}
-          <label className="flex items-center gap-2 cursor-pointer select-none shrink-0">
-            <input
-              type="checkbox"
-              checked={emptyOnly}
-              onChange={event => setEmptyOnly(event.target.checked)}
-              className="w-4 h-4 accent-[#095192] cursor-pointer"
-            />
-            <span className="text-[13px] text-[#020817]">Only products with 0 inventory</span>
-          </label>
-        </div>
+            <span className="text-[14px] text-gray-900">Select All</span>
+          </div>
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto">
         {results.length === 0 ? (
           <div className="p-8 text-center text-[14px] text-[#676b74]">
-            {!hasQuery && !emptyOnly
-              ? 'Search for a product, or filter to the ones sitting at 0 inventory.'
-              : emptyOnly
-                ? 'No products are sitting at 0 inventory.'
-                : 'No products match that search.'}
+            {hasQuery ? 'No products match that search.' : 'Search for a product to give it a bin.'}
           </div>
         ) : (
           <div className="divide-y divide-gray-200">
@@ -263,49 +229,23 @@ export default function AllocateProductsPanel({
                     </div>
                   </div>
 
-                  {/* Where it lives today, spanning the row's full width so each bin's quantity
-                      lines up under the total above it — they were boxed into the text column and
-                      stopped short of it. Indented to the product name: the tick box belongs to the
-                      row, not to the locations. An empty location can be released from here; a
-                      stocked one shows what stands in the way rather than offering a dead control,
-                      since the quantity has to be moved out first. */}
+                  {/* Where it already lives, spanning the row's full width so each bin's quantity
+                      lines up under the total above it. Indented to the product name: the tick box
+                      belongs to the row, not to the locations. */}
                   <div className="pt-2 ml-8 space-y-1">
-                        {product.binLocations.map(location => {
-                          const isEmpty = location.quantity === 0;
-                          return (
-                            <div
-                              key={location.binId}
-                              className="flex items-center justify-between gap-2 text-[13px]"
-                            >
-                              <span className="text-[#020817] min-w-0 truncate">
-                                {location.binName} - {location.shelfName}, {location.doorName}
-                              </span>
-                              <span className="flex items-center gap-2 shrink-0">
-                                <span className={isEmpty ? 'text-[#676b74]' : 'text-[#020817]'}>
-                                  {location.quantity} {pluralizeUnit('vial', location.quantity)}
-                                </span>
-                                {isEmpty ? (
-                                  <button
-                                    type="button"
-                                    aria-label={`Unallocate ${product.name} from ${location.binName}`}
-                                    title={`Unallocate ${product.name} from ${location.binName}`}
-                                    onClick={event => {
-                                      // The row itself toggles selection; releasing a bin is a
-                                      // different act and must not also tick the product.
-                                      event.stopPropagation();
-                                      onUnallocate(product, location.binId);
-                                    }}
-                                    className="w-6 h-6 rounded flex items-center justify-center text-[#C6362C] hover:bg-[#FDF2F2] transition-colors cursor-pointer"
-                                  >
-                                    <CircleMinus className="w-4 h-4" />
-                                  </button>
-                                ) : (
-                                  <span className="w-6 h-6" aria-hidden="true" />
-                                )}
-                              </span>
-                            </div>
-                          );
-                        })}
+                        {product.binLocations.map(location => (
+                          <div
+                            key={location.binId}
+                            className="flex items-center justify-between gap-2 text-[13px]"
+                          >
+                            <span className="text-[#020817] min-w-0 truncate">
+                              {location.binName} - {location.shelfName}, {location.doorName}
+                            </span>
+                            <span className={`shrink-0 ${location.quantity === 0 ? 'text-[#676b74]' : 'text-[#020817]'}`}>
+                              {location.quantity} {pluralizeUnit('vial', location.quantity)}
+                            </span>
+                          </div>
+                        ))}
                   </div>
 
                   {/* Where it is about to go, once bins have been tapped — same treatment as the

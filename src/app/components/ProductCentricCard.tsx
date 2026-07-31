@@ -43,7 +43,7 @@ export default function ProductCentricCard({
     <div className="bg-white rounded-[14px] border border-[#e5e7eb] w-full">
       {/* Bin Locations List */}
       <div className="p-4">
-        {/* Move All button - show when there are multiple source bins */}
+        {/* Select All — only worth offering when there is more than one location to pick */}
         {onMoveAll && binLocations.length > 1 && (
           <div className="mb-4 pb-3 border-b border-gray-200 flex items-center justify-between">
             <div className="text-sm text-gray-600">
@@ -51,17 +51,14 @@ export default function ProductCentricCard({
                 {binLocations.length} {binLocations.length === 1 ? 'Bin' : 'Bins'}
               </span>
             </div>
-            <button
-              onClick={onMoveAll}
-              disabled={allMoved}
-              className={`h-[36px] px-6 rounded-[4px] font-['Inter:Semi_Bold',sans-serif] font-semibold text-[14px] leading-[20px] text-center ${
-                allMoved 
-                  ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                  : 'bg-[#095192] text-white cursor-pointer hover:bg-[#074070]'
-              }`}
-            >
-              {allMoved ? 'All Moved' : 'Move All'}
-            </button>
+            {!allMoved && (
+              <button
+                onClick={onMoveAll}
+                className="h-8 px-3 rounded-[4px] font-['Inter:Regular',_sans-serif] font-normal text-[14px] leading-[20px] text-center border bg-white border-[#095192] text-[#095192] cursor-pointer hover:bg-[#F1F6FA]"
+              >
+                Select All
+              </button>
+            )}
           </div>
         )}
         
@@ -104,18 +101,15 @@ export default function ProductCentricCard({
                   </div>
                 </div>
                 
-                {/* Right side - Move button */}
-                <button
-                  onClick={() => onMoveFromBin(binLocation.productId, binLocation.binId)}
-                  disabled={hasMoved}
-                  className={`h-[32px] px-4 rounded-[4px] font-['Inter:Semi_Bold',sans-serif] font-semibold text-[14px] leading-[20px] text-center ${
-                    hasMoved 
-                      ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                      : 'bg-[#095192] text-white cursor-pointer hover:bg-[#074070]'
-                  }`}
-                >
-                  {hasMoved ? 'Moved' : 'Move Qty'}
-                </button>
+                {/* Right side - only while there is still something to pick */}
+                {!hasMoved && (
+                  <button
+                    onClick={() => onMoveFromBin(binLocation.productId, binLocation.binId)}
+                    className="h-8 px-3 rounded-[4px] font-['Inter:Regular',_sans-serif] font-normal text-[14px] leading-[20px] text-center bg-[#095192] text-white cursor-pointer hover:bg-[#074070]"
+                  >
+                    Select
+                  </button>
+                )}
               </div>
             );
           })}

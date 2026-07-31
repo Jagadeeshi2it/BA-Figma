@@ -20,7 +20,6 @@ interface TargetProductCardProps {
   onMoveBack: (productId: string, quantity: number, fromBinId?: string) => void;
   onRemove?: (productId: string) => void; // New prop for removing allocation
   hasPendingTransfer?: boolean; // New prop to indicate if product has pending transfer
-  transferActionType?: 'allocate' | 'move'; // New prop to indicate the action type
   sourceBins?: SourceBinInfo[]; // Array of source bins this product was moved from
 }
 
@@ -30,7 +29,6 @@ export default function TargetProductCard({
   onMoveBack,
   onRemove,
   hasPendingTransfer,
-  transferActionType,
   sourceBins
 }: TargetProductCardProps) {
   // Calculate the actual total moved quantity for display
@@ -52,6 +50,12 @@ export default function TargetProductCard({
   
   // Determine if we should show quantity display (only for products that originally existed in target bin)
   const isNewToTargetBin = isNewlyMoved || isNewlyAllocated;
+
+  const showRemoveAction =
+    (actualMovedQuantity ?? 0) > 0 || (isNewlyAllocated ?? false) || shouldShowRemoveButton;
+  // Several source bins each need their own Remove, so those stay in a list below rather than
+  // collapsing into the one control beside the quantity.
+  const hasMultipleSourceBins = !!sourceBins && sourceBins.length > 1;
   
   // Debug logging to verify card display logic
   console.log('🔍 TargetProductCard Display Logic:', {
@@ -114,36 +118,73 @@ export default function TargetProductCard({
               </div>
             </div>
             
-            {/* Right side - Quantity box */}
-            {!isNewToTargetBin && (
-              <div className="bg-[#f7f7f7] flex flex-col items-center justify-center p-[4px] rounded-[3.5px] w-[60px] shrink-0 relative">
-                <div className="absolute border border-[#e9e9e9] border-solid inset-0 pointer-events-none rounded-[3.5px]" />
-                <div className="font-['Inter:Semi_Bold',_sans-serif] font-semibold text-[#020817] text-[14px] leading-[18px] text-center">
-                  {product?.quantity || 0}
+            {/* Right-hand column, same shape as the source card: the quantity, and the action for it
+                directly beneath. Remove sat in a bar under a divider before, next to a line of
+                instructions about a later step — a footer for the card rather than this product's
+                own control. */}
+            <div className="flex flex-col items-end justify-between gap-3 shrink-0 self-stretch">
+              {!isNewToTargetBin && (
+                <div className="bg-[#f7f7f7] flex flex-col items-center justify-center p-[4px] rounded-[3.5px] w-[60px] shrink-0 relative">
+                  <div className="absolute border border-[#e9e9e9] border-solid inset-0 pointer-events-none rounded-[3.5px]" />
+                  <div className="font-['Inter:Semi_Bold',_sans-serif] font-semibold text-[#020817] text-[14px] leading-[18px] text-center">
+                    {product?.quantity || 0}
+                  </div>
+                  <div className="font-['Inter:Regular',_sans-serif] font-normal text-[#676b74] text-[12px] leading-[16px]">
+                    {pluralizeUnit(product?.unit || 'unit', product?.quantity || 0)}
+                  </div>
                 </div>
-                <div className="font-['Inter:Regular',_sans-serif] font-normal text-[#676b74] text-[12px] leading-[16px]">
-                  {pluralizeUnit(product?.unit || 'unit', product?.quantity || 0)}
+              )}
+
+              {showRemoveAction && !hasMultipleSourceBins && (
+                <div className="flex items-center justify-end px-3 py-2 h-8 rounded-[4px] border border-[#e7000b] border-solid">
+                  <button
+                    onClick={() => {
+                      if (shouldShowRemoveButton && onRemove) {
+                        // For existing products with pending transfer, use Remove handler
+                        const productIdToUse = (product as any).sourceProductId || product.id;
+                        onRemove(productIdToUse);
+                      } else {
+                        // For newly moved products, use Move Back handler
+                        const quantityToMoveBack = actualMovedQuantity ?? 0;
+                        const productIdToUse = (product as any).sourceProductId || product.id;
+                        const fromBinId = sourceBins?.length ? sourceBins[0].binId : undefined;
+                        onMoveBack?.(productIdToUse, quantityToMoveBack, fromBinId);
+                      }
+                    }}
+                    className="font-['Inter:Regular',_sans-serif] font-normal text-[#e7000b] text-[14px] leading-[20px]"
+                  >
+                    Remove
+                  </button>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
           
-          {/* Move Back/Remove button (only show when needed) */}
-          {((actualMovedQuantity ?? 0) > 0 || (isNewlyAllocated ?? false) || shouldShowRemoveButton) && (
+          {/* How much was already here versus how much is arriving — the one thing in the old footer
+              worth keeping, now a plain line rather than a bar. */}
+          {isNewlyMoved && originallyInTarget && (
+            <div className="flex items-center font-['Inter:Regular',_sans-serif] font-normal text-[14px] leading-[20px] text-[#020817]">
+              <p className="leading-[20px] text-nowrap whitespace-pre">
+                <span className="text-[#4a5565]">Existing qty:</span>
+                <span className="font-['Inter:Semi_Bold',_sans-serif] font-bold not-italic">
+                  {` ${product.quantity - actualMovedQuantity} `}
+                </span>
+                <span>{`${pluralizeUnit(product?.unit || 'unit', product.quantity - actualMovedQuantity)}`}</span>
+                <span className="text-[#4a5565]" style={{ marginLeft: '16px' }}>Moved qty:</span>
+                <span className="font-['Inter:Semi_Bold',_sans-serif] font-bold not-italic">
+                  {` ${actualMovedQuantity} `}
+                </span>
+                <span>{`${pluralizeUnit(product?.unit || 'unit', actualMovedQuantity)}`}</span>
+              </p>
+            </div>
+          )}
+
+          {/* A product gathered from several source bins keeps a row per bin, each with its own
+              Remove — that cannot collapse into a single control. */}
+          {showRemoveAction && hasMultipleSourceBins && (
             <>
-              {/* Divider */}
               <div className="bg-[#d9d9d9] h-px w-full" />
-              
-              {/* If multiple source bins, show list of source bins */}
-              {sourceBins && sourceBins.length > 1 ? (
-                <div className="flex flex-col gap-2">
-                  {/* Common header message */}
-                  {transferActionType === 'move' && (
-                    <div className="text-[#4a5565] text-[12px] leading-[16px] font-['Inter:Regular',_sans-serif]">
-                      Mention the quantity during the actual move in next step
-                    </div>
-                  )}
-                  
+              <div className="flex flex-col gap-2">
                   {sourceBins.map((sourceBin, index) => (
                     <div key={`${sourceBin.binId}-${sourceBin.productId}-${index}`} className="flex items-center justify-between w-full">
                       {/* Left side - Source bin info */}
@@ -164,72 +205,13 @@ export default function TargetProductCard({
                             }}
                             className="font-['Inter:Regular',_sans-serif] font-normal text-[#e7000b] text-[14px] leading-[20px]"
                           >
-                            Undo Move
+                            Remove
                           </button>
                         </div>
                       </div>
                     </div>
                   ))}
                 </div>
-              ) : (
-                /* Single source bin or no source bins - show original layout */
-                <div className="flex items-center w-full">
-                  {/* Left side - Quantity breakdown (only for consolidated products) - WITH 16PX SPACING */}
-                  <div className="flex-1">
-                    {isNewlyMoved && originallyInTarget && (
-                      <div className="flex items-center font-['Inter:Regular',_sans-serif] font-normal text-[14px] leading-[20px] text-[#020817]">
-                        <div className="relative shrink-0">
-                          <p className="leading-[20px] text-nowrap whitespace-pre">
-                            <span className="text-[#4a5565]">Existing qty:</span> 
-                            <span className="font-['Inter:Semi_Bold',_sans-serif] font-bold not-italic">
-                              {` ${product.quantity - actualMovedQuantity} `}
-                            </span>
-                            <span className="font-['Inter:Regular',_sans-serif] font-normal">
-                              {`${pluralizeUnit(product?.unit || 'unit', product.quantity - actualMovedQuantity)}`}
-                            </span>
-                            <span className="text-[#4a5565]" style={{ marginLeft: '16px' }}>Moved qty:</span> 
-                            <span className="font-['Inter:Semi_Bold',_sans-serif] font-bold not-italic">
-                              {` ${actualMovedQuantity} `}
-                            </span>
-                            <span className="font-['Inter:Regular',_sans-serif] font-normal">
-                              {`${pluralizeUnit(product?.unit || 'unit', actualMovedQuantity)}`}
-                            </span>
-                          </p>
-                        </div>
-                      </div>
-                    )}
-                    {transferActionType === 'move' && !(isNewlyMoved && originallyInTarget) && (
-                      <div className="text-[#4a5565] text-[12px] leading-[16px] font-['Inter:Regular',_sans-serif]">
-                        Mention the quantity during the actual move in next step
-                      </div>
-                    )}
-                  </div>
-                  
-                  {/* Right side - Remove/Move Back button - Always positioned on the right */}
-                  <div className="flex items-center justify-end">
-                    <div className="flex items-center justify-end px-3 py-2 h-8 rounded-[4px] border border-[#e7000b] border-solid">
-                      <button 
-                        onClick={() => {
-                          if (shouldShowRemoveButton && onRemove) {
-                            // For existing products with pending transfer, use Remove handler
-                            const productIdToUse = (product as any).sourceProductId || product.id;
-                            onRemove(productIdToUse);
-                          } else {
-                            // For newly moved products, use Move Back handler
-                            const quantityToMoveBack = actualMovedQuantity ?? 0;
-                            const productIdToUse = (product as any).sourceProductId || product.id;
-                            const fromBinId = sourceBins?.length ? sourceBins[0].binId : undefined;
-                            onMoveBack?.(productIdToUse, quantityToMoveBack, fromBinId);
-                          }
-                        }}
-                        className="font-['Inter:Regular',_sans-serif] font-normal text-[#e7000b] text-[14px] leading-[20px]"
-                      >
-                        {transferActionType === 'move' || shouldShowRemoveButton || ((actualMovedQuantity ?? 0) > 0) ? 'Undo Move' : 'Undo Allocate'}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
             </>
           )}
         </div>

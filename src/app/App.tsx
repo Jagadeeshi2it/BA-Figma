@@ -678,17 +678,6 @@ export default function App() {
                 doorShelfConfig={inventoryState.doorShelfConfig}
                 selectedBinsForAssignment={inventoryState.selectedBinsForAssignment}
                 onConfirmAssignment={inventoryState.handleAssignProductsToBins}
-                onUnallocate={(product, binId) => {
-                  // The panel identifies a product by NDC + inventory type, which is how the whole
-                  // app groups them; handleUnallocateProduct wants the row id inside that one bin,
-                  // so resolve it here rather than making the panel carry bin-local ids around.
-                  const bin = binLookupMap.get(binId);
-                  const row = bin?.products?.find(
-                    (candidate: any) =>
-                      candidate.ndc === product.ndc && candidate.inventoryType === product.inventoryType
-                  );
-                  if (row) inventoryState.handleUnallocateProduct(row.id, binId);
-                }}
                 onClose={inventoryState.handleCloseAllocateProducts}
               />
             ) : allocationPanel ? (

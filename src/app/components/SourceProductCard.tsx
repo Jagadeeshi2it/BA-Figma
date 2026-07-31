@@ -19,7 +19,6 @@ interface SourceProductCardProps {
   currentTargetBin?: any;
   doorShelfConfig?: any;
   isMoveDisabled?: boolean; // New prop to disable Move qty button
-  onAllocateProduct: (productId: string) => void;
   onUpdateMoveQuantity: (productId: string, quantity: number) => void;
   onMoveProduct: (productId: string) => void;
   onMoveBack?: (productId: string) => void;
@@ -38,7 +37,6 @@ export default function SourceProductCard({
   currentTargetBin = null,
   doorShelfConfig = {},
   isMoveDisabled = false, // Default to false if not provided
-  onAllocateProduct,
   onUpdateMoveQuantity,
   onMoveProduct,
   onMoveBack
@@ -56,10 +54,7 @@ export default function SourceProductCard({
   // Determine if current target is Emergency Kit
   const isCurrentTargetEmergencyKit = emergencyKitRules?.isEmergencyKit || false;
   
-  // Check if product inventory type is allowed for different operations
-  const canAllocateToCurrentTarget = !isCurrentTargetEmergencyKit || 
-    emergencyKitRules.rules.allowedInventoryTypes.allocation.includes(enhancedProduct.inventoryType);
-    
+  // Only the move rule matters here now — nothing in this flow allocates without moving.
   const canMoveToCurrentTarget = !isCurrentTargetEmergencyKit || 
     emergencyKitRules.rules.allowedInventoryTypes.move.includes(enhancedProduct.inventoryType);
 
@@ -67,9 +62,10 @@ export default function SourceProductCard({
   const showEmergencyKitWarning = isCurrentTargetEmergencyKit && !canMoveToCurrentTarget;
   const hideMoveControls = isCurrentTargetEmergencyKit && !canMoveToCurrentTarget;
   
-  // CRITICAL FIX: Allocate button should only be hidden if the product exists in the currently displayed target bin
-  // This ensures that when multiple target bins are involved, the allocate button is only hidden for the current target bin
-  const showAllocateButton = !(isPendingTransfer || isInTargetBin || isInTargetBins) && canAllocateToCurrentTarget;
+  // Whether this product can have quantity moved to the current target at all. hideMoveControls
+  // already carries the E-Kit inventory-type rule for moves, so nothing else needs to consult it.
+  const canMoveQuantity =
+    enhancedProduct.remainingQuantity > 0 && !hideMoveControls && !isMoveDisabled;
 
   // Debug logging to verify allocate button logic
   console.log('🔍 SourceProductCard Allocate Button Logic:', {
@@ -80,8 +76,7 @@ export default function SourceProductCard({
     isPendingTransfer,
     isInTargetBin,
     isInTargetBins,
-    canAllocateToCurrentTarget,
-    showAllocateButton,
+    canMoveQuantity,
     totalTargetBins: targetBins.length
   });
 
@@ -129,7 +124,11 @@ export default function SourceProductCard({
               </div>
             </div>
             
-            {/* Right side - Quantity box */}
+            {/* Right-hand column: the quantity, and the action for it directly beneath. The action
+                used to sit in its own bar under a divider, which read as a footer belonging to the
+                whole card rather than as this product's control. justify-between pins it to the
+                bottom of whatever height the details on the left come to. */}
+            <div className="flex flex-col items-end justify-between gap-3 shrink-0 self-stretch">
             <div className="bg-[#f7f7f7] flex flex-col items-center justify-center p-[4px] rounded-[3.5px] w-[60px] shrink-0 relative">
               <div className="absolute border border-[#e9e9e9] border-solid inset-0 pointer-events-none rounded-[3.5px]" />
               <div className="font-['Inter:Semi_Bold',_sans-serif] font-semibold text-[#020817] text-[14px] leading-[18px] text-center">
@@ -138,6 +137,18 @@ export default function SourceProductCard({
               <div className="font-['Inter:Regular',_sans-serif] font-normal text-[#676b74] text-[12px] leading-[16px]">
                 {pluralizeUnit(enhancedProduct.unit, enhancedProduct.remainingQuantity)}
               </div>
+            </div>
+
+            {canMoveQuantity && (
+              <div className="flex items-center justify-end px-3 py-2 h-8 rounded-[4px] bg-[#095192] cursor-pointer">
+                <button
+                  onClick={() => onMoveProduct(enhancedProduct.id)}
+                  className="font-['Inter:Regular',_sans-serif] font-normal text-[14px] leading-[20px] text-white"
+                >
+                  Select
+                </button>
+              </div>
+            )}
             </div>
           </div>
           
@@ -155,62 +166,8 @@ export default function SourceProductCard({
             </div>
           )}
           
-          {/* Conditional divider and bottom section */}
-          {(showAllocateButton || (enhancedProduct.remainingQuantity > 0 && !hideMoveControls && !showAllocateButton && !isMoveDisabled) || hasError) && (
-            <>
-              {/* Divider */}
-              <div className="bg-[#d9d9d9] h-px w-full" />
-              
-              {/* Bottom section with buttons */}
-              <div className="flex items-center w-full">
-                {/* Left side - Allocate buttons with 16px gap */}
-                <div className="flex-1">
-                  {showAllocateButton && (
-                    <div className="flex items-center justify-end gap-[16px]">
-                      <div className="flex items-center justify-end px-3 py-2 h-8 rounded-[4px] border border-[#095192] border-solid">
-                        <div className="font-['Inter:Regular',_sans-serif] font-normal text-[#095192] text-[14px] leading-[20px]">
-                          <button onClick={() => onAllocateProduct(enhancedProduct.id)}>
-                            Allocate only
-                          </button>
-                        </div>
-                      </div>
-                      
-                      {/* Only show "Allocate & Move Qty" if inventory is greater than 0 */}
-                      {enhancedProduct.remainingQuantity > 0 && (
-                        <div className="flex items-center justify-end px-3 py-2 h-8 rounded-[4px] bg-[#095192]">
-                          <button
-                            onClick={() => onMoveProduct(enhancedProduct.id)}
-                            className="font-['Inter:Regular',_sans-serif] font-normal text-white text-[14px] leading-[20px]"
-                          >
-                            Allocate & Move Qty
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-                
-                {/* Right side - Move qty button (only shown when product exists in target) */}
-                {enhancedProduct.remainingQuantity > 0 && !hideMoveControls && !showAllocateButton && (
-                  <div className="flex items-center justify-end">
-                    {!isMoveDisabled && (
-                      <div className="flex items-center justify-end px-3 py-2 h-8 rounded-[4px] bg-[#095192] cursor-pointer">
-                        <button
-                          onClick={() => onMoveProduct(enhancedProduct.id)}
-                          className="font-['Inter:Regular',_sans-serif] font-normal text-[14px] leading-[20px] text-white"
-                        >
-                          Move qty
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-              
-              {hasError && (
-                <p className="text-red-600 text-xs mt-1">{error}</p>
-              )}
-            </>
+          {hasError && (
+            <p className="text-red-600 text-xs mt-1">{error}</p>
           )}
         </div>
       </CardContent>

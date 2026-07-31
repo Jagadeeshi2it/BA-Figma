@@ -54,7 +54,7 @@ function WorkflowOption({
     <button
       type="button"
       onClick={onSelect}
-      className="w-full text-left rounded-[4px] px-3 py-2.5 hover:bg-[#F1F6FA] transition-colors cursor-pointer"
+      className="w-full text-left rounded-[4px] pl-3 pr-4 py-2.5 hover:bg-[#F1F6FA] transition-colors cursor-pointer"
     >
       <span className="block text-[14px] leading-[20px] font-medium text-[#020817]">{title}</span>
       <span className="block text-[13px] leading-[18px] text-[#676b74] mt-0.5">{description}</span>
@@ -312,10 +312,10 @@ const HeaderSection = memo(function HeaderSection({
                   </div>
                 </PopoverTrigger>
 
-                <PopoverContent align="start" sideOffset={6} className="w-[360px] p-1">
+                <PopoverContent align="start" sideOffset={6} className="w-[320px] p-1">
                   <WorkflowOption
-                    title="Allocate / Unallocate Product"
-                    description="Give a product a bin, or take an empty bin back. A bin can only be released once its quantity is 0."
+                    title="Allocate Product"
+                    description="Give a product another bin. Search for it, then tap the bins it should live in."
                     onSelect={() => {
                       setWorkflowMenuOpen(false);
                       handleAllocateProductsClick();

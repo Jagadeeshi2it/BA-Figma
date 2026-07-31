@@ -152,8 +152,8 @@ export default function ChangeAllocationModal({
       // picked product falls short of the 3-location bar this view requires, hand the whole
       // selection to the bin view. Two reasons: the short ones would otherwise be invisible and
       // unmovable (pick all four "carboplatin" variants — three have one location each), and the
-      // bin view is the only one with the target-aware "Allocate only" / "Allocate & Move Qty"
-      // buttons, since ProductCentricCard is never told which target bin is showing.
+      // bin view is the only one with a target-aware Select button, since ProductCentricCard is
+      // never told which target bin is showing.
       // A hand-picked bin is also disqualifying, for the same reason: this view lists products the
       // query names, so a bin chosen for its own contents has nothing representing it here, and
       // since the two views never render together its products would be unreachable.
@@ -428,52 +428,6 @@ export default function ChangeAllocationModal({
     }]);
   };
 
-  const handleAllocateProduct = (productId: string) => {
-    if (!sourceBin || !targetBin) return;
-
-    const sourceProduct = sourceBin.products.find(p => p.id === productId);
-    if (!sourceProduct) return;
-
-    const existingTransferToThisBin = pendingTransfers.find(pt => pt.productId === productId && pt.toBinId === targetBin.id);
-    
-    if (existingTransferToThisBin) {
-      return;
-    }
-
-    const targetProduct = targetBin.products.find(p => p.id === productId);
-    if (targetProduct) {
-      return;
-    }
-
-    // For allocation, we don't update productMoveQuantities because allocation doesn't reduce source quantity
-    // Allocation means the entire product is assigned to target bin but source still shows original quantity
-
-    setMovedProducts(prev => {
-      const existingIndex = prev.findIndex(mp => mp.id === productId);
-      if (existingIndex >= 0) {
-        return prev.map((mp, index) =>
-          index === existingIndex
-            ? { ...mp, quantity: 0, movedQuantity: 0 }
-            : mp
-        );
-      } else {
-        return [...prev, {
-          ...sourceProduct,
-          quantity: 0,
-          movedQuantity: 0
-        }];
-      }
-    });
-
-    setPendingTransfers(prev => [...prev, {
-      productId,
-      fromBinId: sourceBin.id,
-      toBinId: targetBin.id,
-      quantity: 0,
-      actionType: 'allocate' // Mark this as an allocate action
-    }]);
-  };
-
   const handleRemoveAllocation = (productId: string) => {
     if (!sourceBin || !targetBin) return;
 
@@ -584,14 +538,10 @@ export default function ChangeAllocationModal({
     return pendingTransfers.length > 0;
   };
 
-  // What this button actually does depends on what's staged, so it can't carry one fixed word.
-  // An all-"Allocate only" selection commits from here — no quantity is being moved, so there is
-  // nothing to count out and nothing to place. Anything with a move in it goes to the quantity step
-  // first, two screens ahead of the real commit. The same split App applies when it routes.
-  const hasMoveTransfers = pendingTransfers.some(
-    transfer => transfer.quantity > 0 || (transfer as any).actionType === 'move'
-  );
-  const confirmActionLabel = hasMoveTransfers ? 'Set Quantities' : 'Confirm Changes';
+  // Every transfer this modal can stage is a move now — "Allocate only" was the other kind, and it
+  // has gone to the Allocate Product workflow — so this always leads to the quantity step. The label
+  // used to switch to "Confirm Changes" for an all-allocate selection, which is no longer reachable.
+  const confirmActionLabel = 'Set Quantities';
 
   const handleConfirm = () => {
     if (!validateTransfers() || !sourceBin || !targetBin) return;
@@ -1095,7 +1045,6 @@ export default function ChangeAllocationModal({
                           currentTargetBin={targetBin}
                           doorShelfConfig={doorShelfConfig}
                           isMoveDisabled={hasMovedToCurrentTarget} // Disable if already moved to current target
-                          onAllocateProduct={handleAllocateProduct}
                           onUpdateMoveQuantity={updateMoveQuantity}
                           onMoveProduct={handleMoveProduct}
                           onMoveBack={(productId) => {
@@ -1181,23 +1130,6 @@ export default function ChangeAllocationModal({
                         )
                       );
                       
-                      // Get the action type for this product's transfer
-                      const transfer = pendingTransfers.find(
-                        pt => pt.toBinId === targetBin.id && (
-                          pt.productId === product.id ||
-                          // Also check by name/NDC/inventoryType for consolidated products
-                          (sourceBins.some(bin => 
-                            bin.products.some(p => 
-                              p.id === pt.productId && 
-                              p.name === product.name && 
-                              p.ndc === product.ndc && 
-                              p.inventoryType === product.inventoryType
-                            )
-                          ))
-                        )
-                      );
-                      const transferActionType = transfer?.actionType;
-                      
                       // Calculate source bins for this product
                       const sourceBinsList = pendingTransfers
                         .filter(pt => 
@@ -1245,7 +1177,6 @@ export default function ChangeAllocationModal({
                           onMoveBack={handleMoveBack}
                           onRemove={handleRemoveAllocation}
                           hasPendingTransfer={hasPendingTransfer}
-                          transferActionType={transferActionType}
                           sourceBins={sourceBinsList.length > 0 ? sourceBinsList : undefined}
                         />
                       );
