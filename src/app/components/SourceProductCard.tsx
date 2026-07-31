@@ -62,10 +62,12 @@ export default function SourceProductCard({
   const showEmergencyKitWarning = isCurrentTargetEmergencyKit && !canMoveToCurrentTarget;
   const hideMoveControls = isCurrentTargetEmergencyKit && !canMoveToCurrentTarget;
   
-  // Whether this product can have quantity moved to the current target at all. hideMoveControls
-  // already carries the E-Kit inventory-type rule for moves, so nothing else needs to consult it.
-  const canMoveQuantity =
-    enhancedProduct.remainingQuantity > 0 && !hideMoveControls && !isMoveDisabled;
+  // Two separate questions, deliberately. Whether an action belongs on this card at all — there is
+  // stock and the target will take it (hideMoveControls already carries the E-Kit rule) — and
+  // whether it has already been used. Collapsing them into one condition made the button disappear
+  // the moment it was clicked, which reads as the control breaking rather than as work completed.
+  const canOfferSelect = enhancedProduct.remainingQuantity > 0 && !hideMoveControls;
+  const alreadySelected = isMoveDisabled;
 
   // Debug logging to verify allocate button logic
   console.log('🔍 SourceProductCard Allocate Button Logic:', {
@@ -76,7 +78,8 @@ export default function SourceProductCard({
     isPendingTransfer,
     isInTargetBin,
     isInTargetBins,
-    canMoveQuantity,
+    canOfferSelect,
+    alreadySelected,
     totalTargetBins: targetBins.length
   });
 
@@ -139,15 +142,18 @@ export default function SourceProductCard({
               </div>
             </div>
 
-            {canMoveQuantity && (
-              <div className="flex items-center justify-end px-3 py-2 h-8 rounded-[4px] bg-[#095192] cursor-pointer">
-                <button
-                  onClick={() => onMoveProduct(enhancedProduct.id)}
-                  className="font-['Inter:Regular',_sans-serif] font-normal text-[14px] leading-[20px] text-white"
-                >
-                  Select
-                </button>
-              </div>
+            {canOfferSelect && (
+              <button
+                onClick={alreadySelected ? undefined : () => onMoveProduct(enhancedProduct.id)}
+                disabled={alreadySelected}
+                className={`h-8 px-3 rounded-[4px] font-['Inter:Regular',_sans-serif] font-normal text-[14px] leading-[20px] whitespace-nowrap ${
+                  alreadySelected
+                    ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                    : 'bg-[#095192] text-white cursor-pointer hover:bg-[#074080]'
+                }`}
+              >
+                {alreadySelected ? 'Selected' : 'Select'}
+              </button>
             )}
             </div>
           </div>

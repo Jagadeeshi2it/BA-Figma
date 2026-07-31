@@ -931,14 +931,14 @@ export default function ChangeAllocationModal({
               )}
               
               <div className="flex-1 overflow-y-auto p-4 min-h-0">
-                {/* Move all, with the count as its label — same shape as ProductCentricCard's own
+                {/* Select all, with the count as its label — same shape as ProductCentricCard's own
                     header row, which is why this is scoped to the bin-centric view: the product view
                     already brings one. The whole row lives or dies with the button, so there's no
-                    bare count sitting above the list in the cases where Move all doesn't apply
+                    bare count sitting above the list in the cases where Select all doesn't apply
                     (several target bins, a search-narrowed list, a bin holding one product) — a
                     divider and a number that lead to nothing read as something having gone missing.
                     The count reports what's listed rather than what the bin holds, so it agrees with
-                    what Move all will do when the E-Kit filter hides ineligible inventory types. */}
+                    what Select all will do when the E-Kit filter hides ineligible inventory types. */}
                 {productsAcrossMultipleBins.length === 0 && canOfferMoveAll() && (
                   <div className="mb-3 pb-3 border-b border-gray-200 flex items-center justify-between gap-3">
                     <span className="text-sm text-gray-600">
@@ -950,14 +950,14 @@ export default function ChangeAllocationModal({
                       type="button"
                       onClick={handleMoveAllFromBin}
                       disabled={moveAllCandidates().length === 0}
-                      title={`Move every product shown here to ${getDoorName(targetBin)} - ${targetBin?.name}`}
+                      title={`Select every product shown here for ${getDoorName(targetBin)} - ${targetBin?.name}`}
                       className={`h-8 px-3 rounded-[4px] border border-[#095192] bg-white text-[#095192] text-[14px] leading-[20px] whitespace-nowrap transition-colors ${
                         moveAllCandidates().length === 0
                           ? 'opacity-50 cursor-not-allowed'
                           : 'cursor-pointer hover:bg-[#F1F6FA]'
                       }`}
                     >
-                      Move all
+                      Select all
                     </button>
                   </div>
                 )}
