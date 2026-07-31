@@ -274,6 +274,12 @@ been violations of it.
 
 ## 7. Known gaps
 
+**See also [UX-AUDIT.md](UX-AUDIT.md)** — a heuristic audit with numbered, tickable findings. The
+structural ones are worth reading before designing anything new here: there is no step indicator on
+a four-screen pipeline, a disabled primary button that never says why, and no domain constraints at
+all beyond the E-Kit rule.
+
+
 - **Workflow A writes no history entry.** `handleConfirmAssignment` does, but its shape invents
   opening quantities that do not apply to an existing product gaining a location.
 - **Unreachable code in `App.handleChangeAllocationConfirm`**: the allocate-only routing branch and
