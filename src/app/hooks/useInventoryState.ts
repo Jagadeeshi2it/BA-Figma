@@ -104,6 +104,11 @@ export const useInventoryState = () => {
   const [allocationHistory, setAllocationHistory] = useState<AllocationHistoryEntry[]>(generateSeedHistory);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [changeAllocationMode, setChangeAllocationMode] = useState(false);
+  // Which kind of move the user picked from the Move menu. 'bin' = choose whole bins (search only
+  // locates a bin, products can't be picked); 'product' = choose products by search, bin taps are
+  // off. It decides the Review perspective outright instead of the old heuristic inferring it from
+  // how many bins a product happened to span. null when not in a move.
+  const [moveMode, setMoveMode] = useState<'bin' | 'product' | null>(null);
   const [changeAllocationSourceBins, setChangeAllocationSourceBins] = useState<string[]>([]);
   const [changeAllocationTargetBins, setChangeAllocationTargetBins] = useState<string[]>([]);
   const [changeAllocationStep, setChangeAllocationStep] = useState<1 | 2>(1);
@@ -206,6 +211,12 @@ export const useInventoryState = () => {
       // If in change allocation mode
       if (changeAllocationMode) {
         if (changeAllocationStep === 1) {
+          // Move › Product picks the source by searching products, not by tapping the shelves — a
+          // shelf tap there has no product to scope to, so it's a no-op. Target taps (step 2) are
+          // unaffected: the target is always a bin, whichever kind of move this is.
+          if (moveMode === 'product') {
+            return;
+          }
           // Step 1: Select multiple source bins (must contain products)
           if (!bin.available && bin.products.length > 0) {
             if (changeAllocationSourceBins.includes(binId)) {
@@ -284,7 +295,7 @@ export const useInventoryState = () => {
       // Normal bin click behavior
       setSelectedBin(binId);
     }
-  }, [selectedDoor, doorShelfConfig, changeAllocationMode, changeAllocationStep, changeAllocationSourceBins, changeAllocationTargetBins, showUnallocatedProducts, showAllocateProducts, selectedUnallocatedProducts.length, selectedBinsForAssignment]);
+  }, [selectedDoor, doorShelfConfig, changeAllocationMode, moveMode, changeAllocationStep, changeAllocationSourceBins, changeAllocationTargetBins, showUnallocatedProducts, showAllocateProducts, selectedUnallocatedProducts.length, selectedBinsForAssignment]);
 
   const handleAvailableSlotClick = () => {
     setShowProductDialog(true);
@@ -721,7 +732,10 @@ export const useInventoryState = () => {
     setShowHistoryModal(true);
   };
 
-  const handleChangeAllocationClick = () => {
+  // Enter the move flow in one of its two kinds. Both share the same two-step source/target machine;
+  // the kind only changes how the source is chosen and how the Review reads (see moveMode).
+  const enterMoveMode = (kind: 'bin' | 'product') => {
+    setMoveMode(kind);
     setChangeAllocationMode(true);
     setChangeAllocationStep(1);
     setChangeAllocationSourceBins([]);
@@ -732,6 +746,10 @@ export const useInventoryState = () => {
     setSelectedSearchQuery(""); // Clear search highlighting when entering change allocation mode
     setChangeAllocationSourceQuery("");
   };
+  const handleMoveBinClick = () => enterMoveMode('bin');
+  const handleMoveProductClick = () => enterMoveMode('product');
+  // Kept for any remaining callers; defaults to the bin kind (the old catch-all behaviour).
+  const handleChangeAllocationClick = () => enterMoveMode('bin');
 
   // The allocate/unallocate workflow. Deliberately not a third state of changeAllocationMode: that
   // machine exists to sequence two sets against each other (source bins, then target bins, with a
@@ -852,6 +870,7 @@ export const useInventoryState = () => {
 
   const handleExitChangeAllocation = () => {
     setChangeAllocationMode(false);
+    setMoveMode(null);
     setChangeAllocationStep(1);
     setChangeAllocationSourceBins([]);
     setChangeAllocationTargetBins([]);
@@ -1787,6 +1806,7 @@ export const useInventoryState = () => {
     allocationHistory,
     showHistoryModal,
     changeAllocationMode,
+    moveMode,
     changeAllocationStep,
     changeAllocationSourceBins,
     changeAllocationTargetBins,
@@ -1824,6 +1844,8 @@ export const useInventoryState = () => {
     getCurrentBin,
     handleHistoryClick,
     handleChangeAllocationClick,
+    handleMoveBinClick,
+    handleMoveProductClick,
     handleAllocateProductsClick,
     handleCloseAllocateProducts,
     handleAssignProductsToBins,

@@ -22,6 +22,9 @@ interface ShelfLayoutProps {
   selectedBinsForAssignment?: string[];
   changeAllocationMode?: boolean;
   changeAllocationStep?: 1 | 2;
+  // Which kind of move is running. In a Bin move's source step the search is a locator rather than a
+  // record of what's committed, which changes who the highlight reaches — see resolveSearchQuery.
+  moveMode?: 'bin' | 'product' | null;
   changeAllocationSourceBins?: string[];
   changeAllocationTargetBins?: string[];
   showUnallocatedProducts?: boolean;
@@ -42,6 +45,7 @@ export default function ShelfLayout({
   selectedBinsForAssignment = [],
   changeAllocationMode = false,
   changeAllocationStep = 1,
+  moveMode = null,
   changeAllocationSourceBins = [],
   changeAllocationTargetBins = [],
   showUnallocatedProducts = false,
@@ -63,6 +67,13 @@ export default function ShelfLayout({
   // the literal typed search, unchanged.
   const resolveSearchQuery = (bin: Bin): string => {
     if (!changeAllocationMode) return searchQuery;
+    // A Bin move's source step uses the search as a LOCATOR: "Highlight in Bin" marks where a product
+    // lives so the user can find the bin and then tap it. That bin is deliberately not selected yet,
+    // so gating the highlight on the selection blanked it entirely — the button claimed to highlight
+    // and nothing lit up. Here the query has to reach every matching bin.
+    if (moveMode === 'bin' && changeAllocationStep === 1) return searchQuery;
+    // Otherwise the highlight is a record of what's already committed, so it only reaches the bins in
+    // the selection: a leftover query must not tint a bin that was taken back out.
     const isSource = changeAllocationSourceBins.includes(bin.id);
     const isTarget = changeAllocationTargetBins.includes(bin.id);
     return isSource || isTarget ? searchQuery : '';

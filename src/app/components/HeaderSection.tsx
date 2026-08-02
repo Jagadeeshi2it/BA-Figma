@@ -26,8 +26,18 @@ interface HeaderSectionProps {
   selectedBinsForAssignment?: string[];
   handleSearchQueryChange: (query: string) => void;
   handleSearchAutofill?: (query: string) => void;
+  // True while the Allocate Product panel is open. Like changeAllocationMode it hides the workflow
+  // entry buttons and History: once you're inside a workflow, starting another one (or wandering off
+  // to History) would abandon a half-built selection with no warning.
+  showAllocateProducts?: boolean;
   handleAvailableBinsClick: () => void;
   handleChangeAllocationClick: () => void;
+  // The two kinds of move, split out of the old single Change Allocation entry.
+  handleMoveBinClick?: () => void;
+  handleMoveProductClick?: () => void;
+  // Which kind of move is in progress (null outside a move). Passed to the search dropdown so it can
+  // offer "Select as Source" for products only in the Product kind.
+  moveMode?: 'bin' | 'product' | null;
   handleAllocateProductsClick: () => void;
   handleUnallocatedProductsClick: () => void;
   handleHistoryClick: () => void;
@@ -75,10 +85,14 @@ const HeaderSection = memo(function HeaderSection({
   unallocatedProductsCount,
   doorShelfConfig,
   selectedBinsForAssignment = [],
+  showAllocateProducts = false,
   handleSearchQueryChange,
   handleSearchAutofill,
   handleAvailableBinsClick,
   handleChangeAllocationClick,
+  handleMoveBinClick,
+  handleMoveProductClick,
+  moveMode,
   handleAllocateProductsClick,
   handleUnallocatedProductsClick,
   handleHistoryClick,
@@ -261,6 +275,7 @@ const HeaderSection = memo(function HeaderSection({
               isVisible={showSearchDropdown}
               changeAllocationMode={changeAllocationMode}
               changeAllocationStep={changeAllocationStep}
+              moveMode={moveMode}
               excludeBinIds={changeAllocationStep === 1 ? changeAllocationSourceBins : changeAllocationTargetBins}
               viewedProductKeys={viewedProductKeys}
               onSelectAllBins={handleSelectAllBins}
@@ -290,13 +305,29 @@ const HeaderSection = memo(function HeaderSection({
             </div>
           </div>
 
-          {/* Conditionally show buttons based on unallocated products mode */}
-          {!showUnallocatedProducts && !changeAllocationMode && (
+          {/* Hidden inside any workflow — the unallocated tray, a move, or an allocate. While one is
+              open its own controls own the screen, and offering a second entry point invites
+              abandoning a half-built selection. */}
+          {!showUnallocatedProducts && !changeAllocationMode && !showAllocateProducts && (
             <>
-              {/* Two workflows behind one button. They were one before, which meant entering the
-                  mode without having said which of two quite different jobs you were doing —
-                  giving a product a bin, or moving stock between bins it already has. The menu
-                  makes that the first decision instead of an assumption. */}
+              {/* The two jobs are now two buttons. Allocate is one action, so it's a plain button.
+                  Move splits further — by bin or by product — because those pick their source in
+                  incompatible ways (tap whole bins vs. search products), and choosing up front is
+                  what lets the Review show one consistent perspective instead of guessing it. */}
+              <div
+                className="bg-white relative rounded-[4px] cursor-pointer"
+                onClick={handleAllocateProductsClick}
+              >
+                <div aria-hidden="true" className="absolute border border-[#095192] border-solid inset-0 pointer-events-none rounded-[4px]" />
+                <div className="flex flex-row items-center justify-end relative size-full">
+                  <div className="box-border content-stretch flex gap-2 items-center justify-end px-3 py-2 relative size-full">
+                    <div className="capitalize font-['Inter:Regular',_sans-serif] font-normal leading-[0] not-italic relative shrink-0 text-[#095192] text-[14px] text-nowrap">
+                      <p className="leading-[20px] whitespace-pre text-[14px]">Allocate</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               <Popover open={workflowMenuOpen} onOpenChange={setWorkflowMenuOpen}>
                 <PopoverTrigger asChild>
                   <div className="bg-white relative rounded-[4px] cursor-pointer">
@@ -304,7 +335,7 @@ const HeaderSection = memo(function HeaderSection({
                     <div className="flex flex-row items-center justify-end relative size-full">
                       <div className="box-border content-stretch flex gap-2 items-center justify-end px-3 py-2 relative size-full">
                         <div className="capitalize font-['Inter:Regular',_sans-serif] font-normal leading-[0] not-italic relative shrink-0 text-[#095192] text-[14px] text-nowrap">
-                          <p className="leading-[20px] whitespace-pre text-[14px]">Change Allocation</p>
+                          <p className="leading-[20px] whitespace-pre text-[14px]">Move</p>
                         </div>
                         <ChevronDown className="w-4 h-4 text-[#095192] shrink-0" />
                       </div>
@@ -322,19 +353,19 @@ const HeaderSection = memo(function HeaderSection({
                   className="w-[320px] p-1"
                 >
                   <WorkflowOption
-                    title="Allocate Product"
-                    description="Give a product another bin. Search for it, then tap the bins it should live in."
+                    title="Bin"
+                    description="Move by bin. Tap the source bins on the shelves; search finds a bin by its product, but you pick the whole bin."
                     onSelect={() => {
                       setWorkflowMenuOpen(false);
-                      handleAllocateProductsClick();
+                      handleMoveBinClick?.();
                     }}
                   />
                   <WorkflowOption
-                    title="Move Quantity"
-                    description="Move stock between bins a product already occupies — some of it, or all of it."
+                    title="Product"
+                    description="Move by product. Search for the products to move; the Review lists them one product at a time."
                     onSelect={() => {
                       setWorkflowMenuOpen(false);
-                      handleChangeAllocationClick();
+                      handleMoveProductClick?.();
                     }}
                   />
                 </PopoverContent>
@@ -397,8 +428,9 @@ const HeaderSection = memo(function HeaderSection({
             </div>
           )}
 
-          {/* Conditionally show history button */}
-          {!showUnallocatedProducts && !changeAllocationMode && (
+          {/* History hides with the workflow buttons above, for the same reason: leaving for a
+              full-page history mid-selection would discard it. */}
+          {!showUnallocatedProducts && !changeAllocationMode && !showAllocateProducts && (
             <div 
               className="bg-white relative rounded-[4px] cursor-pointer h-[36px]"
               onClick={handleHistoryClick}

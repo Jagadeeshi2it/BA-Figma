@@ -13,6 +13,9 @@ interface ShelvesSectionProps {
   selectedBinsForAssignment: string[];
   changeAllocationMode: boolean;
   changeAllocationStep: 1 | 2;
+  // Passed straight through to ShelfLayout, which needs it to decide whether the search highlight is
+  // a locator (Bin move, source step) or a record of the committed selection.
+  moveMode?: 'bin' | 'product' | null;
   changeAllocationSourceBins: string[];
   changeAllocationTargetBins: string[];
   showUnallocatedProducts: boolean;
@@ -35,6 +38,7 @@ export default function ShelvesSection({
   selectedBinsForAssignment,
   changeAllocationMode,
   changeAllocationStep,
+  moveMode,
   changeAllocationSourceBins,
   changeAllocationTargetBins,
   showUnallocatedProducts,
@@ -63,6 +67,7 @@ export default function ShelvesSection({
               selectedBinsForAssignment={selectedBinsForAssignment}
               changeAllocationMode={changeAllocationMode}
               changeAllocationStep={changeAllocationStep}
+              moveMode={moveMode}
               changeAllocationSourceBins={changeAllocationSourceBins}
               changeAllocationTargetBins={changeAllocationTargetBins}
               showUnallocatedProducts={showUnallocatedProducts}
@@ -101,6 +106,7 @@ export default function ShelvesSection({
               selectedBinsForAssignment={selectedBinsForAssignment}
               changeAllocationMode={changeAllocationMode}
               changeAllocationStep={changeAllocationStep}
+              moveMode={moveMode}
               changeAllocationSourceBins={changeAllocationSourceBins}
               changeAllocationTargetBins={changeAllocationTargetBins}
               showUnallocatedProducts={showUnallocatedProducts}

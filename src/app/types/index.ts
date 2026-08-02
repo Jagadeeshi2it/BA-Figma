@@ -139,6 +139,9 @@ export interface ChangeAllocationModalProps {
   // Query describing the product(s) picked from the search bar when the source bins were chosen.
   // When set, the source panel shows only those products — see changeAllocationSourceQuery.
   sourceProductQuery?: string;
+  // The move kind. 'product' forces the Review to the product perspective (every picked product, one
+  // at a time); 'bin' forces the per-bin view. Undefined falls back to the old bin-count heuristic.
+  moveMode?: 'bin' | 'product' | null;
   onConfirmAllocation: (transfers: ProductTransfer[], serialNumbers?: { [transferId: string]: string[] }) => void;
   // Full-flow abort from the Review page (exits change-allocation mode entirely). Distinct from
   // onOpenChange(false), which is the one-step Back to the Target selection. Optional so older call

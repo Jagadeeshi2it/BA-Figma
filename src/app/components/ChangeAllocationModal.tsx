@@ -29,6 +29,7 @@ export default function ChangeAllocationModal({
   targetBins,
   doorShelfConfig,
   sourceProductQuery,
+  moveMode,
   onConfirmAllocation,
   onCancel
 }: ChangeAllocationModalProps) {
@@ -107,8 +108,14 @@ export default function ChangeAllocationModal({
 
   // Detect products that exist across multiple source bins for product-centric view
   const productsAcrossMultipleBins = useMemo(() => {
-    if (visibleSourceBins.length <= 1) return [];
-    
+    // A Bin move is always reviewed bin-by-bin — the product view never applies, whatever the data
+    // shape. Returning empty here forces the per-bin render below.
+    if (moveMode === 'bin') return [];
+
+    // The old single-bin bail-out only applies to the legacy heuristic. A Product move must show its
+    // products even when the whole selection is one bin (search a product that lives in one place).
+    if (moveMode !== 'product' && visibleSourceBins.length <= 1) return [];
+
     // Group products by name, NDC, and inventory type
     const productMap = new Map<string, {
       product: Product;
@@ -120,7 +127,7 @@ export default function ChangeAllocationModal({
         quantity: number;
       }>;
     }>();
-    
+
     visibleSourceBins.forEach(bin => {
       bin.products.forEach(product => {
         const enhancedProduct = productDataService.enhanceProduct(product);
@@ -145,6 +152,20 @@ export default function ChangeAllocationModal({
     });
     
     const allEntries = Array.from(productMap.values());
+
+    // A Product move shows EVERY product the user picked, one at a time — no 3-bin threshold, no
+    // hand-picked-bin disqualifier. The mode already declared this the product view, so honour it:
+    // searching and selecting products must always read as products, however many bins each spans.
+    // (The old heuristic below dropped to the bin view whenever a picked product spanned <3 bins,
+    // which is the bug this whole split exists to kill.)
+    if (moveMode === 'product') {
+      const picked = focusedQuery
+        ? allEntries.filter(entry => doesProductMatchSearch(entry.product, focusedQuery))
+        : allEntries;
+      return isTargetEmergencyKit
+        ? picked.filter(entry => entry.product.inventoryType === 'Purchased')
+        : picked;
+    }
 
     // Search-driven selection: only the products the user picked are in play.
     if (focusedQuery) {
@@ -176,7 +197,7 @@ export default function ChangeAllocationModal({
     }
 
     return multiBindProducts;
-  }, [visibleSourceBins, isTargetEmergencyKit, doorShelfConfig, focusedQuery]);
+  }, [visibleSourceBins, isTargetEmergencyKit, doorShelfConfig, focusedQuery, moveMode]);
 
   // A narrowed focus can leave fewer products than the index the user had paged to.
   useEffect(() => {

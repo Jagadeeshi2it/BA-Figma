@@ -8,6 +8,9 @@ interface SearchDropdownProps {
   isVisible: boolean;
   changeAllocationMode?: boolean;
   changeAllocationStep?: 1 | 2;
+  // The move kind. In 'bin', the source step offers no product "Select as Source" — search only
+  // locates a bin (the user then taps it). 'product' keeps it; that's how product moves pick source.
+  moveMode?: 'bin' | 'product' | null;
   // Bins already picked as source/target (whichever step we're on) — matching results are
   // dropped from the list so it only ever shows what's still left to pick.
   excludeBinIds?: string[];
@@ -47,6 +50,7 @@ const SearchDropdown = memo(function SearchDropdown({
   isVisible,
   changeAllocationMode = false,
   changeAllocationStep = 1,
+  moveMode = null,
   excludeBinIds = [],
   viewedProductKeys = [],
   onSelectAllBins,
@@ -304,8 +308,9 @@ const SearchDropdown = memo(function SearchDropdown({
               </div>
             </div>
             
-            {/* Action Button - Only show in change allocation mode */}
-            {changeAllocationMode && (
+            {/* Action Button — the source/target selector. Hidden in a Bin move's source step:
+                there, products can't be selected, so search only locates the bin (button below). */}
+            {changeAllocationMode && !(moveMode === 'bin' && changeAllocationStep === 1) && (
               <Button 
                 size="sm"
                 onClick={(e) => {
@@ -343,10 +348,10 @@ const SearchDropdown = memo(function SearchDropdown({
               </Button>
             )}
 
-            {/* View mode's counterpart to the button above — same slot, same style, but the click
-                does everything handleProductClick always did: highlight, jump to the bin, name it in
-                the box and dismiss the list. Only the trigger moved from the row to here. */}
-            {!changeAllocationMode && (
+            {/* Locate-only button — highlight the product's bins and jump to one, without selecting
+                anything. Used in plain view mode, and in a Bin move's source step where the user
+                finds a bin by its product but then taps the bin itself to select it. */}
+            {(!changeAllocationMode || (moveMode === 'bin' && changeAllocationStep === 1)) && (
               <Button
                 size="sm"
                 onClick={() => handleProductClick(result)}

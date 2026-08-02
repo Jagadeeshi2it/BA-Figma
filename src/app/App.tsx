@@ -145,10 +145,15 @@ export default function App() {
   // up as found for a product that was just taken back out — doorsWithChangeAllocationBins already
   // covers the doors that genuinely hold a selection.
   const doorsWithSearchMatches = useMemo(() => {
-    if (inventoryState.changeAllocationMode) return [];
+    // A Bin move's source step breaks the assumption above on purpose: "Highlight in Bin" locates a
+    // product without selecting anything, so "found, not yet selected" is exactly the state it
+    // creates — and the door has to light up or the user can't tell which door to open to reach it.
+    const isLocatorSearch =
+      inventoryState.moveMode === 'bin' && inventoryState.changeAllocationStep === 1;
+    if (inventoryState.changeAllocationMode && !isLocatorSearch) return [];
     if (!debouncedSelectedSearchQuery.trim() || !inventoryState.doorShelfConfig) return [];
     return getDoorsWithSearchMatches(inventoryState.doorShelfConfig, debouncedSelectedSearchQuery);
-  }, [inventoryState.doorShelfConfig, debouncedSelectedSearchQuery, inventoryState.changeAllocationMode]);
+  }, [inventoryState.doorShelfConfig, debouncedSelectedSearchQuery, inventoryState.changeAllocationMode, inventoryState.moveMode, inventoryState.changeAllocationStep]);
 
   const doorsWithSelectedBins = useMemo(() => {
     if (inventoryState.selectedBinsForAssignment.length === 0 || !inventoryState.doorShelfConfig) return [];
@@ -626,6 +631,7 @@ export default function App() {
             targetBins={getTargetBins}
             doorShelfConfig={inventoryState.doorShelfConfig}
             sourceProductQuery={inventoryState.changeAllocationSourceQuery}
+            moveMode={inventoryState.moveMode}
             onConfirmAllocation={handleChangeAllocationConfirm}
             onCancel={inventoryState.handleExitChangeAllocation}
           />
@@ -688,6 +694,7 @@ export default function App() {
               allAvailableBins={allAvailableBins}
               showUnallocatedProducts={inventoryState.showUnallocatedProducts}
               showUnallocatedButton={showUnallocatedButton}
+              showAllocateProducts={inventoryState.showAllocateProducts}
               changeAllocationMode={inventoryState.changeAllocationMode}
               changeAllocationStep={inventoryState.changeAllocationStep}
               changeAllocationSourceBins={inventoryState.changeAllocationSourceBins}
@@ -699,6 +706,9 @@ export default function App() {
               handleSearchAutofill={inventoryState.handleSearchAutofill}
               handleAvailableBinsClick={inventoryState.handleAvailableBinsClick}
               handleChangeAllocationClick={inventoryState.handleChangeAllocationClick}
+              handleMoveBinClick={inventoryState.handleMoveBinClick}
+              handleMoveProductClick={inventoryState.handleMoveProductClick}
+              moveMode={inventoryState.moveMode}
               handleAllocateProductsClick={inventoryState.handleAllocateProductsClick}
               handleUnallocatedProductsClick={inventoryState.handleUnallocatedProductsClick}
               handleHistoryClick={inventoryState.handleHistoryClick}
@@ -804,6 +814,7 @@ export default function App() {
             selectedBinsForAssignment={inventoryState.selectedBinsForAssignment}
             changeAllocationMode={inventoryState.changeAllocationMode}
             changeAllocationStep={inventoryState.changeAllocationStep}
+            moveMode={inventoryState.moveMode}
             changeAllocationSourceBins={inventoryState.changeAllocationSourceBins}
             changeAllocationTargetBins={inventoryState.changeAllocationTargetBins}
             // This prop does exactly one thing by the time it reaches BinCard: it stops the product
