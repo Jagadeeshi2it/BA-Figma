@@ -164,9 +164,12 @@ export default function MainLayout({
         />
       )}
 
-      {/* Toast Notifications */}
-      <div className="fixed top-0 left-[80px] right-[80px] z-50 pointer-events-none">
-        <Toaster position="top-center" />
+      {/* Toast Notifications. Top right, out of the way of the page's own title and controls, which run
+          along the top left. Sonner fixes its own container to the corner it's given, so the wrapper
+          only carries the z-index and keeps toasts clear of the nav rail — no left inset needed now
+          that they no longer sit centred over the content. */}
+      <div className="fixed top-0 right-0 z-50 pointer-events-none">
+        <Toaster position="top-right" />
       </div>
     </div>
   );

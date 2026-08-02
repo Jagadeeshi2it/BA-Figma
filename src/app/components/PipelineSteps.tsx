@@ -28,13 +28,24 @@ import { Check } from 'lucide-react';
  */
 export type PipelineStep = 1 | 2 | 3 | 4;
 
+export const TOTAL_PIPELINE_STEPS = 4;
+
+/**
+ * Off while the bottom-bar version of this is being tried out — the step and its instruction now ride
+ * in the bar next to the Source/Target summaries instead of taking a band of their own.
+ *
+ * Deliberately a switch rather than a deletion: every call site still mounts this component, so
+ * flipping this back to true restores the dedicated band exactly as it was, with no wiring to redo.
+ */
+const SHOW_PIPELINE_STEPS = false;
+
 type MoveMode = 'bin' | 'product' | null | undefined;
 
 // Step ① is named for what the chosen kind of move actually collects — products in a Product move,
 // bins in a Bin move — rather than the generic "Source". The operator picked the unit in the menu, so
 // the step that carries it out should say the same word back. Step ② stays "Target": the destination
 // is a bin whichever kind this is.
-const sourceLabelFor = (moveMode: MoveMode) =>
+export const sourceLabelFor = (moveMode: MoveMode) =>
   moveMode === 'product' ? 'Product' : moveMode === 'bin' ? 'Bin' : 'Source';
 
 /**
@@ -48,7 +59,7 @@ const sourceLabelFor = (moveMode: MoveMode) =>
  * kind, so telling the user to "tap a bin" would aim them at the one thing that cannot answer — the
  * silently dead control H9-1 describes.
  */
-const instructionFor = (step: PipelineStep, moveMode: MoveMode): string => {
+export const instructionFor = (step: PipelineStep, moveMode: MoveMode): string => {
   switch (step) {
     case 1:
       return moveMode === 'product'
@@ -72,6 +83,8 @@ export default function PipelineSteps({
   current: PipelineStep;
   moveMode?: MoveMode;
 }) {
+  if (!SHOW_PIPELINE_STEPS) return null;
+
   const STEPS: { n: PipelineStep; label: string }[] = [
     { n: 1, label: sourceLabelFor(moveMode) },
     { n: 2, label: 'Target' },

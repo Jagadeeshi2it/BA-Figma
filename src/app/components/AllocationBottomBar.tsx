@@ -1,5 +1,8 @@
 import React from 'react';
 import { ChevronRight, LogOut, LogIn, ArrowLeft, ArrowRight } from 'lucide-react';
+// Shared with the dedicated stepper band rather than restated here, so the two presentations of the
+// same flow can't drift apart in wording or in how many steps they think there are.
+import { instructionFor, TOTAL_PIPELINE_STEPS } from './PipelineSteps';
 
 interface AllocationBottomBarProps {
   step: 1 | 2;
@@ -154,6 +157,23 @@ export default function AllocationBottomBar({
       {/* Wraps rather than clipping: with a review panel open the column loses 440px, and the
           actions are the last thing that should disappear off the edge. */}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        {/* Where you are and what to do here, folded in beside what you've gathered rather than taking
+            a band of its own at the top of the page. The bar was already the one thing on screen that
+            reports the state of the move, so the step belongs in the same reading — and it puts the
+            instruction next to the counters it's telling you how to fill. */}
+        {/* Fixed 200px rather than a max: the instructions differ in length from step to step, and a
+            cell that resized with them would shunt the Source and Target summaries sideways every time
+            the step changed. Same width throughout means the counters stay where the eye left them. */}
+        <div className="shrink-0 w-[200px]">
+          <span className="block text-[12px] leading-[16px] font-semibold text-[#020817]">
+            Step {step}/{TOTAL_PIPELINE_STEPS}
+          </span>
+          <span className="block text-[12px] leading-[16px] text-[#676b74]">
+            {instructionFor(step, moveMode)}
+          </span>
+        </div>
+        <div className="self-stretch border-l border-gray-200" />
+
         <SelectionSummary
           icon={<LogOut className="w-4 h-4" />}
           label="Source"
