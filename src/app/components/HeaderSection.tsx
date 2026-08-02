@@ -249,7 +249,7 @@ const HeaderSection = memo(function HeaderSection({
               className="border-[#095192] data-[state=checked]:bg-[#095192] data-[state=checked]:border-[#095192] data-[state=checked]:text-white"
             />
             <span className="text-[14px] leading-[20px] text-[#095192] whitespace-nowrap">
-              Available Bins({allAvailableBins})
+              Bins Available({allAvailableBins})
             </span>
           </label>
         </div>
