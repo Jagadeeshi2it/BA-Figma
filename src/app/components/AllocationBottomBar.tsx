@@ -71,7 +71,7 @@ function BarButton({
   trailingIcon
 }: {
   label: string;
-  variant: 'primary' | 'secondary' | 'outline-danger';
+  variant: 'primary' | 'secondary';
   enabled: boolean;
   onClick: () => void;
   // Which side an arrow sits on is the whole message on the two step buttons: leading points back to
@@ -84,11 +84,7 @@ function BarButton({
   const look =
     variant === 'primary'
       ? 'bg-[#095192] text-white hover:bg-[#074080]'
-      : variant === 'secondary'
-        ? 'bg-white text-[#095192] border border-[#095192] hover:bg-[#F1F6FA]'
-        // Outlined rather than bare text, matching the panel footer's Remove all: leaving the mode
-        // discards a selection, so it reads as an action with weight rather than an aside.
-        : 'bg-white text-[#C6362C] border border-[#C6362C] hover:bg-[#FDF2F2]';
+      : 'bg-white text-[#095192] border border-[#095192] hover:bg-[#F1F6FA]';
   return (
     <button
       type="button"
@@ -164,7 +160,11 @@ export default function AllocationBottomBar({
 
 
         <div className="flex items-center gap-2 shrink-0 ml-auto">
-          <BarButton label="Cancel" variant="outline-danger" enabled onClick={onCancel} />
+          {/* Secondary, not destructive: leaving a flow discards a selection that was never
+              committed, which is a step back rather than something being deleted. Red made it read
+              as the dangerous option on a screen where the dangerous thing is further on. Matches
+              the Allocate panel's Cancel, so every flow exits by the same-looking control. */}
+          <BarButton label="Cancel" variant="secondary" enabled onClick={onCancel} />
           {step === 2 && (
             <BarButton
               label="Source Selection"
