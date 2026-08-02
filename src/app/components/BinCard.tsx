@@ -23,6 +23,10 @@ interface BinCardProps {
   showUnallocatedProducts?: boolean;
   onClick: (binId: string) => void;
   onProductClick?: (product: any, location: any) => void;
+  // Move by Product, source step: the BIN is not selectable there, but its product rows are — a tap
+  // picks that product out of this bin, so the canvas is a second way in alongside the search bar.
+  canPickSourceProduct?: boolean;
+  onSelectSourceProduct?: (product: any) => void;
   // "All products" modal state lives in App so it survives the product detail page.
   allProductsBinId?: string | null;
   onOpenAllProducts?: (binId: string) => void;
@@ -45,6 +49,8 @@ export default function BinCard({
   showUnallocatedProducts = false,
   onClick,
   onProductClick,
+  canPickSourceProduct = false,
+  onSelectSourceProduct,
   allProductsBinId = null,
   onOpenAllProducts,
   onCloseAllProducts,
@@ -127,7 +133,12 @@ export default function BinCard({
     (isSelectedForAssignment && !changeAllocationMode);
 
   const renderProduct = (product: any) => {
-    const isProductClickable = !changeAllocationMode && !showUnallocatedProducts && onProductClick;
+    // In a Product move's source step a row tap MEANS "take this product from this bin", so it wins
+    // over the view-mode behaviour of opening the product's detail page — navigating away mid-selection
+    // would be the opposite of what the tap is for.
+    const picksSourceProduct = canPickSourceProduct && !!onSelectSourceProduct;
+    const isProductClickable =
+      picksSourceProduct || (!changeAllocationMode && !showUnallocatedProducts && onProductClick);
 
     return (
       <div
@@ -137,6 +148,10 @@ export default function BinCard({
         }`}
         onClick={isProductClickable ? (e) => {
           e.stopPropagation();
+          if (picksSourceProduct) {
+            onSelectSourceProduct!(product);
+            return;
+          }
           const location = {
             cabinet: 'Cabinet',
             door: selectedDoor || '',
@@ -184,7 +199,12 @@ export default function BinCard({
     <>
       <div
         data-bin-id={bin.id}
-        className={`relative rounded-lg cursor-pointer transition-all hover:shadow-md ${className} ${
+        className={`relative rounded-lg transition-all ${
+          // The bin itself does nothing in a Product move — only its rows do — so it must not offer a
+          // pointer or a hover lift it cannot honour (UX-AUDIT H9-1: a control that looks live and
+          // isn't reads as broken).
+          canPickSourceProduct ? 'cursor-default' : 'cursor-pointer hover:shadow-md'
+        } ${className} ${
           // Source and target bins stay white like a search hit does. A tinted fill washed out the
           // highlight colour on the matched product's own text — the thing being pointed at — and
           // the 1px stroke plus the coloured text carry the state on their own.

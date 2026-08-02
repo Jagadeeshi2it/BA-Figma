@@ -21,6 +21,8 @@ interface ShelvesSectionProps {
   showUnallocatedProducts: boolean;
   onBinClick: (binId: string, doorKey: string) => void;
   onProductClick: (product: any, location: any) => void;
+  // Move by Product, source step: picks a product out of a specific bin from the canvas.
+  onSelectSourceProduct?: (binId: string, product: any) => void;
   // "All products" modal state is owned by App so it outlives the product detail page.
   allProductsBinId?: string | null;
   onOpenAllProducts?: (binId: string) => void;
@@ -44,6 +46,7 @@ export default function ShelvesSection({
   showUnallocatedProducts,
   onBinClick,
   onProductClick,
+  onSelectSourceProduct,
   allProductsBinId = null,
   onOpenAllProducts,
   onCloseAllProducts,
@@ -68,6 +71,7 @@ export default function ShelvesSection({
               changeAllocationMode={changeAllocationMode}
               changeAllocationStep={changeAllocationStep}
               moveMode={moveMode}
+              onSelectSourceProduct={onSelectSourceProduct}
               changeAllocationSourceBins={changeAllocationSourceBins}
               changeAllocationTargetBins={changeAllocationTargetBins}
               showUnallocatedProducts={showUnallocatedProducts}
@@ -107,6 +111,7 @@ export default function ShelvesSection({
               changeAllocationMode={changeAllocationMode}
               changeAllocationStep={changeAllocationStep}
               moveMode={moveMode}
+              onSelectSourceProduct={onSelectSourceProduct}
               changeAllocationSourceBins={changeAllocationSourceBins}
               changeAllocationTargetBins={changeAllocationTargetBins}
               showUnallocatedProducts={showUnallocatedProducts}

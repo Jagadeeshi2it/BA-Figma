@@ -529,6 +529,30 @@ export const useInventoryState = () => {
     }
   }, [changeAllocationSourceBins]);
 
+  // Move by Product, picking straight off the canvas. A tap on a product row inside a bin card takes
+  // THAT product from THAT bin — scoped to the one bin, unlike the search dropdown's "Select as
+  // Source" which takes every bin the product lives in. Tapping a specific row names a specific
+  // place, so widening it to the product's other bins would gather stock the operator never pointed
+  // at. Building the selection a row at a time is the product-mode counterpart to tapping bins in a
+  // Bin move.
+  //
+  // Add-only, which matches the search route — neither toggles. Removal is per-product in the review
+  // panel (handleRemoveSourceProduct), where the whole selection is visible at once.
+  const handleSelectSourceProductFromBin = useCallback((binId: string, product: any) => {
+    // Same identity triple the search path highlights on, so a product picked from the canvas and one
+    // picked from the dropdown produce an identical scope — see §3 on product identity.
+    const group = [product?.name, product?.ndc, product?.inventoryType]
+      .filter(term => term && String(term).trim().length > 0)
+      .join(', ');
+
+    setChangeAllocationSourceBins(prev => (prev.includes(binId) ? prev : [...prev, binId]));
+
+    if (group) {
+      setSelectedSearchQuery(prev => appendQueryGroup(prev, group));
+      setChangeAllocationSourceQuery(prev => appendQueryGroup(prev, group));
+    }
+  }, []);
+
   // Handler for clicking on a product in search dropdown (when change allocation mode is off)
   const handleSearchProductClick = useCallback((productName: string, ndc: string, inventoryType: string) => {
     // Create a specific search query with product name, NDC, and inventory type
@@ -1863,6 +1887,7 @@ export const useInventoryState = () => {
     handleClearUnallocatedSelection,
     handleSelectBinsForAssignment,
     handleSelectSourceBinsFromSearch,
+    handleSelectSourceProductFromBin,
     handleSelectTargetBinsFromSearch,
     handleSearchProductClick,
     handleConfirmAssignment,

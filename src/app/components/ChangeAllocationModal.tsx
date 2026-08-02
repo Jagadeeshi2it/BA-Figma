@@ -931,7 +931,9 @@ export default function ChangeAllocationModal({
                 <div className="bg-blue-50 border-b border-blue-200 px-[16px] py-[8px]">
                   <div className="flex items-center">
                     <p className="text-sm text-blue-900 font-medium text-left">
-                      Showing only the product you selected from search.
+                      {/* Not "from search" any more: a product can now be picked off the canvas too,
+                          so naming one route made the banner wrong half the time. */}
+                      Showing only the products you selected.
                     </p>
                   </div>
                 </div>

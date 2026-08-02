@@ -30,6 +30,9 @@ interface ShelfLayoutProps {
   showUnallocatedProducts?: boolean;
   onBinClick: (binId: string) => void;
   onProductClick?: (product: any, location: any) => void;
+  // Move by Product, source step: a tap on a product row picks it out of that bin. ShelfLayout knows
+  // the bin, so it supplies the id and BinCard only reports which product was tapped.
+  onSelectSourceProduct?: (binId: string, product: any) => void;
   allProductsBinId?: string | null;
   onOpenAllProducts?: (binId: string) => void;
   onCloseAllProducts?: () => void;
@@ -51,10 +54,16 @@ export default function ShelfLayout({
   showUnallocatedProducts = false,
   onBinClick,
   onProductClick,
+  onSelectSourceProduct,
   allProductsBinId = null,
   onOpenAllProducts,
   onCloseAllProducts
 }: ShelfLayoutProps) {
+
+  // A Product move gathers products, so the source step turns the product rows into the pickable
+  // thing and leaves the bin itself inert. Only step 1: the target is always a whole bin, so once the
+  // user is choosing targets the rows go back to being text and the bin becomes the control again.
+  const canPickSourceProduct = changeAllocationMode && moveMode === 'product' && changeAllocationStep === 1;
 
   // What a bin should be highlighted against. A bin already committed as a source or target keeps
   // the real query, so the one product that earned it that status still gets its blue/green text.
@@ -112,6 +121,8 @@ export default function ShelfLayout({
                   showUnallocatedProducts={showUnallocatedProducts}
                   onClick={onBinClick}
                   onProductClick={onProductClick}
+                  canPickSourceProduct={canPickSourceProduct}
+                  onSelectSourceProduct={product => onSelectSourceProduct?.(bin.id, product)}
                   allProductsBinId={allProductsBinId}
                   onOpenAllProducts={onOpenAllProducts}
                   onCloseAllProducts={onCloseAllProducts}
@@ -146,6 +157,8 @@ export default function ShelfLayout({
             showUnallocatedProducts={showUnallocatedProducts}
             onClick={onBinClick}
             onProductClick={onProductClick}
+                  canPickSourceProduct={canPickSourceProduct}
+                  onSelectSourceProduct={product => onSelectSourceProduct?.(bin.id, product)}
             allProductsBinId={allProductsBinId}
             onOpenAllProducts={onOpenAllProducts}
             onCloseAllProducts={onCloseAllProducts}
@@ -179,6 +192,8 @@ export default function ShelfLayout({
             showUnallocatedProducts={showUnallocatedProducts}
             onClick={onBinClick}
             onProductClick={onProductClick}
+                  canPickSourceProduct={canPickSourceProduct}
+                  onSelectSourceProduct={product => onSelectSourceProduct?.(bin.id, product)}
             allProductsBinId={allProductsBinId}
             onOpenAllProducts={onOpenAllProducts}
             onCloseAllProducts={onCloseAllProducts}
@@ -225,6 +240,8 @@ export default function ShelfLayout({
           showUnallocatedProducts={showUnallocatedProducts}
           onClick={onBinClick}
           onProductClick={onProductClick}
+                  canPickSourceProduct={canPickSourceProduct}
+                  onSelectSourceProduct={product => onSelectSourceProduct?.(bin.id, product)}
           allProductsBinId={allProductsBinId}
           onOpenAllProducts={onOpenAllProducts}
           onCloseAllProducts={onCloseAllProducts}

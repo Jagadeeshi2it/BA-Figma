@@ -831,6 +831,7 @@ export default function App() {
             }
             onBinClick={inventoryState.handleBinClick}
             onProductClick={handleProductClick}
+            onSelectSourceProduct={inventoryState.handleSelectSourceProductFromBin}
           />
         </MainLayout>
       )}

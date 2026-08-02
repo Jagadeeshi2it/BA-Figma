@@ -40,15 +40,17 @@ const sourceLabelFor = (moveMode: MoveMode) =>
  * What to do on this step, in one sentence, named as the physical act rather than the UI mechanic.
  *
  * The two kinds diverge only where they genuinely differ — how the source is gathered. Step ①'s
- * Product wording leads with "Search" deliberately: shelf taps do nothing in that kind, and a
- * silently dead tap is the exact failure H9-1 describes. Saying "search" first stops the user
- * reaching for a bin that cannot answer, rather than explaining it afterwards.
+ * Product wording names the product row as the tap target on purpose: the bin itself is inert in that
+ * kind, so telling the user to "tap a bin" would aim them at the one thing that cannot answer — the
+ * silently dead control H9-1 describes.
  */
 const instructionFor = (step: PipelineStep, moveMode: MoveMode): string => {
   switch (step) {
     case 1:
       return moveMode === 'product'
-        ? 'Search for a product, then add the bins to take it from.'
+        // Names both routes, and says the tap target is the PRODUCT rather than the bin — the bin is
+        // inert in this kind, so "tap a bin" would send the user at the one thing that won't answer.
+        ? 'Tap a product inside a bin, or find one with search.'
         : 'Tap the bins holding the stock you want to move.';
     case 2:
       return 'Tap the bins the stock should go to.';
