@@ -3,6 +3,7 @@ import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { Clock, X, ChevronDown } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
+import { Checkbox } from './ui/checkbox';
 import SearchDropdown, { getResultKey } from './SearchDropdown';
 import { searchProducts, getBinIdsForProduct } from '../utils/productSearchUtils';
 import { DoorShelfConfig } from '../types';
@@ -49,8 +50,8 @@ interface HeaderSectionProps {
   handleScrollToBin?: (binId: string) => void;
 }
 
-// One row of the Change Allocation menu. The description is the point: the two workflows are close
-// enough in name that a bare pair of labels would leave the choice to guesswork.
+// One row of the Allocate/Move menu. The description is the point: the three workflows are close
+// enough in name that a bare set of labels would leave the choice to guesswork.
 function WorkflowOption({
   title,
   description,
@@ -236,6 +237,21 @@ const HeaderSection = memo(function HeaderSection({
       <div className="bg-white px-6 py-3 border-b border-gray-200 flex items-center justify-between">
         <div className="flex items-center gap-4">
           <h1 className="text-2xl font-normal text-[24px]">Allocation</h1>
+
+          {/* A filter on the view, not an action — it tints the empty bins and stays on until turned
+              off. A checkbox says "this is a state you're holding"; the outlined button it replaced
+              looked like the workflow entries beside it and read as something that would navigate.
+              Beside the title because it describes what the page is showing. */}
+          <label className="flex items-center gap-2 cursor-pointer select-none">
+            <Checkbox
+              checked={highlightAvailableBins}
+              onCheckedChange={handleAvailableBinsClick}
+              className="border-[#095192] data-[state=checked]:bg-[#095192] data-[state=checked]:border-[#095192] data-[state=checked]:text-white"
+            />
+            <span className="text-[14px] leading-[20px] text-[#095192] whitespace-nowrap">
+              Available Bins({allAvailableBins})
+            </span>
+          </label>
         </div>
         <div className="flex items-center gap-2 h-full">
           {/* Always visible search bar with dropdown */}
@@ -291,51 +307,23 @@ const HeaderSection = memo(function HeaderSection({
               onClose={() => setShowSearchDropdown(false)}
             />
           </div>
-          <div 
-            className={`bg-white relative rounded-[4px] cursor-pointer ${highlightAvailableBins ? "bg-green-50" : ""}`}
-            onClick={handleAvailableBinsClick}
-          >
-            <div aria-hidden="true" className={`absolute border border-solid inset-0 pointer-events-none rounded-[4px] ${highlightAvailableBins ? "border-green-500" : "border-[#095192]"}`} />
-            <div className="flex flex-row items-center justify-end relative size-full">
-              <div className="box-border content-stretch flex gap-2 items-center justify-end px-3 py-2 relative size-full">
-                <div className="capitalize font-['Inter:Regular',_sans-serif] font-normal leading-[0] not-italic relative shrink-0 text-[#095192] text-[14px] text-nowrap">
-                  <p className="leading-[20px] whitespace-pre text-[14px]">{allAvailableBins} Available Bins</p>
-                </div>
-              </div>
-            </div>
-          </div>
-
           {/* Hidden inside any workflow — the unallocated tray, a move, or an allocate. While one is
               open its own controls own the screen, and offering a second entry point invites
               abandoning a half-built selection. */}
           {!showUnallocatedProducts && !changeAllocationMode && !showAllocateProducts && (
             <>
-              {/* The two jobs are now two buttons. Allocate is one action, so it's a plain button.
-                  Move splits further — by bin or by product — because those pick their source in
-                  incompatible ways (tap whole bins vs. search products), and choosing up front is
-                  what lets the Review show one consistent perspective instead of guessing it. */}
-              <div
-                className="bg-white relative rounded-[4px] cursor-pointer"
-                onClick={handleAllocateProductsClick}
-              >
-                <div aria-hidden="true" className="absolute border border-[#095192] border-solid inset-0 pointer-events-none rounded-[4px]" />
-                <div className="flex flex-row items-center justify-end relative size-full">
-                  <div className="box-border content-stretch flex gap-2 items-center justify-end px-3 py-2 relative size-full">
-                    <div className="capitalize font-['Inter:Regular',_sans-serif] font-normal leading-[0] not-italic relative shrink-0 text-[#095192] text-[14px] text-nowrap">
-                      <p className="leading-[20px] whitespace-pre text-[14px]">Allocate</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
+              {/* One entry point for all three jobs. They were a plain Allocate button beside a Move
+                  picker, which put two of the three choices at different depths — you could start an
+                  allocate in one tap but had to open a menu to move. Behind one trigger the first
+                  decision is always the same: which of the three am I doing. */}
               <Popover open={workflowMenuOpen} onOpenChange={setWorkflowMenuOpen}>
                 <PopoverTrigger asChild>
                   <div className="bg-white relative rounded-[4px] cursor-pointer">
                     <div aria-hidden="true" className="absolute border border-[#095192] border-solid inset-0 pointer-events-none rounded-[4px]" />
                     <div className="flex flex-row items-center justify-end relative size-full">
                       <div className="box-border content-stretch flex gap-2 items-center justify-end px-3 py-2 relative size-full">
-                        <div className="capitalize font-['Inter:Regular',_sans-serif] font-normal leading-[0] not-italic relative shrink-0 text-[#095192] text-[14px] text-nowrap">
-                          <p className="leading-[20px] whitespace-pre text-[14px]">Move</p>
+                        <div className="font-['Inter:Regular',_sans-serif] font-normal leading-[0] not-italic relative shrink-0 text-[#095192] text-[14px] text-nowrap">
+                          <p className="leading-[20px] whitespace-pre text-[14px]">Allocate/Move</p>
                         </div>
                         <ChevronDown className="w-4 h-4 text-[#095192] shrink-0" />
                       </div>
@@ -350,19 +338,29 @@ const HeaderSection = memo(function HeaderSection({
                   align="start"
                   sideOffset={6}
                   collisionPadding={16}
-                  className="w-[320px] p-1"
+                  className="w-[300px] p-1"
                 >
+                  {/* One line each: what unit you pick, and where you pick it. Anything longer stops
+                      being read at the moment the user just wants to get going. */}
                   <WorkflowOption
-                    title="Bin"
-                    description="Move by bin. Tap the source bins on the shelves; search finds a bin by its product, but you pick the whole bin."
+                    title="Allocate Product"
+                    description="Give a product another bin."
+                    onSelect={() => {
+                      setWorkflowMenuOpen(false);
+                      handleAllocateProductsClick();
+                    }}
+                  />
+                  <WorkflowOption
+                    title="Move by Bin"
+                    description="Tap whole bins on the shelves."
                     onSelect={() => {
                       setWorkflowMenuOpen(false);
                       handleMoveBinClick?.();
                     }}
                   />
                   <WorkflowOption
-                    title="Product"
-                    description="Move by product. Search for the products to move; the Review lists them one product at a time."
+                    title="Move by Product"
+                    description="Search the products to move."
                     onSelect={() => {
                       setWorkflowMenuOpen(false);
                       handleMoveProductClick?.();

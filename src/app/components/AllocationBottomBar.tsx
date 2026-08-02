@@ -11,6 +11,9 @@ interface AllocationBottomBarProps {
   // Distinct products the target bins already hold — nearly always 0, since destinations are usually
   // available bins, which is itself the useful signal when reviewing where things are going.
   targetProductCount: number;
+  // Which kind of move this is, so the empty Source hint only names the way in that actually works:
+  // bin taps do nothing in a Product move, and telling the user to tap is worse than saying nothing.
+  moveMode?: 'bin' | 'product' | null;
   openPanel: 'source' | 'target' | null;
   onOpenSource: () => void;
   onOpenTarget: () => void;
@@ -112,6 +115,7 @@ export default function AllocationBottomBar({
   sourceProductCount,
   targetBinCount,
   targetProductCount,
+  moveMode,
   openPanel,
   onOpenSource,
   onOpenTarget,
@@ -130,8 +134,12 @@ export default function AllocationBottomBar({
   // Empty, the running-tally form reads as a dead `0 Bins, 0 Products` — a state, not a next move.
   // Before anything is picked, the summary instructs instead: it names the two ways in (tap a bin, or
   // search a product), which the mode never signposts elsewhere (UX-AUDIT H1-2, H6-1).
+  // Each kind names only the way in that works for it: a Product move ignores shelf taps entirely, so
+  // inviting one would send the user off tapping bins that can't respond.
+  const emptySourceHint =
+    moveMode === 'product' ? 'Search a product to move' : 'Tap bins, or search to find one';
   const sourceValue =
-    sourceBinCount > 0 ? summaryValue(sourceBinCount, sourceProductCount) : 'Tap bins, or search a product';
+    sourceBinCount > 0 ? summaryValue(sourceBinCount, sourceProductCount) : emptySourceHint;
   const targetValue =
     targetBinCount > 0 ? summaryValue(targetBinCount, targetProductCount) : 'Tap an available bin';
 

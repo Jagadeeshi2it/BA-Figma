@@ -728,6 +728,7 @@ export default function App() {
                 sourceProductCount={sourceProductCount}
                 targetBinCount={targetBinCount}
                 targetProductCount={targetProductCount}
+                moveMode={inventoryState.moveMode}
                 openPanel={allocationPanel}
                 onOpenSource={() => setAllocationPanel(current => (current === 'source' ? null : 'source'))}
                 onOpenTarget={() => setAllocationPanel(current => (current === 'target' ? null : 'target'))}
