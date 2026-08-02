@@ -11,8 +11,8 @@ interface AllocationBottomBarProps {
   // Distinct products the target bins already hold — nearly always 0, since destinations are usually
   // available bins, which is itself the useful signal when reviewing where things are going.
   targetProductCount: number;
-  // Which kind of move this is, so the empty Source hint only names the way in that actually works:
-  // bin taps do nothing in a Product move, and telling the user to tap is worse than saying nothing.
+  // Which kind of move this is, so the empty Source counts the unit that kind collects — products in
+  // a Product move, bins in a Bin move.
   moveMode?: 'bin' | 'product' | null;
   openPanel: 'source' | 'target' | null;
   onOpenSource: () => void;
@@ -54,13 +54,20 @@ function SelectionSummary({
       <span className="text-[#676b74] shrink-0">{icon}</span>
       <span className="min-w-0">
         <span className="block text-[12px] leading-[16px] text-[#676b74]">{label}</span>
-        <span className="block text-[14px] leading-[20px] font-medium text-[#020817] whitespace-nowrap">
+        {/* Blue once there's something in this half, grey while it's still a zero. The colour is the
+            fastest read on the bar: it says "this side has something in it" before the number is
+            parsed, and it matches the chevron that appears at the same moment. */}
+        <span
+          className={`block text-[14px] leading-[20px] font-medium whitespace-nowrap ${
+            enabled ? 'text-[#095192]' : 'text-[#676b74]'
+          }`}
+        >
           {value}
         </span>
       </span>
       {/* No affordance when there's nothing to look at — a chevron that opens an empty panel reads
           as broken rather than as "nothing selected yet". */}
-      {enabled && <ChevronRight className="w-4 h-4 text-[#676b74] shrink-0" />}
+      {enabled && <ChevronRight className="w-4 h-4 text-[#095192] shrink-0" />}
     </button>
   );
 }
@@ -131,17 +138,16 @@ export default function AllocationBottomBar({
   const summaryValue = (binCount: number, productCount: number) =>
     `${plural(binCount, 'Bin')}, ${plural(productCount, 'Product')}`;
 
-  // Empty, the running-tally form reads as a dead `0 Bins, 0 Products` — a state, not a next move.
-  // Before anything is picked, the summary instructs instead: it names the two ways in (tap a bin, or
-  // search a product), which the mode never signposts elsewhere (UX-AUDIT H1-2, H6-1).
-  // Each kind names only the way in that works for it: a Product move ignores shelf taps entirely, so
-  // inviting one would send the user off tapping bins that can't respond.
-  const emptySourceHint =
-    moveMode === 'product' ? 'Search a product to move' : 'Tap bins, or search to find one';
+  // Empty, each half counts the unit that half actually collects, starting at zero: a Product move
+  // gathers products, a Bin move gathers bins, and the target is always bins. So the zero already
+  // names what the user is being asked for, and the tally grows from the same noun it started on —
+  // no relabelling between the empty and filled states.
+  const emptySourceValue = moveMode === 'product' ? plural(0, 'Product') : plural(0, 'Bin');
   const sourceValue =
-    sourceBinCount > 0 ? summaryValue(sourceBinCount, sourceProductCount) : emptySourceHint;
+    sourceBinCount > 0 ? summaryValue(sourceBinCount, sourceProductCount) : emptySourceValue;
+  // The target is a bin whichever kind of move this is, so its zero is always bins.
   const targetValue =
-    targetBinCount > 0 ? summaryValue(targetBinCount, targetProductCount) : 'Tap an available bin';
+    targetBinCount > 0 ? summaryValue(targetBinCount, targetProductCount) : plural(0, 'Bin');
 
   return (
     <div className="shrink-0 bg-white border-t border-gray-200 shadow-[0_-2px_8px_0_rgba(0,0,0,0.04)] px-4 py-2">

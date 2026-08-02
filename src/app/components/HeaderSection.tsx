@@ -169,6 +169,20 @@ const HeaderSection = memo(function HeaderSection({
     setViewedProductKeys([]);
   }, [changeAllocationMode, changeAllocationStep]);
 
+  // Entering a Product move puts the cursor in the search box: searching is the only way to pick the
+  // source there, so the first action is always the same and there's nothing to be gained by making
+  // the user find the box first.
+  //
+  // Autofocus was removed once before for arguing silently for search over tapping (UX-AUDIT H6-1) —
+  // but that was when one ambiguous mode offered both. Here the user has just chosen "Move by
+  // Product", so the focus follows a decision they made rather than nudging them into one. Deliberately
+  // not done for a Bin move, where tapping the shelves is the way in and search only locates a bin.
+  useEffect(() => {
+    if (changeAllocationMode && moveMode === 'product' && changeAllocationStep === 1) {
+      searchInputRef.current?.focus();
+    }
+  }, [changeAllocationMode, moveMode, changeAllocationStep]);
+
   // Handle taps/clicks outside search container to close dropdown.
   // Uses pointerdown (fires immediately for touch, mouse, and pen alike) instead of
   // relying on input blur timing, which races against touch tap/click event ordering.
