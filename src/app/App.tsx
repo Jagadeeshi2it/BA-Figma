@@ -709,6 +709,8 @@ export default function App() {
               handleMoveBinClick={inventoryState.handleMoveBinClick}
               handleMoveProductClick={inventoryState.handleMoveProductClick}
               moveMode={inventoryState.moveMode}
+              pendingSearchFocus={inventoryState.pendingSearchFocus}
+              clearPendingSearchFocus={inventoryState.clearPendingSearchFocus}
               handleAllocateProductsClick={inventoryState.handleAllocateProductsClick}
               handleUnallocatedProductsClick={inventoryState.handleUnallocatedProductsClick}
               handleHistoryClick={inventoryState.handleHistoryClick}

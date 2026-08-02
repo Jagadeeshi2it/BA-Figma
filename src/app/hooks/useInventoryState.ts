@@ -109,6 +109,13 @@ export const useInventoryState = () => {
   // off. It decides the Review perspective outright instead of the old heuristic inferring it from
   // how many bins a product happened to span. null when not in a move.
   const [moveMode, setMoveMode] = useState<'bin' | 'product' | null>(null);
+  // One-shot request for the header to put the cursor in the search box, raised only when a Product
+  // move is STARTED. It lives here rather than as an effect in the header because the header unmounts
+  // while the Review and Move pages are up: a latch local to it would reset on remount and refocus
+  // when the user stepped back. The header clears the flag as soon as it has used it, so returning to
+  // the source step — from the target step or from further down the flow — never steals focus again.
+  const [pendingSearchFocus, setPendingSearchFocus] = useState(false);
+  const clearPendingSearchFocus = useCallback(() => setPendingSearchFocus(false), []);
   const [changeAllocationSourceBins, setChangeAllocationSourceBins] = useState<string[]>([]);
   const [changeAllocationTargetBins, setChangeAllocationTargetBins] = useState<string[]>([]);
   const [changeAllocationStep, setChangeAllocationStep] = useState<1 | 2>(1);
@@ -757,7 +764,12 @@ export const useInventoryState = () => {
     setChangeAllocationSourceQuery("");
   };
   const handleMoveBinClick = () => enterMoveMode('bin');
-  const handleMoveProductClick = () => enterMoveMode('product');
+  const handleMoveProductClick = () => {
+    enterMoveMode('product');
+    // Searching is the only way to pick a source in this kind, so the box gets the cursor — once, here
+    // at the start, not on every return to the source step.
+    setPendingSearchFocus(true);
+  };
   // Kept for any remaining callers; defaults to the bin kind (the old catch-all behaviour).
   const handleChangeAllocationClick = () => enterMoveMode('bin');
 
@@ -881,6 +893,8 @@ export const useInventoryState = () => {
   const handleExitChangeAllocation = () => {
     setChangeAllocationMode(false);
     setMoveMode(null);
+    // Drop an unused focus request so it can't fire into the next flow the user starts.
+    setPendingSearchFocus(false);
     setChangeAllocationStep(1);
     setChangeAllocationSourceBins([]);
     setChangeAllocationTargetBins([]);
@@ -1817,6 +1831,8 @@ export const useInventoryState = () => {
     showHistoryModal,
     changeAllocationMode,
     moveMode,
+    pendingSearchFocus,
+    clearPendingSearchFocus,
     changeAllocationStep,
     changeAllocationSourceBins,
     changeAllocationTargetBins,

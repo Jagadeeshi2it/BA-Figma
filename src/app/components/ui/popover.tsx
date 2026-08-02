@@ -4,6 +4,7 @@ import * as React from "react";
 import * as PopoverPrimitive from "@radix-ui/react-popover@1.1.6";
 
 import { cn } from "./utils";
+import { useTabletSimulator } from "../../context/TabletSimulatorContext";
 
 function Popover({
   ...props
@@ -23,8 +24,14 @@ function PopoverContent({
   sideOffset = 4,
   ...props
 }: React.ComponentProps<typeof PopoverPrimitive.Content>) {
+  // Portal into the tablet frame while simulating, exactly as dialog.tsx and select.tsx already do.
+  // Portalled to document.body instead, the panel lands OUTSIDE the simulator's `fixed inset-0
+  // z-[9999]` overlay, and its own z-50 puts it behind that opaque backdrop — the trigger opened
+  // (data-state="open") but nothing was ever visible, which reads as a dead button. The frame is also
+  // CSS-scaled, so body-level content would be mispositioned even if it were on top.
+  const { portalContainer } = useTabletSimulator();
   return (
-    <PopoverPrimitive.Portal>
+    <PopoverPrimitive.Portal container={portalContainer ?? undefined}>
       <PopoverPrimitive.Content
         data-slot="popover-content"
         align={align}

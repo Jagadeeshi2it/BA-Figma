@@ -39,6 +39,10 @@ interface HeaderSectionProps {
   // Which kind of move is in progress (null outside a move). Passed to the search dropdown so it can
   // offer "Select as Source" for products only in the Product kind.
   moveMode?: 'bin' | 'product' | null;
+  // One-shot: true right after a Product move is started, asking for the search box to take the
+  // cursor. Cleared as soon as it's used, so it fires once per flow rather than on every step change.
+  pendingSearchFocus?: boolean;
+  clearPendingSearchFocus?: () => void;
   handleAllocateProductsClick: () => void;
   handleUnallocatedProductsClick: () => void;
   handleHistoryClick: () => void;
@@ -94,6 +98,8 @@ const HeaderSection = memo(function HeaderSection({
   handleMoveBinClick,
   handleMoveProductClick,
   moveMode,
+  pendingSearchFocus,
+  clearPendingSearchFocus,
   handleAllocateProductsClick,
   handleUnallocatedProductsClick,
   handleHistoryClick,
@@ -169,19 +175,23 @@ const HeaderSection = memo(function HeaderSection({
     setViewedProductKeys([]);
   }, [changeAllocationMode, changeAllocationStep]);
 
-  // Entering a Product move puts the cursor in the search box: searching is the only way to pick the
-  // source there, so the first action is always the same and there's nothing to be gained by making
-  // the user find the box first.
+  // Serve the one-shot focus request raised when a Product move is started (see pendingSearchFocus).
+  // Clearing it here is what keeps it one-shot: stepping back to the source selection, or returning to
+  // it from further down the flow, leaves the cursor wherever the user had it.
   //
   // Autofocus was removed once before for arguing silently for search over tapping (UX-AUDIT H6-1) —
   // but that was when one ambiguous mode offered both. Here the user has just chosen "Move by
   // Product", so the focus follows a decision they made rather than nudging them into one. Deliberately
-  // not done for a Bin move, where tapping the shelves is the way in and search only locates a bin.
+  // not raised for a Bin move, where tapping the shelves is the way in and search only locates a bin.
   useEffect(() => {
-    if (changeAllocationMode && moveMode === 'product' && changeAllocationStep === 1) {
-      searchInputRef.current?.focus();
-    }
-  }, [changeAllocationMode, moveMode, changeAllocationStep]);
+    if (!pendingSearchFocus) return;
+    // Deferred a frame: the request comes from a click inside the workflow popover, and Radix returns
+    // focus to the popover's trigger as it closes. Focusing synchronously here wins the race only to
+    // be overwritten a moment later, which looked exactly like the autofocus not working at all.
+    const raf = requestAnimationFrame(() => searchInputRef.current?.focus());
+    clearPendingSearchFocus?.();
+    return () => cancelAnimationFrame(raf);
+  }, [pendingSearchFocus, clearPendingSearchFocus]);
 
   // Handle taps/clicks outside search container to close dropdown.
   // Uses pointerdown (fires immediately for touch, mouse, and pen alike) instead of
