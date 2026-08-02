@@ -562,9 +562,10 @@ export default function ChangeAllocationModal({
 
   // Every transfer this modal can stage is a move now — "Allocate only" was the other kind, and it
   // has gone to the Allocate Product workflow — so this always leads on to the quantity step rather
-  // than committing. It named that next screen ("Set Quantities"); naming the whole errand instead
-  // matches the workflow the operator picked from the menu, and matches Select on the cards above.
-  const confirmActionLabel = 'Move Qty';
+  // than committing. "Start" is the load-bearing word: this opens the quantity walk rather than
+  // performing the move, and the buttons here are named for what happens next, never for the errand
+  // as a whole (nothing says Confirm until it commits).
+  const confirmActionLabel = 'Start Qty Move';
 
   const handleConfirm = () => {
     if (!validateTransfers() || !sourceBin || !targetBin) return;
@@ -651,10 +652,6 @@ export default function ChangeAllocationModal({
 
   // Offered on structure, disabled on state: the control stays put once you've started staging
   // products rather than vanishing under the cursor as the last few are picked off.
-  const canOfferMoveAll = (): boolean =>
-    !!sourceBin && !!targetBin && targetBins.length === 1 && !sourceListNarrowed &&
-    visibleSourceProductCount > 1;
-
   const handleMoveAllFromBin = () => {
     const candidates = moveAllCandidates();
     if (!sourceBin || !targetBin || candidates.length === 0) return;
@@ -951,34 +948,54 @@ export default function ChangeAllocationModal({
               )}
               
               <div className="flex-1 overflow-y-auto p-4 min-h-0">
-                {/* Select all, with the count as its label — same shape as ProductCentricCard's own
-                    header row, which is why this is scoped to the bin-centric view: the product view
-                    already brings one. The whole row lives or dies with the button, so there's no
-                    bare count sitting above the list in the cases where Select all doesn't apply
-                    (several target bins, a search-narrowed list, a bin holding one product) — a
-                    divider and a number that lead to nothing read as something having gone missing.
-                    The count reports what's listed rather than what the bin holds, so it agrees with
-                    what Select all will do when the E-Kit filter hides ineligible inventory types. */}
-                {productsAcrossMultipleBins.length === 0 && canOfferMoveAll() && (
+                {/* Count on the left, Select all on the right — the same header row the allocate panel
+                    and the unallocated tray use, so a list of products is topped the same way wherever
+                    it appears. Scoped to the bin-centric view because the product view brings its own.
+                    The count reports what's LISTED rather than what the bin holds, so it agrees with
+                    what Select all will do when the E-Kit filter hides ineligible inventory types.
+
+                    The row used to be gated on Select all being usable, which meant the count vanished
+                    with it — with two target bins there was no header at all, and the list started with
+                    no idea how long it was. The count always shows now; the button explains itself when
+                    it can't act, rather than the row disappearing (UX-AUDIT P1: never a dead control
+                    without its reason). */}
+                {productsAcrossMultipleBins.length === 0 && visibleSourceProductCount > 0 && (
                   <div className="mb-3 pb-3 border-b border-gray-200 flex items-center justify-between gap-3">
                     <span className="text-sm text-gray-600">
                       <span className="font-medium text-[#020817]">{visibleSourceProductCount}</span>{' '}
                       {visibleSourceProductCount === 1 ? 'Product' : 'Products'}
                     </span>
 
-                    <button
-                      type="button"
-                      onClick={handleMoveAllFromBin}
-                      disabled={moveAllCandidates().length === 0}
-                      title={`Select every product shown here for ${getDoorName(targetBin)} - ${targetBin?.name}`}
-                      className={`h-8 px-3 rounded-[4px] border border-[#095192] bg-white text-[#095192] text-[14px] leading-[20px] whitespace-nowrap transition-colors ${
-                        moveAllCandidates().length === 0
-                          ? 'opacity-50 cursor-not-allowed'
-                          : 'cursor-pointer hover:bg-[#F1F6FA]'
-                      }`}
-                    >
-                      Select all
-                    </button>
+                    {/* One product is already "all of them", so the button would be a no-op. */}
+                    {visibleSourceProductCount > 1 && (() => {
+                      // Select all commits every product to ONE destination, so it needs exactly one
+                      // target to send them to. With several, which bin each product should land in is
+                      // the very thing the operator still has to say, product by product.
+                      const blockedReason = targetBins.length !== 1
+                        ? 'Pick a single target bin to send everything to at once'
+                        : sourceListNarrowed
+                          ? 'The list is narrowed to a search — clear it to take everything in this bin'
+                          : moveAllCandidates().length === 0
+                            ? 'Everything listed here is already selected'
+                            : null;
+
+                      return (
+                        <button
+                          type="button"
+                          onClick={blockedReason ? undefined : handleMoveAllFromBin}
+                          disabled={!!blockedReason}
+                          title={
+                            blockedReason ??
+                            `Select every product shown here for ${getDoorName(targetBin)} - ${targetBin?.name}`
+                          }
+                          className={`h-8 px-3 rounded-[4px] border border-[#095192] bg-white text-[#095192] text-[14px] leading-[20px] whitespace-nowrap transition-colors ${
+                            blockedReason ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:bg-[#F1F6FA]'
+                          }`}
+                        >
+                          Select all
+                        </button>
+                      );
+                    })()}
                   </div>
                 )}
 
