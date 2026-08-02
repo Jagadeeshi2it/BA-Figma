@@ -18,14 +18,27 @@ import { Check } from 'lucide-react';
  */
 export type PipelineStep = 1 | 2 | 3 | 4;
 
-const STEPS: { n: PipelineStep; label: string }[] = [
-  { n: 1, label: 'Source' },
-  { n: 2, label: 'Target' },
-  { n: 3, label: 'Review' },
-  { n: 4, label: 'Move' }
-];
+// Step ① is named for what the chosen kind of move actually collects — products in a Product move,
+// bins in a Bin move — rather than the generic "Source". The operator picked the unit in the menu, so
+// the step that carries it out should say the same word back. Step ② stays "Target": the destination
+// is a bin whichever kind this is.
+const sourceLabelFor = (moveMode?: 'bin' | 'product' | null) =>
+  moveMode === 'product' ? 'Product' : moveMode === 'bin' ? 'Bin' : 'Source';
 
-export default function PipelineSteps({ current }: { current: PipelineStep }) {
+export default function PipelineSteps({
+  current,
+  moveMode
+}: {
+  current: PipelineStep;
+  moveMode?: 'bin' | 'product' | null;
+}) {
+  const STEPS: { n: PipelineStep; label: string }[] = [
+    { n: 1, label: sourceLabelFor(moveMode) },
+    { n: 2, label: 'Target' },
+    { n: 3, label: 'Review' },
+    { n: 4, label: 'Move' }
+  ];
+
   return (
     <div
       className="flex items-center gap-2 bg-white border-b border-gray-200 px-6 py-3"

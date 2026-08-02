@@ -109,10 +109,12 @@ export default function ProductCentricCard({
                 <button
                   onClick={hasMoved ? undefined : () => onMoveFromBin(binLocation.productId, binLocation.binId)}
                   disabled={hasMoved}
-                  className={`h-8 px-3 rounded-[4px] font-['Inter:Regular',_sans-serif] font-normal text-[14px] leading-[20px] text-center ${
+                  // Secondary, matching Select on the bin-centric card: the two render in the same
+                  // column depending on the move kind, so they can't differ in weight.
+                  className={`h-8 px-3 rounded-[4px] font-['Inter:Regular',_sans-serif] font-normal text-[14px] leading-[20px] text-center border transition-colors ${
                     hasMoved
-                      ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                      : 'bg-[#095192] text-white cursor-pointer hover:bg-[#074070]'
+                      ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
+                      : 'bg-white text-[#095192] border-[#095192] cursor-pointer hover:bg-[#F1F6FA]'
                   }`}
                 >
                   {hasMoved ? 'Selected' : 'Select'}

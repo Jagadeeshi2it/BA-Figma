@@ -797,7 +797,7 @@ export default function ChangeAllocationModal({
     // Step ③ Review — a full page now, not a modal, so it matches the pages on either side of it in
     // the pipeline (UX: one consistent surface for the whole flow rather than a dialog in the middle).
     <div className="flex flex-col h-full bg-white">
-      <PipelineSteps current={3} />
+      <PipelineSteps current={3} moveMode={moveMode} />
 
       <div className="flex-1 overflow-hidden relative">
           {/* Source and target were two boxed cards (border, rounded, grey fill) with a gap between.

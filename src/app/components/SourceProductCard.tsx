@@ -146,10 +146,14 @@ export default function SourceProductCard({
               <button
                 onClick={alreadySelected ? undefined : () => onMoveProduct(enhancedProduct.id)}
                 disabled={alreadySelected}
-                className={`h-8 px-3 rounded-[4px] font-['Inter:Regular',_sans-serif] font-normal text-[14px] leading-[20px] whitespace-nowrap ${
+                // Secondary, not primary. There is one of these per product row, so as filled blue
+                // buttons they were the loudest thing on the page and competed with Move Qty — the
+                // one control that actually advances the flow. Outlined, they still read as the
+                // row's action while leaving a single primary on the screen.
+                className={`h-8 px-3 rounded-[4px] font-['Inter:Regular',_sans-serif] font-normal text-[14px] leading-[20px] whitespace-nowrap border transition-colors ${
                   alreadySelected
-                    ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                    : 'bg-[#095192] text-white cursor-pointer hover:bg-[#074080]'
+                    ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
+                    : 'bg-white text-[#095192] border-[#095192] cursor-pointer hover:bg-[#F1F6FA]'
                 }`}
               >
                 {alreadySelected ? 'Selected' : 'Select'}

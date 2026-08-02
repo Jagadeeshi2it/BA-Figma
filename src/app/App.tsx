@@ -442,6 +442,7 @@ export default function App() {
           <TargetBinSerialScanPage
             transfers={pendingSerialTransfers}
             doorShelfConfig={inventoryState.doorShelfConfig}
+            moveMode={inventoryState.moveMode}
             unlockedDoors={unlockedDoors}
             onDoorUnlocked={handleDoorUnlocked}
             onConfirm={(transfers) => {
@@ -549,6 +550,7 @@ export default function App() {
             unlockedDoors={unlockedDoors}
             onDoorUnlocked={handleDoorUnlocked}
             initialProductKey={quantityResumeProductKey}
+            moveMode={inventoryState.moveMode}
             onBack={() => {
               // One stage back to the product-selection modal (the "Review Selection" overlay on
               // step ②), distinct from onCancel's full abort below. The source and target bins live
@@ -784,7 +786,7 @@ export default function App() {
               scrolls away with the cabinets rather than pinning to the top (per request: not fixed). */}
           {inventoryState.changeAllocationMode && (
             <div className="-mt-6 -mx-6 mb-6">
-              <PipelineSteps current={inventoryState.changeAllocationStep} />
+              <PipelineSteps current={inventoryState.changeAllocationStep} moveMode={inventoryState.moveMode} />
             </div>
           )}
 

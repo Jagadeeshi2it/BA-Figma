@@ -23,6 +23,8 @@ interface QuantitySelectionPageProps {
   // When re-entered from the target page's Back, land on the product the operator was placing rather
   // than restarting the batch at product 0 (UX-AUDIT H3-2). Keyed by the product identity triple.
   initialProductKey?: string;
+  // Only for the stepper's step-1 label, which names the unit this kind of move collects.
+  moveMode?: 'bin' | 'product' | null;
   // Doors already announced as unlocked (via toast) elsewhere in this change-allocation session —
   // avoids re-announcing a door that was already unlocked for, e.g., this same product's target bin.
   unlockedDoors?: Set<string>;
@@ -69,6 +71,7 @@ export default function QuantitySelectionPage({
   onCancel,
   onBack,
   initialProductKey,
+  moveMode,
   unlockedDoors,
   onDoorUnlocked
 }: QuantitySelectionPageProps) {
@@ -511,7 +514,7 @@ export default function QuantitySelectionPage({
   return (
     <div className="flex flex-col h-full bg-white">
       {/* Step ④ "Move" — this is the take-at-source half; the place-at-target page shares the step. */}
-      <PipelineSteps current={4} />
+      <PipelineSteps current={4} moveMode={moveMode} />
       {/* Product Header */}
       <div className="border-b bg-white px-6 py-4">
         <div className="flex items-center justify-between">
