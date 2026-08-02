@@ -322,9 +322,19 @@ export const useInventoryState = () => {
 
   const handleSearchQueryChange = useCallback((query: string) => {
     setSearchQuery(query);
-    // Clear selected search query when user types to prevent highlighting while typing.
-    // Not in change allocation mode: there the highlight marks products already committed to the
-    // selection, so typing a new term must not erase what the user has picked so far.
+
+    // Emptying the box clears the highlight in EVERY mode, including a move. An empty search that
+    // leaves products tinted is feedback with nothing left on screen to explain it — the user cleared
+    // the box precisely to stop seeing it. Only the highlight goes: the bins stay selected and
+    // changeAllocationSourceQuery keeps its product scope, so the Review still commits the same move.
+    if (query.trim() === "") {
+      setSelectedSearchQuery("");
+      return;
+    }
+
+    // Typing a different term: view mode drops the old highlight so it can't outlive its query.
+    // A move keeps it — there the highlight also marks products already committed to the selection,
+    // so re-searching must not blank out what has been picked so far.
     if (query !== selectedSearchQuery && !changeAllocationMode) {
       setSelectedSearchQuery("");
     }
