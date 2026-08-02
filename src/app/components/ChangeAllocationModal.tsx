@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "./ui/dialog";
+import PipelineSteps from "./PipelineSteps";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
 import { Card, CardContent } from "./ui/card";
@@ -29,7 +29,8 @@ export default function ChangeAllocationModal({
   targetBins,
   doorShelfConfig,
   sourceProductQuery,
-  onConfirmAllocation
+  onConfirmAllocation,
+  onCancel
 }: ChangeAllocationModalProps) {
   const [productMoveQuantities, setProductMoveQuantities] = useState<ProductMoveQuantity[]>([]);
   const [movedProducts, setMovedProducts] = useState<MovedProduct[]>([]);
@@ -772,22 +773,18 @@ export default function ChangeAllocationModal({
   if (!sourceBin || !targetBin) return null;
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      {/* !pb-0: the dialog's own p-6 left a 24px white strip under the footer bar, on top of the
-          bar's own 16px, so the buttons sat well off the bottom edge. The bar supplies its own
-          padding — the dialog shouldn't pad it again. */}
-      <DialogContent className="!w-[1100px] !max-w-[1100px] !min-w-[1100px] !h-[800px] !max-h-[800px] !min-h-[800px] !pb-0 overflow-hidden flex flex-col" style={{ width: '1100px', maxWidth: '1100px', minWidth: '1100px', height: '800px', maxHeight: '800px', minHeight: '800px' }}>
-        <DialogHeader>
-          <DialogTitle>Change Allocation</DialogTitle>
-          <DialogDescription className="sr-only">
-            Transfer products between inventory bins by selecting quantities and confirming moves.
-          </DialogDescription>
-        </DialogHeader>
-        
-        <div className="flex-1 overflow-hidden relative">
-          <div className="grid grid-cols-2 gap-2 h-full min-h-0">
-            <div className="flex flex-col border rounded-lg bg-gray-50 min-h-0">
-              <div className="border-b bg-white p-4 rounded-t-lg flex-shrink-0">
+    // Step ③ Review — a full page now, not a modal, so it matches the pages on either side of it in
+    // the pipeline (UX: one consistent surface for the whole flow rather than a dialog in the middle).
+    <div className="flex flex-col h-full bg-white">
+      <PipelineSteps current={3} />
+
+      <div className="flex-1 overflow-hidden relative">
+          {/* Source and target were two boxed cards (border, rounded, grey fill) with a gap between.
+              Now one plane split by a single divider — the box chrome and the doubled padding it
+              needed go back to the content, which gets the reclaimed width. */}
+          <div className="flex h-full min-h-0 divide-x divide-gray-200">
+            <div className="flex-1 min-w-0 flex flex-col min-h-0">
+              <div className="border-b bg-white px-4 py-3 flex-shrink-0">
                 <div className="flex items-center justify-between">
                   {productsAcrossMultipleBins.length > 0 ? (
                     // Product-centric view header with product details
@@ -1065,8 +1062,8 @@ export default function ChangeAllocationModal({
               </div>
             </div>
 
-            <div className="flex flex-col border rounded-lg bg-gray-50 min-h-0">
-              <div className="border-b bg-white p-4 rounded-t-lg flex-shrink-0">
+            <div className="flex-1 min-w-0 flex flex-col min-h-0">
+              <div className="border-b bg-white px-4 py-3 flex-shrink-0">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
@@ -1207,7 +1204,25 @@ export default function ChangeAllocationModal({
             </div>
             
             <div className="flex gap-2">
-              <div 
+              {/* Full-flow abort — exits change allocation entirely. Matches the red Cancel on the
+                  Move pages, so every stage carries the same "get me out" control. */}
+              {onCancel && (
+                <div
+                  className="bg-white relative rounded-[4px] cursor-pointer"
+                  onClick={onCancel}
+                >
+                  <div aria-hidden="true" className="absolute border border-[rgba(184,59,59,1)] border-solid inset-0 pointer-events-none rounded-[4px]" />
+                  <div className="flex flex-row items-center justify-end relative size-full">
+                    <div className="box-border content-stretch flex gap-2 items-center justify-end px-3 py-2 relative size-full">
+                      <div className="capitalize font-['Inter:Regular',_sans-serif] font-normal leading-[0] not-italic relative shrink-0 text-[rgba(184,59,59,1)] text-[14px] text-nowrap">
+                        <p className="leading-[20px] whitespace-pre text-[14px]">Cancel</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+              {/* One step back to the Target selection — mode stays active, selection is kept. */}
+              <div
                 className="bg-white relative rounded-[4px] cursor-pointer"
                 onClick={handleCancel}
               >
@@ -1215,15 +1230,15 @@ export default function ChangeAllocationModal({
                 <div className="flex flex-row items-center justify-end relative size-full">
                   <div className="box-border content-stretch flex gap-2 items-center justify-end px-3 py-2 relative size-full">
                     <div className="capitalize font-['Inter:Regular',_sans-serif] font-normal leading-[0] not-italic relative shrink-0 text-[#095192] text-[14px] text-nowrap">
-                      <p className="leading-[20px] whitespace-pre text-[14px]">Close</p>
+                      <p className="leading-[20px] whitespace-pre text-[14px]">Back</p>
                     </div>
                   </div>
                 </div>
               </div>
-              <div 
+              <div
                 className={`relative rounded-[4px] ${
-                  !validateTransfers() 
-                    ? 'bg-gray-300 cursor-not-allowed' 
+                  !validateTransfers()
+                    ? 'bg-gray-300 cursor-not-allowed'
                     : 'bg-[#095192] cursor-pointer'
                 }`}
                 onClick={validateTransfers() ? handleConfirm : undefined}
@@ -1241,7 +1256,6 @@ export default function ChangeAllocationModal({
             </div>
           </div>
         </div>
-      </DialogContent>
-    </Dialog>
+      </div>
   );
 }

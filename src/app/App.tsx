@@ -14,6 +14,7 @@ import ProductDetailPage from "./components/ProductDetailPage";
 import UnallocateConfirmModal from "./components/UnallocateConfirmModal";
 import ErrorBoundary from "./components/ErrorBoundary";
 import AllocationBottomBar from "./components/AllocationBottomBar";
+import PipelineSteps from "./components/PipelineSteps";
 import AllocationSelectionPanel from "./components/AllocationSelectionPanel";
 import AllocateProductsPanel from "./components/AllocateProductsPanel";
 import { useDebounce } from "./hooks/useDebounce";
@@ -65,6 +66,9 @@ export default function App() {
   // Quantity selection modal state
   const [showQuantityModal, setShowQuantityModal] = useState(false);
   const [pendingQuantityTransfers, setPendingQuantityTransfers] = useState<ProductTransfer[]>([]);
+  // Product the quantity page should resume on when re-entered via the target page's Back — its
+  // identity triple, or undefined for a fresh entry (which lands on the first product). See H3-2.
+  const [quantityResumeProductKey, setQuantityResumeProductKey] = useState<string | undefined>(undefined);
 
   // Target bin serial scan state
   const [showTargetBinScanPage, setShowTargetBinScanPage] = useState(false);
@@ -265,6 +269,9 @@ export default function App() {
         // Store transfers and open quantity selection modal for move transfers only
         // New session: forget which doors were already announced as unlocked.
         setUnlockedDoors(new Set());
+        // Fresh entry from the modal starts at the first product; only a target-page Back resumes on
+        // a specific one, so clear any leftover resume key from an earlier back-navigation.
+        setQuantityResumeProductKey(undefined);
         setPendingQuantityTransfers(moveTransfers);
         setShowQuantityModal(true);
       }
@@ -493,7 +500,7 @@ export default function App() {
               setPendingQuantityTransfers([]);
               setUnlockedDoors(new Set());
             }}
-            onBack={() => {
+            onBack={(productKey) => {
               // Go back to quantity selection. CRITICAL: merge the current product's transfers
               // back together with whatever other products were still pending — otherwise the
               // quantity page reopens believing this is the ONLY product in the batch, silently
@@ -502,6 +509,9 @@ export default function App() {
               setShowQuantityModal(true);
               setPendingQuantityTransfers(pendingSerialTransfers);
               setPendingSerialTransfers([]);
+              // Land the quantity page on the product the operator was placing, not back at product 0
+              // (UX-AUDIT H3-2). productKey is the identity triple carried up from the target page.
+              setQuantityResumeProductKey(productKey);
             }}
           />
         </MainLayout>
@@ -533,6 +543,17 @@ export default function App() {
             doorShelfConfig={inventoryState.doorShelfConfig}
             unlockedDoors={unlockedDoors}
             onDoorUnlocked={handleDoorUnlocked}
+            initialProductKey={quantityResumeProductKey}
+            onBack={() => {
+              // One stage back to the product-selection modal (the "Review Selection" overlay on
+              // step ②), distinct from onCancel's full abort below. The source and target bins live
+              // in inventoryState and survive, so the modal reopens on the same selection; per-bin
+              // product picks are re-chosen there. Clear the batch so the modal rebuilds it on Move Qty.
+              setShowQuantityModal(false);
+              setPendingQuantityTransfers([]);
+              setQuantityResumeProductKey(undefined);
+              inventoryState.setShowChangeAllocationModal(true);
+            }}
             onConfirm={(allTransfers) => {
               // The quantity step walks every product itself and hands the whole move over in one
               // go — see its finalizeAll. It used to report one product at a time, and this handler
@@ -571,6 +592,42 @@ export default function App() {
               delete (window as any).allocateOnlyTransfers;
               setUnlockedDoors(new Set());
             }}
+          />
+        </MainLayout>
+      ) : inventoryState.showChangeAllocationModal ? (
+        /* Step ③ Review — the product-selection screen, now a full page (was a modal overlay) so it
+           matches the pages on either side of it. Wrapped like the Move pages: nav rail present, no
+           top bar, no padding — the page supplies its own stepper header and footer. */
+        <MainLayout
+          showBinInventory={false}
+          showUnallocatedProducts={false}
+          currentBin={null}
+          selectedUnallocatedProducts={[]}
+          selectedBinsForAssignment={[]}
+          unallocatedSearchQuery=""
+          doorShelfConfig={inventoryState.doorShelfConfig}
+          unallocatedProducts={inventoryState.unallocatedProducts}
+          currentStation={currentStation}
+          onStationClick={() => setShowStationModal(true)}
+          onLogout={handleLogout}
+          closeBinInventory={() => {}}
+          closeUnallocatedProducts={() => {}}
+          handleUnallocatedProductSelect={() => {}}
+          handleUnallocatedSearchChange={() => {}}
+          handleSelectAllUnallocatedProducts={() => {}}
+          handleClearUnallocatedSelection={() => {}}
+          handleConfirmAssignment={() => {}}
+          removePadding={true}
+        >
+          <ChangeAllocationModal
+            open={inventoryState.showChangeAllocationModal}
+            onOpenChange={inventoryState.setShowChangeAllocationModal}
+            sourceBins={getSourceBins}
+            targetBins={getTargetBins}
+            doorShelfConfig={inventoryState.doorShelfConfig}
+            sourceProductQuery={inventoryState.changeAllocationSourceQuery}
+            onConfirmAllocation={handleChangeAllocationConfirm}
+            onCancel={inventoryState.handleExitChangeAllocation}
           />
         </MainLayout>
       ) : inventoryState.showHistoryModal ? (
@@ -707,6 +764,17 @@ export default function App() {
             ) : null
           }
         >
+          {/* Pipeline spine for stages ① Source / ② Target — the two bin-selection steps live on
+              this cabinet page, so the indicator reads the same step the bottom bar is on.
+              The negative margins pull it out of the scroll area's p-6 so it sits flush under the
+              Allocation header, edge to edge — but it stays INSIDE the scroll container, so it
+              scrolls away with the cabinets rather than pinning to the top (per request: not fixed). */}
+          {inventoryState.changeAllocationMode && (
+            <div className="-mt-6 -mx-6 mb-6">
+              <PipelineSteps current={inventoryState.changeAllocationStep} />
+            </div>
+          )}
+
           <CabinetSelection
             selectedCabinet={inventoryState.selectedCabinet}
             selectedDoor={inventoryState.selectedDoor}
@@ -768,16 +836,7 @@ export default function App() {
         onStationSelect={handleStationSelect}
       />
 
-      {/* Change Allocation Modal */}
-      <ChangeAllocationModal
-        open={inventoryState.showChangeAllocationModal}
-        onOpenChange={inventoryState.setShowChangeAllocationModal}
-        sourceBins={getSourceBins}
-        targetBins={getTargetBins}
-        doorShelfConfig={inventoryState.doorShelfConfig}
-        sourceProductQuery={inventoryState.changeAllocationSourceQuery}
-        onConfirmAllocation={handleChangeAllocationConfirm}
-      />
+      {/* Step ③ Review is rendered as a full page in the routing chain above (was a modal here). */}
 
       {/* Serial Number Modal - Required for all product moves (quantity > 0) between bins */}
       <SerialNumberModal

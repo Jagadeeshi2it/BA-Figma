@@ -140,6 +140,10 @@ export interface ChangeAllocationModalProps {
   // When set, the source panel shows only those products — see changeAllocationSourceQuery.
   sourceProductQuery?: string;
   onConfirmAllocation: (transfers: ProductTransfer[], serialNumbers?: { [transferId: string]: string[] }) => void;
+  // Full-flow abort from the Review page (exits change-allocation mode entirely). Distinct from
+  // onOpenChange(false), which is the one-step Back to the Target selection. Optional so older call
+  // sites still type-check; the live page always supplies it.
+  onCancel?: () => void;
 }
 
 // Master Product Definition Interface

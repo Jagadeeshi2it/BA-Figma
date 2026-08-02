@@ -131,8 +131,13 @@ export default function AllocationBottomBar({
   const summaryValue = (binCount: number, productCount: number) =>
     `${plural(binCount, 'Bin')}, ${plural(productCount, 'Product')}`;
 
-  const sourceValue = summaryValue(sourceBinCount, sourceProductCount);
-  const targetValue = summaryValue(targetBinCount, targetProductCount);
+  // Empty, the running-tally form reads as a dead `0 Bins, 0 Products` — a state, not a next move.
+  // Before anything is picked, the summary instructs instead: it names the two ways in (tap a bin, or
+  // search a product), which the mode never signposts elsewhere (UX-AUDIT H1-2, H6-1).
+  const sourceValue =
+    sourceBinCount > 0 ? summaryValue(sourceBinCount, sourceProductCount) : 'Tap bins, or search a product';
+  const targetValue =
+    targetBinCount > 0 ? summaryValue(targetBinCount, targetProductCount) : 'Tap an available bin';
 
   return (
     <div className="shrink-0 bg-white border-t border-gray-200 shadow-[0_-2px_8px_0_rgba(0,0,0,0.04)] px-4 py-2">
@@ -170,16 +175,20 @@ export default function AllocationBottomBar({
             />
           )}
           {step === 1 ? (
+            // Disabled, the button says what it's waiting for rather than greying out mutely. A bare
+            // disabled `Target Selection →` was the app's sharpest flaw — the user could see the
+            // control they needed and was told nothing about why it wouldn't work (UX-AUDIT H6-2).
+            // The forward arrow is dropped while blocked: it promises a next step that can't happen.
             <BarButton
-              label="Target Selection"
+              label={sourceBinCount > 0 ? 'Target Selection' : 'Select a source bin'}
               variant="primary"
               enabled={sourceBinCount > 0}
               onClick={onNext}
-              trailingIcon={<ArrowRight className="w-4 h-4" />}
+              trailingIcon={sourceBinCount > 0 ? <ArrowRight className="w-4 h-4" /> : undefined}
             />
           ) : (
             <BarButton
-              label="Review Selection"
+              label={targetBinCount > 0 ? 'Review Selection' : 'Select a target bin'}
               variant="primary"
               enabled={targetBinCount > 0}
               onClick={onConfirm}
@@ -187,7 +196,7 @@ export default function AllocationBottomBar({
               // It was left bare while it said "Confirm", on the grounds that it opens a panel
               // rather than advancing — but that was the misleading part: it does advance, and the
               // commit is two screens further on.
-              trailingIcon={<ArrowRight className="w-4 h-4" />}
+              trailingIcon={targetBinCount > 0 ? <ArrowRight className="w-4 h-4" /> : undefined}
             />
           )}
         </div>

@@ -6,6 +6,7 @@ import { ChevronRight, Pencil, X, Unlock } from "lucide-react";
 import { DoorUnlockedToast } from "./ui/sonner-1";
 import CabinetPipView from "./CabinetPipView";
 import SideSheet from "./SideSheet";
+import PipelineSteps from "./PipelineSteps";
 import { ProductTransfer, Bin, DoorShelfConfig } from '../types';
 import { formatBinLocation, getDoorName } from '../utils/changeAllocationUtils';
 import { pluralizeUnit } from '../utils/pluralizeUnit';
@@ -16,6 +17,12 @@ interface QuantitySelectionPageProps {
   doorShelfConfig: DoorShelfConfig;
   onConfirm: (transfersWithQuantities: ProductTransfer[], remainingTransfers: ProductTransfer[]) => void;
   onCancel: () => void;
+  // One step back (distinct from onCancel's full-flow abort): from the first source bin it returns to
+  // the product-selection modal; from a later one, Back walks within the page (see handleBack).
+  onBack?: () => void;
+  // When re-entered from the target page's Back, land on the product the operator was placing rather
+  // than restarting the batch at product 0 (UX-AUDIT H3-2). Keyed by the product identity triple.
+  initialProductKey?: string;
   // Doors already announced as unlocked (via toast) elsewhere in this change-allocation session —
   // avoids re-announcing a door that was already unlocked for, e.g., this same product's target bin.
   unlockedDoors?: Set<string>;
@@ -60,6 +67,8 @@ export default function QuantitySelectionPage({
   doorShelfConfig,
   onConfirm,
   onCancel,
+  onBack,
+  initialProductKey,
   unlockedDoors,
   onDoorUnlocked
 }: QuantitySelectionPageProps) {
@@ -176,6 +185,20 @@ export default function QuantitySelectionPage({
 
     return groups;
   }, [enhancedTransfers, doorShelfConfig]);
+
+  // On first mount, jump to the product the caller asked to resume (the target page's Back), so
+  // fixing one product's quantity doesn't mean clicking forward through the whole batch again
+  // (UX-AUDIT H3-2). Runs once; later navigation is the operator's own Save/Back within the page.
+  const didResumeRef = useRef(false);
+  useEffect(() => {
+    if (didResumeRef.current) return;
+    if (!initialProductKey || groupedTransfers.length === 0) return;
+    const idx = groupedTransfers.findIndex(
+      g => `${g.productName}-${g.ndc}-${g.inventoryType}` === initialProductKey
+    );
+    if (idx >= 0) setCurrentIndex(idx);
+    didResumeRef.current = true;
+  }, [initialProductKey, groupedTransfers]);
 
   const currentGroup = groupedTransfers[currentIndex];
 
@@ -372,6 +395,18 @@ export default function QuantitySelectionPage({
     finalizeAll(skippedProductKeys);
   };
 
+  const handleBack = () => {
+    // One step back through the batch. Every earlier group's quantity is held in transferQuantities,
+    // so stepping back and forward loses nothing. From the first group there is nothing earlier on
+    // this page — hand back up a stage to the product-selection modal, distinct from Cancel's abort.
+    if (currentIndex > 0) {
+      setCurrentIndex(currentIndex - 1);
+      setEditingQuantity(false);
+      return;
+    }
+    onBack?.();
+  };
+
   if (!currentGroup) return null;
 
   const beforeMove = currentGroup.originalQuantity;
@@ -475,6 +510,8 @@ export default function QuantitySelectionPage({
 
   return (
     <div className="flex flex-col h-full bg-white">
+      {/* Step ④ "Move" — this is the take-at-source half; the place-at-target page shares the step. */}
+      <PipelineSteps current={4} />
       {/* Product Header */}
       <div className="border-b bg-white px-6 py-4">
         <div className="flex items-center justify-between">
@@ -714,8 +751,26 @@ export default function QuantitySelectionPage({
                 </div>
               </div>
             </div>
+            {(currentIndex > 0 || onBack) && (
+              // One step back, distinct from Cancel's full-flow abort beside it. Within the batch it
+              // returns to the previous source bin/product with its quantity intact; from the first,
+              // up to the product-selection modal.
+              <div
+                className="bg-white relative rounded-[4px] cursor-pointer"
+                onClick={handleBack}
+              >
+                <div aria-hidden="true" className="absolute border border-[#095192] border-solid inset-0 pointer-events-none rounded-[4px]" />
+                <div className="flex flex-row items-center justify-end relative size-full">
+                  <div className="box-border content-stretch flex gap-2 items-center justify-end px-3 py-2 relative size-full">
+                    <div className="capitalize font-['Inter:Regular',_sans-serif] font-normal leading-[0] not-italic relative shrink-0 text-[#095192] text-[14px] text-nowrap">
+                      <p className="leading-[20px] whitespace-pre text-[14px]">Back</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
             {showSkipButton && (
-              <div 
+              <div
                 className="bg-white relative rounded-[4px] cursor-pointer"
                 onClick={handleSkip}
               >

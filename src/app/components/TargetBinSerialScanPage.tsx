@@ -6,6 +6,7 @@ import { ChevronRight, Search, Trash2, Unlock } from "lucide-react";
 import { DoorUnlockedToast } from "./ui/sonner-1";
 import CabinetPipView from "./CabinetPipView";
 import SideSheet from "./SideSheet";
+import PipelineSteps from "./PipelineSteps";
 import { ProductTransfer, Bin, DoorShelfConfig } from '../types';
 import { formatBinLocation, getDoorName } from '../utils/changeAllocationUtils';
 import { pluralizeUnit } from '../utils/pluralizeUnit';
@@ -23,7 +24,9 @@ interface TargetBinSerialScanPageProps {
   doorShelfConfig: DoorShelfConfig;
   onConfirm: (transfersWithSerials: ProductTransfer[]) => void;
   onCancel: () => void;
-  onBack: () => void;
+  // Steps back to the quantity stage. Carries the product identity currently on screen so the
+  // quantity page resumes on that product rather than restarting the batch (UX-AUDIT H3-2).
+  onBack: (productKey?: string) => void;
   remainingTransfers?: ProductTransfer[];
   // Doors already announced as unlocked (via toast) elsewhere in this change-allocation session —
   // avoids re-announcing a door that was already unlocked for, e.g., this same product's source bin.
@@ -499,21 +502,20 @@ export default function TargetBinSerialScanPage({
   };
 
   const handleBack = () => {
-    // Navigate backward through hierarchy
+    // Within a product, Back reviews its earlier target bins. At a product's FIRST target bin, Back
+    // becomes a stage step: return to the quantity page resumed ON THIS PRODUCT (its key), rather
+    // than paging into a previous product's bins and eventually restarting the whole batch's
+    // quantities from product 0 (UX-AUDIT H3-2). The trade: Back no longer walks across products on
+    // this page — the footer's Product counter is where the whole batch is reviewed.
     if (currentTargetBinIndex > 0) {
-      // Go to previous target bin in same product
       setCurrentTargetBinIndex(currentTargetBinIndex - 1);
       setSerialInput('');
-    } else if (currentProductIndex > 0) {
-      // Go to previous product (last target bin of that product)
-      setCurrentProductIndex(currentProductIndex - 1);
-      const prevProduct = productGroups[currentProductIndex - 1];
-      setCurrentTargetBinIndex(prevProduct.targetBins.length - 1);
-      setSerialInput('');
-    } else {
-      // First screen, go back to quantity selection page
-      onBack();
+      return;
     }
+    const productKey = currentProduct
+      ? `${currentProduct.productName}-${currentProduct.ndc}-${currentProduct.inventoryType}`
+      : undefined;
+    onBack(productKey);
   };
 
   const handleSave = () => {
@@ -676,6 +678,8 @@ export default function TargetBinSerialScanPage({
 
   return (
     <div className="flex flex-col h-full bg-white">
+      {/* Step ④ "Move" — this is the place-at-target half; the take-quantity page shares the step. */}
+      <PipelineSteps current={4} />
       {/* Product Header */}
       <div className="border-b bg-white px-6 py-4">
         <div className="flex items-center justify-between">
