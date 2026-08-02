@@ -135,8 +135,13 @@ export default function TargetProductCard({
                 </div>
               )}
 
+              {/* mt-auto keeps the action on the card's bottom edge even when the quantity chip above
+                  is absent. A product arriving new to this bin has no existing quantity to show, so
+                  justify-between had a single child to place and left it at the top — the button
+                  drifted to a different height depending on whether the bin already stocked the
+                  product. Bottom-aligned always, matching Select on the source card opposite. */}
               {showRemoveAction && !hasMultipleSourceBins && (
-                <div className="flex items-center justify-end px-3 py-2 h-8 rounded-[4px] border border-[#e7000b] border-solid">
+                <div className="mt-auto flex items-center justify-end px-3 py-2 h-8 rounded-[4px] border border-[#e7000b] border-solid">
                   <button
                     onClick={() => {
                       if (shouldShowRemoveButton && onRemove) {
