@@ -13,6 +13,10 @@ interface MainLayoutProps {
   selectedDoor?: string | null;
   searchQuery?: string;
   onAllProductsProductClick?: (product: any, location: any) => void;
+  // Move by Product, source step: a row in the "+N more" panel selects the product instead of opening
+  // its detail page. Same pair BinCard takes; App decides when it applies.
+  allProductsCanPickSourceProduct?: boolean;
+  onAllProductsSelectSourceProduct?: (product: any) => void;
   closeAllProducts?: () => void;
   showUnallocatedProducts: boolean;
   // Allocate/Unallocate panel — same width as the unallocated tray, and like it a place
@@ -54,6 +58,8 @@ export default function MainLayout({
   selectedDoor,
   searchQuery,
   onAllProductsProductClick,
+  allProductsCanPickSourceProduct,
+  onAllProductsSelectSourceProduct,
   closeAllProducts,
   showUnallocatedProducts,
   showAllocateProducts,
@@ -136,6 +142,8 @@ export default function MainLayout({
           selectedDoor={selectedDoor ?? null}
           searchQuery={searchQuery ?? ''}
           onProductClick={onAllProductsProductClick}
+          canPickSourceProduct={allProductsCanPickSourceProduct}
+          onSelectSourceProduct={onAllProductsSelectSourceProduct}
           onClose={closeAllProducts ?? (() => {})}
         />
       )}

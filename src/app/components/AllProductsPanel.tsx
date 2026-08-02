@@ -11,6 +11,11 @@ interface AllProductsPanelProps {
   // Highlight query from the main search, so a searched-for product still stands out in here.
   searchQuery: string;
   onProductClick?: (product: any, location: any) => void;
+  // Move by Product, source step: a row here picks the product out of this bin, exactly as a row on the
+  // bin card does. Without it, opening "+N more" to reach a product further down the bin dropped the
+  // user on the product detail page instead — the one route out of the flow, from inside the flow.
+  canPickSourceProduct?: boolean;
+  onSelectSourceProduct?: (product: any) => void;
   onClose: () => void;
 }
 
@@ -30,8 +35,13 @@ export default function AllProductsPanel({
   selectedDoor,
   searchQuery,
   onProductClick,
+  canPickSourceProduct = false,
+  onSelectSourceProduct,
   onClose
 }: AllProductsPanelProps) {
+  // Selecting wins over navigating, same precedence as BinCard: mid-selection, a tap on a product is
+  // the operator naming it, not asking to read about it.
+  const picksSourceProduct = canPickSourceProduct && !!onSelectSourceProduct;
   const [panelSearch, setPanelSearch] = React.useState('');
 
   // A fresh bin starts with a clean filter — the previous bin's query shouldn't carry over.
@@ -99,9 +109,9 @@ export default function AllProductsPanel({
               <div
                 key={product.id}
                 className={`flex items-start justify-between gap-3 px-4 py-4 ${
-                  onProductClick ? 'cursor-pointer hover:bg-gray-50 transition-colors' : ''
+                  picksSourceProduct || onProductClick ? 'cursor-pointer hover:bg-gray-50 transition-colors' : ''
                 }`}
-                onClick={onProductClick ? () => {
+                onClick={picksSourceProduct ? () => onSelectSourceProduct!(product) : onProductClick ? () => {
                   const location = {
                     cabinet: 'Cabinet',
                     door: selectedDoor || '',

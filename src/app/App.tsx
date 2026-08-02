@@ -671,6 +671,18 @@ export default function App() {
           selectedDoor={inventoryState.selectedDoor}
           searchQuery={inventoryState.selectedSearchQuery}
           onAllProductsProductClick={handleProductClick}
+          // Same rule the shelves follow: during a Product move's source step a product row is a
+          // selection, not a link. allProductsBinId is the bin the panel was opened from, so the pick
+          // is scoped to that bin exactly as a tap on its card would be.
+          allProductsCanPickSourceProduct={
+            inventoryState.changeAllocationMode &&
+            inventoryState.moveMode === 'product' &&
+            inventoryState.changeAllocationStep === 1
+          }
+          onAllProductsSelectSourceProduct={product => {
+            if (!allProductsBinId) return;
+            inventoryState.handleSelectSourceProductFromBin(allProductsBinId, product);
+          }}
           closeAllProducts={() => setAllProductsBinId(null)}
           showUnallocatedProducts={inventoryState.showUnallocatedProducts}
           currentBin={currentBin}

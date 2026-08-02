@@ -85,9 +85,10 @@ export default function PipelineSteps({
     // out to the edges and left the run between them looking cramped.
     <div className="bg-white border-b border-gray-200 px-10 py-3">
       <div
-        // items-start, so the row's height comes from the active step's two or three lines while every
-        // other step stays pinned to the top rather than floating in the middle of that height.
-        className="flex items-start gap-3"
+        // items-center: each circle sits centred against its own label-plus-instruction block, and
+        // because the row's height comes from the tallest of those blocks, every circle still lands on
+        // the same line — the spine stays a spine.
+        className="flex items-center gap-3"
         role="list"
         aria-label={`Move Quantity — step ${current} of 4`}
       >
@@ -97,7 +98,12 @@ export default function PipelineSteps({
           return (
             <React.Fragment key={step.n}>
               <div
-                className="flex items-start gap-2 shrink-0"
+                // Every step takes an equal share of the row, so the circles are evenly spaced. Sized
+                // to content before, the active step ran ~250px against ~70px for the others, which
+                // pushed its neighbours along and left the gaps visibly lopsided — the instruction was
+                // setting the spine's rhythm. An equal share means the text changes what fills a step,
+                // never where the next one starts.
+                className="flex items-center gap-2 flex-1 min-w-0"
                 role="listitem"
                 aria-current={active ? 'step' : undefined}
               >
@@ -135,10 +141,11 @@ export default function PipelineSteps({
 
               {i < STEPS.length - 1 && (
                 // Connector fills to #095192 once its left step is done, so the coloured run is a
-                // progress bar as much as a divider. mt-3 drops it to the circles' centre line, which
-                // items-start would otherwise leave it above.
+                // progress bar as much as a divider. Fixed width now that the steps take the flexible
+                // share: two flexible things competing is what let the widest step decide the spacing.
+                // The row's items-center puts it on the circles' line without a nudge.
                 <span
-                  className={`h-px flex-1 min-w-[16px] mt-3 ${step.n < current ? 'bg-[#095192]' : 'bg-[#d9d9d9]'}`}
+                  className={`h-px w-8 shrink-0 ${step.n < current ? 'bg-[#095192]' : 'bg-[#d9d9d9]'}`}
                   aria-hidden="true"
                 />
               )}

@@ -639,7 +639,11 @@ export default function ChangeAllocationModal({
   // visible product of four would be lying, and one that moved all four would be moving three the
   // user can't see.
   const moveAllCandidates = (): any[] => {
-    if (!sourceBin || !targetBin || targetBins.length !== 1 || sourceListNarrowed) return [];
+    // No targetBins.length check: the destination is `targetBin`, whichever the target pager is showing,
+    // exactly as the per-product Select uses. Leaving it here after the button stopped enforcing it made
+    // the list come back empty with several targets, so the button blamed the wrong thing — it reported
+    // "everything is already selected" over a list where nothing was.
+    if (!sourceBin || !targetBin || sourceListNarrowed) return [];
     const visible = new Set(getSourceProducts().map(product => product.id));
     return sourceBin.products.filter(product =>
       visible.has(product.id) &&
@@ -968,26 +972,29 @@ export default function ChangeAllocationModal({
 
                     {/* One product is already "all of them", so the button would be a no-op. */}
                     {visibleSourceProductCount > 1 && (() => {
-                      // Select all commits every product to ONE destination, so it needs exactly one
-                      // target to send them to. With several, which bin each product should land in is
-                      // the very thing the operator still has to say, product by product.
-                      const blockedReason = targetBins.length !== 1
-                        ? 'Pick a single target bin to send everything to at once'
-                        : sourceListNarrowed
-                          ? 'The list is narrowed to a search — clear it to take everything in this bin'
-                          : moveAllCandidates().length === 0
-                            ? 'Everything listed here is already selected'
-                            : null;
+                      // Several target bins used to block this, on the grounds that "all of them" needs
+                      // one destination. It doesn't: handleMoveAllFromBin commits to `targetBin` — the
+                      // one the target pager is showing — which is exactly what the per-product Select
+                      // beside each row already does. Blocking here while allowing five individual
+                      // Selects that land in the same place was a rule the rest of the screen didn't
+                      // keep.
+                      //
+                      // Still blocked where the action genuinely has nothing to do, and those keep their
+                      // reason: a disabled control that won't say why is the audit's sharpest flaw (P1).
+                      const blockedReason = sourceListNarrowed
+                        ? 'The list is narrowed to a search — clear it to take everything in this bin'
+                        : moveAllCandidates().length === 0
+                          ? 'Everything listed here is already selected'
+                          : null;
 
                       return (
                         <button
                           type="button"
                           onClick={blockedReason ? undefined : handleMoveAllFromBin}
                           disabled={!!blockedReason}
-                          title={
-                            blockedReason ??
-                            `Select every product shown here for ${getDoorName(targetBin)} - ${targetBin?.name}`
-                          }
+                          // No tooltip when it works — the row it tops says what "all" is, and the
+                          // toast on click names the bin. The title is only carrying a refusal.
+                          title={blockedReason ?? undefined}
                           className={`h-8 px-3 rounded-[4px] border border-[#095192] bg-white text-[#095192] text-[14px] leading-[20px] whitespace-nowrap transition-colors ${
                             blockedReason ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:bg-[#F1F6FA]'
                           }`}
