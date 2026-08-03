@@ -2,12 +2,9 @@ import React, { useState, useEffect, useMemo } from 'react';
 import PipelineSteps from "./PipelineSteps";
 import {
   PipelineFooterShell,
-  FooterDivider,
   FooterActions,
   StepCell,
-  SummaryCell,
-  FooterButton,
-  plural
+  FooterButton
 } from "./PipelineFooter";
 import { Button } from "./ui/button";
 import { Card, CardContent } from "./ui/card";
@@ -1229,19 +1226,11 @@ export default function ChangeAllocationModal({
 
         <PipelineFooterShell>
           <StepCell step={3} moveMode={moveMode} />
-          <FooterDivider />
 
-          {/* What this stage has actually gathered, reported the same way the bin-picking steps report
-              their halves — a count of the pairs staged so far, openable-looking only when there are
-              any. Before, this stage said nothing about its own progress; the numbers existed but were
-              in a permanently hidden block. */}
-          <SummaryCell
-            icon={<Package className="w-4 h-4" />}
-            label="Selected"
-            value={plural(pendingTransfers.length, 'Product')}
-            enabled={false}
-          />
-
+          {/* No summary cell here, unlike the other stages: the count would restate what the two columns
+              above already show product by product, and it had nothing to open. The cells elsewhere earn
+              their place by reporting a selection made on a different screen — this stage's selection is
+              the screen. */}
           <FooterActions>
             {onCancel && <FooterButton label="Cancel" variant="secondary" onClick={onCancel} />}
             {/* One step back to the Target selection — mode stays active, selection is kept. */}
