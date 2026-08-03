@@ -670,7 +670,14 @@ export default function App() {
           allProductsBin={allProductsBin}
           selectedDoor={inventoryState.selectedDoor}
           searchQuery={inventoryState.selectedSearchQuery}
-          onAllProductsProductClick={handleProductClick}
+          // Only outside a move does a row open the product's detail page. Inside one, the panel is
+          // either picking products (below) or purely a way to read a bin's full contents — and leaving
+          // for a detail page mid-selection abandons the flow. BinCard's rows have always been gated
+          // this way (!changeAllocationMode in isProductClickable); passing this unconditionally is what
+          // let a Bin move, and a Product move's target step, fall through to navigation.
+          onAllProductsProductClick={
+            inventoryState.changeAllocationMode ? undefined : handleProductClick
+          }
           // Same rule the shelves follow: during a Product move's source step a product row is a
           // selection, not a link. allProductsBinId is the bin the panel was opened from, so the pick
           // is scoped to that bin exactly as a tap on its card would be.
