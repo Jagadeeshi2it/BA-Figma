@@ -19,9 +19,11 @@ pnpm run dev     # or npm run dev — Vite on :5173
 | Where | What |
 |---|---|
 | `src/main.tsx` | Entry. Mounts `App` inside `TabletSimulatorProvider` + `PipProvider`. |
-| `src/app/App.tsx` (~850 lines) | Composition root. Owns page routing (by boolean flags, not a router), the multi-screen move pipeline, and every panel/modal mount. |
-| `src/app/hooks/useInventoryState.ts` (~1850 lines) | **The state layer.** One hook, 73 returned keys, 39 handlers. Everything that mutates inventory goes through here. |
+| `src/app/App.tsx` (~940 lines) | Composition root. Owns page routing (by boolean flags, not a router), the multi-screen move pipeline, and every panel/modal mount. |
+| `src/app/hooks/useInventoryState.ts` (~1920 lines) | **The state layer.** One hook. Everything that mutates inventory goes through here. |
 | `src/app/components/` | UI. `MainLayout` provides `topBar` / `bottomBar` / `sidePanel` slots. |
+| `src/app/components/PipelineSteps.tsx` | The move pipeline's step vocabulary — `TOTAL_PIPELINE_STEPS`, `sourceLabelFor`, `instructionFor`. The visible stepper band it also exports is **switched off** (§2). |
+| `src/app/components/PipelineFooter.tsx` | The footer parts every move stage builds from: `PipelineFooterShell`, `StepCell`, `SummaryCell`, `FooterButton`, `FooterActions`, `plural`. |
 | `src/app/data/` | Seed data. `doorConfigurations.ts` is the pipeline; `realData.ts` (~10k lines) is the imported cabinet contents. |
 | `src/app/utils/` | Pure helpers — search, bin geometry, badges, text highlighting. |
 | `src/app/services/` | `EmergencyKitService` (the only business rule), `ProductDataService` (id → catalogue lookup), `EKitHistoryService`. |
@@ -53,10 +55,26 @@ geometry. That is why the demo steps are last.
 
 ---
 
-## 2. The two workflows
+## 2. The three workflows
 
-The header's **Change Allocation** button opens a menu with two jobs. They were one mode until
-recently; splitting them is the most significant recent change.
+The header's **Allocate/Move** button opens a menu with three entries:
+
+| Entry | What it starts |
+|---|---|
+| **Allocate Product** — "Give a product another bin." | Workflow A below. |
+| **Move by Bin** — "Tap whole bins on the shelves." | Workflow B with `moveMode = 'bin'`. |
+| **Move by Product** — "Search the products to move." | Workflow B with `moveMode = 'product'`. |
+
+They were one **Change Allocation** mode, then a plain `Allocate` button beside a `Move ▾` picker.
+One trigger now holds all three, so the first decision is always the same: which of the three am I
+doing. The Move entries exist because **the operator has to declare the unit up front** — see
+`moveMode` in §3.
+
+While any workflow is open, `Allocate/Move` and `History` are hidden: their own controls own the
+screen, and a second entry point invites abandoning a half-built selection.
+
+Beside the `Allocation` title is a **`Bins Available(n)`** checkbox — a view filter, not a workflow.
+It was a button until it started reading as a fourth action.
 
 ### A. Allocate Product — give a product another bin
 
@@ -77,27 +95,76 @@ what stops you picking a bin it is already in.
 
 ### B. Move Quantity — move stock between bins a product already occupies
 
-Two-step bin selection, then a four-screen pipeline:
+Four numbered steps. Every one is a **full page**, and every one carries the same footer:
 
 ```
-step 1: pick source bins   →  step 2: pick target bins
-   ↓  Review Selection
-ChangeAllocationModal      — pick products per source bin ("Select")
-   ↓  Move Qty
-QuantitySelectionPage      — set the amount, product by product
-   ↓  Proceed to Target Bin
-TargetBinSerialScanPage    — place them, scan serials if the target requires it
-   ↓  the actual commit → handleConfirmChangeAllocation
+① Bin | Product   the cabinet page      — gather the source
+      ↓  Target Selection →
+② Target          the same page, step 2 — pick target bins
+      ↓  Review Selection →
+③ Review          ChangeAllocationModal — pick products per source bin ("Select")
+      ↓  Start Qty Move →
+④ Move            QuantitySelectionPage    — take the quantity, product by product
+                  TargetBinSerialScanPage  — place it, scan serials if the target requires it
+      ↓  the actual commit → handleConfirmChangeAllocation
 ```
 
-Buttons name **what happens next**, deliberately: `Select` / `Remove` on the cards,
-`Next Source Bin` → `Save & Continue` → `Proceed to Target Bin` on the quantity page. Nothing says
-"Confirm" until it commits.
+Three things about that shape are deliberate and easy to undo by accident:
+
+- **Step ① is named for the unit** (`Bin` or `Product`, via `sourceLabelFor`), not "Source". The
+  operator chose the unit in the menu, so the step carrying it out says the same word back.
+- **Step ④ spans two screens.** Taking the quantity at the source and placing it in the target are
+  two halves of one move; a separate "Place" step misrepresented them as separate errands. The step
+  number stays `4/4` across both, and each screen's own header says whether you are taking or
+  placing.
+- **Review is a page, not a modal.** It was a dialog overlay, which read as a different kind of
+  surface from the pages either side of it.
+
+Step ① gathers its source differently per kind, and only its own way works:
+
+| | Bin move | Product move |
+|---|---|---|
+| Bin tap | selects the bin | **inert** |
+| Product row tap | inert | selects that product (shelves, `+N more`, or search) |
+| Search box | locates and highlights | the primary route — focused once on entry |
+| Review shows | products per bin | the product's bins to take from |
+
+Buttons name **what happens next**: `Select` / `Remove` on the cards, `Next Source Bin` →
+`Save & Continue` → `Proceed to Target Bin` on the quantity page. Nothing says "Confirm" until it
+commits — Review's primary is `Start Qty Move`.
 
 **All quantities are taken at the source before anything is carried to the target.** The quantity
 page walks every product itself and hands the whole move over once. It used to report one product
 at a time and the flow walked to the target and back for each — four products meant four round
-trips over the same two doors.
+trips over the same two doors. `Back` from the target page returns to **the product you were on**
+(`initialProductKey` → `quantityResumeProductKey`), not to the top of the batch.
+
+#### The footer is the pipeline's only chrome
+
+Every stage renders `PipelineFooterShell` from `PipelineFooter.tsx`, left to right:
+
+```
+[ Step n/4 + instruction ] │ [ summary cell ] [ summary cell ]        [ Cancel ] [ Back ] [ primary → ]
+```
+
+- `StepCell` is a fixed **200px** — the instructions differ in length between steps, and a cell that
+  resized with them would shunt everything to its right sideways on every step change.
+- The instruction sentence comes from `instructionFor(step, moveMode)`. Knowing you are on step 1 of
+  4 does not tell you what to do on step 1, and the canvas cannot say it — in a move,
+  `changeAllocationMode` reaches `BinCard` only to *disable* things, so the shelves go quiet.
+- `SummaryCell` values go **blue with a chevron** the moment the cell holds something and stay grey
+  on a zero. A zero is keyed to the mode's own unit — `0 Products` in a Product move, `0 Bins` in a
+  Bin move. Steps ①–② report Source/Target; step ④ reports Product and Source/Target Bin as `n of N`.
+- **A disabled primary states its requirement** rather than greying silently:
+  `Select a source bin` → `Target Selection →` once satisfied. The arrow is dropped while blocked.
+- The shell is `min-h-[60px]`, not a fixed height: the instruction wraps to two lines on some steps.
+  Buttons are `h-9` so all four stages line up.
+
+There **is** a full stepper band (`① Bin → ② Target → ③ Review → ④ Move` with the active step's
+instruction hung under its label). It is switched off by `SHOW_PIPELINE_STEPS = false` in
+`PipelineSteps.tsx` while the bottom-bar version is being tried. Deliberately a switch and not a
+deletion — every stage still mounts the component, so flipping it back restores the band with no
+wiring to redo. Turn it back on and you get both; decide which you want.
 
 ### C. Unallocation — not a workflow
 
@@ -121,6 +188,27 @@ The same drug in three bins is three rows with three different ids. Anything use
 grouping, counters, badges, dedup — keys on the identity triple. `binProducts.ts` derives
 `getVialType` / `hasClimateBadge` / `hasCivBadge` from a hash of it, so a product looks the same
 everywhere it appears. Keying a badge on `product.id` would give one drug different badges per bin.
+
+### `moveMode` — the operator declares the unit, the app never infers it
+
+`moveMode: 'bin' | 'product' | null`, set by the menu entry and cleared when the move ends.
+
+This exists because the Review page used to **infer** which perspective to show from the data:
+`productsAcrossMultipleBins` only built a product-centric list when the selection spanned more than
+some number of bins, so a product living in two bins got the bin-centric screen and the operator
+found themselves picking bins when they had come to move a product. Intent is not recoverable from a
+selection — so it is now asked for and carried:
+
+```ts
+if (moveMode === 'bin') return [];              // never the product perspective
+if (moveMode !== 'product' && visibleSourceBins.length <= 1) return [];
+...
+if (moveMode === 'product') { /* every entry, filtered only by the search and the E-Kit rule */ }
+```
+
+It also decides how the source is gathered (below), what the step ① label says (`sourceLabelFor`),
+which instruction the footer prints (`instructionFor`), and what unit an empty summary counts in.
+**Any new branch on "what kind of move is this" belongs here, not in a heuristic over the data.**
 
 ### Three separate query channels
 
@@ -160,18 +248,54 @@ While either assignment flow is open, product rows inside bin cards are not tapp
 mean the bin. That is what `BinCard`'s `showUnallocatedProducts` prop does — despite its name, it
 means "the user is picking bins right now", and both flows feed it.
 
+**A Product move inverts this.** In step ① with `moveMode === 'product'` the bin is inert
+(`handleBinClick` returns early) and the *product rows* are the tap target — on the shelves, in the
+`+N more` panel, or from search. The unit being picked is a product, so the bin cannot be the thing
+that answers a tap. `canPickSourceProduct` / `onSelectSourceProduct` carry this into `BinCard` and
+`AllProductsPanel`; `handleSelectSourceProductFromBin` adds the bin scoped to that product.
+
+So a product row means three different things depending on where you are, and every surface showing
+one has to handle all three:
+
+| Where | A product row does |
+|---|---|
+| view mode | navigate to the product detail page |
+| Product move, step ① | select that product as the source |
+| Bin move, or any assignment flow | **nothing** — the scope is the bin |
+
+`App` supplies `onProductClick` only outside a move (`inventoryState.changeAllocationMode ?
+undefined : handleProductClick`). Omitting that guard on a new surface is how the `+N more` panel
+started navigating away mid-move.
+
 ---
 
 ## 4. Edge cases and traps
 
 **These cost real time to rediscover.**
 
-### HMR: delete usages before declarations
+### HMR: delete usages before declarations, and add them after
 
 Removing a `const` while JSX still references it latches the error boundary and the screen stays
 broken until a full reload, even after you fix it. Always remove references first, declaration
 last. The same applies in reverse: **adding a `useState` cannot hot-reload** (hook order changes) —
 expect a hook-order warning and reload.
+
+**Adding is the same hazard in the other direction.** Writing the JSX before the import or the
+`const` it needs latches the boundary on the intermediate save (`X is not defined`), and the screen
+stays broken past the fix. This happened three times on one branch — `Checkbox`,
+`canPickSourceProduct`, `TOTAL_PIPELINE_STEPS`. Import/declare first, then use.
+
+### Never let geometry depend on interactivity
+
+`BinCard`'s product rows had `p-2` **inside** the conditional clickable class, so a row gained 8px of
+padding when it became tappable and lost it again when it did not. A Bin move makes those rows inert,
+so three rows × 16px shrank every bin card by exactly 48px (361px → 313px) the moment the mode
+changed — which looked like the new bottom bar resizing the canvas, and was not. The bar shrinks the
+scroller by the same 69px in both kinds.
+
+Padding, radius and sizing go on the base class; only `cursor`, `hover` and `transition` may be
+conditional. If a card's height moves when a mode changes, look for a spacing utility inside a
+conditional before you look at the layout.
 
 ### `HTTP 200` from the dev server does not mean the code is correct
 
@@ -197,6 +321,18 @@ a change that worked.
 - Arbitrary values (`w-[440px]`, `bg-[#095192]`) generate on demand via `@source`.
 - Leading-`!` important (`!pb-0`) **does** work in v4.1 here (verified in the generated CSS), despite v4 preferring trailing `!`.
 - `border-1` is valid and means 1px. `ring-1` + `border-1` together read as 2px.
+
+### Radix overlays need `portalContainer` or they vanish in tablet mode
+
+The tablet simulator renders a CSS-scaled `fixed inset-0 z-[9999]` frame. A Radix primitive that
+portals to `document.body` lands *behind* it: the popover really opens (`data-state="open"` on the
+trigger, content in the DOM) and is simply invisible under an opaque overlay, which reads exactly
+like an inert button.
+
+`dialog.tsx` and `select.tsx` already threaded the simulator's `portalContainer`; `popover.tsx` had
+been missed, which is why `Allocate/Move` did nothing in tablet mode. **Any new Radix overlay must
+pass `container={portalContainer ?? undefined}` to its `Portal`.** Symptom to recognise: works in
+desktop, dead in tablet, no console error.
 
 ### Flex children stretch by default
 
@@ -266,18 +402,28 @@ been violations of it.
 - Comments explain **why**, especially where a simpler-looking approach was tried and failed. The
   codebase leans heavily on this; match it.
 - Buttons are named for what they do next, never "Confirm" unless they commit.
+- **A disabled primary states its requirement in its own label.** Never grey a button and leave the
+  reason off screen.
+- **`Cancel` and `Back` are blue secondary buttons, everywhere.** Leaving a flow discards a selection
+  that was never committed — a step back, not a deletion, so neither earns the destructive red they
+  used to carry. `#C6362C` is for things that actually destroy data.
 - Shared visual vocabulary: product rows are name → italic generic name → grey badges →
   `ndc - inventoryType`; primary `#095192`, secondary white/`#095192` border, destructive `#C6362C`,
   selected tint `#F1F6FA`, assignment border `#8F48D2`.
+- **A move stage does not write its own footer.** Compose `PipelineFooter`'s parts (§2) so a stage
+  chooses *what* to report, never how it looks. The step count comes from `TOTAL_PIPELINE_STEPS`, so
+  it cannot disagree with the stepper band.
+- Toasts are top-right (`MainLayout`'s `Toaster position="top-right"` inside a `fixed top-0 right-0
+  z-50` wrapper) — the bottom is the footer's.
 
 ---
 
 ## 7. Known gaps
 
-**See also [UX-AUDIT.md](UX-AUDIT.md)** — a heuristic audit with numbered, tickable findings. The
-structural ones are worth reading before designing anything new here: there is no step indicator on
-a four-screen pipeline, a disabled primary button that never says why, and no domain constraints at
-all beyond the E-Kit rule.
+**See also [UX-AUDIT.md](UX-AUDIT.md)** — a heuristic audit with numbered, tickable findings. Its
+`P1` and `P3` are now built (the footer's step cell, stated requirements and product-level Back).
+**`P2` is untouched and is the big one**: there are no domain constraints at all beyond the E-Kit
+rule, so the app will accept a physically impossible allocation without objection (§5).
 
 
 - **Workflow A writes no history entry.** `handleConfirmAssignment` does, but its shape invents
@@ -290,9 +436,16 @@ all beyond the E-Kit rule.
   arrives. Note the features it was built for — a 0-inventory filter and a per-location release
   control — have since been removed, so its remaining purpose is thin.
 - **`BinCard`'s `showUnallocatedProducts` prop is misnamed** for what it does (see §3).
-- **Recent Move Quantity card changes have not been visually verified** — the source and target card
-  layouts, and the `Select` / `Remove` / `Move` / `Select All` labels, are compile- and
-  reference-verified only.
+- **Two step indicators exist and one is switched off.** `SHOW_PIPELINE_STEPS = false` hides the
+  stepper band while the footer's `Step n/4` cell is trialled. Both are wired; nobody has decided.
+  Whichever loses should be deleted rather than left as a switch — a second layout that nothing
+  renders will rot.
+- **The `+N more` panel does not close when the step changes.** Open it in step ① and it stays open
+  through ②, where its rows mean nothing. Correct as far as it goes — rows are inert in a Bin move and
+  in the target step — but a panel of dead rows is still a panel of dead rows (`UX-AUDIT H6-3`).
+- **`instructionFor` returns one sentence per step with no per-stage nuance.** Step ④ prints the same
+  "take, then place" line on both the quantity and the placement screen. Each screen's own header
+  disambiguates, so this is tolerable, not right.
 - **Validation of operator intentions is outstanding.** A list of 18 real-world operator goals was
   triaged: 12 are assertable headlessly against the existing handlers, 2 need a headless render, and
   4 have no domain model at all (§5). Nothing has been built.
