@@ -20,6 +20,10 @@ interface TargetProductCardProps {
   onMoveBack: (productId: string, quantity: number, fromBinId?: string) => void;
   onRemove?: (productId: string) => void; // New prop for removing allocation
   hasPendingTransfer?: boolean; // New prop to indicate if product has pending transfer
+  // This row is stock ARRIVING in this move, as opposed to what the bin already held. The two are
+  // separate rows of the same product identity, so the card can't work it out for itself — asking the
+  // bin whether it stocks this product answers yes for both.
+  isArrival?: boolean;
   sourceBins?: SourceBinInfo[]; // Array of source bins this product was moved from
 }
 
@@ -29,54 +33,43 @@ export default function TargetProductCard({
   onMoveBack,
   onRemove,
   hasPendingTransfer,
+  isArrival = false,
   sourceBins
 }: TargetProductCardProps) {
   // Calculate the actual total moved quantity for display
   const actualMovedQuantity = product.movedQuantity;
-  const isNewlyMoved = actualMovedQuantity > 0;
-  
-  // CRITICAL FIX: Check if product originally existed in target bin using same logic as parent
-  // Match by name, NDC, and inventoryType (not just ID) to properly detect consolidated products
-  const originallyInTarget = targetBin && targetBin.products.some(p => 
-    p.name === product.name && 
-    p.ndc === product.ndc && 
+
+  // Whether the bin ALREADY stocked this identity. Only meaningful for choosing which handler Remove
+  // calls; it no longer decides how the card looks, because both rows of a topped-up product answer
+  // yes to it and the arrival is the one that has to stand out.
+  const originallyInTarget = targetBin && targetBin.products.some(p =>
+    p.name === product.name &&
+    p.ndc === product.ndc &&
     p.inventoryType === product.inventoryType
   );
-  
-  const isNewlyAllocated = actualMovedQuantity === 0 && !originallyInTarget;
-  
-  // Check if this is an existing product with a pending transfer (should show Remove button)
-  const shouldShowRemoveButton = originallyInTarget && hasPendingTransfer;
-  
-  // Determine if we should show quantity display (only for products that originally existed in target bin)
-  const isNewToTargetBin = isNewlyMoved || isNewlyAllocated;
 
-  const showRemoveAction =
-    (actualMovedQuantity ?? 0) > 0 || (isNewlyAllocated ?? false) || shouldShowRemoveButton;
+  // A pending transfer against a product the bin already held is undone by Remove; a brand-new
+  // location is undone by Move Back.
+  const shouldShowRemoveButton = originallyInTarget && hasPendingTransfer;
+
+  // Everything about the card's appearance now follows from one question — is this the arrival?
+  // It used to be inferred from movedQuantity and originallyInTarget, and both inferences failed on
+  // Review: every transfer is staged at quantity 0 there, so "moved in" could never be true, and a
+  // product the bin already stocked was excluded from "newly allocated" — leaving the arrival plain
+  // while a product new to the bin was tinted, though both were equally part of the move.
+  const isNewToTargetBin = isArrival;
+  const showRemoveAction = isArrival;
   // Several source bins each need their own Remove, so those stay in a list below rather than
   // collapsing into the one control beside the quantity.
   const hasMultipleSourceBins = !!sourceBins && sourceBins.length > 1;
   
-  // Debug logging to verify card display logic
-  console.log('🔍 TargetProductCard Display Logic:', {
-    productId: product.id,
-    productName: product.name,
-    totalQuantity: product.quantity,
-    movedQuantity: actualMovedQuantity,
-    existingQuantity: product.quantity - actualMovedQuantity,
-    isNewlyMoved,
-    originallyInTarget,
-    isNewlyAllocated,
-    showQuantityBreakdown: isNewlyMoved && originallyInTarget
-  });
-  
   return (
+    // One tint for everything arriving in this move, whether or not the bin already stocked it —
+    // "this is part of what you're staging" is the single thing the tint has to say, and a second
+    // colour for the topped-up case only invited the question of what the difference meant. The
+    // bin's own stock stays plain white.
     <Card className={`border border-gray-200 bg-white ${
-      isNewlyMoved 
-        ? 'ring-2 ring-green-200 bg-green-50' 
-        : isNewlyAllocated
-        ? 'ring-2 ring-blue-200 bg-blue-50'
-        : ''
+      isArrival ? 'ring-2 ring-blue-200 bg-blue-50' : ''
     }`}>
       {/* !pb-[16px]: CardContent's own [&:last-child]:pb-6 outranks a plain p-[16px], so the card was
           padded 16px on three sides and 24px at the bottom. */}
@@ -165,24 +158,9 @@ export default function TargetProductCard({
             </div>
           </div>
           
-          {/* How much was already here versus how much is arriving — the one thing in the old footer
-              worth keeping, now a plain line rather than a bar. */}
-          {isNewlyMoved && originallyInTarget && (
-            <div className="flex items-center font-['Inter:Regular',_sans-serif] font-normal text-[14px] leading-[20px] text-[#020817]">
-              <p className="leading-[20px] text-nowrap whitespace-pre">
-                <span className="text-[#4a5565]">Existing qty:</span>
-                <span className="font-['Inter:Semi_Bold',_sans-serif] font-bold not-italic">
-                  {` ${product.quantity - actualMovedQuantity} `}
-                </span>
-                <span>{`${pluralizeUnit(product?.unit || 'unit', product.quantity - actualMovedQuantity)}`}</span>
-                <span className="text-[#4a5565]" style={{ marginLeft: '16px' }}>Moved qty:</span>
-                <span className="font-['Inter:Semi_Bold',_sans-serif] font-bold not-italic">
-                  {` ${actualMovedQuantity} `}
-                </span>
-                <span>{`${pluralizeUnit(product?.unit || 'unit', actualMovedQuantity)}`}</span>
-              </p>
-            </div>
-          )}
+          {/* The "Existing qty / Moved qty" breakdown that sat here is gone with the merged card it
+              explained. It existed because one row had to report two quantities at once; the bin's
+              own stock and the arrival are now separate rows, each reporting its own. */}
 
           {/* A product gathered from several source bins keeps a row per bin, each with its own
               Remove — that cannot collapse into a single control. */}

@@ -786,9 +786,12 @@ export default function ChangeAllocationModal({
   const getTargetProducts = () => {
     if (!targetBin) return [];
     
+    // rowKey, not product.id, identifies a row: the bin's own stock and an arrival of the same
+    // product are two rows sharing one identity, so the id alone can't tell React which is which.
     const existingProducts = targetBin.products.map(product => ({
       ...product,
-      movedQuantity: 0
+      movedQuantity: 0,
+      rowKey: `existing-${product.id}`
     }));
     
     const transfersForThisBin = pendingTransfers.filter(pt => pt.toBinId === targetBin.id);
@@ -839,32 +842,24 @@ export default function ChangeAllocationModal({
         );
       }
       
-      if (existingIndex >= 0) {
-        // CRITICAL FIX: Product already exists in target bin, update with combined quantities
-        // This ensures we show a single card with the total quantity instead of duplicate cards
-        const existingProduct = allProducts[existingIndex];
-        allProducts[existingIndex] = {
-          ...existingProduct,
-          quantity: existingProduct.quantity + productTransfers.totalQuantity, // Combined total
-          movedQuantity: productTransfers.totalQuantity, // Track moved amount
-          // CRITICAL FIX: Keep the source product ID for move back functionality
-          // This ensures the move back button works correctly with pendingTransfers
-          sourceProductId: productTransfers.productId,
-          moveRank: transferRank.get(productTransfers.productId) ?? -1
-        };
-        
-        // Removed debug logging for performance
-      } else {
-        // New product being moved to target bin
-        allProducts.push({
-          ...sourceProduct,
-          quantity: productTransfers.totalQuantity,
-          movedQuantity: productTransfers.totalQuantity,
-          moveRank: transferRank.get(productTransfers.productId) ?? -1
-        });
-        
-        // Removed debug logging for performance
-      }
+      // Arriving stock is its own row, whether or not the bin already stocks this product. It used to
+      // be folded into the existing row as a combined quantity, which left that row saying two things
+      // at once and — because the card's tint keys on "is this arriving" — showed the arrival with no
+      // highlight at all, unlike a product new to the bin. Two rows: the bin's own stock, untouched
+      // and plain, and the arrival beside it, tinted and removable.
+      allProducts.push({
+        ...(existingIndex >= 0 ? allProducts[existingIndex] : sourceProduct),
+        quantity: productTransfers.totalQuantity,
+        movedQuantity: productTransfers.totalQuantity,
+        // Marks this row as the arrival rather than something the bin already held. Explicit because
+        // the two rows are the same product identity, so nothing about the product itself can tell
+        // them apart — a card deriving it from the bin's contents would call both pre-existing.
+        isArrival: true,
+        // The source bin's own product id, which is what Remove and Move Back match transfers on.
+        sourceProductId: productTransfers.productId,
+        rowKey: `arrival-${productTransfers.productId}`,
+        moveRank: transferRank.get(productTransfers.productId) ?? -1
+      });
     });
     
     // Anything the user just allocated or moved into this bin goes on top, most recent first, so the
@@ -1350,15 +1345,19 @@ export default function ChangeAllocationModal({
                         })
                         .filter(Boolean);
                       
+                      // Only the arrival row belongs to the move; the bin's own stock is just what's
+                      // there, so it gets neither the tint nor a Remove and needs no source bins.
+                      const isArrival = !!(product as any).isArrival;
                       return (
                         <TargetProductCard
-                          key={product.id}
+                          key={(product as any).rowKey ?? product.id}
                           product={product}
                           targetBin={targetBin}
                           onMoveBack={handleMoveBack}
                           onRemove={handleRemoveAllocation}
-                          hasPendingTransfer={hasPendingTransfer}
-                          sourceBins={sourceBinsList.length > 0 ? sourceBinsList : undefined}
+                          hasPendingTransfer={isArrival && hasPendingTransfer}
+                          isArrival={isArrival}
+                          sourceBins={isArrival && sourceBinsList.length > 0 ? sourceBinsList : undefined}
                         />
                       );
                     })
