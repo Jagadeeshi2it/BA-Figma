@@ -63,7 +63,7 @@ export const instructionFor = (step: PipelineStep, moveMode: MoveMode): string =
   switch (step) {
     case 1:
       return moveMode === 'product'
-        ? 'Tap a product inside a bin, or find one with search.'
+        ? 'Search for and select product(s) to move, or select product(s) from bin(s).'
         : 'Tap the bins holding the stock you want to move.';
     case 2:
       return 'Tap the bins the stock should go to.';

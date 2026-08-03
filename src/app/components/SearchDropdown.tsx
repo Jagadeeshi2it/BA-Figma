@@ -223,10 +223,7 @@ const SearchDropdown = memo(function SearchDropdown({
                 onClick={handleSelectAll}
                 className="bg-transparent hover:bg-transparent text-[#095192] hover:text-[#074080] hover:underline text-[14px] font-medium h-auto p-0 shrink-0"
               >
-                {changeAllocationMode
-                  ? `Select All as ${changeAllocationStep === 1 ? 'Source' : 'Target'}`
-                  : 'Select All'
-                }
+                Select All
               </Button>
             )}
           </div>
@@ -341,10 +338,7 @@ const SearchDropdown = memo(function SearchDropdown({
               >
                 {/* The count is what this click will actually take, not how many bins the product
                     lives in — on step 2 those differ wherever a source bin holds the same product. */}
-                {changeAllocationStep === 1
-                  ? `Select as Source (${selectableBinIds(result).length} bin${selectableBinIds(result).length !== 1 ? 's' : ''})`
-                  : `Select as Target (${selectableBinIds(result).length} bin${selectableBinIds(result).length !== 1 ? 's' : ''})`
-                }
+                Select ({selectableBinIds(result).length} bin{selectableBinIds(result).length !== 1 ? 's' : ''})
               </Button>
             )}
 

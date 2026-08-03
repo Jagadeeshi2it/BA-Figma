@@ -77,7 +77,7 @@ export default function AllocationBottomBar({
 
       <SummaryCell
         icon={<LogOut className="w-4 h-4" />}
-        label="Source"
+        label="Move"
         value={sourceValue}
         active={openPanel === 'source'}
         enabled={sourceBinCount > 0}
@@ -86,7 +86,7 @@ export default function AllocationBottomBar({
       <FooterDivider />
       <SummaryCell
         icon={<LogIn className="w-4 h-4" />}
-        label="Target"
+        label="Move to"
         value={targetValue}
         active={openPanel === 'target'}
         enabled={targetBinCount > 0}

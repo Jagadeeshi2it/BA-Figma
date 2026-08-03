@@ -792,13 +792,14 @@ export default function QuantitySelectionPage({
           <FooterDivider />
           {/* Same Move Summary counter Review uses, toggling the same kind of panel rather than a
               SideSheet like the two cells above — it stays open across the whole page instead of
-              closing the moment something else is tapped. */}
+              closing the moment something else is tapped. Always enabled, same reasoning as Review:
+              this is the only way to reopen it once someone's closed it. */}
           <SummaryCell
             icon={<ListChecks className="w-4 h-4" />}
             label="Move Summary"
             value={`${summaryProductCount} ${summaryProductCount === 1 ? 'product' : 'products'}`}
             active={summaryOpen}
-            enabled={summaryRows.length > 0}
+            enabled
             onClick={() => setSummaryOpen(prev => !prev)}
           />
 

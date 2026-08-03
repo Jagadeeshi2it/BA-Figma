@@ -976,13 +976,13 @@ export default function TargetBinSerialScanPage({
             onClick={() => setActiveSheet('targetBin')}
           />
           <FooterDivider />
-          {/* Same Move Summary counter the other two stages use. */}
+          {/* Same Move Summary counter the other two stages use, always enabled for the same reason. */}
           <SummaryCell
             icon={<ListChecks className="w-4 h-4" />}
             label="Move Summary"
             value={`${summaryProductCount} ${summaryProductCount === 1 ? 'product' : 'products'}`}
             active={summaryOpen}
-            enabled={summaryRows.length > 0}
+            enabled
             onClick={() => setSummaryOpen(prev => !prev)}
           />
 

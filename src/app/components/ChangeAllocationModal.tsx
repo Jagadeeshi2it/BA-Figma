@@ -48,7 +48,10 @@ export default function ChangeAllocationModal({
   const [currentTargetBinIndex, setCurrentTargetBinIndex] = useState<number>(0);
   const [currentSourceBinIndex, setCurrentSourceBinIndex] = useState<number>(0);
   const [currentProductIndex, setCurrentProductIndex] = useState<number>(0);
-  const [summaryOpen, setSummaryOpen] = useState(true);
+  // Closed by default on Review — nothing's picked yet the moment this page opens, so a 320px panel
+  // announcing "Nothing selected yet" was real estate spent on an empty state. The footer's own Move
+  // Summary counter is the way in, same as it would be to close it again once there's something to see.
+  const [summaryOpen, setSummaryOpen] = useState(false);
 
   const targetBin = targetBins[currentTargetBinIndex] || null;
 
@@ -1372,13 +1375,17 @@ export default function ChangeAllocationModal({
           {/* Now that there's a Move Summary panel to open and close, this stage gets the same kind
               of counter the later stages already use for their own sheets — toggling the panel
               rather than a SideSheet, since the panel is meant to stay open and visible rather than
-              overlay the screen, but the same footer affordance either way. */}
+              overlay the screen, but the same footer affordance either way.
+              Always enabled, unlike the Product/Source Bin cells elsewhere: those gate on having
+              something to report, but this one is the ONLY way to close the panel once it's open —
+              gating on summaryRows.length would have left it stuck open with nothing selected yet,
+              since the panel starts closed and there'd be no other control to shut it again. */}
           <SummaryCell
             icon={<ListChecks className="w-4 h-4" />}
             label="Move Summary"
             value={`${summaryProductCount} ${summaryProductCount === 1 ? 'product' : 'products'}`}
             active={summaryOpen}
-            enabled={summaryRows.length > 0}
+            enabled
             onClick={() => setSummaryOpen(prev => !prev)}
           />
 
