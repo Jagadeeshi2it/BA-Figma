@@ -11,8 +11,8 @@ import { instructionFor, TOTAL_PIPELINE_STEPS, PipelineStep } from './PipelineSt
  * steps looked like moving between products.
  *
  * Defining the shell, the step cell, the summary cell and the buttons once means a stage chooses WHAT
- * to report, never how it looks. It also keeps the step numbering honest: the count comes from
- * PipelineSteps, so it cannot disagree with the (currently hidden) stepper band.
+ * to report, never how it looks. It also keeps the step numbering honest: the count and per-step
+ * instruction come from PipelineSteps.tsx, the pipeline's one shared source for both.
  */
 
 export const plural = (count: number, noun: string) => `${count} ${noun}${count !== 1 ? 's' : ''}`;

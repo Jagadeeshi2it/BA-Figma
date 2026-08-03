@@ -14,7 +14,6 @@ import ProductDetailPage from "./components/ProductDetailPage";
 import UnallocateConfirmModal from "./components/UnallocateConfirmModal";
 import ErrorBoundary from "./components/ErrorBoundary";
 import AllocationBottomBar from "./components/AllocationBottomBar";
-import PipelineSteps from "./components/PipelineSteps";
 import AllocationSelectionPanel from "./components/AllocationSelectionPanel";
 import AllocateProductsPanel from "./components/AllocateProductsPanel";
 import { useDebounce } from "./hooks/useDebounce";
@@ -799,17 +798,6 @@ export default function App() {
             ) : null
           }
         >
-          {/* Pipeline spine for stages ① Source / ② Target — the two bin-selection steps live on
-              this cabinet page, so the indicator reads the same step the bottom bar is on.
-              The negative margins pull it out of the scroll area's p-6 so it sits flush under the
-              Allocation header, edge to edge — but it stays INSIDE the scroll container, so it
-              scrolls away with the cabinets rather than pinning to the top (per request: not fixed). */}
-          {inventoryState.changeAllocationMode && (
-            <div className="-mt-6 -mx-6 mb-6">
-              <PipelineSteps current={inventoryState.changeAllocationStep} moveMode={inventoryState.moveMode} />
-            </div>
-          )}
-
           <CabinetSelection
             selectedCabinet={inventoryState.selectedCabinet}
             selectedDoor={inventoryState.selectedDoor}

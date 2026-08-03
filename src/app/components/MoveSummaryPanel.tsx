@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, ArrowRight } from 'lucide-react';
+import { X, ArrowRight, LogOut, LogIn } from 'lucide-react';
 import { pluralizeUnit } from '../utils/pluralizeUnit';
 import { getVialType, hasClimateBadge, hasCivBadge } from '../utils/binProducts';
 
@@ -30,12 +30,31 @@ export interface MoveSummaryRow {
   status: 'pending' | 'current' | 'done';
 }
 
+/**
+ * Which half of the move the operator is physically doing right now.
+ *
+ * A pairing line reads the same on both halves of step 4 — "Bin B · Door 1 → Bin C · Door 1" — but
+ * the operator's job is the opposite one on each: taking stock out of Bin B, then putting it into
+ * Bin C. Once a product spans several source bins AND several target bins, the line alone can't say
+ * which of those bins is the one in their hands. So the stage is stated in the header and the bin
+ * that's actually in play is marked on the current line, rather than leaving both ends looking equal.
+ *
+ * 'review' is step 3, where nothing is being handled yet and there is no active end to point at.
+ */
+export type MoveSummaryStage = 'review' | 'source' | 'target';
+
 interface MoveSummaryPanelProps {
   rows: MoveSummaryRow[];
   isOpen: boolean;
   onToggle: () => void;
   title?: string;
+  stage?: MoveSummaryStage;
 }
+
+const STAGE_COPY: Record<Exclude<MoveSummaryStage, 'review'>, { label: string; icon: typeof LogOut }> = {
+  source: { label: 'Taking from source bin', icon: LogOut },
+  target: { label: 'Placing in target bin', icon: LogIn }
+};
 
 // A real group-by, not a consecutive-run merge: a product's rows can arrive interleaved with
 // another product's (the operator picks things in whatever order, and step 4's own walk can visit
@@ -71,12 +90,20 @@ const groupByProduct = (rows: MoveSummaryRow[]) => {
   return groups;
 };
 
-export default function MoveSummaryPanel({ rows, isOpen, onToggle, title = 'Move Summary' }: MoveSummaryPanelProps) {
+export default function MoveSummaryPanel({
+  rows,
+  isOpen,
+  onToggle,
+  title = 'Move Summary',
+  stage = 'review'
+}: MoveSummaryPanelProps) {
   // No collapsed rail: the footer's own Move Summary counter is what reopens this now, so a second,
   // always-present toggle sitting in the corner just to say "closed" would be a redundant control.
   if (!isOpen) return null;
 
   const groups = groupByProduct(rows);
+  const stageCopy = stage === 'review' ? null : STAGE_COPY[stage];
+  const StageIcon = stageCopy?.icon;
 
   return (
     <div className="shrink-0 w-[320px] h-full bg-white border-l border-gray-200 flex flex-col">
@@ -96,6 +123,16 @@ export default function MoveSummaryPanel({ rows, isOpen, onToggle, title = 'Move
           <X className="w-4 h-4 text-[#4a5565]" />
         </button>
       </div>
+
+      {/* Which half of the move is in the operator's hands right now. Carries the same icon the
+          footer's own Source/Target cells use, so the two chrome surfaces name this the same way.
+          Absent on Review, where nothing is being handled yet. */}
+      {stageCopy && StageIcon && (
+        <div className="flex items-center gap-1.5 px-4 py-2 border-b border-gray-200 bg-[#F1F6FA] shrink-0">
+          <StageIcon className="w-3.5 h-3.5 text-[#095192] shrink-0" />
+          <span className="text-[12px] font-medium text-[#095192]">{stageCopy.label}</span>
+        </div>
+      )}
 
       {/* pb-20: on step 4, this panel sits beside a page whose own footer is fixed and runs the full
           width (including under this panel) rather than making room for it — so without this, the
@@ -146,7 +183,16 @@ export default function MoveSummaryPanel({ rows, isOpen, onToggle, title = 'Move
                 {/* Merged bin pairings — one compact line per source/target pair, instead of the
                     separate full card each used to get. */}
                 <div className={`mt-2 pt-2 border-t space-y-1 ${isCurrentCard ? 'border-[#dbe9f6]' : 'border-gray-100'}`}>
-                  {group.rows.map(row => (
+                  {group.rows.map(row => {
+                    // On the current line, the end the operator is actually at is filled in; the
+                    // other end stays plain, so a product spread over several bins still shows
+                    // WHICH bin is in play rather than two ends that look equally active.
+                    const activeEnd = row.status === 'current' ? stage : 'review';
+                    const endClass = (isActive: boolean) =>
+                      isActive
+                        ? 'truncate bg-[#095192] text-white rounded-[3px] px-1 py-0.5'
+                        : 'truncate';
+                    return (
                     <div
                       key={row.key}
                       className={`flex items-center justify-between gap-2 rounded-[4px] px-1.5 py-1 text-[12px] ${
@@ -154,9 +200,9 @@ export default function MoveSummaryPanel({ rows, isOpen, onToggle, title = 'Move
                       }`}
                     >
                       <span className="flex items-center gap-1 min-w-0 truncate">
-                        <span className="truncate">{row.fromLabel}</span>
+                        <span className={endClass(activeEnd === 'source')}>{row.fromLabel}</span>
                         <ArrowRight className="w-3 h-3 shrink-0" />
-                        <span className="truncate">{row.toLabel}</span>
+                        <span className={endClass(activeEnd === 'target')}>{row.toLabel}</span>
                       </span>
                       <span className="shrink-0 flex items-center gap-1.5">
                         {row.quantity !== null && (
@@ -171,7 +217,8 @@ export default function MoveSummaryPanel({ rows, isOpen, onToggle, title = 'Move
                         )}
                       </span>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             );

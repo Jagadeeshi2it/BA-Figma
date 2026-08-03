@@ -6,7 +6,6 @@ import { ChevronRight, Pencil, X, Unlock, Package, LogOut, ListChecks, ArrowLeft
 import { DoorUnlockedToast } from "./ui/sonner-1";
 import CabinetPipView from "./CabinetPipView";
 import SideSheet from "./SideSheet";
-import PipelineSteps from "./PipelineSteps";
 import MoveSummaryPanel, { MoveSummaryRow } from "./MoveSummaryPanel";
 import {
   PipelineFooterShell,
@@ -199,37 +198,46 @@ export default function QuantitySelectionPage({
     return groups;
   }, [enhancedTransfers, doorShelfConfig]);
 
-  // What the Move Summary panel shows on this half of step 4 — one row per individual transfer
-  // (a group can fan out to several target bins), reading the live quantity the operator has set
-  // for it so far and falling back to the group's default when they haven't touched it yet. Status
-  // comes from the group's position relative to currentIndex: earlier groups have already had their
-  // quantity taken, the current one is what's on screen, later ones are still ahead. Sorted by
-  // product for the panel's grouping, same as step 3's summary.
+  // What the Move Summary panel shows on this half of step 4 — ONE row per source bin, because that
+  // is the unit of work here: the operator empties one bin at a time and the batch advances a bin at
+  // a time (that's what the footer's own "Source Bin n of N" counts).
+  //
+  // It used to emit a row per individual transfer, so a source feeding three target bins produced
+  // three near-identical lines that differed only at the end the operator isn't working on yet. Two
+  // things were wrong with that. The quantity taken out of a bin is one figure, but it appeared once
+  // per target — and since transfers now each carry the whole amount rather than a pre-split share,
+  // three lines of "20 vials" read as sixty. And it showed a per-target breakdown before the operator
+  // had decided one; that split is theirs to make on the placement screen by scanning.
+  //
+  // So the target end is summarised: the bin's name when there's only one, a count when there are
+  // several. The placement screen then inverts this — a row per target bin — so each stage lists the
+  // thing being handled and summarises the other side.
   const summaryRows: MoveSummaryRow[] = useMemo(() => {
-    const rows: MoveSummaryRow[] = [];
-    groupedTransfers.forEach((group, groupIndex) => {
-      group.transfers.forEach((transfer, transferIndex) => {
-        const key = `${transfer.productId}-${transfer.fromBinId}-${transfer.toBinId}`;
-        const quantity = transferQuantities[key] ?? transfer.moveQuantity;
-        rows.push({
-          key: `${key}-${groupIndex}-${transferIndex}`,
-          productName: group.productName,
-          productDescription: group.productDescription,
-          ndc: group.ndc,
-          inventoryType: group.inventoryType,
-          fromLabel: `${group.sourceBinName} · ${group.sourceDoorName}`,
-          toLabel: group.targetBinNames[transferIndex] ?? 'Unknown bin',
-          quantity,
-          unit: group.unit,
-          status: groupIndex === currentIndex ? 'current' : groupIndex < currentIndex ? 'done' : 'pending'
-        });
-      });
+    return groupedTransfers.map((group, groupIndex) => {
+      // Distinct target names: a duplicated transfer (the same product staged into the same bin
+      // twice) would otherwise inflate the count and read as two destinations.
+      const targetNames = Array.from(new Set(group.targetBinNames));
+      const groupKey = `${group.productId}-${group.fromBinId}-group`;
+      return {
+        key: `${group.productId}-${group.fromBinId}-${groupIndex}`,
+        productName: group.productName,
+        productDescription: group.productDescription,
+        ndc: group.ndc,
+        inventoryType: group.inventoryType,
+        fromLabel: `${group.sourceBinName} · ${group.sourceDoorName}`,
+        toLabel:
+          targetNames.length === 1
+            ? targetNames[0] ?? 'Unknown bin'
+            : `${targetNames.length} target bins`,
+        quantity: transferQuantities[groupKey] ?? group.transfers[0].moveQuantity,
+        unit: group.unit,
+        status: groupIndex === currentIndex ? 'current' : groupIndex < currentIndex ? 'done' : 'pending'
+      };
     });
     // Left in groupedTransfers' own order — the same order the operator walks through the batch —
     // rather than re-sorted alphabetically: MoveSummaryPanel's group-by no longer needs same-product
     // rows contiguous, so the panel now reads top-to-bottom in the order the operator will actually
     // take each source bin, with the current one's card highlighted rather than buried alphabetically.
-    return rows;
   }, [groupedTransfers, transferQuantities, currentIndex]);
 
   // Distinct products in the summary, for the footer counter — matches the panel's own header count.
@@ -301,24 +309,22 @@ export default function QuantitySelectionPage({
     const updates: { [key: string]: number } = {
       [groupKey]: clampedQuantity
     };
-    
-    // If there's only one target bin, set the quantity directly
-    // If there are multiple target bins, the user will distribute in the target bin screen
-    if (currentGroup.transfers.length === 1) {
-      const key = `${currentGroup.transfers[0].productId}-${currentGroup.transfers[0].fromBinId}-${currentGroup.transfers[0].toBinId}`;
+
+    // Every transfer out of this source carries the SAME figure: the whole amount taken out of the
+    // bin. It is not divided between the target bins here, even when there are several.
+    //
+    // This used to split the quantity evenly across the targets as a starting guess. Two things were
+    // wrong with that. It decided the distribution on the operator's behalf when the target page is
+    // where that decision belongs — they scan serials into each bin and the split follows from what
+    // physically went where. And it broke the target page's own arithmetic: that page reads the
+    // source total by de-duplicating transfers on their source bin, so it saw only the FIRST split
+    // share (half of a two-bin split) as the whole amount available. Every bin after the first then
+    // had nothing left to account for, which is what left "Save & Next Bin" permanently disabled.
+    currentGroup.transfers.forEach(transfer => {
+      const key = `${transfer.productId}-${transfer.fromBinId}-${transfer.toBinId}`;
       updates[key] = clampedQuantity;
-    } else {
-      // For multiple targets, split evenly as initial allocation
-      const qtyPerTarget = Math.floor(clampedQuantity / currentGroup.transfers.length);
-      const remainder = clampedQuantity % currentGroup.transfers.length;
-      
-      currentGroup.transfers.forEach((transfer, index) => {
-        const key = `${transfer.productId}-${transfer.fromBinId}-${transfer.toBinId}`;
-        // Give first bins the remainder
-        updates[key] = qtyPerTarget + (index < remainder ? 1 : 0);
-      });
-    }
-    
+    });
+
     setTransferQuantities(prev => ({
       ...prev,
       ...updates
@@ -464,6 +470,10 @@ export default function QuantitySelectionPage({
   const beforeMove = currentGroup.originalQuantity;
   const qtyToMove = getCurrentQuantity();
   const afterMove = beforeMove - qtyToMove;
+  // Already 0 in the source before this move started — there's nothing to take, only an allocation
+  // to relocate. min/max both being 0 make the edit popover pointless, so it's hidden rather than
+  // offered and immediately rejected.
+  const hasNothingToMove = beforeMove === 0;
 
   // CRITICAL: Determine if Skip button should be shown
   // Skip is ONLY available on the FIRST source bin of a product
@@ -562,8 +572,6 @@ export default function QuantitySelectionPage({
 
   return (
     <div className="flex flex-col h-full bg-white">
-      {/* Step ④ "Move" — this is the take-at-source half; the place-at-target page shares the step. */}
-      <PipelineSteps current={4} moveMode={moveMode} />
       <div className="flex-1 flex min-h-0">
       <div className="flex-1 min-w-0 flex flex-col min-h-0">
       {/* Product Header */}
@@ -657,15 +665,17 @@ export default function QuantitySelectionPage({
             <div className="text-right relative">
               <p className="text-[16px] text-[#64748b] mb-2">Qty to move</p>
               <div className="flex items-center gap-3 justify-end">
-                <Pencil 
-                  className="w-6 h-6 text-[#095192] cursor-pointer" 
-                  onClick={handleEditQuantity}
-                />
+                {!hasNothingToMove && (
+                  <Pencil
+                    className="w-6 h-6 text-[#095192] cursor-pointer"
+                    onClick={handleEditQuantity}
+                  />
+                )}
                 <p className="text-[48px] font-semibold text-[#020817]">{qtyToMove}</p>
               </div>
 
               {/* Quantity Edit Popover */}
-              {editingQuantity && (
+              {!hasNothingToMove && editingQuantity && (
                 <div className="absolute right-0 top-[85px] bg-white rounded-[4px] shadow-[0px_1px_3px_0px_rgba(0,0,0,0.3)] w-[300px] h-[120px] z-10">
                   <p className="absolute left-[16px] top-[16px] text-[14px] text-[#25282a]">Change Qty to move</p>
 
@@ -734,8 +744,17 @@ export default function QuantitySelectionPage({
         {/* Instructions */}
         <div className="bg-white border-b px-6 py-10">
           <div className="text-center text-[14px] text-[#020817]">
-            <p className="mb-0">Remove the quantity shown from this bin, then</p>
-            <p>tap "{primaryActionLabel}".</p>
+            {hasNothingToMove ? (
+              <>
+                <p className="mb-0">This bin has no quantity to remove — the allocation will still move.</p>
+                <p>Tap "{primaryActionLabel}" to continue.</p>
+              </>
+            ) : (
+              <>
+                <p className="mb-0">Remove the quantity shown from this bin, then</p>
+                <p>tap "{primaryActionLabel}".</p>
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -745,6 +764,8 @@ export default function QuantitySelectionPage({
         rows={summaryRows}
         isOpen={summaryOpen}
         onToggle={() => setSummaryOpen(prev => !prev)}
+        // This half takes stock OUT, so the source end of the current pairing is the bin in hand.
+        stage="source"
       />
       </div>
 

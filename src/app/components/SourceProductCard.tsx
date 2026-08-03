@@ -62,11 +62,15 @@ export default function SourceProductCard({
   const showEmergencyKitWarning = isCurrentTargetEmergencyKit && !canMoveToCurrentTarget;
   const hideMoveControls = isCurrentTargetEmergencyKit && !canMoveToCurrentTarget;
   
-  // Two separate questions, deliberately. Whether an action belongs on this card at all — there is
-  // stock and the target will take it (hideMoveControls already carries the E-Kit rule) — and
-  // whether it has already been used. Collapsing them into one condition made the button disappear
-  // the moment it was clicked, which reads as the control breaking rather than as work completed.
-  const canOfferSelect = enhancedProduct.remainingQuantity > 0 && !hideMoveControls;
+  // Two separate questions, deliberately. Whether an action belongs on this card at all — the
+  // target will take it (hideMoveControls already carries the E-Kit rule) — and whether it has
+  // already been used. Collapsing them into one condition made the button disappear the moment it
+  // was clicked, which reads as the control breaking rather than as work completed.
+  //
+  // A product already at 0 quantity is still offered Select: the operator may want to relocate the
+  // allocation itself (empty this bin, keep the product record) even though there's nothing to
+  // physically move. QuantitySelectionPage already handles a 0-quantity source correctly.
+  const canOfferSelect = !hideMoveControls;
   const alreadySelected = isMoveDisabled;
 
   // Debug logging to verify allocate button logic

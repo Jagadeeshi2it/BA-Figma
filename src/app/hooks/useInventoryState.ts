@@ -1473,8 +1473,15 @@ export const useInventoryState = () => {
 
     // Process regular transfers using existing logic (for non-E-Kit transfers)
     // Group by product to create single history entries per product
-    const moveTransfers = regularTransfers.filter(t => t.quantity > 0);
-    const allocationTransfers = regularTransfers.filter(t => t.quantity === 0);
+    //
+    // Classify by actionType, not quantity. This used to be `t.quantity === 0` for allocationTransfers,
+    // which was fine while a 0-quantity transfer only ever meant "Allocate only" (actionType: 'allocate',
+    // now unreachable — see CLAUDE.md §7). It broke the moment a real move could legitimately end at
+    // quantity 0 too: a product already at 0 in its source bin, relocated to a target bin. That transfer
+    // still carries actionType: 'move' from ChangeAllocationModal, but the old check filed it as a new
+    // allocation instead — wrong transactionType, and no "Product moved" entry for a move that happened.
+    const moveTransfers = regularTransfers.filter(t => t.actionType !== 'allocate');
+    const allocationTransfers = regularTransfers.filter(t => t.actionType === 'allocate');
     
     // CRITICAL FIX: Get source bin from anywhere in the doorShelfConfig (not just current door)
     // This fixes the cross-door move issue where source bin wasn't found
@@ -1841,13 +1848,17 @@ export const useInventoryState = () => {
 
     // CRITICAL: Detect zero-quantity products in source bins after move
     // Use setTimeout to ensure state has updated before checking
+    //
+    // Scans every transfer's source bin, not just `quantity > 0` ones: a product already at 0 before
+    // the move stays a phantom 0-qty row in its source bin (the update above is a 0-0 no-op), and a
+    // batch that's entirely such transfers still needs this scan to offer unallocating it — the same
+    // as any other product a move happens to drain to 0.
     setTimeout(() => {
-      const moveTransfersList = transfers.filter(t => t.quantity > 0);
-      if (moveTransfersList.length > 0) {
+      if (transfers.length > 0) {
         console.log('🔍 Checking for zero-quantity products after move (after state update)...');
-        
+
         // Get unique source bins from transfers
-        const sourceBinIds = Array.from(new Set(moveTransfersList.map(t => t.fromBinId).filter(Boolean)));
+        const sourceBinIds = Array.from(new Set(transfers.map(t => t.fromBinId).filter(Boolean)));
         const productsToUnallocate: any[] = [];
         
         // Access the updated doorShelfConfig via the state getter

@@ -6,7 +6,6 @@ import { ChevronRight, Search, Trash2, Unlock, Package, LogIn, ListChecks, Arrow
 import { DoorUnlockedToast } from "./ui/sonner-1";
 import CabinetPipView from "./CabinetPipView";
 import SideSheet from "./SideSheet";
-import PipelineSteps from "./PipelineSteps";
 import MoveSummaryPanel, { MoveSummaryRow } from "./MoveSummaryPanel";
 import {
   PipelineFooterShell,
@@ -112,7 +111,13 @@ export default function TargetBinSerialScanPage({
     const needsScanning = transfers.some(transfer => {
       const originalQty = (transfer as any).originalQuantity || 0;
       const movingQty = transfer.quantity || 0;
-      
+
+      // Nothing was ever at the source to begin with — there's nothing to scan or split across
+      // target bins regardless of how many target bins this 0-qty allocation is spread across.
+      if (originalQty === 0) {
+        return false;
+      }
+
       // If moving partial quantity, need serial scanning
       if (movingQty < originalQty) {
         return true;
@@ -305,12 +310,17 @@ export default function TargetBinSerialScanPage({
     return groups;
   }, [transfers, doorShelfConfig]);
 
-  // What the Move Summary panel shows on the placement half of step 4 — one row per original
-  // source→target transfer, read straight off productGroups rather than duplicating its
-  // aggregation. Source door isn't already resolved on targetBinGroup.sourceBins (that structure
-  // was built for the target side, which resolves its own door), so it's looked up once here rather
-  // than reworked into the shared aggregation above. Status is by product, matching this page's own
-  // "Product X of Y" counter — current is what's being placed, done is behind it, pending is ahead.
+  // What the Move Summary panel shows on the placement half of step 4 — ONE row per target bin, the
+  // mirror of the quantity page's one-row-per-source-bin. That is the unit of work here: the operator
+  // fills one target bin at a time, which is what this page's own "Target Bin n of N" counts.
+  //
+  // It used to emit a row per source→target pairing, which repeated the same target bin once for
+  // every source feeding it — a detail belonging to the half that's already finished. The source end
+  // is summarised instead: the bin's name when one source feeds this target, a count when several do.
+  //
+  // Status advances per TARGET BIN rather than per product. Keyed on the product alone, every one of
+  // the current product's target bins lit up as "current" at once, so the panel couldn't say which
+  // bin was in the operator's hands — the exact thing the stage highlight exists to answer.
   const summaryRows: MoveSummaryRow[] = useMemo(() => {
     const doorByBinId = new Map<string, string>();
     Object.keys(doorShelfConfig).forEach(doorKey => {
@@ -321,31 +331,66 @@ export default function TargetBinSerialScanPage({
 
     const rows: MoveSummaryRow[] = [];
     productGroups.forEach((product, productIndex) => {
-      product.targetBins.forEach(targetBinGroup => {
-        targetBinGroup.sourceBins.forEach((source, sourceIndex) => {
-          const fromDoor = doorByBinId.get(source.fromBinId);
-          const fromName = source.sourceBinName ?? 'Unknown bin';
-          rows.push({
-            key: `${product.productId}-${source.fromBinId}-${targetBinGroup.toBinId}-${productIndex}-${sourceIndex}`,
-            productName: product.productName,
-            productDescription: product.productDescription,
-            ndc: product.ndc,
-            inventoryType: product.inventoryType,
-            fromLabel: fromDoor ? `${fromName} · ${fromDoor}` : fromName,
-            toLabel: `${targetBinGroup.targetBinName} · ${targetBinGroup.targetDoorName}`,
-            quantity: source.quantity,
-            unit: product.unit,
-            status: productIndex === currentProductIndex
-              ? 'current'
-              : productIndex < currentProductIndex ? 'done' : 'pending'
-          });
+      product.targetBins.forEach((targetBinGroup, targetBinIndex) => {
+        const status: MoveSummaryRow['status'] =
+          productIndex < currentProductIndex
+            ? 'done'
+            : productIndex > currentProductIndex
+              ? 'pending'
+              : targetBinIndex === currentTargetBinIndex
+                ? 'current'
+                : targetBinIndex < currentTargetBinIndex
+                  ? 'done'
+                  : 'pending';
+
+        // Source door isn't resolved on targetBinGroup.sourceBins (that structure was built for the
+        // target side, which resolves its own door), so it's looked up here rather than reworked
+        // into the shared aggregation above.
+        const sourceLabels = Array.from(new Set(
+          targetBinGroup.sourceBins.map(source => {
+            const name = source.sourceBinName ?? 'Unknown bin';
+            const door = doorByBinId.get(source.fromBinId);
+            return door ? `${name} · ${door}` : name;
+          })
+        ));
+
+        // What has actually been placed in this bin. A bin the operator hasn't reached yet has no
+        // figure at all: its share is decided by scanning into it, so a 0 would look like a decision
+        // they'd made rather than one still ahead of them. (When no scanning is required the whole
+        // amount is known up front, so it's shown.)
+        const placed = (scannedItems[`${product.productId}-${targetBinGroup.toBinId}`] || []).length;
+        const quantity = !serialScanningRequired
+          ? targetBinGroup.totalQuantity
+          : status === 'pending' ? null : placed;
+
+        rows.push({
+          key: `${product.productId}-${targetBinGroup.toBinId}-${productIndex}-${targetBinIndex}`,
+          productName: product.productName,
+          productDescription: product.productDescription,
+          ndc: product.ndc,
+          inventoryType: product.inventoryType,
+          fromLabel:
+            sourceLabels.length === 1
+              ? sourceLabels[0] ?? 'Unknown bin'
+              : `${sourceLabels.length} source bins`,
+          toLabel: `${targetBinGroup.targetBinName} · ${targetBinGroup.targetDoorName}`,
+          quantity,
+          unit: product.unit,
+          status
         });
       });
     });
     // Left in productGroups' own order — the same order the operator walks through placement —
     // rather than re-sorted alphabetically, matching the quantity page's summary.
     return rows;
-  }, [productGroups, doorShelfConfig, currentProductIndex]);
+  }, [
+    productGroups,
+    doorShelfConfig,
+    currentProductIndex,
+    currentTargetBinIndex,
+    scannedItems,
+    serialScanningRequired
+  ]);
 
   // Distinct products in the summary, for the footer counter — matches the panel's own header count.
   const summaryProductCount = useMemo(
@@ -434,6 +479,26 @@ export default function TargetBinSerialScanPage({
     
     return totalQuantity - totalScanned;
   }, [currentProduct, scannedItems]);
+
+  // Same unique-source sum as remainingQtyToMove above, without subtracting what's been scanned —
+  // used to tell "nothing was ever here" (0) apart from "everything's been scanned" (also 0 via
+  // remainingQtyToMove), which canSave needs to treat differently.
+  const currentProductTotalQuantity = useMemo(() => {
+    if (!currentProduct) return 0;
+
+    const uniqueSourceQuantities = new Map<string, number>();
+    currentProduct.targetBins.forEach(tb => {
+      tb.transfers.forEach(transfer => {
+        const sourceKey = `${transfer.fromBinId}-${transfer.productId}`;
+        if (!uniqueSourceQuantities.has(sourceKey)) {
+          const sourceQty = transfer.quantity || (transfer as any).originalQuantity || 0;
+          uniqueSourceQuantities.set(sourceKey, sourceQty);
+        }
+      });
+    });
+
+    return Array.from(uniqueSourceQuantities.values()).reduce((sum, qty) => sum + qty, 0);
+  }, [currentProduct]);
 
   // AUTO-POPULATE serial numbers when serial scanning is NOT required
   // This happens when moving entire quantity to single target bin
@@ -592,18 +657,10 @@ export default function TargetBinSerialScanPage({
         currentTargetBinIndex === currentProduct.targetBins.length - 1 &&
         currentProductIndex === productGroups.length - 1;
       
-      if (isLastTargetBin) {
-        // LAST target bin: Must have moved ALL remaining quantity
-        if (remainingQtyToMove !== 0) {
-          console.log('❌ Cannot save: Last target bin must have all remaining quantity');
-          return;
-        }
-      } else {
-        // NON-LAST target bin: Just need at least 1 item scanned (already validated by canSave)
-        if (qtyMoved === 0) {
-          console.log('❌ Cannot save: No items scanned yet');
-          return;
-        }
+      // Mirrors canSave: only the final bin has to account for everything taken from the source.
+      if (isLastTargetBin && remainingQtyToMove !== 0) {
+        console.log('❌ Cannot save: the whole quantity taken from the source must be placed');
+        return;
       }
     }
 
@@ -628,6 +685,18 @@ export default function TargetBinSerialScanPage({
     const finalTransfers: ProductTransfer[] = [];
     
     productGroups.forEach(product => {
+      // Everything this product has to distribute, de-duplicated by source bin — every transfer out
+      // of a given source now carries that source's whole amount, so counting them all would
+      // multiply it by the number of target bins.
+      const sourceTotals = new Map<string, number>();
+      product.targetBins.forEach(tb => {
+        tb.transfers.forEach(t => {
+          const sourceKey = `${t.fromBinId}-${t.productId}`;
+          if (!sourceTotals.has(sourceKey)) sourceTotals.set(sourceKey, t.quantity || 0);
+        });
+      });
+      const productTotalQuantity = Array.from(sourceTotals.values()).reduce((sum, q) => sum + q, 0);
+
       product.targetBins.forEach(targetBin => {
         const key = getTargetBinKey(targetBin);
         const items = scannedItems[key] || [];
@@ -673,7 +742,11 @@ export default function TargetBinSerialScanPage({
               : Math.min(declaredQuantity, remainingToAssign);
 
             remainingToAssign -= assignedQuantity;
-            if (assignedQuantity <= 0) return; // this source contributed nothing to this target
+            // Nothing landed here, so there's nothing to record — unless the product had no stock to
+            // begin with, in which case this transfer is the whole point: it relocates the allocation
+            // itself. Dropping it then silently cancelled the move, and the target bin never got the
+            // product at all.
+            if (assignedQuantity <= 0 && productTotalQuantity > 0) return;
 
             const assignedSerials = serialNumbers.slice(serialCursor, serialCursor + assignedQuantity);
             serialCursor += assignedQuantity;
@@ -718,29 +791,39 @@ export default function TargetBinSerialScanPage({
   // Validation for save button
   // CRITICAL: Different logic for last vs non-last target bins when serial scanning required
   const canSave = (() => {
+    // Nothing was ever at the source for this product — there's nothing to scan, and requiring
+    // qtyMoved > 0 below would make this unsaveable forever. This is a relocation of the allocation
+    // itself, not a quantity transfer, so it's always ready to save.
+    if (currentProductTotalQuantity === 0) {
+      return true;
+    }
+
     // If serial scanning NOT required (full transfer), always allow save
     if (!serialScanningRequired) {
       return true;
     }
-    
+
     // Check if this is the LAST target bin
-    const isLastTargetBin = 
+    const isLastTargetBin =
       currentTargetBinIndex === currentProduct.targetBins.length - 1 &&
       currentProductIndex === productGroups.length - 1;
-    
-    if (isLastTargetBin) {
-      // LAST target bin: Must move ALL remaining quantity
-      return remainingQtyToMove === 0 && qtyMoved > 0;
-    } else {
-      // NON-LAST target bin: Can save if at least 1 item scanned (allows flexible splitting)
-      return qtyMoved > 0;
-    }
+
+    // Only the final bin carries a requirement: everything taken out of the source has to have been
+    // placed somewhere. Individual bins have no minimum of their own — the operator decides each
+    // bin's share by scanning into it, and "all of it in the first bin, none in the second" is a
+    // legitimate outcome of that. Both branches used to demand qtyMoved > 0 for the bin on screen,
+    // which made exactly that choice unfinishable: the emptied last bin could never be saved.
+    return isLastTargetBin ? remainingQtyToMove === 0 : true;
   })();
+
+  // Blocked, the button says what it is waiting for rather than greying out mutely — the same rule
+  // the bin-picking footer follows. The only thing that can block it is quantity still unplaced.
+  const effectiveSaveLabel = canSave
+    ? saveButtonLabel
+    : `Place ${remainingQtyToMove} more ${pluralizeUnit(currentProduct.unit || 'vial', remainingQtyToMove)}`;
 
   return (
     <div className="flex flex-col h-full bg-white">
-      {/* Step ④ "Move" — this is the place-at-target half; the take-quantity page shares the step. */}
-      <PipelineSteps current={4} moveMode={moveMode} />
       <div className="flex-1 flex min-h-0">
       <div className="flex-1 min-w-0 flex flex-col min-h-0">
       {/* Product Header */}
@@ -918,6 +1001,8 @@ export default function TargetBinSerialScanPage({
         rows={summaryRows}
         isOpen={summaryOpen}
         onToggle={() => setSummaryOpen(prev => !prev)}
+        // This half puts stock IN, so the target end of the current pairing is the bin in hand.
+        stage="target"
       />
       </div>
 
@@ -928,7 +1013,10 @@ export default function TargetBinSerialScanPage({
         binId={currentTargetBin.toBinId}
         doorShelfConfig={doorShelfConfig}
         mode="target"
-        quantity={currentTargetBin.totalQuantity}
+        // What has actually been placed in this bin so far, not the source's whole amount — with
+        // several target bins the operator decides the split by scanning, so this bin's share only
+        // exists once they've scanned it.
+        quantity={qtyMoved}
         unit={currentProduct.unit}
       />
 
@@ -997,7 +1085,7 @@ export default function TargetBinSerialScanPage({
               leadingIcon={<ArrowLeft className="w-4 h-4" />}
             />
             <FooterButton
-              label={saveButtonLabel}
+              label={effectiveSaveLabel}
               variant="primary"
               enabled={canSave}
               onClick={handleSave}
@@ -1085,9 +1173,16 @@ export default function TargetBinSerialScanPage({
                   {isDone && (
                     <span className="text-[10px] font-semibold text-[#12805C] bg-[#E1F5EC] rounded-full px-2 py-0.5">Done</span>
                   )}
+                  {/* Placed in this bin, full stop. It used to read "n/total", but with several
+                      target bins there is no per-bin total to divide by — the operator is deciding
+                      each bin's share as they scan, so a denominator would be inventing a target
+                      they never set. */}
                   <span className="text-[13px] font-semibold text-[#020817]">
-                    {serialScanningRequired ? `${scannedCount}/${tb.totalQuantity}` : tb.totalQuantity}{' '}
-                    {pluralizeUnit(currentProduct.unit || 'vial', tb.totalQuantity)}
+                    {serialScanningRequired ? scannedCount : tb.totalQuantity}{' '}
+                    {pluralizeUnit(
+                      currentProduct.unit || 'vial',
+                      serialScanningRequired ? scannedCount : tb.totalQuantity
+                    )}
                   </span>
                 </div>
               </div>
