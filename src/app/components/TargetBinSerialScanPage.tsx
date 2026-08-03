@@ -380,6 +380,8 @@ export default function TargetBinSerialScanPage({
           toLabel: targetBinGroup.targetBinName,
           toDoor: targetBinGroup.targetDoorName,
           quantity,
+          // What this target bin already held, so the panel can say "+10 → 35".
+          beforeQuantity: targetBinGroup.targetBinExistingQty,
           unit: product.unit,
           status
         });
@@ -438,9 +440,13 @@ export default function TargetBinSerialScanPage({
     return () => toast.dismiss(toastId);
   }, [currentTargetBin?.targetDoorName]);
 
-  const getTargetBinKey = (targetBin: TargetBinGroup) => {
-    return `${currentProduct.productId}-${targetBin.toBinId}`;
-  };
+  // scannedItems is keyed by product AND target bin, so the product has to be named explicitly
+  // rather than assumed to be the one on screen: finalizeAndConfirm walks EVERY product, and reading
+  // currentProduct there charged one product's scanned quantity to another (see scanKey's use below).
+  const scanKey = (productId: string, toBinId: string) => `${productId}-${toBinId}`;
+
+  const getTargetBinKey = (targetBin: TargetBinGroup) =>
+    scanKey(currentProduct.productId, targetBin.toBinId);
 
   const getCurrentScannedItems = () => {
     if (!currentTargetBin) return [];
@@ -703,7 +709,12 @@ export default function TargetBinSerialScanPage({
       const productTotalQuantity = Array.from(sourceTotals.values()).reduce((sum, q) => sum + q, 0);
 
       product.targetBins.forEach(targetBin => {
-        const key = getTargetBinKey(targetBin);
+        // THIS product's scanned items, not the one that happens to be on screen. Keyed on
+        // currentProduct, every product in the batch read back the same bin's scan list, so a
+        // product that had nothing taken from it was still charged whatever the on-screen product
+        // had scanned — a 0-quantity ALIMTA came out of the move at -10 because OCTAGAM, sharing its
+        // target bin, had 10 scanned against it.
+        const key = scanKey(product.productId, targetBin.toBinId);
         const items = scannedItems[key] || [];
         const serialNumbers = items.map(item => item.serial);
         

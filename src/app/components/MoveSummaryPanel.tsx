@@ -33,6 +33,11 @@ export interface MoveSummaryRow {
   // sets a real amount. Rendered as no quantity at all rather than a placeholder string: the bin
   // pairing is the news at that stage, and a repeated "not decided yet" on every line was noise.
   quantity: number | null;
+  // What the ACTIVE end's bin held before this move — the source bin while taking, the target bin
+  // while placing. With it the panel can state the movement the way the History page does
+  // ("-10 → 190", "+10 → 35") instead of a bare figure that doesn't say whether it's what's moving,
+  // what's left, or what will be there. Omitted on Review, where no quantity is settled yet.
+  beforeQuantity?: number;
   unit?: string;
   status: 'pending' | 'current' | 'done';
 }
@@ -232,8 +237,25 @@ export default function MoveSummaryPanel({
                           pushed the bin names into truncating. */}
                       <span className="shrink-0 flex flex-col items-end gap-0.5">
                         {row.quantity !== null && (
-                          <span className="font-medium text-[#020817]">
-                            {row.quantity} {pluralizeUnit(row.unit || 'vial', row.quantity)}
+                          <span className="font-medium text-[#020817] whitespace-nowrap">
+                            {(() => {
+                              // The History page's shape: the change, then what the bin ends up
+                              // holding. Stock leaves a source (-) and arrives in a target (+), so
+                              // the sign follows the half being worked. A zero move has no movement
+                              // to sign — "-0 → 0" states nothing — so it stays a bare figure.
+                              // Keyed on the panel's stage, NOT on activeEnd: activeEnd is 'review'
+                              // for every row except the current one (that's what drives the
+                              // highlight), so reusing it here left every other row showing a bare
+                              // figure — the rows the operator most needs to read ahead on.
+                              const qty = row.quantity as number;
+                              if (qty === 0 || row.beforeQuantity == null || stage === 'review') {
+                                return `${qty} ${pluralizeUnit(row.unit || 'vial', qty)}`;
+                              }
+                              const after =
+                                stage === 'source' ? row.beforeQuantity - qty : row.beforeQuantity + qty;
+                              const sign = stage === 'source' ? '-' : '+';
+                              return `${sign}${qty} → ${after} ${pluralizeUnit(row.unit || 'vial', after)}`;
+                            })()}
                           </span>
                         )}
                         {row.status === 'done' && (
@@ -245,6 +267,19 @@ export default function MoveSummaryPanel({
                     </div>
                     );
                   })}
+
+                  {/* Worth stating only when more than one line contributes to it — with a single
+                      bin the line already IS the total. Same rule the History page applies. */}
+                  {(() => {
+                    const counted = group.rows.filter(r => typeof r.quantity === 'number' && r.quantity > 0);
+                    if (counted.length < 2) return null;
+                    const total = counted.reduce((sum, r) => sum + (r.quantity as number), 0);
+                    return (
+                      <div className="pt-1 text-right text-[12px] font-medium text-[#475569]">
+                        {total} {pluralizeUnit(group.rows[0]?.unit || 'vial', total)} total
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
             );

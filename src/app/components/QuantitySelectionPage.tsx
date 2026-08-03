@@ -249,6 +249,8 @@ export default function QuantitySelectionPage({
         // A summarised end has no single door to name.
         toDoor: targets.length === 1 ? targets[0]?.door : undefined,
         quantity: transferQuantities[groupKey] ?? group.transfers[0].moveQuantity,
+        // What this source bin held before the move, so the panel can say "-10 → 190".
+        beforeQuantity: group.originalQuantity,
         unit: group.unit,
         status: groupIndex === currentIndex ? 'current' : groupIndex < currentIndex ? 'done' : 'pending'
       };
