@@ -1266,10 +1266,14 @@ export default function ChangeAllocationModal({
                     </span>
 
                     {movedProductCountToTarget > 1 && (
+                      // Red, matching the per-product Remove sitting inches below it in this same
+                      // column (TargetProductCard's #e7000b). The two do the same thing at different
+                      // scales, so in blue this one read as a different KIND of action — the column's
+                      // "undo" and the column's "confirm" wearing the same colour.
                       <button
                         type="button"
                         onClick={handleRemoveAllFromTarget}
-                        className="h-8 px-3 rounded-[4px] border border-[#095192] bg-white text-[#095192] text-[14px] leading-[20px] whitespace-nowrap transition-colors cursor-pointer hover:bg-[#F1F6FA]"
+                        className="h-8 px-3 rounded-[4px] border border-[#e7000b] bg-white text-[#e7000b] text-[14px] leading-[20px] whitespace-nowrap transition-colors cursor-pointer hover:bg-[#FDF2F2]"
                       >
                         Remove all
                       </button>
