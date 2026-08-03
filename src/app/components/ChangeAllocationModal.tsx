@@ -1,9 +1,17 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import PipelineSteps from "./PipelineSteps";
+import {
+  PipelineFooterShell,
+  FooterDivider,
+  FooterActions,
+  StepCell,
+  SummaryCell,
+  FooterButton,
+  plural
+} from "./PipelineFooter";
 import { Button } from "./ui/button";
-import { Badge } from "./ui/badge";
 import { Card, CardContent } from "./ui/card";
-import { Package, ChevronLeft, ChevronRight, AlertTriangle } from "lucide-react";
+import { Package, ChevronLeft, ChevronRight, AlertTriangle, ArrowLeft, ArrowRight } from "lucide-react";
 import SourceProductCard from "./SourceProductCard";
 import TargetProductCard from "./TargetProductCard";
 import ProductCentricCard from "./ProductCentricCard";
@@ -578,20 +586,6 @@ export default function ChangeAllocationModal({
 
   const handleCancel = () => {
     onOpenChange(false);
-  };
-
-  const getTotalMoved = (): number => {
-    // Count unique products that have been moved (quantity > 0)
-    const movedProductIds = new Set(
-      pendingTransfers
-        .filter(transfer => transfer.quantity > 0)
-        .map(transfer => transfer.productId)
-    );
-    return movedProductIds.size;
-  };
-
-  const getTotalAllocated = (): number => {
-    return pendingTransfers.filter(transfer => transfer.quantity === 0).length;
   };
 
   const getSourceProducts = () => {
@@ -1233,76 +1227,39 @@ export default function ChangeAllocationModal({
           </div>
         </div>
 
-        <div className="border-t bg-white p-4 flex-shrink-0">
-          <div className="flex items-center justify-end">
-            <div className="flex gap-4 hidden">
-              <div className="text-sm text-gray-600">
-                <Badge variant="secondary" className="mr-2">
-                  {getTotalMoved()}
-                </Badge>
-                Products Moved
-              </div>
-              <div className="text-sm text-gray-600">
-                <Badge variant="outline" className="mr-2">
-                  {getTotalAllocated()}
-                </Badge>
-                Products Allocated
-              </div>
-            </div>
-            
-            <div className="flex gap-2">
-              {/* Full-flow abort — exits change allocation entirely. Matches the red Cancel on the
-                  Move pages, so every stage carries the same "get me out" control. */}
-              {onCancel && (
-                <div
-                  className="bg-white relative rounded-[4px] cursor-pointer"
-                  onClick={onCancel}
-                >
-                  <div aria-hidden="true" className="absolute border border-[#095192] border-solid inset-0 pointer-events-none rounded-[4px]" />
-                  <div className="flex flex-row items-center justify-end relative size-full">
-                    <div className="box-border content-stretch flex gap-2 items-center justify-end px-3 py-2 relative size-full">
-                      <div className="capitalize font-['Inter:Regular',_sans-serif] font-normal leading-[0] not-italic relative shrink-0 text-[#095192] text-[14px] text-nowrap">
-                        <p className="leading-[20px] whitespace-pre text-[14px]">Cancel</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-              {/* One step back to the Target selection — mode stays active, selection is kept. */}
-              <div
-                className="bg-white relative rounded-[4px] cursor-pointer"
-                onClick={handleCancel}
-              >
-                <div aria-hidden="true" className="absolute border border-[#095192] border-solid inset-0 pointer-events-none rounded-[4px]" />
-                <div className="flex flex-row items-center justify-end relative size-full">
-                  <div className="box-border content-stretch flex gap-2 items-center justify-end px-3 py-2 relative size-full">
-                    <div className="capitalize font-['Inter:Regular',_sans-serif] font-normal leading-[0] not-italic relative shrink-0 text-[#095192] text-[14px] text-nowrap">
-                      <p className="leading-[20px] whitespace-pre text-[14px]">Back</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div
-                className={`relative rounded-[4px] ${
-                  !validateTransfers()
-                    ? 'bg-gray-300 cursor-not-allowed'
-                    : 'bg-[#095192] cursor-pointer'
-                }`}
-                onClick={validateTransfers() ? handleConfirm : undefined}
-              >
-                <div className="flex flex-row items-center justify-end relative size-full">
-                  <div className="box-border content-stretch flex gap-2 items-center justify-end px-3 py-2 relative size-full">
-                    <div className={`capitalize font-['Inter:Regular',_sans-serif] font-normal leading-[0] not-italic relative shrink-0 text-[14px] text-nowrap ${
-                      !validateTransfers() ? 'text-gray-500' : 'text-white'
-                    }`}>
-                      <p className="leading-[20px] whitespace-pre text-[14px]">{confirmActionLabel}</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+        <PipelineFooterShell>
+          <StepCell step={3} moveMode={moveMode} />
+          <FooterDivider />
+
+          {/* What this stage has actually gathered, reported the same way the bin-picking steps report
+              their halves — a count of the pairs staged so far, openable-looking only when there are
+              any. Before, this stage said nothing about its own progress; the numbers existed but were
+              in a permanently hidden block. */}
+          <SummaryCell
+            icon={<Package className="w-4 h-4" />}
+            label="Selected"
+            value={plural(pendingTransfers.length, 'Product')}
+            enabled={false}
+          />
+
+          <FooterActions>
+            {onCancel && <FooterButton label="Cancel" variant="secondary" onClick={onCancel} />}
+            {/* One step back to the Target selection — mode stays active, selection is kept. */}
+            <FooterButton
+              label="Back"
+              variant="secondary"
+              onClick={handleCancel}
+              leadingIcon={<ArrowLeft className="w-4 h-4" />}
+            />
+            <FooterButton
+              label={confirmActionLabel}
+              variant="primary"
+              enabled={validateTransfers()}
+              onClick={handleConfirm}
+              trailingIcon={validateTransfers() ? <ArrowRight className="w-4 h-4" /> : undefined}
+            />
+          </FooterActions>
+        </PipelineFooterShell>
       </div>
   );
 }

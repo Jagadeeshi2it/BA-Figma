@@ -2,11 +2,19 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { toast } from "sonner@2.0.3";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
-import { ChevronRight, Pencil, X, Unlock } from "lucide-react";
+import { ChevronRight, Pencil, X, Unlock, Package, LogOut, ArrowLeft, ArrowRight } from "lucide-react";
 import { DoorUnlockedToast } from "./ui/sonner-1";
 import CabinetPipView from "./CabinetPipView";
 import SideSheet from "./SideSheet";
 import PipelineSteps from "./PipelineSteps";
+import {
+  PipelineFooterShell,
+  FooterDivider,
+  FooterActions,
+  StepCell,
+  SummaryCell,
+  FooterButton
+} from "./PipelineFooter";
 import { ProductTransfer, Bin, DoorShelfConfig } from '../types';
 import { formatBinLocation, getDoorName } from '../utils/changeAllocationUtils';
 import { pluralizeUnit } from '../utils/pluralizeUnit';
@@ -700,113 +708,61 @@ export default function QuantitySelectionPage({
         unit={currentGroup.unit}
       />
 
-      {/* Footer */}
-      <div className="fixed bottom-0 left-[60px] right-0 border-t bg-white px-6 py-4 z-10">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-5">
-            {/* Product Navigation — tap to list every product in this move */}
-            <button
-              type="button"
-              onClick={() => setActiveSheet('product')}
-              className="flex flex-col gap-2 items-start min-h-[44px] bg-transparent border-none p-0 cursor-pointer text-left"
-            >
-              <p className="text-[14px] text-[#64748b]">Product</p>
-              <div className="flex items-center gap-2">
-                <p className="text-[18px] font-semibold text-[#095192] underline decoration-solid">
-                  {productSummaries.findIndex(p => p.key === activeProductKey) + 1}/{productSummaries.length}
-                </p>
-                <ChevronRight className="w-6 h-6 text-[#095192]" />
-              </div>
-            </button>
+      {/* Footer. fixed left-[60px] clears the nav rail: this page is full-bleed, unlike the cabinet
+          page whose bar sits inside the content column. */}
+      <div className="fixed bottom-0 left-[60px] right-0 z-10">
+        <PipelineFooterShell>
+          <StepCell step={4} moveMode={moveMode} />
+          <FooterDivider />
 
-            <div className="h-10 w-px bg-[#d9d9d9]" />
+          {/* The same summary cells the bin-picking steps use, rather than the bare underlined "1/1"
+              links these were: a label above its value, blue and chevroned because both open a sheet.
+              Position-in-a-list is what they report, so the value keeps the n/total shape. */}
+          <SummaryCell
+            icon={<Package className="w-4 h-4" />}
+            label="Product"
+            value={`${productSummaries.findIndex(p => p.key === activeProductKey) + 1} of ${productSummaries.length}`}
+            active={activeSheet === 'product'}
+            enabled
+            onClick={() => setActiveSheet('product')}
+          />
+          <FooterDivider />
+          <SummaryCell
+            icon={<LogOut className="w-4 h-4" />}
+            label="Source Bin"
+            value={`${sourceBinSummaries.filter(b => b.isDone).length + 1} of ${sourceBinSummaries.length}`}
+            active={activeSheet === 'sourceBin'}
+            enabled
+            onClick={() => setActiveSheet('sourceBin')}
+          />
 
-            {/* Source Bin Navigation — tap to list this product's source bins */}
-            <button
-              type="button"
-              onClick={() => setActiveSheet('sourceBin')}
-              className="flex flex-col gap-2 items-start min-h-[44px] bg-transparent border-none p-0 cursor-pointer text-left"
-            >
-              <p className="text-[14px] text-[#64748b]">Source Bin</p>
-              <div className="flex items-center gap-2">
-                <p className="text-[18px] font-semibold text-[#095192] underline decoration-solid">
-                  {sourceBinSummaries.filter(s => s.isDone).length + 1}/{sourceBinSummaries.length}
-                </p>
-                <ChevronRight className="w-6 h-6 text-[#095192]" />
-              </div>
-            </button>
-          </div>
-
-          {/* Action Buttons */}
-          <div className="flex gap-3">
-            {/* Always visible, regardless of which product/source bin is active — unlike Skip,
-                which only makes sense when there's another product to jump to. */}
-            <div
-              className="bg-white relative rounded-[4px] cursor-pointer"
-              onClick={onCancel}
-            >
-              <div aria-hidden="true" className="absolute border border-[#095192] border-solid inset-0 pointer-events-none rounded-[4px]" />
-              <div className="flex flex-row items-center justify-end relative size-full">
-                <div className="box-border content-stretch flex gap-2 items-center justify-end px-3 py-2 relative size-full">
-                  <div className="capitalize font-['Inter:Regular',_sans-serif] font-normal leading-[0] not-italic relative shrink-0 text-[#095192] text-[14px] text-nowrap">
-                    <p className="leading-[20px] whitespace-pre text-[14px]">Cancel</p>
-                  </div>
-                </div>
-              </div>
-            </div>
+          <FooterActions>
+            {/* Always visible, regardless of which product/source bin is active — unlike Skip, which
+                only makes sense when there's another product to jump to. */}
+            <FooterButton label="Cancel" variant="secondary" onClick={onCancel} />
             {(currentIndex > 0 || onBack) && (
               // One step back, distinct from Cancel's full-flow abort beside it. Within the batch it
-              // returns to the previous source bin/product with its quantity intact; from the first,
-              // up to the product-selection modal.
-              <div
-                className="bg-white relative rounded-[4px] cursor-pointer"
+              // returns to the previous source bin/product with its quantity intact; from the first, up
+              // to the product-selection stage.
+              <FooterButton
+                label="Back"
+                variant="secondary"
                 onClick={handleBack}
-              >
-                <div aria-hidden="true" className="absolute border border-[#095192] border-solid inset-0 pointer-events-none rounded-[4px]" />
-                <div className="flex flex-row items-center justify-end relative size-full">
-                  <div className="box-border content-stretch flex gap-2 items-center justify-end px-3 py-2 relative size-full">
-                    <div className="capitalize font-['Inter:Regular',_sans-serif] font-normal leading-[0] not-italic relative shrink-0 text-[#095192] text-[14px] text-nowrap">
-                      <p className="leading-[20px] whitespace-pre text-[14px]">Back</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
+                leadingIcon={<ArrowLeft className="w-4 h-4" />}
+              />
             )}
             {showSkipButton && (
-              <div
-                className="bg-white relative rounded-[4px] cursor-pointer"
-                onClick={handleSkip}
-              >
-                <div aria-hidden="true" className="absolute border border-[#095192] border-solid inset-0 pointer-events-none rounded-[4px]" />
-                <div className="flex flex-row items-center justify-end relative size-full">
-                  <div className="box-border content-stretch flex gap-2 items-center justify-end px-3 py-2 relative size-full">
-                    <div className="capitalize font-['Inter:Regular',_sans-serif] font-normal leading-[0] not-italic relative shrink-0 text-[#095192] text-[14px] text-nowrap">
-                      <p className="leading-[20px] whitespace-pre text-[14px]">Skip Product</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
+              <FooterButton label="Skip Product" variant="secondary" onClick={handleSkip} />
             )}
-            <div 
-              className={`relative rounded-[4px] ${
-                isSaving 
-                  ? 'bg-gray-300 cursor-not-allowed' 
-                  : 'bg-[#095192] cursor-pointer'
-              }`}
-              onClick={isSaving ? undefined : handleSave}
-            >
-              <div className="flex flex-row items-center justify-end relative size-full">
-                <div className="box-border content-stretch flex gap-2 items-center justify-end px-3 py-2 relative size-full">
-                  <div className={`font-['Inter:Regular',_sans-serif] font-normal leading-[0] not-italic relative shrink-0 text-[14px] text-nowrap ${
-                    isSaving ? 'text-gray-500' : 'text-white'
-                  }`}>
-                    <p className="leading-[20px] whitespace-pre text-[14px]">{primaryActionLabel}</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+            <FooterButton
+              label={primaryActionLabel}
+              variant="primary"
+              enabled={!isSaving}
+              onClick={handleSave}
+              trailingIcon={!isSaving ? <ArrowRight className="w-4 h-4" /> : undefined}
+            />
+          </FooterActions>
+        </PipelineFooterShell>
       </div>
 
       {/* Product list sheet */}

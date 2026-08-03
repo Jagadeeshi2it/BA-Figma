@@ -2,11 +2,19 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { toast } from "sonner@2.0.3";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
-import { ChevronRight, Search, Trash2, Unlock } from "lucide-react";
+import { ChevronRight, Search, Trash2, Unlock, Package, LogIn, ArrowLeft, ArrowRight } from "lucide-react";
 import { DoorUnlockedToast } from "./ui/sonner-1";
 import CabinetPipView from "./CabinetPipView";
 import SideSheet from "./SideSheet";
 import PipelineSteps from "./PipelineSteps";
+import {
+  PipelineFooterShell,
+  FooterDivider,
+  FooterActions,
+  StepCell,
+  SummaryCell,
+  FooterButton
+} from "./PipelineFooter";
 import { ProductTransfer, Bin, DoorShelfConfig } from '../types';
 import { formatBinLocation, getDoorName } from '../utils/changeAllocationUtils';
 import { pluralizeUnit } from '../utils/pluralizeUnit';
@@ -864,118 +872,67 @@ export default function TargetBinSerialScanPage({
         unit={currentProduct.unit}
       />
 
-      {/* Footer */}
-      <div className="fixed bottom-0 left-[60px] right-0 border-t bg-white px-6 py-4 z-10">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-5">
-            {/* Product Navigation — tap to list the products in this step */}
-            <button
-              type="button"
-              onClick={() => setActiveSheet('product')}
-              className="flex flex-col gap-2 items-start min-h-[44px] bg-transparent border-none p-0 cursor-pointer text-left"
-            >
-              <p className="text-[14px] text-[#64748b]">Product</p>
-              <div className="flex items-center gap-2">
-                <p className="text-[18px] font-semibold text-[#095192] underline decoration-solid">
-                  {(() => {
-                    // Get unique products from current transfers
-                    const currentUniqueProducts = new Set(
-                      productGroups.map(g => `${g.productName}-${g.ndc}-${g.inventoryType}`)
-                    );
-                    
-                    // Get unique products from remaining transfers
-                    const remainingUniqueProducts = new Set<string>();
-                    if (remainingTransfers && remainingTransfers.length > 0) {
-                      remainingTransfers.forEach(transfer => {
-                        const transferWithData = transfer as any;
-                        if (transferWithData.productName) {
-                          const productKey = `${transferWithData.productName}-${transferWithData.ndc}-${transferWithData.inventoryType}`;
-                          remainingUniqueProducts.add(productKey);
-                        }
-                      });
-                    }
-                    
-                    // Total unique products = current + remaining
-                    const allUniqueProducts = new Set([...currentUniqueProducts, ...remainingUniqueProducts]);
-                    const totalProducts = allUniqueProducts.size;
-                    
-                    // Current product number: total - remaining = which one we're on
-                    const currentProductNumber = totalProducts - remainingUniqueProducts.size;
-                    
-                    return `${currentProductNumber}/${totalProducts}`;
-                  })()}
-                </p>
-                <ChevronRight className="w-6 h-6 text-[#095192]" />
-              </div>
-            </button>
+      {/* Footer. fixed left-[60px] clears the nav rail: this page is full-bleed, unlike the cabinet
+          page whose bar sits inside the content column. */}
+      <div className="fixed bottom-0 left-[60px] right-0 z-10">
+        <PipelineFooterShell>
+          {/* Still step 4: taking the quantity at the source and placing it here are two halves of one
+              move, so the number does not advance between them. */}
+          <StepCell step={4} moveMode={moveMode} />
+          <FooterDivider />
 
-            {/* Target Bin Navigation — tap to list this product's target bins */}
-            <div className="h-10 w-px bg-[#d9d9d9]" />
-            <button
-              type="button"
-              onClick={() => setActiveSheet('targetBin')}
-              className="flex flex-col gap-2 items-start min-h-[44px] bg-transparent border-none p-0 cursor-pointer text-left"
-            >
-              <p className="text-[14px] text-[#64748b]">Target Bin</p>
-              <div className="flex items-center gap-2">
-                <p className="text-[18px] font-semibold text-[#095192] underline decoration-solid">
-                  {currentTargetBinIndex + 1}/{currentProduct.targetBins.length}
-                </p>
-                <ChevronRight className="w-6 h-6 text-[#095192]" />
-              </div>
-            </button>
-          </div>
+          <SummaryCell
+            icon={<Package className="w-4 h-4" />}
+            label="Product"
+            value={(() => {
+              // Total is what this page holds plus whatever is still queued behind it, so the position
+              // counts against the whole move rather than just this batch.
+              const currentUniqueProducts = new Set(
+                productGroups.map(g => `${g.productName}-${g.ndc}-${g.inventoryType}`)
+              );
+              const remainingUniqueProducts = new Set<string>();
+              (remainingTransfers ?? []).forEach(transfer => {
+                const t = transfer as any;
+                if (t.productName) {
+                  remainingUniqueProducts.add(`${t.productName}-${t.ndc}-${t.inventoryType}`);
+                }
+              });
+              const total = new Set([...currentUniqueProducts, ...remainingUniqueProducts]).size;
+              return `${total - remainingUniqueProducts.size} of ${total}`;
+            })()}
+            active={activeSheet === 'product'}
+            enabled
+            onClick={() => setActiveSheet('product')}
+          />
+          <FooterDivider />
+          <SummaryCell
+            icon={<LogIn className="w-4 h-4" />}
+            label="Target Bin"
+            value={`${currentTargetBinIndex + 1} of ${currentProduct.targetBins.length}`}
+            active={activeSheet === 'targetBin'}
+            enabled
+            onClick={() => setActiveSheet('targetBin')}
+          />
 
-          {/* Action Buttons */}
-          <div className="flex gap-3">
-            {/* Always visible full-flow exit, distinct from "Back" which only steps back one
-                target bin/product at a time within this screen's own hierarchy. */}
-            <div
-              className="bg-white relative rounded-[4px] cursor-pointer"
-              onClick={onCancel}
-            >
-              <div aria-hidden="true" className="absolute border border-[#095192] border-solid inset-0 pointer-events-none rounded-[4px]" />
-              <div className="flex flex-row items-center justify-end relative size-full">
-                <div className="box-border content-stretch flex gap-2 items-center justify-end px-3 py-2 relative size-full">
-                  <div className="capitalize font-['Inter:Regular',_sans-serif] font-normal leading-[0] not-italic relative shrink-0 text-[#095192] text-[14px] text-nowrap">
-                    <p className="leading-[20px] whitespace-pre text-[14px]">Cancel</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div
-              className="bg-white relative rounded-[4px] cursor-pointer"
+          <FooterActions>
+            {/* Always visible full-flow exit, distinct from "Back" which only steps back one target bin
+                at a time within this screen's own hierarchy. */}
+            <FooterButton label="Cancel" variant="secondary" onClick={onCancel} />
+            <FooterButton
+              label="Back"
+              variant="secondary"
               onClick={handleBack}
-            >
-              <div aria-hidden="true" className="absolute border border-[#095192] border-solid inset-0 pointer-events-none rounded-[4px]" />
-              <div className="flex flex-row items-center justify-end relative size-full">
-                <div className="box-border content-stretch flex gap-2 items-center justify-end px-3 py-2 relative size-full">
-                  <div className="capitalize font-['Inter:Regular',_sans-serif] font-normal leading-[0] not-italic relative shrink-0 text-[#095192] text-[14px] text-nowrap">
-                    <p className="leading-[20px] whitespace-pre text-[14px]">Back</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div 
-              className={`relative rounded-[4px] ${
-                !canSave 
-                  ? 'bg-gray-300 cursor-not-allowed' 
-                  : 'bg-[#095192] cursor-pointer'
-              }`}
-              onClick={canSave ? handleSave : undefined}
-            >
-              <div className="flex flex-row items-center justify-end relative size-full">
-                <div className="box-border content-stretch flex gap-2 items-center justify-end px-3 py-2 relative size-full">
-                  <div className={`capitalize font-['Inter:Regular',_sans-serif] font-normal leading-[0] not-italic relative shrink-0 text-[14px] text-nowrap ${
-                    !canSave ? 'text-gray-500' : 'text-white'
-                  }`}>
-                    <p className="leading-[20px] whitespace-pre text-[14px]">{saveButtonLabel}</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+              leadingIcon={<ArrowLeft className="w-4 h-4" />}
+            />
+            <FooterButton
+              label={saveButtonLabel}
+              variant="primary"
+              enabled={canSave}
+              onClick={handleSave}
+              trailingIcon={canSave ? <ArrowRight className="w-4 h-4" /> : undefined}
+            />
+          </FooterActions>
+        </PipelineFooterShell>
       </div>
 
       {/* Product list sheet */}
