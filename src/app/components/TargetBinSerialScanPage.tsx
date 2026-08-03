@@ -85,6 +85,17 @@ interface ProductGroup {
   targetBins: TargetBinGroup[];
 }
 
+/**
+ * How scannedItems is keyed: by product AND target bin. The product has to be named explicitly
+ * rather than assumed to be the one on screen — finalizeAndConfirm walks EVERY product, and reading
+ * currentProduct there charged one product's scanned quantity to another.
+ *
+ * At module scope, not inside the component, because it's a pure function of its arguments and the
+ * component reads it from several places — including a useMemo that runs before the component body
+ * reaches the point where a `const` inside would have been initialised.
+ */
+const scanKey = (productId: string, toBinId: string) => `${productId}-${toBinId}`;
+
 export default function TargetBinSerialScanPage({
   transfers,
   doorShelfConfig,
@@ -311,17 +322,14 @@ export default function TargetBinSerialScanPage({
     return groups;
   }, [transfers, doorShelfConfig]);
 
-  // What the Move Summary panel shows on the placement half of step 4 — ONE row per target bin, the
-  // mirror of the quantity page's one-row-per-source-bin. That is the unit of work here: the operator
-  // fills one target bin at a time, which is what this page's own "Target Bin n of N" counts.
-  //
-  // It used to emit a row per source→target pairing, which repeated the same target bin once for
-  // every source feeding it — a detail belonging to the half that's already finished. The source end
-  // is summarised instead: the bin's name when one source feeds this target, a count when several do.
+  // What the Move Summary panel shows on the placement half of step 4 — one row per source→target
+  // pairing, which the panel nests under the source bin each pairing leaves from. A target bin fed by
+  // two sources therefore appears once beneath each of them, which is the hierarchy being stated: the
+  // stock in the operator's hands came out of a particular bin.
   //
   // Status advances per TARGET BIN rather than per product. Keyed on the product alone, every one of
   // the current product's target bins lit up as "current" at once, so the panel couldn't say which
-  // bin was in the operator's hands — the exact thing the stage highlight exists to answer.
+  // bin was in the operator's hands — the exact thing the marking exists to answer.
   const summaryRows: MoveSummaryRow[] = useMemo(() => {
     const doorByBinId = new Map<string, string>();
     Object.keys(doorShelfConfig).forEach(doorKey => {
@@ -344,46 +352,53 @@ export default function TargetBinSerialScanPage({
                   ? 'done'
                   : 'pending';
 
+        // What has actually been placed in this bin. A bin the operator hasn't reached yet has no
+        // figure at all: its share is decided by scanning into it, so a 0 would look like a decision
+        // they'd made rather than one still ahead of them. (When no scanning is required the whole
+        // amount is known up front, so it's shown.)
+        const placed = (scannedItems[scanKey(product.productId, targetBinGroup.toBinId)] || []).length;
+        const quantity = !serialScanningRequired
+          ? targetBinGroup.totalQuantity
+          : status === 'pending' ? null : placed;
+
         // Source door isn't resolved on targetBinGroup.sourceBins (that structure was built for the
         // target side, which resolves its own door), so it's looked up here rather than reworked
-        // into the shared aggregation above.
-        // Keyed on bin AND door: the same bin name exists behind every door, so keying on the name
-        // alone would merge two genuinely different sources into one.
+        // into the shared aggregation above. Keyed on bin AND door: the same bin name exists behind
+        // every door, so keying on the name alone would merge two genuinely different sources.
         const sources = Array.from(
           new Map(
             targetBinGroup.sourceBins.map(source => {
               const name = source.sourceBinName ?? 'Unknown bin';
               const door = doorByBinId.get(source.fromBinId);
-              return [`${name}|${door ?? ''}`, { name, door }];
+              return [`${name}|${door ?? ''}`, { name, door, quantity: source.quantity }];
             })
           ).values()
         );
 
-        // What has actually been placed in this bin. A bin the operator hasn't reached yet has no
-        // figure at all: its share is decided by scanning into it, so a 0 would look like a decision
-        // they'd made rather than one still ahead of them. (When no scanning is required the whole
-        // amount is known up front, so it's shown.)
-        const placed = (scannedItems[`${product.productId}-${targetBinGroup.toBinId}`] || []).length;
-        const quantity = !serialScanningRequired
-          ? targetBinGroup.totalQuantity
-          : status === 'pending' ? null : placed;
-
-        rows.push({
-          key: `${product.productId}-${targetBinGroup.toBinId}-${productIndex}-${targetBinIndex}`,
-          productName: product.productName,
-          productDescription: product.productDescription,
-          ndc: product.ndc,
-          inventoryType: product.inventoryType,
-          fromLabel: sources.length === 1 ? sources[0]?.name ?? 'Unknown bin' : `${sources.length} source bins`,
-          // A summarised end has no single door to name.
-          fromDoor: sources.length === 1 ? sources[0]?.door : undefined,
-          toLabel: targetBinGroup.targetBinName,
-          toDoor: targetBinGroup.targetDoorName,
-          quantity,
-          // What this target bin already held, so the panel can say "+10 → 35".
-          beforeQuantity: targetBinGroup.targetBinExistingQty,
-          unit: product.unit,
-          status
+        sources.forEach((source, sourceIndex) => {
+          rows.push({
+            key: `${product.productId}-${source.name}-${targetBinGroup.toBinId}-${productIndex}-${targetBinIndex}-${sourceIndex}`,
+            productName: product.productName,
+            productDescription: product.productDescription,
+            ndc: product.ndc,
+            inventoryType: product.inventoryType,
+            fromLabel: source.name,
+            fromDoor: source.door,
+            toLabel: targetBinGroup.targetBinName,
+            toDoor: targetBinGroup.targetDoorName,
+            // Taken out of this source. Left without a "before" figure: this half is about filling
+            // target bins, and signing the source line "-N → remaining" here would state a change
+            // the operator already made on the previous screen as though it were happening now.
+            sourceQuantity: source.quantity,
+            quantity,
+            // What this target bin already held, so the panel can say "+10 → 35".
+            targetBeforeQuantity: targetBinGroup.targetBinExistingQty,
+            unit: product.unit,
+            // The bin in hand on this half is a TARGET bin; the source is history by now.
+            isCurrentSource: false,
+            isCurrentTarget: status === 'current',
+            status
+          });
         });
       });
     });
@@ -439,11 +454,6 @@ export default function TargetBinSerialScanPage({
     );
     return () => toast.dismiss(toastId);
   }, [currentTargetBin?.targetDoorName]);
-
-  // scannedItems is keyed by product AND target bin, so the product has to be named explicitly
-  // rather than assumed to be the one on screen: finalizeAndConfirm walks EVERY product, and reading
-  // currentProduct there charged one product's scanned quantity to another (see scanKey's use below).
-  const scanKey = (productId: string, toBinId: string) => `${productId}-${toBinId}`;
 
   const getTargetBinKey = (targetBin: TargetBinGroup) =>
     scanKey(currentProduct.productId, targetBin.toBinId);

@@ -20,25 +20,29 @@ export interface MoveSummaryRow {
   // does in the source/target cards it came from.
   ndc?: string;
   inventoryType?: string;
-  // Bin and door are kept apart rather than pre-joined into one "Bin B · Door 1" string: the panel is
-  // 320px wide and holds two of these side by side, so a single line truncated mid-name ("Bin B · Do…")
-  // and lost the very thing the operator needs to read. Stacked, each gets its own line and fits.
-  // The door is optional because an end can summarise several bins ("2 source bins"), which has no
-  // single door to name.
+  // A row is one source→target pairing. The panel doesn't render them as flat pairs, though: it
+  // nests them, grouping a product's rows under their shared source bin, so a bin feeding three
+  // targets states itself once with its destinations beneath it. Bin and door are kept apart only so
+  // the panel can join them itself ("Bin 1B - Door 1") — nesting freed the width that forced them
+  // onto two lines, since each label now gets a row of its own rather than sharing one.
   fromLabel: string;
   fromDoor?: string;
   toLabel: string;
   toDoor?: string;
-  // null means not yet decided — step 3 stages transfers at quantity 0 before the quantity step
-  // sets a real amount. Rendered as no quantity at all rather than a placeholder string: the bin
-  // pairing is the news at that stage, and a repeated "not decided yet" on every line was noise.
+  // What leaves this SOURCE bin. Repeated across every row sharing that source (it's one figure for
+  // the bin, not per destination), so the panel takes it from the first and states it once.
+  sourceQuantity?: number | null;
+  sourceBeforeQuantity?: number;
+  // What lands in THIS target bin. null means not yet decided — while taking at the source, how the
+  // amount divides between the targets is still the operator's call, and a 0 would read as a
+  // decision already made.
   quantity: number | null;
-  // What the ACTIVE end's bin held before this move — the source bin while taking, the target bin
-  // while placing. With it the panel can state the movement the way the History page does
-  // ("-10 → 190", "+10 → 35") instead of a bare figure that doesn't say whether it's what's moving,
-  // what's left, or what will be there. Omitted on Review, where no quantity is settled yet.
-  beforeQuantity?: number;
+  targetBeforeQuantity?: number;
   unit?: string;
+  // Which bin the operator is physically at. Exactly one of these is true across the whole panel:
+  // the source bin while taking, the target bin while placing. Drives the bold.
+  isCurrentSource?: boolean;
+  isCurrentTarget?: boolean;
   status: 'pending' | 'current' | 'done';
 }
 
@@ -114,6 +118,45 @@ export default function MoveSummaryPanel({
   if (!isOpen) return null;
 
   const groups = groupByProduct(rows);
+
+  // A product's rows, gathered under the source bin they leave from. Same first-occurrence ordering
+  // as groupByProduct, so the caller's walk order still decides what reads first.
+  const groupBySourceBin = (productRows: MoveSummaryRow[]) => {
+    const bins: { label: string; door?: string; rows: MoveSummaryRow[] }[] = [];
+    const indexByBin = new Map<string, number>();
+    productRows.forEach(row => {
+      // Keyed on bin AND door — the same bin name exists behind every door.
+      const key = `${row.fromLabel}|${row.fromDoor ?? ''}`;
+      const existing = indexByBin.get(key);
+      if (existing !== undefined) {
+        bins[existing].rows.push(row);
+      } else {
+        indexByBin.set(key, bins.length);
+        bins.push({ label: row.fromLabel, door: row.fromDoor, rows: [row] });
+      }
+    });
+    return bins;
+  };
+
+  // "Bin 1B - Door 1". Joined here rather than by each caller so every row reads the same way, and so
+  // a label with no door to name (a summarised end) simply drops the suffix.
+  const binLabel = (label: string, door?: string) => (door ? `${label} - ${door}` : label);
+
+  // The History page's shape: what changed, then what the bin ends up holding. A zero move has no
+  // movement to sign — "-0 → 0" states nothing — so it stays a bare figure, and an undecided amount
+  // renders as nothing at all rather than a 0 that looks like a decision.
+  const quantityText = (
+    qty: number | null | undefined,
+    before: number | undefined,
+    direction: 'out' | 'in',
+    unit?: string
+  ) => {
+    if (qty == null) return null;
+    if (qty === 0 || before == null) return `${qty} ${pluralizeUnit(unit || 'vial', qty)}`;
+    const after = direction === 'out' ? before - qty : before + qty;
+    return `${direction === 'out' ? '-' : '+'}${qty} → ${after} ${pluralizeUnit(unit || 'vial', after)}`;
+  };
+
   const stageCopy = stage === 'review' ? null : STAGE_COPY[stage];
   const StageIcon = stageCopy?.icon;
   // A finished line is named for the act that finished it, not the generic "Done" it used to carry:
@@ -196,90 +239,80 @@ export default function MoveSummaryPanel({
                   {group.ndc} - {group.inventoryType}
                 </div>
 
-                {/* Merged bin pairings — one compact line per source/target pair, instead of the
-                    separate full card each used to get. */}
-                <div className={`mt-2 pt-2 border-t space-y-1 ${isCurrentCard ? 'border-[#dbe9f6]' : 'border-gray-100'}`}>
-                  {group.rows.map(row => {
-                    // On the current line, the end the operator is actually at is filled in; the
-                    // other end stays plain, so a product spread over several bins still shows
-                    // WHICH bin is in play rather than two ends that look equally active.
-                    const activeEnd = row.status === 'current' ? stage : 'review';
-                    // Each end is its own stacked block — bin on top, door beneath — so the two share
-                    // the row's width evenly and neither has to truncate its bin name to fit.
-                    const end = (bin: string, door: string | undefined, isActive: boolean) => (
-                      <span
-                        className={`flex flex-col min-w-0 flex-1 rounded-[3px] px-1 py-0.5 ${
-                          isActive ? 'bg-[#095192] text-white' : ''
-                        }`}
-                      >
-                        <span className="truncate">{bin}</span>
-                        {door && (
-                          <span className={`truncate text-[11px] ${isActive ? 'text-white/80' : 'text-[#64748b]'}`}>
-                            {door}
-                          </span>
-                        )}
-                      </span>
-                    );
-                    return (
-                    <div
-                      key={row.key}
-                      className={`flex items-center justify-between gap-2 rounded-[4px] px-1.5 py-1 text-[12px] ${
-                        row.status === 'current' ? 'bg-white text-[#095192] font-medium' : 'text-[#4a5565]'
-                      }`}
-                    >
-                      <span className="flex items-center gap-1 min-w-0 flex-1">
-                        {end(row.fromLabel, row.fromDoor, activeEnd === 'source')}
-                        <ArrowRight className="w-3 h-3 shrink-0" />
-                        {end(row.toLabel, row.toDoor, activeEnd === 'target')}
-                      </span>
-                      {/* Stacked, so the badge sits under the quantity rather than beside it — on one
-                          line the two competed for the width the bin/door blocks need, which is what
-                          pushed the bin names into truncating. */}
-                      <span className="shrink-0 flex flex-col items-end gap-0.5">
-                        {row.quantity !== null && (
-                          <span className="font-medium text-[#020817] whitespace-nowrap">
-                            {(() => {
-                              // The History page's shape: the change, then what the bin ends up
-                              // holding. Stock leaves a source (-) and arrives in a target (+), so
-                              // the sign follows the half being worked. A zero move has no movement
-                              // to sign — "-0 → 0" states nothing — so it stays a bare figure.
-                              // Keyed on the panel's stage, NOT on activeEnd: activeEnd is 'review'
-                              // for every row except the current one (that's what drives the
-                              // highlight), so reusing it here left every other row showing a bare
-                              // figure — the rows the operator most needs to read ahead on.
-                              const qty = row.quantity as number;
-                              if (qty === 0 || row.beforeQuantity == null || stage === 'review') {
-                                return `${qty} ${pluralizeUnit(row.unit || 'vial', qty)}`;
-                              }
-                              const after =
-                                stage === 'source' ? row.beforeQuantity - qty : row.beforeQuantity + qty;
-                              const sign = stage === 'source' ? '-' : '+';
-                              return `${sign}${qty} → ${after} ${pluralizeUnit(row.unit || 'vial', after)}`;
-                            })()}
-                          </span>
-                        )}
-                        {row.status === 'done' && (
-                          <span className="text-[10px] font-semibold text-[#12805C] bg-[#E1F5EC] rounded-full px-2 py-0.5">
-                            {doneLabel}
-                          </span>
-                        )}
-                      </span>
-                    </div>
-                    );
-                  })}
+                {/* Each source bin states itself once, with the target bins it feeds indented beneath.
+                    The pairings were flat "from → to" lines before, which repeated the source bin —
+                    and its quantity — once per destination, so a bin split three ways read as three
+                    separate departures of the same stock. Nested, the bin is the parent it actually is.
 
-                  {/* Worth stating only when more than one line contributes to it — with a single
-                      bin the line already IS the total. Same rule the History page applies. */}
-                  {(() => {
-                    const counted = group.rows.filter(r => typeof r.quantity === 'number' && r.quantity > 0);
-                    if (counted.length < 2) return null;
-                    const total = counted.reduce((sum, r) => sum + (r.quantity as number), 0);
+                    No total line: the source line IS the total for everything under it. */}
+                <div className={`mt-2 pt-2 border-t space-y-2 ${isCurrentCard ? 'border-[#dbe9f6]' : 'border-gray-100'}`}>
+                  {groupBySourceBin(group.rows).map(sourceBin => {
+                    // One figure for the bin, not per destination, so it comes off the first row.
+                    const head = sourceBin.rows[0];
+                    const sourceText = quantityText(
+                      head.sourceQuantity,
+                      head.sourceBeforeQuantity,
+                      'out',
+                      head.unit
+                    );
                     return (
-                      <div className="pt-1 text-right text-[12px] font-medium text-[#475569]">
-                        {total} {pluralizeUnit(group.rows[0]?.unit || 'vial', total)} total
+                      <div key={`${sourceBin.label}-${sourceBin.door ?? ''}`}>
+                        {/* The source bin. Bold only when the operator is standing at it — the whole
+                            marking the redesign asks for, replacing the filled chip that read as a
+                            selected state rather than a "you are here". */}
+                        <div className="flex items-center justify-between gap-2 text-[12px]">
+                          <span
+                            className={`truncate ${
+                              head.isCurrentSource ? 'font-semibold text-[#020817]' : 'text-[#4a5565]'
+                            }`}
+                          >
+                            {binLabel(sourceBin.label, sourceBin.door)}
+                          </span>
+                          {sourceText && (
+                            <span className="shrink-0 font-medium text-[#020817] whitespace-nowrap">
+                              {sourceText}
+                            </span>
+                          )}
+                        </div>
+
+                        {sourceBin.rows.map(row => {
+                          const targetText = quantityText(
+                            row.quantity,
+                            row.targetBeforeQuantity,
+                            'in',
+                            row.unit
+                          );
+                          return (
+                            <div
+                              key={row.key}
+                              className="flex items-center justify-between gap-2 text-[12px] mt-0.5 pl-2"
+                            >
+                              <span className="flex items-center gap-1 min-w-0">
+                                <ArrowRight className="w-3 h-3 shrink-0 text-[#94a3b8]" />
+                                <span
+                                  className={`truncate ${
+                                    row.isCurrentTarget ? 'font-semibold text-[#020817]' : 'text-[#4a5565]'
+                                  }`}
+                                >
+                                  {binLabel(row.toLabel, row.toDoor)}
+                                </span>
+                              </span>
+                              <span className="shrink-0 flex items-center gap-1.5 whitespace-nowrap">
+                                {targetText && (
+                                  <span className="font-medium text-[#020817]">{targetText}</span>
+                                )}
+                                {row.status === 'done' && (
+                                  <span className="text-[10px] font-semibold text-[#12805C] bg-[#E1F5EC] rounded-full px-2 py-0.5">
+                                    {doneLabel}
+                                  </span>
+                                )}
+                              </span>
+                            </div>
+                          );
+                        })}
                       </div>
                     );
-                  })()}
+                  })}
                 </div>
               </div>
             );

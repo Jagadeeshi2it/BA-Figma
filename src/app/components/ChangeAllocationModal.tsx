@@ -119,8 +119,13 @@ export default function ChangeAllocationModal({
         fromDoor: fromBin ? getDoorName(fromBin) : undefined,
         toLabel: toBin?.name ?? 'Unknown bin',
         toDoor: toBin ? getDoorName(toBin) : undefined,
+        // Nothing is settled on Review: no quantity has been taken and no bin is being handled, so
+        // neither side carries a figure and neither is marked as the one in hand.
+        sourceQuantity: null as number | null,
         quantity: null as number | null,
         unit: (product as any)?.unit,
+        isCurrentSource: false,
+        isCurrentTarget: false,
         status: (fromBin?.id === sourceBin?.id && toBin?.id === targetBin?.id
           ? 'current'
           : 'pending') as MoveSummaryRow['status']

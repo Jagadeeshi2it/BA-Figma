@@ -208,26 +208,25 @@ export default function QuantitySelectionPage({
     return groups;
   }, [enhancedTransfers, doorShelfConfig]);
 
-  // What the Move Summary panel shows on this half of step 4 — ONE row per source bin, because that
-  // is the unit of work here: the operator empties one bin at a time and the batch advances a bin at
-  // a time (that's what the footer's own "Source Bin n of N" counts).
+  // What the Move Summary panel shows on this half of step 4 — one row per source→target pairing.
+  // The panel nests them, so a source bin states itself once with its destinations beneath; the
+  // quantity taken belongs to the source line and is therefore carried on sourceQuantity, repeated
+  // across the pairings that share that bin rather than added up per destination.
   //
-  // It used to emit a row per individual transfer, so a source feeding three target bins produced
-  // three near-identical lines that differed only at the end the operator isn't working on yet. Two
-  // things were wrong with that. The quantity taken out of a bin is one figure, but it appeared once
-  // per target — and since transfers now each carry the whole amount rather than a pre-split share,
-  // three lines of "20 vials" read as sixty. And it showed a per-target breakdown before the operator
-  // had decided one; that split is theirs to make on the placement screen by scanning.
-  //
-  // So the target end is summarised: the bin's name when there's only one, a count when there are
-  // several. The placement screen then inverts this — a row per target bin — so each stage lists the
-  // thing being handled and summarises the other side.
+  // The target amounts are deliberately null here. How the quantity taken out of a bin divides
+  // between its target bins is the operator's decision on the placement screen, made by scanning
+  // into each one — so on this half there is nothing yet to put against a destination, and a 0
+  // would read as a decision already taken.
   const summaryRows: MoveSummaryRow[] = useMemo(() => {
-    return groupedTransfers.map((group, groupIndex) => {
-      // Distinct target names: a duplicated transfer (the same product staged into the same bin
-      // twice) would otherwise inflate the count and read as two destinations.
+    const rows: MoveSummaryRow[] = [];
+    groupedTransfers.forEach((group, groupIndex) => {
+      const groupKey = `${group.productId}-${group.fromBinId}-group`;
+      const takenFromThisBin = transferQuantities[groupKey] ?? group.transfers[0].moveQuantity;
+      const status: MoveSummaryRow['status'] =
+        groupIndex === currentIndex ? 'current' : groupIndex < currentIndex ? 'done' : 'pending';
+
       // Distinct destinations, keyed on bin AND door so two same-named bins behind different doors
-      // (Bin 1A exists in every door) aren't collapsed into one.
+      // (Bin 1A exists in every door) aren't collapsed, and a duplicated transfer doesn't show twice.
       const targets = Array.from(
         new Map(
           group.targetBinNames.map((name, i) => [
@@ -236,29 +235,32 @@ export default function QuantitySelectionPage({
           ])
         ).values()
       );
-      const groupKey = `${group.productId}-${group.fromBinId}-group`;
-      return {
-        key: `${group.productId}-${group.fromBinId}-${groupIndex}`,
-        productName: group.productName,
-        productDescription: group.productDescription,
-        ndc: group.ndc,
-        inventoryType: group.inventoryType,
-        fromLabel: group.sourceBinName,
-        fromDoor: group.sourceDoorName,
-        toLabel: targets.length === 1 ? targets[0]?.name ?? 'Unknown bin' : `${targets.length} target bins`,
-        // A summarised end has no single door to name.
-        toDoor: targets.length === 1 ? targets[0]?.door : undefined,
-        quantity: transferQuantities[groupKey] ?? group.transfers[0].moveQuantity,
-        // What this source bin held before the move, so the panel can say "-10 → 190".
-        beforeQuantity: group.originalQuantity,
-        unit: group.unit,
-        status: groupIndex === currentIndex ? 'current' : groupIndex < currentIndex ? 'done' : 'pending'
-      };
+
+      targets.forEach((target, targetIndex) => {
+        rows.push({
+          key: `${group.productId}-${group.fromBinId}-${target.name}-${groupIndex}-${targetIndex}`,
+          productName: group.productName,
+          productDescription: group.productDescription,
+          ndc: group.ndc,
+          inventoryType: group.inventoryType,
+          fromLabel: group.sourceBinName,
+          fromDoor: group.sourceDoorName,
+          toLabel: target.name,
+          toDoor: target.door,
+          sourceQuantity: takenFromThisBin,
+          sourceBeforeQuantity: group.originalQuantity,
+          quantity: null,
+          unit: group.unit,
+          // The bin in the operator's hands on this half is a SOURCE bin; no target is being filled
+          // yet, so none of them is marked.
+          isCurrentSource: status === 'current',
+          isCurrentTarget: false,
+          status
+        });
+      });
     });
-    // Left in groupedTransfers' own order — the same order the operator walks through the batch —
-    // rather than re-sorted alphabetically: MoveSummaryPanel's group-by no longer needs same-product
-    // rows contiguous, so the panel now reads top-to-bottom in the order the operator will actually
-    // take each source bin, with the current one's card highlighted rather than buried alphabetically.
+    // Left in groupedTransfers' own order — the same order the operator walks through the batch.
+    return rows;
   }, [groupedTransfers, transferQuantities, currentIndex]);
 
   // Distinct products in the summary, for the footer counter — matches the panel's own header count.
