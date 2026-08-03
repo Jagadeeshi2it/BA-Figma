@@ -255,7 +255,7 @@ export default function ShelfLayout({
       {Array.from({ length: calculateAvailableSlots(shelf.bins, getSlotsPerShelf(selectedDoor)) }, (_, i) => (
         <div
           key={`available-${i}`}
-          className="min-h-[140px] border-2 border-dashed border-[#E5E7EB] bg-[#F9FAFB] rounded-lg flex items-center justify-center"
+          className="min-h-[140px] border-2 border-dashed border-[#E5E7EB] bg-[#F9FAFB] rounded-[4px] flex items-center justify-center"
         >
           <div className="text-center">
             <div className="text-xs text-gray-500">No Bin</div>

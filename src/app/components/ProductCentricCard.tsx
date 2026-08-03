@@ -40,7 +40,7 @@ export default function ProductCentricCard({
   const allMoved = binLocations.every(loc => hasMovedFromBin(loc.productId, loc.binId));
   
   return (
-    <div className="bg-white rounded-[14px] border border-[#e5e7eb] w-full">
+    <div className="bg-white rounded-[4px] border border-[#e5e7eb] w-full">
       {/* Bin Locations List */}
       <div className="p-4">
         {/* Select All — only worth offering when there is more than one location to pick */}
