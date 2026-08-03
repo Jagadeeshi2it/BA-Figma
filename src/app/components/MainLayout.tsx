@@ -167,8 +167,12 @@ export default function MainLayout({
       {/* Toast Notifications. Top right, out of the way of the page's own title and controls, which run
           along the top left. Sonner fixes its own container to the corner it's given, so the wrapper
           only carries the z-index and keeps toasts clear of the nav rail — no left inset needed now
-          that they no longer sit centred over the content. */}
-      <div className="fixed top-0 right-0 z-50 pointer-events-none">
+          that they no longer sit centred over the content.
+          z-[100]: the highest fixed layer in the app on purpose, above every side panel (the tallest
+          currently at z-[70]). A toast is transient feedback that can fire while a panel is still
+          open — AllocateProductsPanel's own confirm toast is exactly that case — so it has to clear
+          whatever the deepest panel turns out to be, not just whatever the deepest panel is today. */}
+      <div className="fixed top-0 right-0 z-[100] pointer-events-none">
         <Toaster position="top-right" />
       </div>
     </div>

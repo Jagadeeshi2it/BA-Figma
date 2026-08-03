@@ -66,8 +66,9 @@ export default function UnallocatedProductsPanel({
 
   return (
     <div className="fixed right-0 top-0 h-full w-[440px] bg-white border-l border-gray-200 shadow-lg z-50 flex flex-col">
-      {/* Header */}
-      <div className="p-4 border-b border-gray-200 flex items-center justify-between">
+      {/* Header. py-3 rather than p-4's default: matches AllocateProductsPanel's header, whose
+          vertical padding was already 12px. */}
+      <div className="py-3 px-4 border-b border-gray-200 flex items-center justify-between">
         <h2 className="font-semibold">Unallocated Products ({filteredProducts.length})</h2>
         <div
           className="bg-white relative rounded-[4px] cursor-pointer w-8 h-8 flex items-center justify-center"
@@ -168,7 +169,10 @@ export default function UnallocatedProductsPanel({
                     {highlightText(product.inventoryType, unallocatedSearchQuery, SEARCH_HIGHLIGHT_COLOR, product)}
                   </div>
 
-                  {/* Show bin assignments if this product is selected and bins are assigned */}
+                  {/* Show bin assignments if this product is selected and bins are assigned. Purple,
+                      matching BinCard's assignment-selected ring/border (#8F48D2) and the same
+                      treatment AllocateProductsPanel gives this list — one colour for "bin picked
+                      for assignment" wherever it shows up. */}
                   {isSelected(product.id) && binCount > 0 && (
                     <>
                       <Separator className="my-2" />
@@ -176,7 +180,7 @@ export default function UnallocatedProductsPanel({
                         {selectedBinsForAssignment.map((binId) => {
                           const binLocation = getBinLocationDetails(binId, doorShelfConfig, false);
                           return binLocation ? (
-                            <div key={binId} className="text-xs text-[#095192] font-medium">
+                            <div key={binId} className="text-xs text-[#8F48D2] font-medium">
                               {binLocation}
                             </div>
                           ) : null;
@@ -204,7 +208,7 @@ export default function UnallocatedProductsPanel({
               {binCount === 0 ? (
                 <p className="text-[#8F48D2]">Select bin(s) to allocate</p>
               ) : (
-                <p className="text-[#095192]">
+                <p className="text-[#8F48D2]">
                   {binCount} Bin{binCount > 1 ? 's' : ''} selected
                 </p>
               )}
@@ -229,7 +233,7 @@ export default function UnallocatedProductsPanel({
             }`}
             onClick={canAllocate ? onConfirmAssignment : undefined}
           >
-            <div className="box-border flex gap-2 items-center justify-center px-4 py-2">
+            <div className="box-border flex gap-2 items-center justify-center px-4 py-3">
               <CheckCircle2 className="w-4 h-4 text-white" />
               <div className="capitalize font-['Inter:Regular',_sans-serif] font-normal leading-[0] not-italic shrink-0 text-[14px] text-nowrap text-white">
                 <p className="leading-[20px] whitespace-pre text-[14px]">Allocate</p>

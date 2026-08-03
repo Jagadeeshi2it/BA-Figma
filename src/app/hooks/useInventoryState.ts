@@ -100,6 +100,11 @@ export const useInventoryState = () => {
   // Allocate/Unallocate workflow — see handleAllocateProductsClick for why it is its own flag
   // rather than a third state of changeAllocationMode.
   const [showAllocateProducts, setShowAllocateProducts] = useState(false);
+  // Identity keys (`ndc|inventoryType`) of the products currently ticked in AllocateProductsPanel.
+  // The picked product objects themselves live in the panel's own state (see its own comment for
+  // why), so this is the bit handleBinClick needs lifted out of it — both to gate a bin tap on a
+  // product being chosen first, and to refuse a bin that already holds every ticked product.
+  const [allocateSelectedProductKeys, setAllocateSelectedProductKeys] = useState<string[]>([]);
   const [unallocatedSearchQuery, setUnallocatedSearchQuery] = useState<string>("");
   const [allocationHistory, setAllocationHistory] = useState<AllocationHistoryEntry[]>(generateSeedHistory);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
@@ -260,12 +265,45 @@ export const useInventoryState = () => {
       // the same selectedBinsForAssignment channel as the unallocated tray below, so the shelf
       // highlight and the clearing all come for free.
       //
-      // Unlike that branch this one doesn't gate on having products chosen first — which products
-      // are ticked is the panel's own state, and the panel's confirm button already says "Select a
-      // product" while none are. Gating here would have meant a tap that silently did nothing.
+      // Gated on a product being chosen first, same as the unallocated-tray branch below: a bin
+      // tapped before anything is ticked has nothing to assign it to, and silently letting it
+      // highlight anyway just builds a selection that Allocate can't use yet.
       if (showAllocateProducts) {
+        if (allocateSelectedProductKeys.length === 0) {
+          toast.custom(
+            () => React.createElement(ValidationToast, {
+              message: 'Search and select a product before choosing a bin.'
+            }),
+            { duration: 4000 }
+          );
+          return;
+        }
+
+        const isAlreadySelected = selectedBinsForAssignment.includes(binId);
+        // Refused if ANY ticked product already lives in this bin — not just if every one of them
+        // does. A bin that already holds one of the two products someone is about to allocate would
+        // silently drop that pairing at confirm (the same identity can't sit twice in one bin), so
+        // "still fine for the other product" just meant the drop happened invisibly instead of never
+        // happening. Simpler and more predictable to say the whole bin is off-limits while any
+        // ticked product already sits there, so what the panel shows selected is what actually lands.
+        if (!isAlreadySelected) {
+          const binProductKeys = new Set(
+            (bin.products || []).map((product: any) => `${product.ndc}|${product.inventoryType}`)
+          );
+          const hasConflict = allocateSelectedProductKeys.some(key => binProductKeys.has(key));
+          if (hasConflict) {
+            toast.custom(
+              () => React.createElement(ValidationToast, {
+                message: 'One of the selected products is already in that bin. Choose a different bin.'
+              }),
+              { duration: 4000 }
+            );
+            return;
+          }
+        }
+
         setSelectedBinsForAssignment(prev =>
-          prev.includes(binId) ? prev.filter(id => id !== binId) : [...prev, binId]
+          isAlreadySelected ? prev.filter(id => id !== binId) : [...prev, binId]
         );
         return;
       }
@@ -302,7 +340,7 @@ export const useInventoryState = () => {
       // Normal bin click behavior
       setSelectedBin(binId);
     }
-  }, [selectedDoor, doorShelfConfig, changeAllocationMode, moveMode, changeAllocationStep, changeAllocationSourceBins, changeAllocationTargetBins, showUnallocatedProducts, showAllocateProducts, selectedUnallocatedProducts.length, selectedBinsForAssignment]);
+  }, [selectedDoor, doorShelfConfig, changeAllocationMode, moveMode, changeAllocationStep, changeAllocationSourceBins, changeAllocationTargetBins, showUnallocatedProducts, showAllocateProducts, allocateSelectedProductKeys, selectedUnallocatedProducts.length, selectedBinsForAssignment]);
 
   const handleAvailableSlotClick = () => {
     setShowProductDialog(true);
@@ -809,12 +847,14 @@ export const useInventoryState = () => {
     setSelectedBin(null);
     setSelectedBinsForAssignment([]);
     setSelectedSearchQuery("");
+    setAllocateSelectedProductKeys([]);
   };
 
   const handleCloseAllocateProducts = () => {
     setShowAllocateProducts(false);
     setSelectedBinsForAssignment([]);
     setSelectedSearchQuery("");
+    setAllocateSelectedProductKeys([]);
   };
 
   // Give already-stocked products an additional bin. Kept apart from handleConfirmAssignment, which
@@ -899,7 +939,10 @@ export const useInventoryState = () => {
 
             if (additions.length === 0) return bin;
             assigned += additions.length;
-            return { ...bin, products: [...bin.products, ...additions], available: false };
+            // New rows go first, not last: consolidateBinProducts groups by each identity's FIRST
+            // occurrence, so a product appended to the end of a bin already at its display cap
+            // landed behind "+N more" with no way to tell it had actually been allocated.
+            return { ...bin, products: [...additions, ...bin.products], available: false };
           })
         }));
       });
@@ -908,9 +951,26 @@ export const useInventoryState = () => {
     });
 
     setSelectedBinsForAssignment([]);
-    toast.success(
-      `Allocated ${products.length} ${products.length === 1 ? 'product' : 'products'} to ` +
-      `${binIds.length} ${binIds.length === 1 ? 'bin' : 'bins'}`
+
+    // The bin-tap handler already refuses a bin once every ticked product is already in it, but
+    // that's checked against whatever was ticked at tap time — picking a bin, then ticking a
+    // second product that bin already holds, slips past it. This is the last point that can still
+    // catch it: if nothing actually got added anywhere, say so instead of claiming success.
+    if (assigned === 0) {
+      toast.custom(
+        () => React.createElement(ValidationToast, {
+          message: 'Nothing was allocated — the selected product(s) are already in the selected bin(s).'
+        }),
+        { duration: 4000 }
+      );
+      return;
+    }
+
+    // Same rich toast the unallocated-tray confirm uses (CustomToast already reads "allocated to
+    // the bin(s)", which is exactly this action) rather than a plain success string of its own.
+    toast.custom(
+      (t) => React.createElement(CustomToast, { productNames: products.map(product => product.name) }),
+      { duration: 5000 }
     );
   };
 
@@ -1866,6 +1926,8 @@ export const useInventoryState = () => {
     unallocatedProducts, // CRITICAL FIX: Add unallocated products array
     unallocatedProductsCount: unallocatedProducts.length, // CRITICAL FIX: Add unallocated products count
     showAllocateProducts,
+    allocateSelectedProductKeys,
+    setAllocateSelectedProductKeys,
     zeroQuantityProducts, // Zero-quantity products after change allocation
     
     // Handlers

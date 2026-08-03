@@ -770,6 +770,7 @@ export default function App() {
                 selectedBinsForAssignment={inventoryState.selectedBinsForAssignment}
                 onConfirmAssignment={inventoryState.handleAssignProductsToBins}
                 onClose={inventoryState.handleCloseAllocateProducts}
+                onSelectionChange={inventoryState.setAllocateSelectedProductKeys}
               />
             ) : allocationPanel ? (
               <AllocationSelectionPanel

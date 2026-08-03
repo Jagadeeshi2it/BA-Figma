@@ -1,7 +1,9 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { toast } from 'sonner@2.0.3';
 import { X, Search, Check, Minus, CheckCircle2 } from 'lucide-react';
 import { Input } from './ui/input';
 import { Separator } from './ui/separator';
+import { ValidationToast } from './ui/sonner-1';
 import { getBinLocationDetails } from '../utils/doorUtils';
 import { searchProducts, ProductSearchResult } from '../utils/productSearchUtils';
 import { getVialType, hasClimateBadge, hasCivBadge } from '../utils/binProducts';
@@ -14,6 +16,11 @@ interface AllocateProductsPanelProps {
   selectedBinsForAssignment: string[];
   onConfirmAssignment: (products: ProductSearchResult[], binIds: string[]) => void;
   onClose: () => void;
+  // Identity keys of the ticked products, reported so a bin tap on the canvas can be gated on a
+  // product being chosen first and refuse a bin that already holds all of them — the picked
+  // product objects themselves stay local to this panel (see selectedProducts below), so this is
+  // the bit the shelf's bin-click handler needs lifted out of it.
+  onSelectionChange?: (keys: string[]) => void;
 }
 
 const productKeyOf = (product: ProductSearchResult) => `${product.ndc}|${product.inventoryType}`;
@@ -51,7 +58,8 @@ export default function AllocateProductsPanel({
   doorShelfConfig,
   selectedBinsForAssignment,
   onConfirmAssignment,
-  onClose
+  onClose,
+  onSelectionChange
 }: AllocateProductsPanelProps) {
   const [query, setQuery] = useState('');
   // The picked products themselves, not their keys. Keys plus a lookup in `results` looked
@@ -60,6 +68,10 @@ export default function AllocateProductsPanel({
   // the objects makes the selection independent of what happens to be listed, the way the
   // unallocated tray's own selection is independent of its filter.
   const [selectedProducts, setSelectedProducts] = useState<ProductSearchResult[]>([]);
+
+  useEffect(() => {
+    onSelectionChange?.(selectedProducts.map(productKeyOf));
+  }, [selectedProducts, onSelectionChange]);
 
   const hasQuery = query.trim().length > 0;
 
@@ -72,10 +84,30 @@ export default function AllocateProductsPanel({
 
   const selectedKeys = useMemo(() => new Set(selectedProducts.map(productKeyOf)), [selectedProducts]);
 
+  // A product already sitting in a bin that's already picked can't be ticked — allocating it there
+  // again would just be skipped at confirm (the same identity can't sit twice in one bin), and
+  // letting the tick "succeed" only to unpick the bin behind the user's back was worse: it looked
+  // like the panel was fighting the selection instead of refusing an act that was never valid.
+  // Blocking the tick itself, with a reason, is the one point that can't produce that state at all.
+  const conflictsWithSelectedBins = (product: ProductSearchResult) =>
+    product.binLocations.some(location => selectedBinsForAssignment.includes(location.binId));
+
   const toggleProduct = (product: ProductSearchResult) => {
     const key = productKeyOf(product);
+    const isSelected = selectedProducts.some(candidate => productKeyOf(candidate) === key);
+
+    if (!isSelected && conflictsWithSelectedBins(product)) {
+      toast.custom(
+        () => React.createElement(ValidationToast, {
+          message: 'This product is already in a selected bin. Deselect that bin, or choose a different product.'
+        }),
+        { duration: 4000 }
+      );
+      return;
+    }
+
     setSelectedProducts(previous =>
-      previous.some(candidate => productKeyOf(candidate) === key)
+      isSelected
         ? previous.filter(candidate => productKeyOf(candidate) !== key)
         : [...previous, product]
     );
@@ -90,16 +122,31 @@ export default function AllocateProductsPanel({
 
   const toggleAll = () => {
     const visible = new Set(results.map(productKeyOf));
-    setSelectedProducts(previous =>
-      // Ticking everything and clearing it are the same tap, so there is no separate Clear. Only the
-      // visible rows are touched; picks made under an earlier search stay put.
-      someVisibleSelected
-        ? previous.filter(candidate => !visible.has(productKeyOf(candidate)))
-        : [
-            ...previous,
-            ...results.filter(product => !previous.some(c => productKeyOf(c) === productKeyOf(product)))
-          ]
-    );
+
+    // Clearing is never blocked — only picking up something new can conflict.
+    if (someVisibleSelected) {
+      setSelectedProducts(previous => previous.filter(candidate => !visible.has(productKeyOf(candidate))));
+      return;
+    }
+
+    const toAdd = results.filter(product => !selectedKeys.has(productKeyOf(product)));
+    const blocked = toAdd.filter(conflictsWithSelectedBins);
+    const allowed = toAdd.filter(product => !conflictsWithSelectedBins(product));
+
+    if (blocked.length > 0) {
+      toast.custom(
+        () => React.createElement(ValidationToast, {
+          message: blocked.length === 1
+            ? '1 product was skipped — it is already in a selected bin.'
+            : `${blocked.length} products were skipped — they are already in a selected bin.`
+        }),
+        { duration: 4000 }
+      );
+    }
+
+    if (allowed.length > 0) {
+      setSelectedProducts(previous => [...previous, ...allowed]);
+    }
   };
 
   const canConfirm = selectedProducts.length > 0 && selectedBinsForAssignment.length > 0;
@@ -158,7 +205,9 @@ export default function AllocateProductsPanel({
       <div className="flex-1 overflow-y-auto">
         {results.length === 0 ? (
           <div className="p-8 text-center text-[14px] text-[#676b74]">
-            {hasQuery ? 'No products match that search.' : 'Search for a product to give it a bin.'}
+            {hasQuery
+              ? 'No products match that search.'
+              : 'Search for and select one or more products, then select one or more bins on the left canvas to allocate them.'}
           </div>
         ) : (
           <div className="divide-y divide-gray-200">
@@ -248,10 +297,11 @@ export default function AllocateProductsPanel({
                         ))}
                   </div>
 
-                  {/* Where it is about to go, once bins have been tapped — same treatment as the
-                      unallocated tray, blue and below the product, so a picked row shows the whole
-                      pending act: what it holds now, and what it is being given. Only on picked
-                      rows: the bins belong to the selection, not to every product on screen. */}
+                  {/* Where it is about to go, once bins have been tapped — below the product, in the
+                      same purple the shelf gives an assignment-selected bin (BinCard's #8F48D2 ring
+                      and border), so this list and the highlighted card read as one selection rather
+                      than the panel inventing its own colour for it. Only on picked rows: the bins
+                      belong to the selection, not to every product on screen. */}
                   {isSelected && selectedBinsForAssignment.length > 0 && (
                     <div className="ml-8">
                       <Separator className="my-2" />
@@ -259,7 +309,7 @@ export default function AllocateProductsPanel({
                         {selectedBinsForAssignment.map(binId => {
                           const location = getBinLocationDetails(binId, doorShelfConfig, false);
                           return location ? (
-                            <div key={binId} className="text-xs text-[#095192] font-medium">
+                            <div key={binId} className="text-xs text-[#8F48D2] font-medium">
                               {location}
                             </div>
                           ) : null;
@@ -290,7 +340,7 @@ export default function AllocateProductsPanel({
               {binCount === 0 ? (
                 <p className="text-[#8F48D2]">Select bin(s) to allocate</p>
               ) : (
-                <p className="text-[#095192]">
+                <p className="text-[#8F48D2]">
                   {binCount} Bin{binCount > 1 ? 's' : ''} selected
                 </p>
               )}
@@ -320,7 +370,7 @@ export default function AllocateProductsPanel({
                 : undefined
             }
           >
-            <div className="box-border flex gap-2 items-center justify-center px-4 py-2">
+            <div className="box-border flex gap-2 items-center justify-center px-4 py-3">
               <CheckCircle2 className="w-4 h-4 text-white" />
               <div className="capitalize font-['Inter:Regular',_sans-serif] font-normal leading-[0] not-italic shrink-0 text-[14px] text-nowrap text-white">
                 <p className="leading-[20px] whitespace-pre text-[14px]">Allocate</p>
