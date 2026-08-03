@@ -111,6 +111,10 @@ export default function MoveSummaryPanel({
   const groups = groupByProduct(rows);
   const stageCopy = stage === 'review' ? null : STAGE_COPY[stage];
   const StageIcon = stageCopy?.icon;
+  // A finished line is named for the act that finished it, not the generic "Done" it used to carry:
+  // the stock has been TAKEN out of a source bin, and MOVED once it's in the target. Two halves of
+  // step ④ show the same pairing, so the same badge on both couldn't say which half was behind you.
+  const doneLabel = stage === 'source' ? 'Taken' : stage === 'target' ? 'Moved' : 'Done';
 
   return (
     <div className="shrink-0 w-[320px] h-full bg-white border-l border-gray-200 flex flex-col">
@@ -223,7 +227,10 @@ export default function MoveSummaryPanel({
                         <ArrowRight className="w-3 h-3 shrink-0" />
                         {end(row.toLabel, row.toDoor, activeEnd === 'target')}
                       </span>
-                      <span className="shrink-0 flex items-center gap-1.5">
+                      {/* Stacked, so the badge sits under the quantity rather than beside it — on one
+                          line the two competed for the width the bin/door blocks need, which is what
+                          pushed the bin names into truncating. */}
+                      <span className="shrink-0 flex flex-col items-end gap-0.5">
                         {row.quantity !== null && (
                           <span className="font-medium text-[#020817]">
                             {row.quantity} {pluralizeUnit(row.unit || 'vial', row.quantity)}
@@ -231,7 +238,7 @@ export default function MoveSummaryPanel({
                         )}
                         {row.status === 'done' && (
                           <span className="text-[10px] font-semibold text-[#12805C] bg-[#E1F5EC] rounded-full px-2 py-0.5">
-                            Done
+                            {doneLabel}
                           </span>
                         )}
                       </span>
