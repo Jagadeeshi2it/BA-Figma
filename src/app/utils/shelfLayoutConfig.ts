@@ -359,6 +359,25 @@ export const placementCapacityForShelf = (
   return placements ? placements.length : null;
 };
 
+// The footprint sizes a shelf's slots resolve to, largest first — the same order layoutShelf below
+// pairs against bins ranked by load. redistributeProducts uses this to cap each bin's incoming
+// quota to what its EVENTUAL footprint can realistically hold (a 1x1 shouldn't receive a 3x3's
+// worth of rows before it's even sized), rather than deriving the cap after the fact.
+// null means no constraint (fridge/virtual doors carry no geometry).
+export const capacitySizesForShelf = (
+  doorName: string,
+  shelf: Shelf,
+  shelfIndex: number
+): Bin['size'][] | null => {
+  const doorType = DOOR_TYPES[doorName];
+  if (!doorType) return null;
+  const placements = placementsForShelf(doorName, doorType, shelf, shelfIndex);
+  if (!placements) return null;
+  return [...placements]
+    .sort((a, b) => area(b) - area(a))
+    .map(placement => sizeForFootprint(placement.width, placement.height));
+};
+
 const layoutShelf = (
   doorName: string,
   doorType: DoorType,
