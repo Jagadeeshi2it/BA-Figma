@@ -143,8 +143,13 @@ export default function BinCard({
     return (
       <div
         key={product.id}
-        className={`box-border content-stretch flex flex-row items-start justify-between gap-2 p-0 relative shrink-0 w-full ${
-          isProductClickable ? 'cursor-pointer hover:bg-gray-50 rounded transition-colors p-2' : ''
+        // p-2 unconditionally: it used to ride along with the clickable state, so a row gained 8px of
+        // padding the moment it became tappable and lost it again when it didn't. With three products
+        // that moved a bin card by 48px — the cards visibly resettled on entering a Bin move (rows
+        // inert, so unpadded) but not a Product move (rows pick, so padded), which read as the bottom
+        // bar squeezing the shelves. Geometry stays put; only the affordances below are conditional.
+        className={`box-border content-stretch flex flex-row items-start justify-between gap-2 p-2 relative shrink-0 w-full rounded ${
+          isProductClickable ? 'cursor-pointer hover:bg-gray-50 transition-colors' : ''
         }`}
         onClick={isProductClickable ? (e) => {
           e.stopPropagation();
