@@ -64,13 +64,10 @@ export default function TargetProductCard({
   const hasMultipleSourceBins = !!sourceBins && sourceBins.length > 1;
   
   return (
-    // One tint for everything arriving in this move, whether or not the bin already stocked it —
-    // "this is part of what you're staging" is the single thing the tint has to say, and a second
-    // colour for the topped-up case only invited the question of what the difference meant. The
-    // bin's own stock stays plain white.
-    <Card className={`border border-gray-200 bg-white ${
-      isArrival ? 'ring-2 ring-blue-200 bg-blue-50' : ''
-    }`}>
+    // No tint on an arrival. Its Remove button already tells it apart from the bin's own stock, and
+    // the two now sit under separate headings besides — so a highlight was a third way of saying the
+    // same thing, and the one most easily misread as "selected" rather than "arriving".
+    <Card className="border border-gray-200 bg-white">
       {/* !pb-[16px]: CardContent's own [&:last-child]:pb-6 outranks a plain p-[16px], so the card was
           padded 16px on three sides and 24px at the bottom. */}
       <CardContent className="p-[16px] !pb-[16px] m-[0px]">

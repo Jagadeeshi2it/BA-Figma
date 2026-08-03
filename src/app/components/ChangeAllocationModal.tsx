@@ -881,15 +881,80 @@ export default function ChangeAllocationModal({
     return sortedProducts;
   };
 
-  // Distinct products actually moved into the current target bin — not getTargetProducts().length,
-  // which also counts whatever the bin already held. The target header reports on the move, not on
-  // the bin's own inventory; a product that already lived here isn't something "Remove all" can undo.
-  const movedProductCountToTarget = useMemo(() => {
-    if (!targetBin) return 0;
-    return new Set(
-      pendingTransfers.filter(pt => pt.toBinId === targetBin.id).map(pt => pt.productId)
-    ).size;
-  }, [pendingTransfers, targetBin]);
+  // One target card, whichever section it lands in. Extracted so the arrivals and the bin's own stock
+  // can be listed under separate headings without this body being written out twice.
+  const renderTargetCard = (product: any) => {
+    // Check if this product has a pending transfer to this bin
+    const hasPendingTransfer = pendingTransfers.some(
+      pt => pt.toBinId === targetBin!.id && (
+        pt.productId === product.id ||
+        // Also check by name/NDC/inventoryType for consolidated products
+        (sourceBins.some(bin =>
+          bin.products.some(p =>
+            p.id === pt.productId &&
+            p.name === product.name &&
+            p.ndc === product.ndc &&
+            p.inventoryType === product.inventoryType
+          )
+        ))
+      )
+    );
+
+    // Calculate source bins for this product
+    const sourceBinsList = pendingTransfers
+      .filter(pt =>
+        pt.toBinId === targetBin!.id && (
+          pt.productId === product.id ||
+          // Also match by name/NDC/inventoryType for consolidated products
+          (sourceBins.some(bin =>
+            bin.products.some(p =>
+              p.id === pt.productId &&
+              p.name === product.name &&
+              p.ndc === product.ndc &&
+              p.inventoryType === product.inventoryType
+            )
+          ))
+        )
+      )
+      .map(pt => {
+        // Find the source bin for this transfer
+        let sourceBinInfo: any = null;
+        Object.keys(doorShelfConfig).forEach(doorKey => {
+          const shelves = doorShelfConfig[doorKey];
+          shelves?.forEach(shelf => {
+            shelf.bins?.forEach(bin => {
+              if (bin.id === pt.fromBinId) {
+                sourceBinInfo = {
+                  binId: bin.id,
+                  binName: bin.name,
+                  doorName: getDoorName({ id: bin.id, name: bin.name } as any) || doorKey,
+                  quantity: pt.quantity,
+                  productId: pt.productId // Include the original product ID from this transfer
+                };
+              }
+            });
+          });
+        });
+        return sourceBinInfo;
+      })
+      .filter(Boolean);
+
+    // Only the arrival row belongs to the move; the bin's own stock is just what's there, so it gets
+    // neither a Remove nor any source bins.
+    const isArrival = !!product.isArrival;
+    return (
+      <TargetProductCard
+        key={product.rowKey ?? product.id}
+        product={product}
+        targetBin={targetBin!}
+        onMoveBack={handleMoveBack}
+        onRemove={handleRemoveAllocation}
+        hasPendingTransfer={isArrival && hasPendingTransfer}
+        isArrival={isArrival}
+        sourceBins={isArrival && sourceBinsList.length > 0 ? sourceBinsList : undefined}
+      />
+    );
+  };
 
   if (!sourceBin || !targetBin) return null;
 
@@ -1253,116 +1318,77 @@ export default function ChangeAllocationModal({
                 </div>
               </div>
               
+              {/* Two sections, each with its own count: what this move is putting into the bin, then
+                  what the bin already held. One combined list left the operator working out which
+                  cards were theirs by looking for a Remove button on each; the headings say it once.
+                  A bin with nothing arriving shows only the second section, so before anything is
+                  picked the column reads as a plain statement of the bin's contents. */}
               <div className="flex-1 overflow-y-auto p-4 min-h-0">
-                {/* Same count row and padding the source column uses, but reporting the move rather
-                    than the bin's inventory: products actually moved here, with a Remove all beside
-                    it once there's more than one to make the same "no-op on a single item" call
-                    Select all does on the source side. */}
-                {movedProductCountToTarget > 0 && (
-                  <div className="mb-3 pb-3 border-b border-gray-200 flex items-center justify-between gap-3">
-                    <span className="text-sm text-gray-600">
-                      <span className="font-medium text-[#020817]">{movedProductCountToTarget}</span>{' '}
-                      {movedProductCountToTarget === 1 ? 'Product' : 'Products'}
-                    </span>
+                {(() => {
+                  const targetRows = getTargetProducts();
+                  const arrivals = targetRows.filter((row: any) => row.isArrival);
+                  const alreadyHere = targetRows.filter((row: any) => !row.isArrival);
 
-                    {movedProductCountToTarget > 1 && (
-                      // Red, matching the per-product Remove sitting inches below it in this same
-                      // column (TargetProductCard's #e7000b). The two do the same thing at different
-                      // scales, so in blue this one read as a different KIND of action — the column's
-                      // "undo" and the column's "confirm" wearing the same colour.
-                      <button
-                        type="button"
-                        onClick={handleRemoveAllFromTarget}
-                        className="h-8 px-3 rounded-[4px] border border-[#e7000b] bg-white text-[#e7000b] text-[14px] leading-[20px] whitespace-nowrap transition-colors cursor-pointer hover:bg-[#FDF2F2]"
-                      >
-                        Remove all
-                      </button>
-                    )}
-                  </div>
-                )}
-                <div className="space-y-3">
-                  {getTargetProducts().length === 0 ? (
-                    <div className="flex items-center justify-center h-32 text-gray-500">
-                      <div className="text-center">
-                        <div className="text-lg mb-2">Empty Bin</div>
-                        <div className="text-sm">No products currently allocated</div>
+                  if (targetRows.length === 0) {
+                    return (
+                      <div className="flex items-center justify-center h-32 text-gray-500">
+                        <div className="text-center">
+                          <div className="text-lg mb-2">Empty Bin</div>
+                          <div className="text-sm">No products currently allocated</div>
+                        </div>
                       </div>
-                    </div>
-                  ) : (
-                    getTargetProducts().map((product) => {
-                      // Check if this product has a pending transfer to this bin
-                      const hasPendingTransfer = pendingTransfers.some(
-                        pt => pt.toBinId === targetBin.id && (
-                          pt.productId === product.id ||
-                          // Also check by name/NDC/inventoryType for consolidated products
-                          (sourceBins.some(bin => 
-                            bin.products.some(p => 
-                              p.id === pt.productId && 
-                              p.name === product.name && 
-                              p.ndc === product.ndc && 
-                              p.inventoryType === product.inventoryType
-                            )
-                          ))
-                        )
-                      );
-                      
-                      // Calculate source bins for this product
-                      const sourceBinsList = pendingTransfers
-                        .filter(pt => 
-                          pt.toBinId === targetBin.id && (
-                            pt.productId === product.id ||
-                            // Also match by name/NDC/inventoryType for consolidated products
-                            (sourceBins.some(bin => 
-                              bin.products.some(p => 
-                                p.id === pt.productId && 
-                                p.name === product.name && 
-                                p.ndc === product.ndc && 
-                                p.inventoryType === product.inventoryType
-                              )
-                            ))
-                          )
-                        )
-                        .map(pt => {
-                          // Find the source bin for this transfer
-                          let sourceBinInfo = null;
-                          Object.keys(doorShelfConfig).forEach(doorKey => {
-                            const shelves = doorShelfConfig[doorKey];
-                            shelves?.forEach(shelf => {
-                              shelf.bins?.forEach(bin => {
-                                if (bin.id === pt.fromBinId) {
-                                  sourceBinInfo = {
-                                    binId: bin.id,
-                                    binName: bin.name,
-                                    doorName: getDoorName({ id: bin.id, name: bin.name } as any) || doorKey,
-                                    quantity: pt.quantity,
-                                    productId: pt.productId // Include the original product ID from this transfer
-                                  };
-                                }
-                              });
-                            });
-                          });
-                          return sourceBinInfo;
-                        })
-                        .filter(Boolean);
-                      
-                      // Only the arrival row belongs to the move; the bin's own stock is just what's
-                      // there, so it gets neither the tint nor a Remove and needs no source bins.
-                      const isArrival = !!(product as any).isArrival;
-                      return (
-                        <TargetProductCard
-                          key={(product as any).rowKey ?? product.id}
-                          product={product}
-                          targetBin={targetBin}
-                          onMoveBack={handleMoveBack}
-                          onRemove={handleRemoveAllocation}
-                          hasPendingTransfer={isArrival && hasPendingTransfer}
-                          isArrival={isArrival}
-                          sourceBins={isArrival && sourceBinsList.length > 0 ? sourceBinsList : undefined}
-                        />
-                      );
-                    })
-                  )}
-                </div>
+                    );
+                  }
+
+                  return (
+                    <>
+                      {arrivals.length > 0 && (
+                        <>
+                          {/* Same count row and padding the source column uses, with a Remove all
+                              beside it once there's more than one to make the same "no-op on a single
+                              item" call Select all does on the source side. */}
+                          <div className="mb-3 pb-3 border-b border-gray-200 flex items-center justify-between gap-3">
+                            <span className="text-sm text-gray-600">
+                              <span className="font-medium text-[#020817]">{arrivals.length}</span>{' '}
+                              {arrivals.length === 1 ? 'Product' : 'Products'}
+                            </span>
+
+                            {arrivals.length > 1 && (
+                              // Red, matching the per-product Remove sitting inches below it in this
+                              // same column (TargetProductCard's #e7000b). The two do the same thing
+                              // at different scales, so in blue this one read as a different KIND of
+                              // action — the column's "undo" and its "confirm" wearing one colour.
+                              <button
+                                type="button"
+                                onClick={handleRemoveAllFromTarget}
+                                className="h-8 px-3 rounded-[4px] border border-[#e7000b] bg-white text-[#e7000b] text-[14px] leading-[20px] whitespace-nowrap transition-colors cursor-pointer hover:bg-[#FDF2F2]"
+                              >
+                                Remove all
+                              </button>
+                            )}
+                          </div>
+                          <div className="space-y-3">{arrivals.map(renderTargetCard)}</div>
+                        </>
+                      )}
+
+                      {alreadyHere.length > 0 && (
+                        <>
+                          <div
+                            className={`mb-3 pb-3 border-b border-gray-200 ${
+                              arrivals.length > 0 ? 'mt-6' : ''
+                            }`}
+                          >
+                            <span className="text-sm text-gray-600">
+                              <span className="font-medium text-[#020817]">{alreadyHere.length}</span>{' '}
+                              {alreadyHere.length === 1 ? 'Product' : 'Products'} already in this bin
+                            </span>
+                          </div>
+                          <div className="space-y-3">{alreadyHere.map(renderTargetCard)}</div>
+                        </>
+                      )}
+                    </>
+                  );
+                })()}
               </div>
             </div>
           </div>
