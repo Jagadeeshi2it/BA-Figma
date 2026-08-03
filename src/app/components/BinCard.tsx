@@ -81,16 +81,44 @@ export default function BinCard({
     [bin.products, bin.available]
   );
 
-  // Define doors where product limiting applies (extract number from "Door X" format)
-  const doorsWithLimiting = ['1', '2', '3', '5', '6', '7', '9', '10', '11'];
+  // Define doors where product limiting applies (extract number from "Door X" format). 4 and 8 are
+  // the bottom "unique" doors — the only place 2x2/2x3/3x3 footprints occur — so they need the cap
+  // too or those sizes' limits in DISPLAY_LIMIT_BY_SIZE below never have anywhere to apply.
+  const doorsWithLimiting = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11'];
   const doorNumber = selectedDoor ? selectedDoor.replace('Door ', '') : '';
   const shouldLimit = doorNumber && doorsWithLimiting.includes(doorNumber) && bin.size !== 'fridge';
 
-  // How many products fit before "+N more". Three per grid row the bin spans, because a taller
-  // bin has proportionally more room to stack them — a flat cap of 3 showed "+1 more" under
-  // half a card's worth of blank space in a 2x3.
-  const rowSpan = bin.gridPosition?.height ?? 1;
-  const displayLimit = 3 * rowSpan;
+  // How many products fit before "+N more", fixed per footprint rather than derived from
+  // gridPosition — a rotated 2x3 (3 rows, 2 cols) and its unrotated twin (2 rows, 3 cols) are the
+  // same physical size and should tuck away the same number of rows regardless of which way they sit.
+  const DISPLAY_LIMIT_BY_SIZE: Record<Bin['size'], number> = {
+    single: 1,
+    double: 2,
+    '2x2': 2,
+    '2x3': 3,
+    '3x3': 4,
+    fridge: 3,
+    floor: 3
+  };
+  const baseDisplayLimit = DISPLAY_LIMIT_BY_SIZE[bin.size] ?? 3;
+
+  // The size-based cap above is a floor, not a ceiling. A bin's card is stretched by CSS Grid to
+  // match the tallest bin in its shelf row (e.g. a 2x2 sitting beside a column of two stacked 1x1s),
+  // so it often ends up with far more room than its own base cap needs — the extra height just sat
+  // empty above "+N more". This measures that leftover room after mount and lets the cap grow to
+  // fill it, capped at the bin's actual product count.
+  const [heightFitCount, setHeightFitCount] = React.useState(0);
+  const contentAreaRef = React.useRef<HTMLDivElement>(null);
+  const firstRowRef = React.useRef<HTMLDivElement>(null);
+  const moreLinkRef = React.useRef<HTMLDivElement>(null);
+  const dividerRef = React.useRef<HTMLDivElement>(null);
+
+  // The multi-column grids (fridge, and the Door 17-19 Emergency Kit layout) arrange products
+  // side by side rather than stacked, so a horizontal divider between rows doesn't apply there.
+  const isStackedProductList =
+    bin.size !== 'fridge' && !(selectedDoor && ['Door 17', 'Door 18', 'Door 19'].includes(selectedDoor));
+
+  const displayLimit = Math.min(consolidatedProducts.length, Math.max(baseDisplayLimit, heightFitCount));
 
   // Products matching the active search are floated to the front, and the visible
   // window grows to fit all of them. Without this a searched-for product sitting past
@@ -114,6 +142,37 @@ export default function BinCard({
 
   const additionalCount = consolidatedProducts.length - visibleProducts.length;
 
+  // Measures the row height and leftover space in the actual, grid-stretched card, then converts
+  // that into extra rows for heightFitCount above. A ResizeObserver rather than a one-shot effect:
+  // the height being measured comes from sibling bins in the same shelf row, which can change after
+  // this bin's own first paint (a search filtering the row, another bin's content updating), so the
+  // fit has to be able to re-settle rather than freeze at whatever it read on mount.
+  React.useLayoutEffect(() => {
+    if (!shouldLimit) return;
+    const container = contentAreaRef.current;
+    const rowEl = firstRowRef.current;
+    if (!container || !rowEl || consolidatedProducts.length === 0) return;
+
+    const measure = () => {
+      const rowHeight = rowEl.getBoundingClientRect().height;
+      if (rowHeight <= 0) return;
+      const moreLinkHeight = moreLinkRef.current?.getBoundingClientRect().height ?? 32;
+      // Each row after the first drags along one divider, so the per-row cost for row n>1 is
+      // rowHeight + dividerHeight — folded in here rather than measured per-row.
+      const dividerHeight = isStackedProductList ? (dividerRef.current?.getBoundingClientRect().height ?? 5) : 0;
+      const fit = Math.floor((container.clientHeight - moreLinkHeight + dividerHeight) / (rowHeight + dividerHeight));
+      setHeightFitCount(prev => {
+        const next = Math.max(0, Math.min(fit, consolidatedProducts.length));
+        return next === prev ? prev : next;
+      });
+    };
+
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [shouldLimit, consolidatedProducts.length, isStackedProductList]);
+
   // What a match inside this bin means depends on what the bin has become: still just a search hit,
   // or already committed as a source or a target. Each state colours its own matched text, so the
   // shelf can be read at a glance without checking every card's label.
@@ -132,7 +191,7 @@ export default function BinCard({
     (highlightAvailable && bin.available) ||
     (isSelectedForAssignment && !changeAllocationMode);
 
-  const renderProduct = (product: any) => {
+  const renderProduct = (product: any, index: number) => {
     // In a Product move's source step a row tap MEANS "take this product from this bin", so it wins
     // over the view-mode behaviour of opening the product's detail page — navigating away mid-selection
     // would be the opposite of what the tap is for.
@@ -143,12 +202,17 @@ export default function BinCard({
     return (
       <div
         key={product.id}
-        // p-2 unconditionally: it used to ride along with the clickable state, so a row gained 8px of
+        // Only the first row needs to be measured — every row shares the same classes, so its
+        // rendered height stands in for the rest when heightFitCount above works out how many more
+        // fit in the space this bin's card actually got stretched to.
+        ref={index === 0 ? firstRowRef : undefined}
+        // py-2 unconditionally: it used to ride along with the clickable state, so a row gained 8px of
         // padding the moment it became tappable and lost it again when it didn't. With three products
         // that moved a bin card by 48px — the cards visibly resettled on entering a Bin move (rows
         // inert, so unpadded) but not a Product move (rows pick, so padded), which read as the bottom
         // bar squeezing the shelves. Geometry stays put; only the affordances below are conditional.
-        className={`box-border content-stretch flex flex-row items-start justify-between gap-2 p-2 relative shrink-0 w-full rounded ${
+        // No horizontal padding here: the card's own p-4 gutter already insets the row from the edge.
+        className={`box-border content-stretch flex flex-row items-start justify-between gap-2 py-2 relative shrink-0 w-full rounded ${
           isProductClickable ? 'cursor-pointer hover:bg-gray-50 transition-colors' : ''
         }`}
         onClick={isProductClickable ? (e) => {
@@ -273,7 +337,13 @@ export default function BinCard({
                 Available Bin
               </div>
             ) : (
-              <>
+              // flex-1 + min-h-0: this fills whatever room the card has below its header, and
+              // mt-auto on "+N more" below rides the bottom of that space — so the link lands on
+              // the same line across every bin in a row, whether it's tucking away rows behind a
+              // single product or a full display limit's worth. Without this, a bin's own row
+              // count decided where "+more" sat, so it undulated between bins that were stretched
+              // to the same card height by the shelf's grid but not to the same amount of content.
+              <div className="flex flex-col flex-1 min-h-0 w-full" ref={contentAreaRef}>
                 {/* Both multi-column layouts use the same grid, but only the Emergency Kit one
                     scrolls: its card height is fixed, so the grid has to stay inside it. Virtual
                     (fridge) cards size to their contents, so an inner scroll there is wrong. */}
@@ -282,15 +352,24 @@ export default function BinCard({
                     ? 'grid grid-cols-[repeat(auto-fit,minmax(320px,1fr))] gap-x-[60px] gap-y-3'
                     : selectedDoor && ['Door 17', 'Door 18', 'Door 19'].includes(selectedDoor)
                     ? 'grid overflow-y-auto max-h-[700px] grid-cols-[repeat(auto-fit,minmax(320px,1fr))] gap-x-[60px] gap-y-3'
-                    : 'flex flex-col gap-3'
+                    : 'flex flex-col'
                 }`}>
-                  {visibleProducts.map(renderProduct)}
+                  {visibleProducts.map((product, index) => (
+                    <React.Fragment key={product.id}>
+                      {isStackedProductList && index > 0 && (
+                        <div className="w-full py-0.5" ref={index === 1 ? dividerRef : undefined}>
+                          <div className="h-px bg-gray-200" />
+                        </div>
+                      )}
+                      {renderProduct(product, index)}
+                    </React.Fragment>
+                  ))}
                 </div>
-                
+
                 {additionalCount > 0 && (
-                  <div className="box-border content-stretch flex flex-row items-start justify-start p-2 relative shrink-0 w-full">
+                  <div ref={moreLinkRef} className="box-border content-stretch flex flex-row items-start justify-start p-2 relative shrink-0 w-full mt-auto">
                     <button
-                      className="flex flex-col font-normal justify-start items-start leading-[0] not-italic relative text-[#176cff] text-xs hover:underline cursor-pointer bg-transparent border-none min-h-[44px] min-w-[44px] pt-2 -mt-2"
+                      className="flex flex-col font-normal justify-start items-start leading-[0] not-italic relative text-[#176cff] text-xs hover:underline cursor-pointer bg-transparent border-none"
                       onClick={(e) => {
                         e.stopPropagation();
                         onOpenAllProducts?.(bin.id);
@@ -300,7 +379,7 @@ export default function BinCard({
                     </button>
                   </div>
                 )}
-              </>
+              </div>
             )}
           </div>
         </div>

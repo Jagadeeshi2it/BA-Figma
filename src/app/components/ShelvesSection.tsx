@@ -52,11 +52,11 @@ export default function ShelvesSection({
   onCloseAllProducts,
 }: ShelvesSectionProps) {
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       {currentShelves.length > 0 ? (
         currentShelves.map((shelf) => (
           <div key={shelf.id}>
-            <div className="px-3 mb-4">
+            <div className="px-3 mb-3">
               <h3 className="font-semibold">{shelf.name}</h3>
             </div>
 
@@ -96,7 +96,7 @@ export default function ShelvesSection({
       ) : (
         currentShelves.map((shelf) => (
           <div key={shelf.id}>
-            <div className="px-3 mb-4">
+            <div className="px-3 mb-3">
               <h3 className="font-semibold">{shelf.name}</h3>
             </div>
 

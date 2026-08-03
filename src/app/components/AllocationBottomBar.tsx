@@ -57,23 +57,18 @@ export default function AllocationBottomBar({
   onNext,
   onConfirm
 }: AllocationBottomBarProps) {
-  // Both halves always report both figures, including zeros. "None selected" said the same thing in
-  // fewer words but changed shape as soon as something was picked, so the two summaries kept
-  // disagreeing about what they were counting; a count that starts at 0 and only ever goes up reads
-  // as a running tally instead.
+  // The target is always a bin whichever kind of move this is, so it reports bins, filled or empty.
   const summaryValue = (binCount: number, productCount: number) =>
     `${plural(binCount, 'Bin')}, ${plural(productCount, 'Product')}`;
-
-  // Empty, each half counts the unit that half actually collects, starting at zero: a Product move
-  // gathers products, a Bin move gathers bins, and the target is always bins. So the zero already
-  // names what the user is being asked for, and the tally grows from the same noun it started on —
-  // no relabelling between the empty and filled states.
-  const emptySourceValue = moveMode === 'product' ? plural(0, 'Product') : plural(0, 'Bin');
-  const sourceValue =
-    sourceBinCount > 0 ? summaryValue(sourceBinCount, sourceProductCount) : emptySourceValue;
-  // The target is a bin whichever kind of move this is, so its zero is always bins.
   const targetValue =
     targetBinCount > 0 ? summaryValue(targetBinCount, targetProductCount) : plural(0, 'Bin');
+
+  // Source reports only the unit the operator actually picked — bins in a Bin move, products in a
+  // Product move — not both. Showing "1 Bin, 1 Product" together read as if the two figures could
+  // ever disagree, when a Bin move's product count and a Product move's bin count are just derived
+  // side-effects of the pick, not something the operator chose.
+  const sourceValue =
+    moveMode === 'product' ? plural(sourceProductCount, 'Product') : plural(sourceBinCount, 'Bin');
 
   return (
     <PipelineFooterShell>
