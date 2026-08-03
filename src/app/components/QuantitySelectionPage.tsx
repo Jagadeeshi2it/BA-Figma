@@ -2,11 +2,12 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { toast } from "sonner@2.0.3";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
-import { ChevronRight, Pencil, X, Unlock, Package, LogOut, ArrowLeft, ArrowRight } from "lucide-react";
+import { ChevronRight, Pencil, X, Unlock, Package, LogOut, ListChecks, ArrowLeft, ArrowRight } from "lucide-react";
 import { DoorUnlockedToast } from "./ui/sonner-1";
 import CabinetPipView from "./CabinetPipView";
 import SideSheet from "./SideSheet";
 import PipelineSteps from "./PipelineSteps";
+import MoveSummaryPanel, { MoveSummaryRow } from "./MoveSummaryPanel";
 import {
   PipelineFooterShell,
   FooterDivider,
@@ -93,6 +94,7 @@ export default function QuantitySelectionPage({
   const [isSaving, setIsSaving] = useState(false);
   // Right-side overlay opened by tapping the footer's Product / Source Bin counters
   const [activeSheet, setActiveSheet] = useState<null | 'product' | 'sourceBin'>(null);
+  const [summaryOpen, setSummaryOpen] = useState(true);
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Enhance transfers with additional information
@@ -196,6 +198,45 @@ export default function QuantitySelectionPage({
 
     return groups;
   }, [enhancedTransfers, doorShelfConfig]);
+
+  // What the Move Summary panel shows on this half of step 4 — one row per individual transfer
+  // (a group can fan out to several target bins), reading the live quantity the operator has set
+  // for it so far and falling back to the group's default when they haven't touched it yet. Status
+  // comes from the group's position relative to currentIndex: earlier groups have already had their
+  // quantity taken, the current one is what's on screen, later ones are still ahead. Sorted by
+  // product for the panel's grouping, same as step 3's summary.
+  const summaryRows: MoveSummaryRow[] = useMemo(() => {
+    const rows: MoveSummaryRow[] = [];
+    groupedTransfers.forEach((group, groupIndex) => {
+      group.transfers.forEach((transfer, transferIndex) => {
+        const key = `${transfer.productId}-${transfer.fromBinId}-${transfer.toBinId}`;
+        const quantity = transferQuantities[key] ?? transfer.moveQuantity;
+        rows.push({
+          key: `${key}-${groupIndex}-${transferIndex}`,
+          productName: group.productName,
+          productDescription: group.productDescription,
+          ndc: group.ndc,
+          inventoryType: group.inventoryType,
+          fromLabel: `${group.sourceBinName} · ${group.sourceDoorName}`,
+          toLabel: group.targetBinNames[transferIndex] ?? 'Unknown bin',
+          quantity,
+          unit: group.unit,
+          status: groupIndex === currentIndex ? 'current' : groupIndex < currentIndex ? 'done' : 'pending'
+        });
+      });
+    });
+    // Left in groupedTransfers' own order — the same order the operator walks through the batch —
+    // rather than re-sorted alphabetically: MoveSummaryPanel's group-by no longer needs same-product
+    // rows contiguous, so the panel now reads top-to-bottom in the order the operator will actually
+    // take each source bin, with the current one's card highlighted rather than buried alphabetically.
+    return rows;
+  }, [groupedTransfers, transferQuantities, currentIndex]);
+
+  // Distinct products in the summary, for the footer counter — matches the panel's own header count.
+  const summaryProductCount = useMemo(
+    () => new Set(summaryRows.map(row => row.productName)).size,
+    [summaryRows]
+  );
 
   // On first mount, jump to the product the caller asked to resume (the target page's Back), so
   // fixing one product's quantity doesn't mean clicking forward through the whole batch again
@@ -523,6 +564,8 @@ export default function QuantitySelectionPage({
     <div className="flex flex-col h-full bg-white">
       {/* Step ④ "Move" — this is the take-at-source half; the place-at-target page shares the step. */}
       <PipelineSteps current={4} moveMode={moveMode} />
+      <div className="flex-1 flex min-h-0">
+      <div className="flex-1 min-w-0 flex flex-col min-h-0">
       {/* Product Header */}
       <div className="border-b bg-white px-6 py-4">
         <div className="flex items-center justify-between">
@@ -696,6 +739,14 @@ export default function QuantitySelectionPage({
           </div>
         </div>
       </div>
+      </div>
+
+      <MoveSummaryPanel
+        rows={summaryRows}
+        isOpen={summaryOpen}
+        onToggle={() => setSummaryOpen(prev => !prev)}
+      />
+      </div>
 
       {/* PIP: real-world cabinet interaction for the current source bin */}
       <CabinetPipView
@@ -709,7 +760,10 @@ export default function QuantitySelectionPage({
       />
 
       {/* Footer. fixed left-[60px] clears the nav rail: this page is full-bleed, unlike the cabinet
-          page whose bar sits inside the content column. */}
+          page whose bar sits inside the content column. Always right-0, running the full width
+          including under the Move Summary panel — same as Review, where the footer sits below both
+          columns rather than stopping at the panel's edge. The panel's own bottom padding (below)
+          keeps its last card clear of the bar rather than the bar making room for the panel. */}
       <div className="fixed bottom-0 left-[60px] right-0 z-10">
         <PipelineFooterShell>
           <StepCell step={4} moveMode={moveMode} />
@@ -734,6 +788,18 @@ export default function QuantitySelectionPage({
             active={activeSheet === 'sourceBin'}
             enabled
             onClick={() => setActiveSheet('sourceBin')}
+          />
+          <FooterDivider />
+          {/* Same Move Summary counter Review uses, toggling the same kind of panel rather than a
+              SideSheet like the two cells above — it stays open across the whole page instead of
+              closing the moment something else is tapped. */}
+          <SummaryCell
+            icon={<ListChecks className="w-4 h-4" />}
+            label="Move Summary"
+            value={`${summaryProductCount} ${summaryProductCount === 1 ? 'product' : 'products'}`}
+            active={summaryOpen}
+            enabled={summaryRows.length > 0}
+            onClick={() => setSummaryOpen(prev => !prev)}
           />
 
           <FooterActions>

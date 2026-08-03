@@ -2,11 +2,12 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { toast } from "sonner@2.0.3";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
-import { ChevronRight, Search, Trash2, Unlock, Package, LogIn, ArrowLeft, ArrowRight } from "lucide-react";
+import { ChevronRight, Search, Trash2, Unlock, Package, LogIn, ListChecks, ArrowLeft, ArrowRight } from "lucide-react";
 import { DoorUnlockedToast } from "./ui/sonner-1";
 import CabinetPipView from "./CabinetPipView";
 import SideSheet from "./SideSheet";
 import PipelineSteps from "./PipelineSteps";
+import MoveSummaryPanel, { MoveSummaryRow } from "./MoveSummaryPanel";
 import {
   PipelineFooterShell,
   FooterDivider,
@@ -101,6 +102,7 @@ export default function TargetBinSerialScanPage({
   const [scannedItems, setScannedItems] = useState<{ [key: string]: ScannedItem[] }>({});
   // Right-side overlay opened by tapping the footer's Product / Target Bin counters
   const [activeSheet, setActiveSheet] = useState<null | 'product' | 'targetBin'>(null);
+  const [summaryOpen, setSummaryOpen] = useState(true);
 
   // CRITICAL: Determine if serial scanning is needed
   // Serial scanning is ONLY required if:
@@ -302,6 +304,54 @@ export default function TargetBinSerialScanPage({
 
     return groups;
   }, [transfers, doorShelfConfig]);
+
+  // What the Move Summary panel shows on the placement half of step 4 — one row per original
+  // source→target transfer, read straight off productGroups rather than duplicating its
+  // aggregation. Source door isn't already resolved on targetBinGroup.sourceBins (that structure
+  // was built for the target side, which resolves its own door), so it's looked up once here rather
+  // than reworked into the shared aggregation above. Status is by product, matching this page's own
+  // "Product X of Y" counter — current is what's being placed, done is behind it, pending is ahead.
+  const summaryRows: MoveSummaryRow[] = useMemo(() => {
+    const doorByBinId = new Map<string, string>();
+    Object.keys(doorShelfConfig).forEach(doorKey => {
+      doorShelfConfig[doorKey]?.forEach(shelf => {
+        shelf.bins?.forEach(bin => { doorByBinId.set(bin.id, doorKey); });
+      });
+    });
+
+    const rows: MoveSummaryRow[] = [];
+    productGroups.forEach((product, productIndex) => {
+      product.targetBins.forEach(targetBinGroup => {
+        targetBinGroup.sourceBins.forEach((source, sourceIndex) => {
+          const fromDoor = doorByBinId.get(source.fromBinId);
+          const fromName = source.sourceBinName ?? 'Unknown bin';
+          rows.push({
+            key: `${product.productId}-${source.fromBinId}-${targetBinGroup.toBinId}-${productIndex}-${sourceIndex}`,
+            productName: product.productName,
+            productDescription: product.productDescription,
+            ndc: product.ndc,
+            inventoryType: product.inventoryType,
+            fromLabel: fromDoor ? `${fromName} · ${fromDoor}` : fromName,
+            toLabel: `${targetBinGroup.targetBinName} · ${targetBinGroup.targetDoorName}`,
+            quantity: source.quantity,
+            unit: product.unit,
+            status: productIndex === currentProductIndex
+              ? 'current'
+              : productIndex < currentProductIndex ? 'done' : 'pending'
+          });
+        });
+      });
+    });
+    // Left in productGroups' own order — the same order the operator walks through placement —
+    // rather than re-sorted alphabetically, matching the quantity page's summary.
+    return rows;
+  }, [productGroups, doorShelfConfig, currentProductIndex]);
+
+  // Distinct products in the summary, for the footer counter — matches the panel's own header count.
+  const summaryProductCount = useMemo(
+    () => new Set(summaryRows.map(row => row.productName)).size,
+    [summaryRows]
+  );
 
   // Get current items based on navigation
   const currentProduct = productGroups[currentProductIndex];
@@ -691,6 +741,8 @@ export default function TargetBinSerialScanPage({
     <div className="flex flex-col h-full bg-white">
       {/* Step ④ "Move" — this is the place-at-target half; the take-quantity page shares the step. */}
       <PipelineSteps current={4} moveMode={moveMode} />
+      <div className="flex-1 flex min-h-0">
+      <div className="flex-1 min-w-0 flex flex-col min-h-0">
       {/* Product Header */}
       <div className="border-b bg-white px-6 py-4">
         <div className="flex items-center justify-between">
@@ -860,6 +912,14 @@ export default function TargetBinSerialScanPage({
           )}
         </div>
       </div>
+      </div>
+
+      <MoveSummaryPanel
+        rows={summaryRows}
+        isOpen={summaryOpen}
+        onToggle={() => setSummaryOpen(prev => !prev)}
+      />
+      </div>
 
       {/* PIP: real-world cabinet interaction for the current target bin */}
       <CabinetPipView
@@ -873,7 +933,9 @@ export default function TargetBinSerialScanPage({
       />
 
       {/* Footer. fixed left-[60px] clears the nav rail: this page is full-bleed, unlike the cabinet
-          page whose bar sits inside the content column. */}
+          page whose bar sits inside the content column. Always right-0, matching the quantity page —
+          the bar runs the full width including under the Move Summary panel rather than stopping at
+          its edge, same as Review. */}
       <div className="fixed bottom-0 left-[60px] right-0 z-10">
         <PipelineFooterShell>
           {/* Still step 4: taking the quantity at the source and placing it here are two halves of one
@@ -912,6 +974,16 @@ export default function TargetBinSerialScanPage({
             active={activeSheet === 'targetBin'}
             enabled
             onClick={() => setActiveSheet('targetBin')}
+          />
+          <FooterDivider />
+          {/* Same Move Summary counter the other two stages use. */}
+          <SummaryCell
+            icon={<ListChecks className="w-4 h-4" />}
+            label="Move Summary"
+            value={`${summaryProductCount} ${summaryProductCount === 1 ? 'product' : 'products'}`}
+            active={summaryOpen}
+            enabled={summaryRows.length > 0}
+            onClick={() => setSummaryOpen(prev => !prev)}
           />
 
           <FooterActions>

@@ -3,15 +3,18 @@ import PipelineSteps from "./PipelineSteps";
 import {
   PipelineFooterShell,
   FooterActions,
+  FooterDivider,
   StepCell,
+  SummaryCell,
   FooterButton
 } from "./PipelineFooter";
 import { Button } from "./ui/button";
 import { Card, CardContent } from "./ui/card";
-import { Package, ChevronLeft, ChevronRight, AlertTriangle, ArrowLeft, ArrowRight } from "lucide-react";
+import { Package, ChevronLeft, ChevronRight, ListChecks, AlertTriangle, ArrowLeft, ArrowRight } from "lucide-react";
 import SourceProductCard from "./SourceProductCard";
 import TargetProductCard from "./TargetProductCard";
 import ProductCentricCard from "./ProductCentricCard";
+import MoveSummaryPanel, { MoveSummaryRow } from "./MoveSummaryPanel";
 import { formatBinLocation, getDoorName } from '../utils/changeAllocationUtils';
 import { doesProductMatchSearch } from '../utils/textHighlight';
 import { getVialType, hasClimateBadge, hasCivBadge } from '../utils/binProducts';
@@ -45,6 +48,7 @@ export default function ChangeAllocationModal({
   const [currentTargetBinIndex, setCurrentTargetBinIndex] = useState<number>(0);
   const [currentSourceBinIndex, setCurrentSourceBinIndex] = useState<number>(0);
   const [currentProductIndex, setCurrentProductIndex] = useState<number>(0);
+  const [summaryOpen, setSummaryOpen] = useState(true);
 
   const targetBin = targetBins[currentTargetBinIndex] || null;
 
@@ -78,6 +82,60 @@ export default function ChangeAllocationModal({
   const visibleSourceBins = sourceBins;
 
   const sourceBin = visibleSourceBins[currentSourceBinIndex] || null;
+
+  // What the Move Summary panel shows — derived straight from this modal's own pendingTransfers,
+  // never lifted. Quantity is always null here: nothing is decided until the quantity step, and
+  // showing "0" would read as moving nothing rather than "not yet set". The row for whichever
+  // source/target pair is currently on screen is marked current, so the summary and the two columns
+  // beside it always agree about what "here" means. Sorted by product so the panel's grouping (which
+  // only merges CONSECUTIVE same-product rows) actually groups everything for one product together,
+  // even though pendingTransfers itself fills in whatever order the operator picked things.
+  const summaryRows: MoveSummaryRow[] = useMemo(() => {
+    // Dedupe by the pairing itself. pendingTransfers is meant to hold at most one entry per
+    // product/source/target — handleMoveProduct/handleProductCentricMoveFromBin guard against
+    // adding a second — but a duplicate slipping through some other path would otherwise show as
+    // two identical lines for what's really one pairing.
+    const seenPairings = new Set<string>();
+    const dedupedTransfers = pendingTransfers.filter(pt => {
+      const pairingKey = `${pt.productId}|${pt.fromBinId}|${pt.toBinId}`;
+      if (seenPairings.has(pairingKey)) return false;
+      seenPairings.add(pairingKey);
+      return true;
+    });
+
+    const rows = dedupedTransfers.map((pt, index) => {
+      const fromBin = sourceBins.find(b => b.id === pt.fromBinId);
+      const toBin = targetBins.find(b => b.id === pt.toBinId);
+      const product = fromBin?.products.find(p => p.id === pt.productId);
+      return {
+        key: `${pt.productId}-${pt.fromBinId}-${pt.toBinId}-${index}`,
+        productName: product?.name ?? 'Unknown product',
+        productDescription: product?.description,
+        ndc: (product as any)?.ndc,
+        inventoryType: (product as any)?.inventoryType,
+        fromLabel: fromBin ? `${fromBin.name} · ${getDoorName(fromBin)}` : 'Unknown bin',
+        toLabel: toBin ? `${toBin.name} · ${getDoorName(toBin)}` : 'Unknown bin',
+        quantity: null as number | null,
+        unit: (product as any)?.unit,
+        status: (fromBin?.id === sourceBin?.id && toBin?.id === targetBin?.id
+          ? 'current'
+          : 'pending') as MoveSummaryRow['status']
+      };
+    });
+    // Left in pendingTransfers' own order — the order the operator built the selection in — rather
+    // than re-sorted alphabetically: MoveSummaryPanel's group-by no longer needs same-product rows
+    // contiguous, so there's nothing left for a sort to fix, and the panel now reads in the same
+    // order the operator picked things in.
+    return rows;
+  }, [pendingTransfers, sourceBins, targetBins, sourceBin, targetBin]);
+
+  // Distinct products in the summary — the footer's counter reports this, matching the panel's own
+  // "N products" header rather than a count of bin pairings (a product spanning two bins is one
+  // product, not two, to both).
+  const summaryProductCount = useMemo(
+    () => new Set(summaryRows.map(row => row.productName)).size,
+    [summaryRows]
+  );
 
   // Narrowing can leave fewer bins than the page the user was on.
   useEffect(() => {
@@ -486,6 +544,42 @@ export default function ChangeAllocationModal({
     }
   };
 
+  // Same idea as handleRemoveAllocation, but for every product moved into the current target at
+  // once — a dedicated pass rather than calling handleRemoveAllocation in a loop, since each of its
+  // calls reads pendingTransfers from this render's closure to work out what's left; looping it
+  // would have every iteration reasoning from the same pre-removal snapshot instead of the one
+  // before it, correct for the transfer removal itself (which goes through a functional updater)
+  // but wrong for the quantity-restore math beside it.
+  const handleRemoveAllFromTarget = () => {
+    if (!targetBin) return;
+    const transfersToTarget = pendingTransfers.filter(pt => pt.toBinId === targetBin.id);
+    if (transfersToTarget.length === 0) return;
+    const affectedProductIds = new Set(transfersToTarget.map(pt => pt.productId));
+
+    setPendingTransfers(prev => prev.filter(pt => pt.toBinId !== targetBin.id));
+
+    setProductMoveQuantities(prev =>
+      prev.map(pmq => {
+        if (!affectedProductIds.has(pmq.productId)) return pmq;
+        const remainingMoved = pendingTransfers
+          .filter(pt => pt.productId === pmq.productId && pt.toBinId !== targetBin.id)
+          .reduce((sum, pt) => sum + pt.quantity, 0);
+        return { ...pmq, moved: remainingMoved, quantity: pmq.maxQuantity - remainingMoved };
+      })
+    );
+
+    setMovedProducts(prev =>
+      prev.filter(mp => {
+        if (!affectedProductIds.has(mp.id)) return true;
+        return pendingTransfers.some(pt => pt.productId === mp.id && pt.toBinId !== targetBin.id);
+      })
+    );
+
+    toast.success(
+      `Removed ${affectedProductIds.size} product${affectedProductIds.size > 1 ? 's' : ''} from ${targetBin.name}`
+    );
+  };
+
   // Handler for product-centric move from a specific bin
   const handleProductCentricMoveFromBin = (productId: string, binId: string) => {
     if (!targetBin) return;
@@ -783,6 +877,16 @@ export default function ChangeAllocationModal({
     return sortedProducts;
   };
 
+  // Distinct products actually moved into the current target bin — not getTargetProducts().length,
+  // which also counts whatever the bin already held. The target header reports on the move, not on
+  // the bin's own inventory; a product that already lived here isn't something "Remove all" can undo.
+  const movedProductCountToTarget = useMemo(() => {
+    if (!targetBin) return 0;
+    return new Set(
+      pendingTransfers.filter(pt => pt.toBinId === targetBin.id).map(pt => pt.productId)
+    ).size;
+  }, [pendingTransfers, targetBin]);
+
   if (!sourceBin || !targetBin) return null;
 
   return (
@@ -794,8 +898,11 @@ export default function ChangeAllocationModal({
       <div className="flex-1 overflow-hidden relative">
           {/* Source and target were two boxed cards (border, rounded, grey fill) with a gap between.
               Now one plane split by a single divider — the box chrome and the doubled padding it
-              needed go back to the content, which gets the reclaimed width. */}
-          <div className="flex h-full min-h-0 divide-x divide-gray-200">
+              needed go back to the content, which gets the reclaimed width. The Move Summary panel
+              sits outside that divider, as its own flex sibling, so its border never doubles up with
+              the source/target divider. */}
+          <div className="flex h-full min-h-0">
+          <div className="flex-1 min-w-0 flex min-h-0 divide-x divide-gray-200">
             <div className="flex-1 min-w-0 flex flex-col min-h-0">
               <div className="border-b bg-white px-4 py-3 flex-shrink-0">
                 <div className="flex items-center justify-between">
@@ -918,8 +1025,13 @@ export default function ChangeAllocationModal({
                 </div>
               </div>
               
-              {/* Explains why the source panel is narrowed — the user picked one product in search */}
-              {sourceListNarrowed && (
+              {/* Explains why the source panel is narrowed — the user picked one product in search.
+                  Withheld for a Product move: that mode's product-centric view ALWAYS shows only the
+                  picked products (moveMode === 'product' never falls back to the per-bin list, see
+                  productsAcrossMultipleBins above), so for that mode this isn't a narrowing the
+                  operator needs explained — it's just what a Product move always looks like. A Bin
+                  move whose per-bin list gets narrowed by a search still needs the explanation. */}
+              {sourceListNarrowed && moveMode !== 'product' && (
                 <div className="bg-blue-50 border-b border-blue-200 px-[16px] py-[8px]">
                   <div className="flex items-center">
                     <p className="text-sm text-blue-900 font-medium text-left">
@@ -1140,6 +1252,28 @@ export default function ChangeAllocationModal({
               </div>
               
               <div className="flex-1 overflow-y-auto p-4 min-h-0">
+                {/* Same count row and padding the source column uses, but reporting the move rather
+                    than the bin's inventory: products actually moved here, with a Remove all beside
+                    it once there's more than one to make the same "no-op on a single item" call
+                    Select all does on the source side. */}
+                {movedProductCountToTarget > 0 && (
+                  <div className="mb-3 pb-3 border-b border-gray-200 flex items-center justify-between gap-3">
+                    <span className="text-sm text-gray-600">
+                      <span className="font-medium text-[#020817]">{movedProductCountToTarget}</span>{' '}
+                      {movedProductCountToTarget === 1 ? 'Product' : 'Products'}
+                    </span>
+
+                    {movedProductCountToTarget > 1 && (
+                      <button
+                        type="button"
+                        onClick={handleRemoveAllFromTarget}
+                        className="h-8 px-3 rounded-[4px] border border-[#095192] bg-white text-[#095192] text-[14px] leading-[20px] whitespace-nowrap transition-colors cursor-pointer hover:bg-[#F1F6FA]"
+                      >
+                        Remove all
+                      </button>
+                    )}
+                  </div>
+                )}
                 <div className="space-y-3">
                   {getTargetProducts().length === 0 ? (
                     <div className="flex items-center justify-center h-32 text-gray-500">
@@ -1222,15 +1356,32 @@ export default function ChangeAllocationModal({
               </div>
             </div>
           </div>
+
+          <MoveSummaryPanel
+            rows={summaryRows}
+            isOpen={summaryOpen}
+            onToggle={() => setSummaryOpen(prev => !prev)}
+          />
+          </div>
         </div>
 
         <PipelineFooterShell>
           <StepCell step={3} moveMode={moveMode} />
+          <FooterDivider />
 
-          {/* No summary cell here, unlike the other stages: the count would restate what the two columns
-              above already show product by product, and it had nothing to open. The cells elsewhere earn
-              their place by reporting a selection made on a different screen — this stage's selection is
-              the screen. */}
+          {/* Now that there's a Move Summary panel to open and close, this stage gets the same kind
+              of counter the later stages already use for their own sheets — toggling the panel
+              rather than a SideSheet, since the panel is meant to stay open and visible rather than
+              overlay the screen, but the same footer affordance either way. */}
+          <SummaryCell
+            icon={<ListChecks className="w-4 h-4" />}
+            label="Move Summary"
+            value={`${summaryProductCount} ${summaryProductCount === 1 ? 'product' : 'products'}`}
+            active={summaryOpen}
+            enabled={summaryRows.length > 0}
+            onClick={() => setSummaryOpen(prev => !prev)}
+          />
+
           <FooterActions>
             {onCancel && <FooterButton label="Cancel" variant="secondary" onClick={onCancel} />}
             {/* One step back to the Target selection — mode stays active, selection is kept. */}
