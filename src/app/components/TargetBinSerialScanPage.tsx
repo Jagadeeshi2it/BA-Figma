@@ -13,7 +13,8 @@ import {
   FooterActions,
   StepCell,
   SummaryCell,
-  FooterButton
+  FooterButton,
+  SHOW_STEP4_POSITION_COUNTERS
 } from "./PipelineFooter";
 import { ProductTransfer, Bin, DoorShelfConfig } from '../types';
 import { formatBinLocation, getDoorName } from '../utils/changeAllocationUtils';
@@ -346,13 +347,17 @@ export default function TargetBinSerialScanPage({
         // Source door isn't resolved on targetBinGroup.sourceBins (that structure was built for the
         // target side, which resolves its own door), so it's looked up here rather than reworked
         // into the shared aggregation above.
-        const sourceLabels = Array.from(new Set(
-          targetBinGroup.sourceBins.map(source => {
-            const name = source.sourceBinName ?? 'Unknown bin';
-            const door = doorByBinId.get(source.fromBinId);
-            return door ? `${name} · ${door}` : name;
-          })
-        ));
+        // Keyed on bin AND door: the same bin name exists behind every door, so keying on the name
+        // alone would merge two genuinely different sources into one.
+        const sources = Array.from(
+          new Map(
+            targetBinGroup.sourceBins.map(source => {
+              const name = source.sourceBinName ?? 'Unknown bin';
+              const door = doorByBinId.get(source.fromBinId);
+              return [`${name}|${door ?? ''}`, { name, door }];
+            })
+          ).values()
+        );
 
         // What has actually been placed in this bin. A bin the operator hasn't reached yet has no
         // figure at all: its share is decided by scanning into it, so a 0 would look like a decision
@@ -369,11 +374,11 @@ export default function TargetBinSerialScanPage({
           productDescription: product.productDescription,
           ndc: product.ndc,
           inventoryType: product.inventoryType,
-          fromLabel:
-            sourceLabels.length === 1
-              ? sourceLabels[0] ?? 'Unknown bin'
-              : `${sourceLabels.length} source bins`,
-          toLabel: `${targetBinGroup.targetBinName} · ${targetBinGroup.targetDoorName}`,
+          fromLabel: sources.length === 1 ? sources[0]?.name ?? 'Unknown bin' : `${sources.length} source bins`,
+          // A summarised end has no single door to name.
+          fromDoor: sources.length === 1 ? sources[0]?.door : undefined,
+          toLabel: targetBinGroup.targetBinName,
+          toDoor: targetBinGroup.targetDoorName,
           quantity,
           unit: product.unit,
           status
@@ -1031,39 +1036,44 @@ export default function TargetBinSerialScanPage({
           <StepCell step={4} moveMode={moveMode} />
           <FooterDivider />
 
-          <SummaryCell
-            icon={<Package className="w-4 h-4" />}
-            label="Product"
-            value={(() => {
-              // Total is what this page holds plus whatever is still queued behind it, so the position
-              // counts against the whole move rather than just this batch.
-              const currentUniqueProducts = new Set(
-                productGroups.map(g => `${g.productName}-${g.ndc}-${g.inventoryType}`)
-              );
-              const remainingUniqueProducts = new Set<string>();
-              (remainingTransfers ?? []).forEach(transfer => {
-                const t = transfer as any;
-                if (t.productName) {
-                  remainingUniqueProducts.add(`${t.productName}-${t.ndc}-${t.inventoryType}`);
-                }
-              });
-              const total = new Set([...currentUniqueProducts, ...remainingUniqueProducts]).size;
-              return `${total - remainingUniqueProducts.size} of ${total}`;
-            })()}
-            active={activeSheet === 'product'}
-            enabled
-            onClick={() => setActiveSheet('product')}
-          />
-          <FooterDivider />
-          <SummaryCell
-            icon={<LogIn className="w-4 h-4" />}
-            label="Target Bin"
-            value={`${currentTargetBinIndex + 1} of ${currentProduct.targetBins.length}`}
-            active={activeSheet === 'targetBin'}
-            enabled
-            onClick={() => setActiveSheet('targetBin')}
-          />
-          <FooterDivider />
+          {/* Hidden for now — see SHOW_STEP4_POSITION_COUNTERS. */}
+          {SHOW_STEP4_POSITION_COUNTERS && (
+            <>
+              <SummaryCell
+                icon={<Package className="w-4 h-4" />}
+                label="Product"
+                value={(() => {
+                  // Total is what this page holds plus whatever is still queued behind it, so the
+                  // position counts against the whole move rather than just this batch.
+                  const currentUniqueProducts = new Set(
+                    productGroups.map(g => `${g.productName}-${g.ndc}-${g.inventoryType}`)
+                  );
+                  const remainingUniqueProducts = new Set<string>();
+                  (remainingTransfers ?? []).forEach(transfer => {
+                    const t = transfer as any;
+                    if (t.productName) {
+                      remainingUniqueProducts.add(`${t.productName}-${t.ndc}-${t.inventoryType}`);
+                    }
+                  });
+                  const total = new Set([...currentUniqueProducts, ...remainingUniqueProducts]).size;
+                  return `${total - remainingUniqueProducts.size} of ${total}`;
+                })()}
+                active={activeSheet === 'product'}
+                enabled
+                onClick={() => setActiveSheet('product')}
+              />
+              <FooterDivider />
+              <SummaryCell
+                icon={<LogIn className="w-4 h-4" />}
+                label="Target Bin"
+                value={`${currentTargetBinIndex + 1} of ${currentProduct.targetBins.length}`}
+                active={activeSheet === 'targetBin'}
+                enabled
+                onClick={() => setActiveSheet('targetBin')}
+              />
+              <FooterDivider />
+            </>
+          )}
           {/* Same Move Summary counter the other two stages use, always enabled for the same reason. */}
           <SummaryCell
             icon={<ListChecks className="w-4 h-4" />}

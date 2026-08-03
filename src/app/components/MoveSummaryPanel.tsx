@@ -20,8 +20,15 @@ export interface MoveSummaryRow {
   // does in the source/target cards it came from.
   ndc?: string;
   inventoryType?: string;
+  // Bin and door are kept apart rather than pre-joined into one "Bin B · Door 1" string: the panel is
+  // 320px wide and holds two of these side by side, so a single line truncated mid-name ("Bin B · Do…")
+  // and lost the very thing the operator needs to read. Stacked, each gets its own line and fits.
+  // The door is optional because an end can summarise several bins ("2 source bins"), which has no
+  // single door to name.
   fromLabel: string;
+  fromDoor?: string;
   toLabel: string;
+  toDoor?: string;
   // null means not yet decided — step 3 stages transfers at quantity 0 before the quantity step
   // sets a real amount. Rendered as no quantity at all rather than a placeholder string: the bin
   // pairing is the news at that stage, and a repeated "not decided yet" on every line was noise.
@@ -188,10 +195,22 @@ export default function MoveSummaryPanel({
                     // other end stays plain, so a product spread over several bins still shows
                     // WHICH bin is in play rather than two ends that look equally active.
                     const activeEnd = row.status === 'current' ? stage : 'review';
-                    const endClass = (isActive: boolean) =>
-                      isActive
-                        ? 'truncate bg-[#095192] text-white rounded-[3px] px-1 py-0.5'
-                        : 'truncate';
+                    // Each end is its own stacked block — bin on top, door beneath — so the two share
+                    // the row's width evenly and neither has to truncate its bin name to fit.
+                    const end = (bin: string, door: string | undefined, isActive: boolean) => (
+                      <span
+                        className={`flex flex-col min-w-0 flex-1 rounded-[3px] px-1 py-0.5 ${
+                          isActive ? 'bg-[#095192] text-white' : ''
+                        }`}
+                      >
+                        <span className="truncate">{bin}</span>
+                        {door && (
+                          <span className={`truncate text-[11px] ${isActive ? 'text-white/80' : 'text-[#64748b]'}`}>
+                            {door}
+                          </span>
+                        )}
+                      </span>
+                    );
                     return (
                     <div
                       key={row.key}
@@ -199,10 +218,10 @@ export default function MoveSummaryPanel({
                         row.status === 'current' ? 'bg-white text-[#095192] font-medium' : 'text-[#4a5565]'
                       }`}
                     >
-                      <span className="flex items-center gap-1 min-w-0 truncate">
-                        <span className={endClass(activeEnd === 'source')}>{row.fromLabel}</span>
+                      <span className="flex items-center gap-1 min-w-0 flex-1">
+                        {end(row.fromLabel, row.fromDoor, activeEnd === 'source')}
                         <ArrowRight className="w-3 h-3 shrink-0" />
-                        <span className={endClass(activeEnd === 'target')}>{row.toLabel}</span>
+                        {end(row.toLabel, row.toDoor, activeEnd === 'target')}
                       </span>
                       <span className="shrink-0 flex items-center gap-1.5">
                         {row.quantity !== null && (

@@ -115,8 +115,10 @@ export default function ChangeAllocationModal({
         productDescription: product?.description,
         ndc: (product as any)?.ndc,
         inventoryType: (product as any)?.inventoryType,
-        fromLabel: fromBin ? `${fromBin.name} · ${getDoorName(fromBin)}` : 'Unknown bin',
-        toLabel: toBin ? `${toBin.name} · ${getDoorName(toBin)}` : 'Unknown bin',
+        fromLabel: fromBin?.name ?? 'Unknown bin',
+        fromDoor: fromBin ? getDoorName(fromBin) : undefined,
+        toLabel: toBin?.name ?? 'Unknown bin',
+        toDoor: toBin ? getDoorName(toBin) : undefined,
         quantity: null as number | null,
         unit: (product as any)?.unit,
         status: (fromBin?.id === sourceBin?.id && toBin?.id === targetBin?.id

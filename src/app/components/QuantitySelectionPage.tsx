@@ -13,7 +13,8 @@ import {
   FooterActions,
   StepCell,
   SummaryCell,
-  FooterButton
+  FooterButton,
+  SHOW_STEP4_POSITION_COUNTERS
 } from "./PipelineFooter";
 import { ProductTransfer, Bin, DoorShelfConfig } from '../types';
 import { formatBinLocation, getDoorName } from '../utils/changeAllocationUtils';
@@ -70,6 +71,8 @@ interface GroupedTransfer {
   sourceBin: Bin;
   sourceDoorName: string;
   targetBinNames: string[];
+  // Index-aligned with targetBinNames.
+  targetDoorNames: string[];
 }
 
 export default function QuantitySelectionPage({
@@ -160,20 +163,26 @@ export default function QuantitySelectionPage({
     groupMap.forEach((transfers, key) => {
       const firstTransfer = transfers[0];
       
-      // Get target bin names
-      const targetBinNames = transfers.map(t => {
+      // Get target bin names, and the door each one is behind — the Move Summary shows the two on
+      // separate lines, so the door has to be carried alongside the name rather than dropped here.
+      const targetBinNames: string[] = [];
+      const targetDoorNames: string[] = [];
+      transfers.forEach(t => {
         let targetBinName = 'Unknown';
+        let targetDoorName = '';
         Object.keys(doorShelfConfig).forEach(doorKey => {
           const shelves = doorShelfConfig[doorKey];
           shelves?.forEach(shelf => {
             shelf.bins?.forEach(bin => {
               if (bin.id === t.toBinId) {
                 targetBinName = bin.name;
+                targetDoorName = doorKey;
               }
             });
           });
         });
-        return targetBinName;
+        targetBinNames.push(targetBinName);
+        targetDoorNames.push(targetDoorName);
       });
 
       groups.push({
@@ -191,7 +200,8 @@ export default function QuantitySelectionPage({
         originalQuantity: firstTransfer.originalQuantity,
         sourceBin: firstTransfer.sourceBin,
         sourceDoorName: firstTransfer.sourceDoorName,
-        targetBinNames
+        targetBinNames,
+        targetDoorNames
       });
     });
 
@@ -216,7 +226,16 @@ export default function QuantitySelectionPage({
     return groupedTransfers.map((group, groupIndex) => {
       // Distinct target names: a duplicated transfer (the same product staged into the same bin
       // twice) would otherwise inflate the count and read as two destinations.
-      const targetNames = Array.from(new Set(group.targetBinNames));
+      // Distinct destinations, keyed on bin AND door so two same-named bins behind different doors
+      // (Bin 1A exists in every door) aren't collapsed into one.
+      const targets = Array.from(
+        new Map(
+          group.targetBinNames.map((name, i) => [
+            `${name}|${group.targetDoorNames[i] ?? ''}`,
+            { name, door: group.targetDoorNames[i] }
+          ])
+        ).values()
+      );
       const groupKey = `${group.productId}-${group.fromBinId}-group`;
       return {
         key: `${group.productId}-${group.fromBinId}-${groupIndex}`,
@@ -224,11 +243,11 @@ export default function QuantitySelectionPage({
         productDescription: group.productDescription,
         ndc: group.ndc,
         inventoryType: group.inventoryType,
-        fromLabel: `${group.sourceBinName} · ${group.sourceDoorName}`,
-        toLabel:
-          targetNames.length === 1
-            ? targetNames[0] ?? 'Unknown bin'
-            : `${targetNames.length} target bins`,
+        fromLabel: group.sourceBinName,
+        fromDoor: group.sourceDoorName,
+        toLabel: targets.length === 1 ? targets[0]?.name ?? 'Unknown bin' : `${targets.length} target bins`,
+        // A summarised end has no single door to name.
+        toDoor: targets.length === 1 ? targets[0]?.door : undefined,
         quantity: transferQuantities[groupKey] ?? group.transfers[0].moveQuantity,
         unit: group.unit,
         status: groupIndex === currentIndex ? 'current' : groupIndex < currentIndex ? 'done' : 'pending'
@@ -792,25 +811,30 @@ export default function QuantitySelectionPage({
 
           {/* The same summary cells the bin-picking steps use, rather than the bare underlined "1/1"
               links these were: a label above its value, blue and chevroned because both open a sheet.
-              Position-in-a-list is what they report, so the value keeps the n/total shape. */}
-          <SummaryCell
-            icon={<Package className="w-4 h-4" />}
-            label="Product"
-            value={`${productSummaries.findIndex(p => p.key === activeProductKey) + 1} of ${productSummaries.length}`}
-            active={activeSheet === 'product'}
-            enabled
-            onClick={() => setActiveSheet('product')}
-          />
-          <FooterDivider />
-          <SummaryCell
-            icon={<LogOut className="w-4 h-4" />}
-            label="Source Bin"
-            value={`${sourceBinSummaries.filter(b => b.isDone).length + 1} of ${sourceBinSummaries.length}`}
-            active={activeSheet === 'sourceBin'}
-            enabled
-            onClick={() => setActiveSheet('sourceBin')}
-          />
-          <FooterDivider />
+              Position-in-a-list is what they report, so the value keeps the n/total shape.
+              Hidden for now — see SHOW_STEP4_POSITION_COUNTERS. */}
+          {SHOW_STEP4_POSITION_COUNTERS && (
+            <>
+              <SummaryCell
+                icon={<Package className="w-4 h-4" />}
+                label="Product"
+                value={`${productSummaries.findIndex(p => p.key === activeProductKey) + 1} of ${productSummaries.length}`}
+                active={activeSheet === 'product'}
+                enabled
+                onClick={() => setActiveSheet('product')}
+              />
+              <FooterDivider />
+              <SummaryCell
+                icon={<LogOut className="w-4 h-4" />}
+                label="Source Bin"
+                value={`${sourceBinSummaries.filter(b => b.isDone).length + 1} of ${sourceBinSummaries.length}`}
+                active={activeSheet === 'sourceBin'}
+                enabled
+                onClick={() => setActiveSheet('sourceBin')}
+              />
+              <FooterDivider />
+            </>
+          )}
           {/* Same Move Summary counter Review uses, toggling the same kind of panel rather than a
               SideSheet like the two cells above — it stays open across the whole page instead of
               closing the moment something else is tapped. Always enabled, same reasoning as Review:

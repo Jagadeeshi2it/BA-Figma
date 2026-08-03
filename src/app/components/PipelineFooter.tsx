@@ -18,6 +18,21 @@ import { instructionFor, TOTAL_PIPELINE_STEPS, PipelineStep } from './PipelineSt
 export const plural = (count: number, noun: string) => `${count} ${noun}${count !== 1 ? 's' : ''}`;
 
 /**
+ * Whether step ④ shows its "Product n of N" and "Source/Target Bin n of N" position counters.
+ *
+ * Off at the operator's request while the Move Summary panel beside them is being judged on its own —
+ * the panel already lists every product and bin in the move and marks the one in hand, so the two
+ * counters may be saying the same thing twice. One switch for both halves of step ④, so they cannot
+ * disagree about it.
+ *
+ * A switch rather than a deletion because this is explicitly a "hide it for now, we'll decide later"
+ * — the cells and their side sheets stay wired, so restoring them is this one line. If the decision
+ * lands on keeping them off, delete the cells and the sheets they open rather than leaving this here:
+ * the stepper band that sat behind exactly this kind of flag is a warning, not a precedent.
+ */
+export const SHOW_STEP4_POSITION_COUNTERS = false;
+
+/**
  * The bar itself. min-h rather than a fixed height: the step cell's instruction wraps to two lines on
  * some steps and one on others, and a hard height would either clip the long ones or leave the short
  * ones floating. A floor plus consistent padding gives every stage the same bar without pretending the

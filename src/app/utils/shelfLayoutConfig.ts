@@ -255,9 +255,24 @@ const singleShelfVariants = (binCount: number): Placement[][] => {
   });
 };
 
-const emptyBin = (shelfId: string, index: number): Bin => ({
+/**
+ * A bin's label: its shelf's number, then its letter across that shelf — 1A, 1B, 1C on the first
+ * shelf, 2A, 2B on the second.
+ *
+ * Every shelf used to restart at A, so one door showed a Bin A, a Bin B and a Bin C several times
+ * over and the name alone couldn't say which shelf was meant. A door is the unit that has to be
+ * unambiguous, since all of its shelves are on screen together; across doors the label is already
+ * qualified by the door ("Bin 1A · Door 1"), the same way it always was.
+ *
+ * shelfIndex is 0-based and shelves are emitted in order, so shelfIndex + 1 is the "Shelf N" the
+ * heading shows.
+ */
+const binLabel = (shelfIndex: number, index: number) =>
+  `Bin ${shelfIndex + 1}${String.fromCharCode(65 + index)}`;
+
+const emptyBin = (shelfId: string, index: number, shelfIndex: number): Bin => ({
   id: `${shelfId}_slot${index + 1}`,
-  name: `Bin ${String.fromCharCode(65 + index)}`,
+  name: binLabel(shelfIndex, index),
   products: [],
   available: true,
   size: 'single',
@@ -270,7 +285,7 @@ const area = (placement: Placement) => placement.width * placement.height;
 // Order bins so occupied ones claim placements first, then pad or trim to the
 // placement count. Trimming only ever discards EMPTY bins — an occupied bin is
 // never dropped, so no product can be lost to a layout change.
-const fitBinsToPlacements = (shelf: Shelf, count: number): Bin[] | null => {
+const fitBinsToPlacements = (shelf: Shelf, count: number, shelfIndex: number): Bin[] | null => {
   const occupied = shelf.bins.filter(hasProducts);
   const empty = shelf.bins.filter(bin => !hasProducts(bin));
 
@@ -284,7 +299,7 @@ const fitBinsToPlacements = (shelf: Shelf, count: number): Bin[] | null => {
 
   const fitted = [...occupied, ...empty].slice(0, count);
   while (fitted.length < count) {
-    fitted.push(emptyBin(shelf.id, fitted.length));
+    fitted.push(emptyBin(shelf.id, fitted.length, shelfIndex));
   }
   return fitted;
 };
@@ -387,7 +402,7 @@ const layoutShelf = (
   const placements = placementsForShelf(doorName, doorType, shelf, shelfIndex);
   if (!placements) return shelf;
 
-  const bins = fitBinsToPlacements(shelf, placements.length);
+  const bins = fitBinsToPlacements(shelf, placements.length, shelfIndex);
   if (!bins) return shelf;
 
   // Match the fullest bins to the largest footprints. A bin holding three or more
@@ -404,8 +419,8 @@ const layoutShelf = (
   const binForPlacement = new Map<number, Bin>();
   largestFirst.forEach((entry, rank) => binForPlacement.set(entry.index, byLoad[rank]));
 
-  // Emit in reading order (top row first, then left to right) so the Bin A/B/C
-  // letters follow the physical layout, and so single doors — which have no
+  // Emit in reading order (top row first, then left to right) so the bin letters
+  // follow the physical layout, and so single doors — which have no
   // gridPosition to position them — come out in the right column order.
   const readingOrder = placements
     .map((placement, index) => ({ placement, index }))
@@ -421,8 +436,8 @@ const layoutShelf = (
         // Single doors render from `size` alone (one row, no vertical spans), so
         // they intentionally keep gridPosition undefined.
         ...(doorType === 'single' ? {} : { gridPosition: { x, y, width, height } }),
-        // Bin letters follow the physical layout rather than the import order.
-        name: `Bin ${String.fromCharCode(65 + index)}`,
+        // Labels follow the physical layout rather than the import order.
+        name: binLabel(shelfIndex, index),
       };
     }),
   };
