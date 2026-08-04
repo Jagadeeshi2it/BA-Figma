@@ -331,6 +331,14 @@ Both rows are the same product identity, so nothing about the product can tell t
 `product.id` (which the two share). `TargetProductCard` takes `isArrival` as a prop rather than asking
 the bin whether it stocks the product — that question answers yes for both rows.
 
+**Arrivals group on the identity triple, not `transfer.productId`.** One card per product, its quantity
+summed across every source bin it comes from, with a row per source bin beneath carrying that bin's own
+`Remove`. Grouping on the transfer's id gave one card *per source bin* — three identical cards for a
+drug moved out of three bins, each listing all three source rows, because the card's own source list
+matches on the identity. The row list renders for a single source bin too: the sentence is what tells
+the operator which bin this card empties, and a card whose shape changed with the source count read as
+two different kinds of card.
+
 ### Bin taps mean different things
 
 `handleBinClick` branches on mode: change-allocation step 1 (source) / step 2 (target),
@@ -559,13 +567,6 @@ physically impossible allocation without objection (§5).
   arrives. Note the features it was built for — a 0-inventory filter and a per-location release
   control — have since been removed, so its remaining purpose is thin.
 - **`BinCard`'s `showUnallocatedProducts` prop is misnamed** for what it does (see §3).
-- **Review's target column shows one arrival card per source bin, not per product.** Live bug as of
-  2026-08-04. `getTargetProducts` groups arrivals by `transfer.productId`, but the same drug in three
-  bins is three ids sharing one identity — so moving a product from three source bins produces three
-  identical cards, each listing all three "From:" rows (because *those* are matched on the identity
-  triple). The merge-into-the-existing-row code this replaced was silently doing the identity dedup as
-  a side effect. Fix is to group on `name | ndc | inventoryType` per §3, aggregating quantity across the
-  source bins and keeping the per-source-bin `Remove` list, which already carries its own `productId`.
 - **Step ④'s position counters are switched off, not decided.** `SHOW_STEP4_POSITION_COUNTERS = false`
   (§2). The operator asked to hide them while the Move Summary is judged alone and said they would call
   it; the cells and their side sheets stay wired. If the answer is "off", delete them — that is the
