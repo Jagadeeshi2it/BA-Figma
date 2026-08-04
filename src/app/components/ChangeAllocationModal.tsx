@@ -796,39 +796,51 @@ export default function ChangeAllocationModal({
     
     const transfersForThisBin = pendingTransfers.filter(pt => pt.toBinId === targetBin.id);
 
-    // Recency comes from the order of pendingTransfers, not from a timestamp taken here: this
-    // function runs on every render, so Date.now() re-stamped every pending move with the same
-    // instant and the sort at the bottom had nothing to order by. Last transfer wins, so a product
-    // touched twice ranks by its latest move.
-    const transferRank = new Map<string, number>();
-    transfersForThisBin.forEach((transfer, index) => transferRank.set(transfer.productId, index));
+    // Grouped on the identity triple, not transfer.productId: the same drug in three source bins is
+    // three product rows with three different ids, so keying on the id produced one arrival card per
+    // source bin — three identical cards, each listing all three "From:" rows, because the card's own
+    // source list matches on the identity (§3). One arrival per product, its quantity summed across
+    // the bins it comes from.
+    const transfersByProduct = transfersForThisBin.reduce((acc, transfer, index) => {
+      // Resolve the transfer to its source row first; the identity lives on the product, not the
+      // transfer, and a transfer whose source can't be found is one we can't describe at all.
+      let sourceProduct: any = null;
+      for (const bin of sourceBins) {
+        sourceProduct = bin.products.find(p => p.id === transfer.productId);
+        if (sourceProduct) break;
+      }
+      if (!sourceProduct) return acc;
 
-    // Group transfers by product ID and accumulate quantities
-    const transfersByProduct = transfersForThisBin.reduce((acc, transfer) => {
-      if (!acc[transfer.productId]) {
-        acc[transfer.productId] = {
+      const key = `${sourceProduct.name}|${sourceProduct.ndc}|${sourceProduct.inventoryType}`;
+      if (!acc[key]) {
+        acc[key] = {
+          key,
+          // The first contributing source row stands for the product's identity. Remove and Move Back
+          // match on the identity triple across every transfer, so which id this is doesn't decide
+          // what they act on.
           productId: transfer.productId,
+          sourceProduct,
           totalQuantity: 0,
+          rank: index,
           transfers: []
         };
       }
-      acc[transfer.productId].totalQuantity += transfer.quantity;
-      acc[transfer.productId].transfers.push(transfer);
+      acc[key].totalQuantity += transfer.quantity;
+      acc[key].transfers.push(transfer);
+      // Recency comes from the order of pendingTransfers, not from a timestamp taken here: this
+      // function runs on every render, so Date.now() re-stamped every pending move with the same
+      // instant and the sort at the bottom had nothing to order by. Last transfer wins, so a product
+      // touched twice ranks by its latest move.
+      acc[key].rank = index;
       return acc;
-    }, {} as Record<string, { productId: string; totalQuantity: number; transfers: any[] }>);
-    
+    }, {} as Record<string, { key: string; productId: string; sourceProduct: any; totalQuantity: number; rank: number; transfers: any[] }>);
+
     const allProducts = [...existingProducts];
-    
+
     // Process each product's accumulated transfers
     Object.values(transfersByProduct).forEach(productTransfers => {
-      // Find source product across all source bins
-      let sourceProduct = null;
-      for (const bin of sourceBins) {
-        sourceProduct = bin.products.find(p => p.id === productTransfers.productId);
-        if (sourceProduct) break;
-      }
-      if (!sourceProduct) return;
-      
+      const sourceProduct = productTransfers.sourceProduct;
+
       // CRITICAL FIX: Try to find existing product by ID first, then by name/NDC/inventoryType
       // This ensures we properly consolidate products even when they have different IDs
       let existingIndex = allProducts.findIndex(existing => existing.id === productTransfers.productId);
@@ -857,8 +869,8 @@ export default function ChangeAllocationModal({
         isArrival: true,
         // The source bin's own product id, which is what Remove and Move Back match transfers on.
         sourceProductId: productTransfers.productId,
-        rowKey: `arrival-${productTransfers.productId}`,
-        moveRank: transferRank.get(productTransfers.productId) ?? -1
+        rowKey: `arrival-${productTransfers.key}`,
+        moveRank: productTransfers.rank
       });
     });
     
@@ -1027,8 +1039,11 @@ export default function ChangeAllocationModal({
                       {/* Product Navigation */}
                       {productsAcrossMultipleBins.length > 1 && (
                         <div className="flex items-center gap-3 ml-3">
+                          {/* Named for what it pages through. A bare "1 of 2" says a position without
+                              saying in what — and this column pages products in a Product move but bins
+                              in a Bin move, so the noun is the only thing that tells them apart. */}
                           <span className="text-sm text-gray-600">
-                            {currentProductIndex + 1} of {productsAcrossMultipleBins.length}
+                            Product {currentProductIndex + 1} of {productsAcrossMultipleBins.length}
                           </span>
                           <div className="flex items-center gap-1">
                             <div 
@@ -1067,7 +1082,7 @@ export default function ChangeAllocationModal({
                       {visibleSourceBins.length > 1 && (
                         <div className="flex items-center gap-3">
                           <span className="text-sm text-gray-600">
-                            {currentSourceBinIndex + 1} of {visibleSourceBins.length}
+                            Bin {currentSourceBinIndex + 1} of {visibleSourceBins.length}
                           </span>
                           <div className="flex items-center gap-1">
                             <div
@@ -1294,8 +1309,10 @@ export default function ChangeAllocationModal({
                   
                   {targetBins.length > 1 && (
                     <div className="flex items-center gap-3">
+                      {/* Always "Bin": the destination is a bin whichever kind of move this is, which
+                          is the same reason step ② is called Target rather than named for the unit. */}
                       <span className="text-sm text-gray-600">
-                        {currentTargetBinIndex + 1} of {targetBins.length}
+                        Bin {currentTargetBinIndex + 1} of {targetBins.length}
                       </span>
                       <div className="flex items-center gap-1">
                         <div 
