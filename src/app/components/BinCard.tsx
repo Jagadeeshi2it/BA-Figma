@@ -268,7 +268,7 @@ export default function BinCard({
     <>
       <div
         data-bin-id={bin.id}
-        className={`relative rounded-lg transition-all ${
+        className={`relative rounded-[4px] transition-all ${
           // The bin itself does nothing in a Product move — only its rows do — so it must not offer a
           // pointer or a hover lift it cannot honour (UX-AUDIT H9-1: a control that looks live and
           // isn't reads as broken).
@@ -320,7 +320,9 @@ export default function BinCard({
             card already carries a state stroke the two sit side by side and read as one 2px line —
             which is why a "1px" source stroke still looked heavy. Only drawn when nothing else is. */}
         {!hasStateStroke && (
-          <div className="absolute border border-gray-200 border-solid inset-0 pointer-events-none rounded-lg" />
+          // Radius has to match the card's own — this outline is inset on top of it, so a different
+          // corner here shows as a stroke cutting across the card's rounding.
+          <div className="absolute border border-gray-200 border-solid inset-0 pointer-events-none rounded-[4px]" />
         )}
         <div className="min-h-inherit relative size-full">
           <div className="box-border content-stretch flex flex-col items-start justify-start min-h-inherit p-4 relative size-full">

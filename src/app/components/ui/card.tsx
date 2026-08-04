@@ -7,7 +7,11 @@ function Card({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="card"
       className={cn(
-        "bg-card text-card-foreground flex flex-col gap-6 rounded-xl border",
+        // rounded-[4px], not the primitive's original rounded-xl: product cards are the only live
+        // users of this component (SourceProductCard and TargetProductCard), and they share the 4px
+        // corner the bin cards and buttons use, so the radius belongs here rather than being
+        // overridden identically at both call sites.
+        "bg-card text-card-foreground flex flex-col gap-6 rounded-[4px] border",
         className,
       )}
       {...props}
