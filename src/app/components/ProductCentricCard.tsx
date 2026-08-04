@@ -76,24 +76,16 @@ export default function ProductCentricCard({
               >
                 {/* Left side - Bin info */}
                 <div className="flex items-center gap-6">
-                  <div className="flex items-center gap-2">
-                    <span className="font-['Inter:Regular',sans-serif] font-normal text-[14px] leading-[20px] text-[#4a5565]">
-                      Door:
-                    </span>
-                    <span className="font-['Inter:Regular',sans-serif] font-normal text-[14px] leading-[20px] text-[#020817]">
-                      {binLocation.doorName}
-                    </span>
+                  {/* One bolded location, written exactly as the target card writes it — `Door 2 - Bin
+                      4C`. The labelled `Door: … Bin: …` pair said in two fields what the rest of the
+                      app says in one string, and the two cards face each other in this modal, so a
+                      location that reads differently on each side reads as a different location. The
+                      quantity keeps its label: it is a figure, and a bare number beside a bin name
+                      would be ambiguous. */}
+                  <div className="font-['Inter:Semi_Bold',sans-serif] font-semibold text-[14px] leading-[20px] text-[#020817]">
+                    {binLocation.doorName} - {binLocation.binName}
                   </div>
-                  
-                  <div className="flex items-center gap-2">
-                    <span className="font-['Inter:Regular',sans-serif] font-normal text-[14px] leading-[20px] text-[#4a5565]">
-                      Bin:
-                    </span>
-                    <span className="font-['Inter:Regular',sans-serif] font-normal text-[14px] leading-[20px] text-[#020817]">
-                      {binLocation.binName}
-                    </span>
-                  </div>
-                  
+
                   <div className="flex items-center gap-2">
                     <span className="font-['Inter:Regular',sans-serif] font-normal text-[14px] leading-[20px] text-[#4a5565]">
                       {pluralizeUnit(product.unit, binLocation.quantity)}:
