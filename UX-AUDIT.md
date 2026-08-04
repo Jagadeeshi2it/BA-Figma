@@ -1,6 +1,6 @@
 # UX audit — Bin Allocation 2.0
 
-**Date:** 2026-07-31 · **Revised:** 2026-08-03 · **Method:** Nielsen's 10 usability heuristics,
+**Date:** 2026-07-31 · **Revised:** 2026-08-04 · **Method:** Nielsen's 10 usability heuristics,
 applied to the workflows (Allocate Product, Move by Bin, Move by Product), the search-driven bin
 selection, and the four-step move pipeline. See [CLAUDE.md](CLAUDE.md) for how the app is built.
 
@@ -15,6 +15,14 @@ whole visibility cluster (`H1-1`, `H1-2`, `H3-2`, `H6-1`, `H6-2`) and turned two
 missing domain constraints — is untouched and is now clearly the largest remaining item. The colour
 legend that would have closed `H4-2`/`H8-2` was built and then deliberately removed, so both are
 reopened as `[~]` with the reasoning recorded rather than lost.
+
+**2026-08-04 revision.** Two things this audit had not named came from the operator rather than from the
+heuristics, and both are now built: the **Move Summary panel** (`H1-4`) closed a disconnect between
+steps ③ and ④ — the pipeline said *where* you were but never *what you were moving* — and **moving a
+0-quantity allocation** (`H5-4`) removed a workaround the pharmacy team hit constantly. Worth noting how
+they arrived: neither was findable by walking the heuristics, because both are about what the operator
+came to do rather than about how the interface behaves. The `SHOW_PIPELINE_STEPS` question under `H1-1`
+is settled — the band is deleted — and one new defect is open (`H4-5`).
 
 ---
 
@@ -48,8 +56,8 @@ The three things worth doing first, in order of impact per unit of work.
   are `① Bin|Product → ② Target → ③ Review → ④ Move`, with ④ deliberately spanning the take and place
   screens (a separate "Place" step misread them as separate errands) and Review promoted from modal
   to page so all four are the same kind of surface. `Back` from placement returns to the product you
-  were on via `initialProductKey`. Covers `H1-1` and `H3-2`. See the `SHOW_PIPELINE_STEPS` note under
-  `H1-1` — which of the two indicators survives is still open.
+  were on via `initialProductKey`. Covers `H1-1` and `H3-2`. **Settled 2026-08-04:** the footer's
+  `Step n/4` won and the stepper band was deleted, so only one indicator exists.
 
 ---
 
@@ -58,9 +66,9 @@ The three things worth doing first, in order of impact per unit of work.
 - [x] **H1-1** The move pipeline is four screens deep and never says so. No step count, no
   breadcrumb. You discover there is another screen by pressing a button and arriving on it. Fixed
   2026-08-03: every stage's footer opens with `Step n/4`, sourced from `TOTAL_PIPELINE_STEPS` so it
-  cannot drift from the pipeline it describes. **Caveat:** a fuller stepper band was built first and
-  is now switched off (`SHOW_PIPELINE_STEPS = false`) while the compact footer version is trialled.
-  Two indicators exist, one renders. Whichever loses should be deleted, not left switched off.
+  cannot drift from the pipeline it describes. A fuller stepper band was built first and parked behind
+  `SHOW_PIPELINE_STEPS = false`; **deleted 2026-08-04** now that the footer has clearly won. One
+  indicator, no flag. The successor question is `SHOW_STEP4_POSITION_COUNTERS` — see `H1-4`.
 - [x] **H1-2** Entering Move Quantity is silent on the canvas: `changeAllocationMode` reaches
   `BinCard` only to *disable* things, so the shelves become less interactive-looking with no cue
   that a tap now means "select". The mode's only visible signal is a bottom bar reading
@@ -73,6 +81,26 @@ The three things worth doing first, in order of impact per unit of work.
 - [x] **H1-3** After `Select`, the control vanished and the row carried no marker of its own —
   confirmation existed only in the target column. Fixed 2026-07-31: every Select-family control now
   stays put and greys to `Selected` / `All selected`.
+- [x] **H1-4** **The pipeline said where you were but never what you were moving.** Raised by the
+  operator, not by this audit: steps ③ and ④ felt disconnected because the step count answered
+  *position* while the question in the operator's head — which products, out of which bins, into which
+  bins — had no answer anywhere on screen. A quantity page showing one product at a time gave no way to
+  see the batch it belonged to. Fixed 2026-08-04 with the **Move Summary panel**, present on Review and
+  both halves of ④. What the iterations taught, all of it visible in the final shape:
+  - Nesting target bins under their source beat flat `from → to` rows — flat repeated the source bin and
+    its quantity once per destination, so one bin split three ways read as three departures.
+  - Each badge belongs to the line whose act it names (`Taken` on the source, `Moved` on the target).
+    A single per-stage badge hung on the target lines made a target bin announce "Taken" before anything
+    had reached it.
+  - Bold marks the bin in hand; a filled chip read as "selected" instead of "you are here".
+  - Only the quantity being moved. The History page's `-20 → 180` was tried and dropped — before/after
+    is not what the operator needs while holding the stock.
+  - The toggle must never be disabled, or closing the panel strands them with no way back.
+- [~] **H1-5** Step ④'s `Product n of N` and `Source/Target Bin n of N` counters are hidden behind
+  `SHOW_STEP4_POSITION_COUNTERS = false` (2026-08-04), at the operator's request, while the Move Summary
+  beside them is judged on its own — the panel arguably says the same thing in more detail. Open because
+  it is a parked decision, and the deleted stepper band is the precedent for what happens if it stays
+  parked: **if the answer is "off", delete the cells and their side sheets.**
 
 **Working well:** the bottom bar's running source/target counts; the `Door unlocked` toast deduped
 per physical door for the whole session, so the same door is never announced twice.
@@ -132,10 +160,23 @@ abandoning an uncommitted selection is a step back, not a deletion, and the red 
   saying which. This is the correct behaviour in each case, but it is carried entirely by hover state.
   Discovered while fixing the `+N more` panel, which had the view-mode meaning during a move. `[code]`
 
+- [ ] **H4-5** **Review's target column shows one arrival card per source bin instead of one per
+  product.** Found 2026-08-04, open. Move a product out of three source bins and the target column
+  renders three identical cards, each listing all three "From:" rows. `getTargetProducts` groups
+  arrivals by `transfer.productId`, but the same drug in three bins is three ids sharing one identity
+  (`name | ndc | inventoryType`) — while the "From:" list *is* matched on the identity, so every card
+  shows every bin. This is the app's own identity rule (see `CLAUDE.md` §3) broken on one surface; the
+  merge-into-the-existing-row code it replaced had been doing that dedup as a side effect. `[code]`
+- [x] **H4-6** Every shelf restarted its bin letters at `A`, so one door showed three or four different
+  bins all called `Bin A` and the name alone could not say which shelf was meant. Fixed 2026-08-04:
+  `bin.name` carries its shelf (`Bin 1A`, `Bin 2B`), unique within a door — the unit that has to be
+  unambiguous, since all its shelves are on screen together.
+
 **Working well:** product rows now share one shape — name → italic generic name → grey badges →
 `ndc - inventoryType` — across five surfaces. The four move stages now share one footer vocabulary
 (`PipelineFooter`) — they had grown three different heights, paddings and button markups for the same
-job, so moving between steps looked like moving between products.
+job, so moving between steps looked like moving between products. Corners are 4px on product cards and
+bins alike, where three different radii (12px, 14px, 8px) had accumulated for the same kind of surface.
 
 ---
 
@@ -151,11 +192,24 @@ job, so moving between steps looked like moving between products.
 - [ ] **H5-2** Serial numbers are counted, not validated. `SerialNumberModal.validateSerialNumbers()`
   returns `isSelectionComplete` — no serial value is checked against anything — while `index.html`
   advertises serial validation as the product's whole purpose.
-- [ ] **H5-3** No confirmation before commit. There is no "you are about to move 340 vials across 4
-  bins" summary between the last screen and the mutation.
+- [~] **H5-3** No confirmation before commit. There is no "you are about to move 340 vials across 4
+  bins" summary between the last screen and the mutation. **Partially answered 2026-08-04:** the Move
+  Summary panel (`H1-4`) is that summary, and it is on screen throughout Review and both halves of ④
+  rather than as a final gate. Whether a demo also needs a blocking confirmation is now a judgement
+  call rather than a gap — the information is no longer missing, only the interstitial.
+- [x] **H5-4** **A product with no stock could not be moved**, so an operator who allocated to the wrong
+  bin before any restock had to unallocate from one screen and re-allocate from another. Raised by the
+  pharmacy team as a routine annoyance, not caught by this audit. Fixed 2026-08-04: a 0-quantity product
+  can be moved, and what moves is the allocation. The quantity page says so in words rather than showing
+  an editor whose min and max are both 0 — *"This bin has no quantity to remove — the allocation will
+  still move"*. Fixing it surfaced two real defects, both since fixed: history classified the result as a
+  new allocation rather than a move (it keyed on `quantity === 0`, which had meant "Allocate only"), and
+  `finalizeAndConfirm` silently dropped the only transfer in the batch.
 
 **Working well:** the target step blocks re-selecting a source bin; assigning a product to a bin it
-already occupies is skipped rather than silently duplicating the row.
+already occupies is skipped rather than silently duplicating the row. `Remove all` in the target column
+now reads as an undo (red, matching the per-product `Remove` beside it) rather than sharing the blue of
+the column's confirming actions.
 
 ---
 
@@ -183,6 +237,10 @@ already occupies is skipped rather than silently duplicating the row.
 **Working well:** selected bins now list beneath each picked product, so you needn't remember what
 you tapped out on the shelves. Step ① is labelled for the unit the operator chose (`Bin` / `Product`)
 rather than a generic "Source", so the menu choice is echoed back on the screen that carries it out.
+The Move Summary panel (`H1-4`) removed the largest remaining recall load in the pipeline: which products
+came out of which bins, readable at any point rather than reconstructed from memory. Review's target
+column separates *what this move is putting in* from *what the bin already held* under their own
+headings, so neither has to be inferred from which cards happen to carry a `Remove`.
 
 ---
 
@@ -263,3 +321,12 @@ Recorded so they are not re-raised as bugs:
   selection spanned, which handed the bin-centric screen to someone who had come to move a product.
 - **The `Bins Available(n)` checkbox is not a fourth workflow.** It is a view filter, moved out of the
   action row and next to the `Allocation` title for that reason.
+- **The quantity taken at a source is not divided between its target bins.** It was, evenly, up front.
+  The split is the operator's decision, made by scanning into each bin on the placement screen, so the
+  source half deliberately shows no per-target figure — a `0` there would read as a decision already
+  taken. (The even split was also breaking the placement screen's own arithmetic.)
+- **The same product can appear twice in Review's target column** — once as arriving stock, once as what
+  the bin already held. Two rows of one identity is the point: they answer different questions and only
+  the arrival is removable. Not to be confused with `H4-5`, which is three cards of the *same* arrival.
+- **A fridge card has no bin header.** One pooled bin per fridge door, so `Main Storage (Fridge)` restated
+  what the door heading had already said and named a bin nothing needs telling apart from.
