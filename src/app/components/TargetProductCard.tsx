@@ -59,9 +59,12 @@ export default function TargetProductCard({
   // while a product new to the bin was tinted, though both were equally part of the move.
   const isNewToTargetBin = isArrival;
   const showRemoveAction = isArrival;
-  // Several source bins each need their own Remove, so those stay in a list below rather than
-  // collapsing into the one control beside the quantity.
-  const hasMultipleSourceBins = !!sourceBins && sourceBins.length > 1;
+  // Where the stock is coming from is listed whenever it is known — one source bin or five. It used to
+  // need more than one, on the grounds that a lone source needed no disambiguating; but the operator
+  // reviewing a target bin is reading several products at once, each gathered from somewhere different,
+  // and the source bin's name is the only thing on the card that says which bin this row empties.
+  // Stating it for one bin and hiding it for another made the card's shape depend on the count.
+  const hasSourceBinRows = !!sourceBins && sourceBins.length > 0;
   
   return (
     // No tint on an arrival. Its Remove button already tells it apart from the bin's own stock, and
@@ -130,7 +133,7 @@ export default function TargetProductCard({
                   justify-between had a single child to place and left it at the top — the button
                   drifted to a different height depending on whether the bin already stocked the
                   product. Bottom-aligned always, matching Select on the source card opposite. */}
-              {showRemoveAction && !hasMultipleSourceBins && (
+              {showRemoveAction && !hasSourceBinRows && (
                 <div className="mt-auto flex items-center justify-end px-3 py-2 h-8 rounded-[4px] border border-[#e7000b] border-solid">
                   <button
                     onClick={() => {
@@ -159,9 +162,10 @@ export default function TargetProductCard({
               explained. It existed because one row had to report two quantities at once; the bin's
               own stock and the arrival are now separate rows, each reporting its own. */}
 
-          {/* A product gathered from several source bins keeps a row per bin, each with its own
-              Remove — that cannot collapse into a single control. */}
-          {showRemoveAction && hasMultipleSourceBins && (
+          {/* One row per source bin, each with its own Remove, so a bin can be dropped from the move
+              without dropping the product. A single source gets the same row — the sentence is worth
+              more than the space it costs, and the Remove is in the same place either way. */}
+          {showRemoveAction && hasSourceBinRows && (
             <>
               <div className="bg-[#d9d9d9] h-px w-full" />
               <div className="flex flex-col gap-2">
@@ -169,9 +173,11 @@ export default function TargetProductCard({
                     <div key={`${sourceBin.binId}-${sourceBin.productId}-${index}`} className="flex items-center justify-between w-full">
                       {/* Left side - Source bin info */}
                       <div className="flex-1">
-                        <div className="flex items-center gap-2 font-['Inter:Regular',_sans-serif] font-normal text-[14px] leading-[20px] text-[#020817]">
-                          <span className="text-[#4a5565]">From:</span>
-                          <span className="font-['Inter:Semi_Bold',_sans-serif] font-semibold">{sourceBin.doorName} - {sourceBin.binName}</span>
+                        {/* No "From:" label. This is the arrivals section of a target bin, so a source
+                            bin named on the card can only be where it comes from — the word restated
+                            the heading it already sits under. */}
+                        <div className="flex items-center gap-2 font-['Inter:Semi_Bold',_sans-serif] font-semibold text-[14px] leading-[20px] text-[#020817]">
+                          {sourceBin.doorName} - {sourceBin.binName}
                         </div>
                       </div>
                       
