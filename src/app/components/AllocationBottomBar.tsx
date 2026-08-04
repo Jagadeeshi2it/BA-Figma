@@ -17,9 +17,6 @@ interface AllocationBottomBarProps {
   // the shelf, where there's no product context to report.
   sourceProductCount: number;
   targetBinCount: number;
-  // Distinct products the target bins already hold — nearly always 0, since destinations are usually
-  // available bins, which is itself the useful signal when reviewing where things are going.
-  targetProductCount: number;
   // Which kind of move this is, so the empty Source counts the unit that kind collects — products in
   // a Product move, bins in a Bin move.
   moveMode?: 'bin' | 'product' | null;
@@ -47,7 +44,6 @@ export default function AllocationBottomBar({
   sourceBinCount,
   sourceProductCount,
   targetBinCount,
-  targetProductCount,
   moveMode,
   openPanel,
   onOpenSource,
@@ -57,11 +53,11 @@ export default function AllocationBottomBar({
   onNext,
   onConfirm
 }: AllocationBottomBarProps) {
-  // The target is always a bin whichever kind of move this is, so it reports bins, filled or empty.
-  const summaryValue = (binCount: number, productCount: number) =>
-    `${plural(binCount, 'Bin')}, ${plural(productCount, 'Product')}`;
-  const targetValue =
-    targetBinCount > 0 ? summaryValue(targetBinCount, targetProductCount) : plural(0, 'Bin');
+  // The target is always a bin whichever kind of move this is, so it reports bins and nothing else —
+  // the product count belongs to the source, where the operator picked it. Reporting it again here as
+  // "3 Bins, 4 Products" read as a second, target-side figure, when it is the same 4 products already
+  // stated on the left; a target bin holds whatever arrives in it and has no count of its own to give.
+  const targetValue = plural(targetBinCount, 'Bin');
 
   // Source reports only the unit the operator actually picked — bins in a Bin move, products in a
   // Product move — not both. Showing "1 Bin, 1 Product" together read as if the two figures could

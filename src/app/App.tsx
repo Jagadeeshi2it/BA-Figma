@@ -358,19 +358,6 @@ export default function App() {
   const sourceBinCount = inventoryState.changeAllocationSourceBins?.length ?? 0;
   const targetBinCount = inventoryState.changeAllocationTargetBins?.length ?? 0;
 
-  // Distinct products already sitting in the target bins. Deduped on the same name + NDC + inventory
-  // type identity the rest of the app groups by, so one drug spread across two target bins counts
-  // once — matching how the source figure counts products rather than rows.
-  const targetProductCount = useMemo(() => {
-    const identities = new Set<string>();
-    getTargetBins.forEach(bin => {
-      (bin?.products ?? []).forEach((product: any) => {
-        identities.add(`${product.name}|${product.ndc}|${product.inventoryType}`.toLowerCase());
-      });
-    });
-    return identities.size;
-  }, [getTargetBins]);
-
   // Distinct products the source selection actually puts in play, counted the same way the target
   // figure is — off the bins' contents — so a selected bin reports what's in it instead of nothing.
   // It used to count OR-groups in the highlight query, which meant a bin clicked straight off the
@@ -749,7 +736,6 @@ export default function App() {
                 sourceBinCount={sourceBinCount}
                 sourceProductCount={sourceProductCount}
                 targetBinCount={targetBinCount}
-                targetProductCount={targetProductCount}
                 moveMode={inventoryState.moveMode}
                 openPanel={allocationPanel}
                 onOpenSource={() => setAllocationPanel(current => (current === 'source' ? null : 'source'))}
