@@ -81,6 +81,10 @@ export default function BinCard({
     [bin.products, bin.available]
   );
 
+  // The one pooled bin behind a fridge door. Keyed on the bin's own size rather than the door name,
+  // so it holds wherever such a bin is rendered.
+  const isFridgeBin = bin.size === 'fridge';
+
   // Define doors where product limiting applies (extract number from "Door X" format). 4 and 8 are
   // the bottom "unique" doors — the only place 2x2/2x3/3x3 footprints occur — so they need the cap
   // too or those sizes' limits in DISPLAY_LIMIT_BY_SIZE below never have anywhere to apply.
@@ -326,14 +330,21 @@ export default function BinCard({
         )}
         <div className="min-h-inherit relative size-full">
           <div className="box-border content-stretch flex flex-col items-start justify-start min-h-inherit p-4 relative size-full">
-            <div className="box-border content-stretch flex flex-row items-center justify-start p-0 relative shrink-0 w-full mb-2">
-              <div className="basis-0 flex flex-col font-bold grow justify-center leading-[0] min-h-px min-w-px not-italic relative shrink-0 text-[#020817] text-xs text-left">
-                <p className="block leading-[12px] text-[14px]">
-                  {bin.name} <span className="text-[#7A7D85]">({getBinSizeDisplay(bin.size)})</span>
-                </p>
+            {/* A fridge door holds one pooled bin, so the bin has no name of its own worth stating —
+                the door heading above ("Fridge 1") already names the thing, and "Main Storage
+                (Fridge)" only repeated in the bin's own words what the door had just said. Every
+                other kind of door has several bins on a shelf, where the name is what tells them
+                apart, so the header stays there. */}
+            {!isFridgeBin && (
+              <div className="box-border content-stretch flex flex-row items-center justify-start p-0 relative shrink-0 w-full mb-2">
+                <div className="basis-0 flex flex-col font-bold grow justify-center leading-[0] min-h-px min-w-px not-italic relative shrink-0 text-[#020817] text-xs text-left">
+                  <p className="block leading-[12px] text-[14px]">
+                    {bin.name} <span className="text-[#7A7D85]">({getBinSizeDisplay(bin.size)})</span>
+                  </p>
+                </div>
               </div>
-            </div>
-            
+            )}
+
             {bin.available ? (
               <div className="flex items-center justify-center flex-1 text-gray-500 text-xs w-full text-[14px]">
                 Available Bin
