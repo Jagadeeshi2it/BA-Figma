@@ -153,10 +153,26 @@ export default function MoveSummaryPanel({
 
   const stageCopy = stage === 'review' ? null : STAGE_COPY[stage];
   const StageIcon = stageCopy?.icon;
-  // A finished line is named for the act that finished it, not the generic "Done" it used to carry:
-  // the stock has been TAKEN out of a source bin, and MOVED once it's in the target. Two halves of
-  // step ④ show the same pairing, so the same badge on both couldn't say which half was behind you.
-  const doneLabel = stage === 'source' ? 'Taken' : stage === 'target' ? 'Moved' : 'Done';
+
+  // Each line gets the badge for ITS OWN act: stock is TAKEN out of a source bin and MOVED once it's
+  // in a target bin. One badge used to be chosen per stage and hung on the target lines regardless,
+  // so on the taking half a target bin read "Taken" — announcing, against a bin nothing had reached
+  // yet, an act belonging to its parent.
+  //
+  // A source bin's "Taken" persists onto the placement half rather than being dropped there. Every
+  // quantity in the move is taken at the source before any of it is carried (that's the shape of step
+  // ④), so by the time the operator is placing, every source line is genuinely done — and keeping the
+  // badge lets the panel read the same across both halves instead of appearing to forget.
+  const sourceTakenBadge = (row: MoveSummaryRow) =>
+    stage === 'target' || (stage === 'source' && row.status === 'done') ? 'Taken' : null;
+  const targetMovedBadge = (row: MoveSummaryRow) =>
+    stage === 'target' && row.status === 'done' ? 'Moved' : null;
+
+  const doneBadge = (label: string) => (
+    <span className="text-[10px] font-semibold text-[#12805C] bg-[#E1F5EC] rounded-full px-2 py-0.5">
+      {label}
+    </span>
+  );
 
   return (
     <div className="shrink-0 w-[320px] h-full bg-white border-l border-gray-200 flex flex-col">
@@ -257,11 +273,14 @@ export default function MoveSummaryPanel({
                           >
                             {binLabel(sourceBin.label, sourceBin.door)}
                           </span>
-                          {sourceText && (
-                            <span className="shrink-0 font-medium text-[#020817] whitespace-nowrap">
-                              {sourceText}
-                            </span>
-                          )}
+                          {/* Quantity taken, with this bin's own "Taken" beside it — the act belongs
+                              to the source, so the badge sits with the figure it refers to. */}
+                          <span className="shrink-0 flex items-center gap-1.5 whitespace-nowrap">
+                            {sourceText && (
+                              <span className="font-medium text-[#020817]">{sourceText}</span>
+                            )}
+                            {sourceTakenBadge(head) && doneBadge(sourceTakenBadge(head)!)}
+                          </span>
                         </div>
 
                         {sourceBin.rows.map(row => {
@@ -281,15 +300,14 @@ export default function MoveSummaryPanel({
                                   {binLabel(row.toLabel, row.toDoor)}
                                 </span>
                               </span>
+                              {/* Quantity placed, and "Moved" only once it actually has been — this
+                                  bin's own act, so nothing appears here while the operator is still
+                                  taking stock out at the source. */}
                               <span className="shrink-0 flex items-center gap-1.5 whitespace-nowrap">
                                 {targetText && (
                                   <span className="font-medium text-[#020817]">{targetText}</span>
                                 )}
-                                {row.status === 'done' && (
-                                  <span className="text-[10px] font-semibold text-[#12805C] bg-[#E1F5EC] rounded-full px-2 py-0.5">
-                                    {doneLabel}
-                                  </span>
-                                )}
+                                {targetMovedBadge(row) && doneBadge(targetMovedBadge(row)!)}
                               </span>
                             </div>
                           );
