@@ -248,7 +248,6 @@ export default function QuantitySelectionPage({
           toLabel: target.name,
           toDoor: target.door,
           sourceQuantity: takenFromThisBin,
-          sourceBeforeQuantity: group.originalQuantity,
           quantity: null,
           unit: group.unit,
           // The bin in the operator's hands on this half is a SOURCE bin; no target is being filled

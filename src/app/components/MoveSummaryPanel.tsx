@@ -32,12 +32,10 @@ export interface MoveSummaryRow {
   // What leaves this SOURCE bin. Repeated across every row sharing that source (it's one figure for
   // the bin, not per destination), so the panel takes it from the first and states it once.
   sourceQuantity?: number | null;
-  sourceBeforeQuantity?: number;
   // What lands in THIS target bin. null means not yet decided — while taking at the source, how the
   // amount divides between the targets is still the operator's call, and a 0 would read as a
   // decision already made.
   quantity: number | null;
-  targetBeforeQuantity?: number;
   unit?: string;
   // Which bin the operator is physically at. Exactly one of these is true across the whole panel:
   // the source bin while taking, the target bin while placing. Drives the bold.
@@ -142,20 +140,16 @@ export default function MoveSummaryPanel({
   // a label with no door to name (a summarised end) simply drops the suffix.
   const binLabel = (label: string, door?: string) => (door ? `${label} - ${door}` : label);
 
-  // The History page's shape: what changed, then what the bin ends up holding. A zero move has no
-  // movement to sign — "-0 → 0" states nothing — so it stays a bare figure, and an undecided amount
-  // renders as nothing at all rather than a 0 that looks like a decision.
-  const quantityText = (
-    qty: number | null | undefined,
-    before: number | undefined,
-    direction: 'out' | 'in',
-    unit?: string
-  ) => {
-    if (qty == null) return null;
-    if (qty === 0 || before == null) return `${qty} ${pluralizeUnit(unit || 'vial', qty)}`;
-    const after = direction === 'out' ? before - qty : before + qty;
-    return `${direction === 'out' ? '-' : '+'}${qty} → ${after} ${pluralizeUnit(unit || 'vial', after)}`;
-  };
+  // Just the amount being moved. This carried the History page's "-20 → 180" shape for a while, but
+  // what the bin held before and what it ends up holding aren't the operator's business on this
+  // panel — they're mid-move, and the figure they need is how much to pick up or put down. The +/-
+  // went with it: the sign only earned its place as part of that arithmetic, and the stage banner
+  // and the source→target nesting already say which way the stock is going.
+  //
+  // null stays null — an undecided amount renders as nothing at all, rather than a 0 that would read
+  // as a decision already made.
+  const quantityText = (qty: number | null | undefined, unit?: string) =>
+    qty == null ? null : `${qty} ${pluralizeUnit(unit || 'vial', qty)}`;
 
   const stageCopy = stage === 'review' ? null : STAGE_COPY[stage];
   const StageIcon = stageCopy?.icon;
@@ -249,12 +243,7 @@ export default function MoveSummaryPanel({
                   {groupBySourceBin(group.rows).map(sourceBin => {
                     // One figure for the bin, not per destination, so it comes off the first row.
                     const head = sourceBin.rows[0];
-                    const sourceText = quantityText(
-                      head.sourceQuantity,
-                      head.sourceBeforeQuantity,
-                      'out',
-                      head.unit
-                    );
+                    const sourceText = quantityText(head.sourceQuantity, head.unit);
                     return (
                       <div key={`${sourceBin.label}-${sourceBin.door ?? ''}`}>
                         {/* The source bin. Bold only when the operator is standing at it — the whole
@@ -276,12 +265,7 @@ export default function MoveSummaryPanel({
                         </div>
 
                         {sourceBin.rows.map(row => {
-                          const targetText = quantityText(
-                            row.quantity,
-                            row.targetBeforeQuantity,
-                            'in',
-                            row.unit
-                          );
+                          const targetText = quantityText(row.quantity, row.unit);
                           return (
                             <div
                               key={row.key}

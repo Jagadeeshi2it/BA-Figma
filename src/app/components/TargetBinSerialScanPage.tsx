@@ -386,13 +386,9 @@ export default function TargetBinSerialScanPage({
             fromDoor: source.door,
             toLabel: targetBinGroup.targetBinName,
             toDoor: targetBinGroup.targetDoorName,
-            // Taken out of this source. Left without a "before" figure: this half is about filling
-            // target bins, and signing the source line "-N → remaining" here would state a change
-            // the operator already made on the previous screen as though it were happening now.
+            // Taken out of this source.
             sourceQuantity: source.quantity,
             quantity,
-            // What this target bin already held, so the panel can say "+10 → 35".
-            targetBeforeQuantity: targetBinGroup.targetBinExistingQty,
             unit: product.unit,
             // The bin in hand on this half is a TARGET bin; the source is history by now.
             isCurrentSource: false,
