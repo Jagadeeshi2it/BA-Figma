@@ -1,7 +1,8 @@
 import React from 'react';
-import { X, ArrowRight, LogOut, LogIn } from 'lucide-react';
+import { X, ArrowRight, LogOut, LogIn, Lock, Unlock, Package, Check, Route as RouteIcon } from 'lucide-react';
 import { pluralizeUnit } from '../utils/pluralizeUnit';
 import { getVialType, hasClimateBadge, hasCivBadge } from '../utils/binProducts';
+import { DoorVisit, RouteStop } from '../utils/moveRoute';
 
 /**
  * One line of "what's moving from where to where" — Review (step 3) and both halves of Move
@@ -61,7 +62,29 @@ export interface MoveSummaryRow {
  *
  * 'review' is step 3, where nothing is being handled yet and there is no active end to point at.
  */
-export type MoveSummaryStage = 'review' | 'source' | 'target';
+export type MoveSummaryStage = 'review' | 'source' | 'target' | 'route';
+
+/**
+ * What the panel needs to draw the itinerary (STEP4-GUIDANCE.md §6). The route itself comes straight from
+ * planMoveRoute; everything else here is progress through it.
+ */
+export interface MoveSummaryRouteView {
+  visits: DoorVisit[];
+  /** The stop in the operator's hands. Bold, and its door visit is the expanded one. */
+  currentStopKey: string | null;
+  /** Stops already worked. Their door visits collapse to one line — 320px does not fit five expanded. */
+  doneStopKeys: string[];
+  /** 1-based position of the current stop across the whole route, for "stop n of N". */
+  stopNumber: number;
+  stopCount: number;
+  /** The one unlocked door, from useCabinetAccess. Never more than one (§1). */
+  openDoor: string | null;
+  /**
+   * Taken but not yet placed. New state the route introduces: between a take and its place the stock is
+   * in neither bin, and without stating it the panel cannot account for it (§6).
+   */
+  staged: Array<{ productKey: string; productName: string; quantity: number; unit?: string }>;
+}
 
 interface MoveSummaryPanelProps {
   rows: MoveSummaryRow[];
@@ -69,11 +92,24 @@ interface MoveSummaryPanelProps {
   onToggle: () => void;
   title?: string;
   stage?: MoveSummaryStage;
+  /**
+   * Required when stage is 'route'. The route is the panel's primary structure in step ④ — it answers
+   * "where am I and where next", which is the whole reason the panel exists there — while `rows` still
+   * supplies the per-product totals beneath it, because the product view never disappears (§6).
+   */
+  route?: MoveSummaryRouteView;
 }
 
-const STAGE_COPY: Record<Exclude<MoveSummaryStage, 'review'>, { label: string; icon: typeof LogOut }> = {
+const STAGE_COPY: Record<Exclude<MoveSummaryStage, 'review' | 'route'>, { label: string; icon: typeof LogOut }> = {
   source: { label: 'Take qty from source bin', icon: LogOut },
   target: { label: 'Placing in target bin', icon: LogIn }
+};
+
+/** What the operator does at a stop, in the words the stop's own screen uses. */
+const stopVerb = (stop: RouteStop): string => {
+  const kinds = new Set(stop.actions.map(action => action.kind));
+  if (kinds.has('take') && kinds.has('place')) return 'Take, then place';
+  return kinds.has('take') ? 'Take' : 'Place';
 };
 
 // A real group-by, not a consecutive-run merge: a product's rows can arrive interleaved with
@@ -110,12 +146,125 @@ const groupByProduct = (rows: MoveSummaryRow[]) => {
   return groups;
 };
 
+/**
+ * The itinerary: door visits, each holding its bin stops, in route order (STEP4-GUIDANCE.md §6).
+ *
+ * Door VISITS are the grouping key, not doors. A door caught in a precedence cycle is legitimately
+ * visited twice (§5), and merging those two into one group would tell the operator they can do both while
+ * it is open — the one thing the constraint forbids.
+ */
+function RouteItinerary({ route }: { route: MoveSummaryRouteView }) {
+  const done = new Set(route.doneStopKeys);
+
+  return (
+    <>
+      {route.visits.map((visit, visitIndex) => {
+        const stopsDone = visit.stops.every(stop => done.has(stop.key));
+        const holdsCurrent = visit.stops.some(stop => stop.key === route.currentStopKey);
+        const isFridge = visit.storage === 'fridge';
+        const isOpen = !isFridge && route.openDoor === visit.doorName && holdsCurrent;
+
+        // A finished visit collapses to one line. At 320px a five-door route does not fit expanded, and
+        // the visit being worked is the only one whose stops the operator needs.
+        const collapsed = stopsDone && !holdsCurrent;
+
+        return (
+          <div key={visit.key}>
+            {/* The boundary between visits IS the lock — an instruction the operator performs, not
+                bookkeeping (§6). Given its own line rather than left to whitespace. */}
+            {visitIndex > 0 && !isFridge && (
+              <div className="flex items-center gap-1.5 py-1.5 text-[11px] text-[#94a3b8]">
+                <Lock className="w-3 h-3 shrink-0" />
+                <span>lock the previous door first</span>
+              </div>
+            )}
+
+            <div
+              className={`rounded-[6px] border px-3 py-2 mb-2 ${
+                holdsCurrent ? 'border-[#095192] bg-[#f0f6fc]' : 'border-gray-200'
+              }`}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="flex items-center gap-1.5 min-w-0">
+                  {isFridge ? (
+                    <Package className="w-3.5 h-3.5 shrink-0 text-[#64748b]" />
+                  ) : isOpen ? (
+                    <Unlock className="w-3.5 h-3.5 shrink-0 text-[#12805C]" />
+                  ) : (
+                    <Lock className="w-3.5 h-3.5 shrink-0 text-[#94a3b8]" />
+                  )}
+                  <span
+                    className={`truncate text-[13px] ${
+                      holdsCurrent ? 'font-semibold text-[#020817]' : 'text-[#4a5565]'
+                    }`}
+                  >
+                    {visit.doorName}
+                    {/* Named as a return, so a door appearing twice cannot read as one long visit. */}
+                    {visit.visitIndex > 1 && (
+                      <span className="font-normal text-[#64748b]"> · return</span>
+                    )}
+                  </span>
+                </span>
+                <span className="shrink-0 text-[11px] text-[#64748b] whitespace-nowrap">
+                  {/* A fridge says so instead of reporting a lock state it does not have (§1). */}
+                  {isFridge
+                    ? 'fridge · no lock'
+                    : isOpen
+                      ? 'open now'
+                      : collapsed
+                        ? `done · ${visit.stops.length} stop${visit.stops.length === 1 ? '' : 's'}`
+                        : 'locked'}
+                </span>
+              </div>
+
+              {!collapsed && (
+                <div className="mt-1.5 space-y-1">
+                  {visit.stops.map(stop => {
+                    const isCurrent = stop.key === route.currentStopKey;
+                    const isDone = done.has(stop.key);
+                    return (
+                      <div key={stop.key} className="flex items-start justify-between gap-2 text-[12px]">
+                        <span className="flex items-center gap-1.5 min-w-0">
+                          {/* Exactly one bin is lit, which is what the bold says — the same
+                              "you are here" the product view uses, so the two agree. */}
+                          {isCurrent ? (
+                            <span className="w-3 shrink-0 text-[#095192] text-center leading-none">▸</span>
+                          ) : isDone ? (
+                            <Check className="w-3 h-3 shrink-0 text-[#12805C]" />
+                          ) : (
+                            <span className="w-3 shrink-0" />
+                          )}
+                          <span
+                            className={`truncate ${
+                              isCurrent ? 'font-semibold text-[#020817]' : 'text-[#4a5565]'
+                            }`}
+                          >
+                            {stop.binName}
+                          </span>
+                        </span>
+                        <span className="shrink-0 text-[11px] text-[#64748b] whitespace-nowrap">
+                          {stopVerb(stop)}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </>
+  );
+}
+
 export default function MoveSummaryPanel({
   rows,
   isOpen,
   onToggle,
   title = 'Move Summary',
-  stage = 'review'
+  stage = 'review',
+  route
 }: MoveSummaryPanelProps) {
   // No collapsed rail: the footer's own Move Summary counter is what reopens this now, so a second,
   // always-present toggle sitting in the corner just to say "closed" would be a redundant control.
@@ -157,7 +306,9 @@ export default function MoveSummaryPanel({
   const quantityText = (qty: number | null | undefined, unit?: string) =>
     qty == null ? null : `${qty} ${pluralizeUnit(unit || 'vial', qty)}`;
 
-  const stageCopy = stage === 'review' ? null : STAGE_COPY[stage];
+  const isRouteStage = stage === 'route' && !!route;
+  const stageCopy =
+    stage === 'review' || stage === 'route' ? null : STAGE_COPY[stage as 'source' | 'target'];
   const StageIcon = stageCopy?.icon;
 
   // Each line gets the badge for ITS OWN act: stock is TAKEN out of a source bin and MOVED once it's
@@ -219,8 +370,14 @@ export default function MoveSummaryPanel({
       <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 shrink-0">
         <div className="min-w-0">
           <h3 className="text-[14px] font-semibold text-[#020817]">{title}</h3>
+          {/* In step ④ the walk is stops, so that is what the count reports — the footer cell that opens
+              this panel says the same. Products are counted in their own section below. */}
           <p className="text-[12px] text-[#64748b]">
-            {groups.length} {groups.length === 1 ? 'product' : 'products'}
+            {isRouteStage
+              ? `${route!.visits.filter(v => v.storage === 'cabinet').length} door${
+                  route!.visits.filter(v => v.storage === 'cabinet').length === 1 ? '' : 's'
+                } · stop ${route!.stopNumber} of ${route!.stopCount}`
+              : `${groups.length} ${groups.length === 1 ? 'product' : 'products'}`}
           </p>
         </div>
         <button
@@ -243,12 +400,104 @@ export default function MoveSummaryPanel({
         </div>
       )}
 
+      {/* No "taking" / "placing" banner under a route: those were phases, and a route has none — a stop
+          can place before a later stop takes (§2). What the operator is doing is a property of the stop
+          they are at, and the itinerary says it on that stop's own line. */}
+      {isRouteStage && (
+        <div className="flex items-center gap-1.5 px-4 py-2 border-b border-gray-200 bg-[#F1F6FA] shrink-0">
+          <RouteIcon className="w-3.5 h-3.5 text-[#095192] shrink-0" />
+          <span className="text-[12px] font-medium text-[#095192]">
+            {route!.openDoor ? `${route!.openDoor} is open` : 'All doors locked'}
+          </span>
+        </div>
+      )}
+
       {/* pb-20: on step 4, this panel sits beside a page whose own footer is fixed and runs the full
           width (including under this panel) rather than making room for it — so without this, the
           last card would scroll in behind the bar rather than above it. Harmless extra whitespace on
           Review, whose footer isn't fixed. */}
       <div className="flex-1 overflow-y-auto p-3 pb-20">
-        {groups.length === 0 ? (
+        {isRouteStage ? (
+          <>
+            <RouteItinerary route={route!} />
+
+            {/* Taken but not yet placed. Stock in neither bin is otherwise unaccounted for on screen —
+                and this line is also the panel's proof that interleaving is safe, since the operator can
+                see exactly what they are carrying (§6). */}
+            {route!.staged.length > 0 && (
+              <div className="mt-3 rounded-[6px] border border-dashed border-[#cbd5e1] bg-[#f8fafc] px-3 py-2">
+                <div className="flex items-center gap-1.5 text-[11px] font-semibold text-[#475569] uppercase tracking-wide">
+                  <Package className="w-3 h-3 shrink-0" />
+                  On the counter
+                </div>
+                <div className="mt-1.5 space-y-1">
+                  {route!.staged.map(item => (
+                    <div key={item.productKey} className="flex items-center justify-between gap-2 text-[12px]">
+                      <span className="truncate text-[#4a5565]">{item.productName}</span>
+                      <span className="shrink-0 font-medium text-[#020817] whitespace-nowrap">
+                        {item.quantity} {pluralizeUnit(item.unit || 'vial', item.quantity)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* The product view NEVER disappears (§6). The route answers "where am I"; it cannot answer
+                "where is all my ALIMTA going", and that question does not stop being asked mid-move. One
+                compact progress row each — not a repeat of the route's detail, since the route already
+                names products on every stop line. */}
+            {groups.length > 0 && (
+              <div className="mt-3 pt-3 border-t border-gray-200">
+                <p className="text-[11px] font-semibold text-[#475569] uppercase tracking-wide mb-1.5">
+                  Products
+                </p>
+                <div className="space-y-1.5">
+                  {groups.map((group, groupIndex) => {
+                    const skipped = group.rows.length > 0 && group.rows.every(row => row.isSkipped);
+                    // Taken is per source bin, so it is summed once per bin rather than per pairing —
+                    // the same reason the nested view states a source's figure once (§3).
+                    const takenByBin = new Map<string, number>();
+                    group.rows.forEach(row => {
+                      if (row.status === 'done' && row.sourceQuantity != null) {
+                        takenByBin.set(`${row.fromLabel}|${row.fromDoor ?? ''}`, row.sourceQuantity);
+                      }
+                    });
+                    const totalByBin = new Map<string, number>();
+                    group.rows.forEach(row => {
+                      if (row.sourceQuantity != null) {
+                        totalByBin.set(`${row.fromLabel}|${row.fromDoor ?? ''}`, row.sourceQuantity);
+                      }
+                    });
+                    const taken = Array.from(takenByBin.values()).reduce((sum, n) => sum + n, 0);
+                    const total = Array.from(totalByBin.values()).reduce((sum, n) => sum + n, 0);
+                    const placed = group.rows
+                      .filter(row => row.status === 'done' && row.quantity != null)
+                      .reduce((sum, row) => sum + (row.quantity ?? 0), 0);
+
+                    return (
+                      <div key={`${group.productName}-${groupIndex}`} className="text-[12px]">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="truncate text-[#020817]">{group.productName}</span>
+                          {skipped && (
+                            <span className="shrink-0 text-[10px] font-semibold text-[#64748b] bg-[#F1F5F9] rounded-full px-2 py-0.5">
+                              Skipped
+                            </span>
+                          )}
+                        </div>
+                        {!skipped && (
+                          <div className="text-[11px] text-[#64748b]">
+                            {taken} of {total} taken · {placed} placed
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </>
+        ) : groups.length === 0 ? (
           <p className="text-[13px] text-[#64748b] text-center mt-6">Nothing selected yet.</p>
         ) : (
           groups.map((group, groupIndex) => {
