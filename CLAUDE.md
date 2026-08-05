@@ -66,7 +66,8 @@ geometry. That is why the demo steps are last.
 
 ## 2. The three workflows
 
-The header's **Allocate/Move** button opens a menu with three entries:
+The header's **Allocate/Move** button opens a 320px menu, **right-aligned to the trigger** (`align="end"`),
+with three entries:
 
 | Entry | What it starts |
 |---|---|

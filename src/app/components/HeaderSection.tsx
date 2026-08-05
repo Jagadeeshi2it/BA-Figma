@@ -341,10 +341,16 @@ const HeaderSection = memo(function HeaderSection({
                     the panel left to fit — and with the default padding of 0 it shifts until it is
                     flush against the window edge. This keeps a margin there instead. */}
                 <PopoverContent
-                  align="start"
+                  // align="end" hangs the panel off the trigger's RIGHT edge, so the two line up on the
+                  // side the eye is already on — the trigger sits at the right of the header, so aligning
+                  // left threw the panel out under the search box instead.
+                  align="end"
                   sideOffset={6}
+                  // Radix defaults this to 0, which lets a shifted panel sit flush against the viewport
+                  // edge. Only bites if the window is narrow enough to push it, which align="end" makes
+                  // less likely but not impossible.
                   collisionPadding={16}
-                  className="w-[300px] p-1"
+                  className="w-[320px] p-1"
                 >
                   {/* One line each: what unit you pick, and where you pick it. Anything longer stops
                       being read at the moment the user just wants to get going.
