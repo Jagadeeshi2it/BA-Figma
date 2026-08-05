@@ -106,7 +106,16 @@ export default function AllocationBottomBar({
           // they needed and was told nothing about why it wouldn't work (UX-AUDIT H6-2). The forward
           // arrow is dropped while blocked: it promises a next step that can't happen.
           <FooterButton
-            label={sourceBinCount > 0 ? 'Move To' : 'Select what to move from'}
+            label={
+              sourceBinCount > 0
+                ? 'Move To'
+                : // Named for the unit this kind of move actually collects. A Bin move cannot say
+                  // "products" — its product rows are inert, so it would aim the operator at the one
+                  // thing that cannot answer, which is the silently-dead control the audit flags.
+                  moveMode === 'product'
+                    ? 'Select products to move'
+                    : 'Select bins to move'
+            }
             variant="primary"
             enabled={sourceBinCount > 0}
             onClick={onNext}
