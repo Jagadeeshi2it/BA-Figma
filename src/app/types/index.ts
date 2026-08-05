@@ -110,11 +110,8 @@ export interface AllocationHistoryEntry {
     quantity?: number; // Quantity taken out of THIS source bin
     remainingQuantity?: number; // Quantity left in THIS source bin after the move
   }[];
-  // 'move-cancelled' is a move the operator abandoned with stock already in hand: nothing ended up
-  // anywhere new, but a door was opened and vials were handled, so the trail must not claim the session
-  // never happened (STEP4-GUIDANCE.md §8).
-  action: 'allocation' | 'move' | 'change-allocation' | 'unallocate' | 'move-cancelled';
-  transactionType: 'New Bin Allocation' | 'Product moved' | 'Unallocated' | 'Move cancelled';
+  action: 'allocation' | 'move' | 'change-allocation' | 'unallocate';
+  transactionType: 'New Bin Allocation' | 'Product moved' | 'Unallocated';
 }
 
 export interface ProductTransfer {

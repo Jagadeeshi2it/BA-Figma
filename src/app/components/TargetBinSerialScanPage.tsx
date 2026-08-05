@@ -19,9 +19,8 @@ import { ProductTransfer, Bin, DoorShelfConfig } from '../types';
 import { formatBinLocation, getDoorName } from '../utils/changeAllocationUtils';
 import { pluralizeUnit } from '../utils/pluralizeUnit';
 import { getVialType, hasClimateBadge, hasCivBadge } from '../utils/binProducts';
-import { SkippedProduct } from './QuantitySelectionPage';
+import { SkippedProduct, CANNOT_CANCEL_REASON } from './QuantitySelectionPage';
 import { CabinetAccess } from '../hooks/useCabinetAccess';
-import { CancelMoveStage, StagedStock } from './CancelMoveConfirmModal';
 
 interface ScannedItem {
   serial: string;
@@ -35,8 +34,11 @@ interface TargetBinSerialScanPageProps {
   transfers: ProductTransfer[];
   doorShelfConfig: DoorShelfConfig;
   onConfirm: (transfersWithSerials: ProductTransfer[]) => void;
-  /** Leaving step ④. Only offered while nothing has been placed — see hasPlacedStock below. */
-  onCancel: (stage: CancelMoveStage, staged: StagedStock[]) => void;
+  /**
+   * Kept for the footer's shape, but never called: reaching this screen means every quantity has already
+   * been taken at the source, so cancelling is refused outright (STEP4-GUIDANCE.md §8).
+   */
+  onCancel: () => void;
   remainingTransfers?: ProductTransfer[];
   // Products the quantity step was told to skip. Listed in the Move Summary, marked, so the operator
   // can see why a product they picked at Review has no bins or quantities on this screen.
@@ -495,54 +497,6 @@ export default function TargetBinSerialScanPage({
     );
     return () => toast.dismiss(toastId);
   }, [currentTargetBin?.targetDoorName]);
-
-  /**
-   * Whether the operator has actually put stock into a target bin. Past this point cancelling is off: the
-   * cabinet has begun to change, and there is no honest "put it back" for stock already placed.
-   *
-   * Two signals, and both need their guard:
-   *
-   * - **Advanced past a target bin.** Saving a bin is placing its stock, whether or not serials were
-   *   recorded. This is the only signal when scanning isn't required.
-   * - **Scanned items, but only when scanning IS required.** When it is not, the effect above
-   *   auto-populates scannedItems the moment the screen opens — so reading it unguarded disabled Cancel
-   *   before the operator had done anything at all, which is not what "started placing" means.
-   */
-  const hasPlacedStock = useMemo(
-    () =>
-      currentProductIndex > 0 ||
-      currentTargetBinIndex > 0 ||
-      (serialScanningRequired && Object.values(scannedItems).some(items => items.length > 0)),
-    [scannedItems, currentProductIndex, currentTargetBinIndex, serialScanningRequired]
-  );
-
-  // Everything on this screen was taken at the source before any of it was carried, so the whole batch is
-  // on the counter. One entry per source bin per product; a product gathered from three bins is three
-  // things to put back, in three places.
-  const stagedStock = useMemo<StagedStock[]>(() => {
-    const byBinAndProduct = new Map<string, StagedStock>();
-    transfers.forEach(transfer => {
-      const productName = (transfer as any).productName ?? '';
-      const key = `${transfer.fromBinId}|${productName}`;
-      const existing = byBinAndProduct.get(key);
-      if (existing) {
-        // A source feeding several target bins carries its whole amount on every transfer (CLAUDE.md §3),
-        // so this must not sum — it is one quantity that left the bin once.
-        existing.quantity = Math.max(existing.quantity, transfer.quantity);
-        return;
-      }
-      byBinAndProduct.set(key, {
-        binId: transfer.fromBinId,
-        productName,
-        quantity: transfer.quantity,
-        unit: (transfer as any).unit,
-        ndc: (transfer as any).ndc,
-        inventoryType: (transfer as any).inventoryType,
-        description: (transfer as any).productDescription
-      });
-    });
-    return Array.from(byBinAndProduct.values()).filter(item => item.quantity > 0);
-  }, [transfers]);
 
   const getTargetBinKey = (targetBin: TargetBinGroup) =>
     scanKey(currentProduct.productId, targetBin.toBinId);
@@ -1200,22 +1154,17 @@ export default function TargetBinSerialScanPage({
           />
 
           <FooterActions>
-            {/* Off once anything has been placed: the cabinet has started to change, so there is nothing
-                left that "cancel" could honestly mean. It keeps the label "Cancel" and answers a tap with
-                the reason, rather than renaming itself to a sentence — the label is the control's name,
-                and replacing it makes the operator re-read the button to work out what it was. */}
+            {/* Never available on this screen. Every quantity was taken at the source before anything was
+                carried here, so a cancel would rest entirely on the operator putting stock back in the
+                right bins — which nothing in the app can verify (STEP4-GUIDANCE.md §8). Shown rather than
+                removed, keeping its own name, and explaining on tap. */}
             <FooterButton
               label="Cancel"
               variant="secondary"
-              enabled={!hasPlacedStock}
-              onClick={() => onCancel('stock-in-hand', stagedStock)}
+              enabled={false}
+              onClick={onCancel}
               onBlockedClick={() =>
-                toast.custom(
-                  t => (
-                    <ValidationToast message="Stock has already been placed in a target bin, so this move can no longer be cancelled. Finish it to record where everything went." />
-                  ),
-                  { duration: 6000 }
-                )
+                toast.custom(() => <ValidationToast message={CANNOT_CANCEL_REASON} />, { duration: 6000 })
               }
             />
             <FooterButton

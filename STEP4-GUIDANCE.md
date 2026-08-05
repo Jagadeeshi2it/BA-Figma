@@ -11,8 +11,7 @@
   true interleaving falls back to two phases and reports the cost (§9's last case).
 - **§6, the panel's itinerary** — written but **not wired**: `MoveSummaryPanel` accepts a route, and
   nothing passes it one yet. Step ④'s summary is still product-major.
-- **§8's cancellation** — all three regimes built (B as the phase-1 checklist); verification of a return
-  and partial returns are open.
+- **§8's cancellation** — built: cancelling is offered only before the first quantity leaves a source bin.
 - **§7's re-planning** — not built.
 
 This is the rule set for how step ④ of the move pipeline should guide an operator through the physical
@@ -284,15 +283,31 @@ Cancelling is three different acts depending on where the stock is, and only the
 | Regime | State | Behaviour |
 |---|---|---|
 | **A — nothing collected** | No source bin worked yet. The quantity on screen is a proposal; the stock has not moved. | Confirm, then discard. **Built.** |
-| **B — stock in hand** | Quantities taken, nothing placed. The stock is on the counter. | The dialog becomes a **return checklist**, grouped by door. **Built (phase 1)** — see below. |
-| **C — placing started** | Any stock has gone into a target bin. | **No cancel.** Built: the control is disabled and says why in its own label. |
+| **B — any quantity taken** | The first quantity has left a source bin. | **No cancel.** Built. |
+| **C — placing started** | Any stock has gone into a target bin. | **No cancel.** Built — same rule as B, since B already covers it. |
 
 **A is a discard and nothing more.** The dialog names what is lost (the selection) and states what is not
 (the cabinet). Confirming resets the whole flow to the default view — mode, step, source and target bins,
 both search channels, and the open door — the same end state a completed move leaves behind. Anything
 short of that drops the operator back into step ② holding the selection they just abandoned.
 
-**B is not an undo, it is a return move.** Nothing the app does can put vials back; the operator has to.
+**B and C are the same rule: once stock has moved, the move must be finished.**
+
+The threshold is the **first quantity leaving a source bin** — not the first placement. Everything past
+that point would rest entirely on the operator putting stock back in the right bins, and nothing in the app
+can check that they did. The pharmacy team's judgement: that is not something to depend on, so cancelling
+is refused rather than trusted.
+
+The control keeps its own name and explains on tap (a toast) rather than renaming itself to a sentence
+about why it is unavailable. It is shown, not removed — a control that vanishes reads as one that failed.
+
+This replaced a **return checklist**: the dialog listed what to put back, per bin, grouped by door and
+ordered for the shortest walk, and confirming was the operator's acknowledgement that they had. It was
+built, worked, and was removed — recorded here rather than left behind a condition nothing can satisfy.
+What follows is why it looked reasonable, and remains the design to revisit if returns ever become
+verifiable (a scan-on-return would do it).
+
+**A return is not an undo, it is a return move.** Nothing the app does can put vials back; the operator has to.
 So the honest model is not "cancel" at all but a **second route, source and target swapped** — from the
 counter back to the bins the stock came from, under the same one-door constraint as any other route. The
 planner already computes this: it is `planMoveRoute` over the reversed transfers.
@@ -300,9 +315,9 @@ planner already computes this: it is `planMoveRoute` over the reversed transfers
 That reframing dissolves the distinction between "all from one door" and "moved away from that door".
 They are the same act with different route lengths — which is what makes a simple phase 1 possible.
 
-### Phase 1, as built
+### The checklist design (built, then removed)
 
-**One rule:** cancelling is available until the first placement. Not gated on doors, not on how many bins
+**One rule:** cancelling available until the first placement. Not gated on doors, not on how many bins
 were worked. Two states, not three.
 
 **One list:** the dialog *is* the return checklist — what to put back, per bin, grouped by door and
@@ -315,25 +330,20 @@ every door order costs the same number of visits. With cost tied, R5 decides out
 number, then bin reading order (`compareRouteBins`).
 
 **One history entry** — `action: 'move-cancelled'`, listing the bins the stock went back to and what went
-into each. Without it the trail claims nothing happened, when a door was opened and vials were handled.
+into each, so the trail did not claim nothing happened when a door had been opened and vials handled.
 
-**The control is relabelled**: `Return the stock, then confirm` / `Returned — Exit` rather than
-"Cancel". It is not cancelling.
-
-The limitation is accepted knowingly and stated on screen: **the app cannot verify the stock went back.**
-Phase 1 takes the operator's word, and the history entry is what makes that word auditable rather than
-invisible. If verification is needed later it is a scan-on-return, which is a phase 2 conversation.
-
-Deliberately deferred: guiding the return stop by stop, tracking a partially completed return, and any
-same-door / different-door branching (which the ordered list dissolves).
+**And the reason it went:** the app cannot verify the stock went back. The checklist took the operator's
+word and the history entry made that word auditable — but auditable after the fact is not the same as
+prevented, and an unverifiable return that the record calls complete is worse than a move the operator was
+made to finish. That is the judgement call, and it is the pharmacy team's to make.
 
 ### Still open
 
-Consequences that phase 1 does not answer:
-
-- **A return can itself be abandoned**, leaving stock split between the counter and the bins. Phase 1
-  records the return as complete because the operator said so; nothing models a partial one.
-- **Nothing verifies the return.** See above — accepted for phase 1, stated on screen.
+- **If returns become verifiable** — a scan-on-return — B stops resting on credibility and the checklist
+  above becomes buildable again as designed.
+- **The operator now cannot leave step ④ once stock has moved.** Accepted deliberately, but it means an
+  interruption mid-move has no in-app resolution: they either finish or abandon the screen, and abandoning
+  records nothing. Worth revisiting if it happens in practice.
 
 **C is closed, and for a stronger reason than "inventory has changed".** Nothing is committed until the
 end of the flow, so state is not the obstacle. The obstacle is that **the move is no longer identifiable
@@ -455,6 +465,10 @@ Every item here is a prerequisite, not a nice-to-have.
 
 ## Revisions
 
+- **2026-08-05** — §8 narrowed on the pharmacy team's call: cancelling is allowed **only before the first
+  quantity is taken**. Past that it would depend on the operator returning stock to the right bin with
+  nothing able to verify it, which is not safe to rely on. The return checklist below was built and then
+  removed; it is kept as a record because it is the right design once a return can be verified.
 - **2026-08-05** — §8 phase 1 built: one rule (cancel until the first placement), one checklist (the
   dialog, grouped by door), one history entry. Building it found the placed-stock signal was wrong —
   `scannedItems` is auto-populated when scanning is not required, so Cancel was disabling itself the moment

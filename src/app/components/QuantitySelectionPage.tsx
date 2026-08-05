@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { toast } from "sonner@2.0.3";
 import { Button } from "./ui/button";
 import { ChevronRight, Pencil, X, Unlock, Package, LogOut, ListChecks, ArrowRight } from "lucide-react";
-import { DoorUnlockedToast } from "./ui/sonner-1";
+import { DoorUnlockedToast, ValidationToast } from "./ui/sonner-1";
 import CabinetPipView from "./CabinetPipView";
 import SideSheet from "./SideSheet";
 import MoveSummaryPanel, { MoveSummaryRow } from "./MoveSummaryPanel";
@@ -20,7 +20,6 @@ import { formatBinLocation, getDoorName } from '../utils/changeAllocationUtils';
 import { pluralizeUnit } from '../utils/pluralizeUnit';
 import { getVialType, hasClimateBadge, hasCivBadge } from '../utils/binProducts';
 import { CabinetAccess } from '../hooks/useCabinetAccess';
-import { CancelMoveStage, StagedStock } from './CancelMoveConfirmModal';
 import svgPaths from "../imports/svg-hyhz42ush2";
 
 /**
@@ -39,12 +38,8 @@ interface QuantitySelectionPageProps {
   transfers: ProductTransfer[];
   doorShelfConfig: DoorShelfConfig;
   onConfirm: (transfersWithQuantities: ProductTransfer[], skippedProducts: SkippedProduct[]) => void;
-  /**
-   * Leaving step ④. Reports how far in the operator is so the caller can confirm accordingly: nothing
-   * collected costs only the selection, but stock already taken has to be physically put back, and only
-   * this screen knows which it is.
-   */
-  onCancel: (stage: CancelMoveStage, staged: StagedStock[]) => void;
+  /** Leaving step ④, offered only before any quantity has been taken. See the footer's Cancel below. */
+  onCancel: () => void;
   // Only for the stepper's step-1 label, which names the unit this kind of move collects.
   moveMode?: 'bin' | 'product' | null;
   // Which single door is open, and how to ask for another. Only one door at the station can be unlocked
@@ -97,6 +92,13 @@ interface GroupedTransfer {
  * summaryRows useMemo calls it during render, which is before a `const` in the body would have been
  * initialised — the same "cannot access before initialization" trap scanKey hit on the placement page.
  */
+/**
+ * Why cancelling is refused once stock has moved. Shared with the placement screen so the two cannot give
+ * different reasons for the same rule.
+ */
+export const CANNOT_CANCEL_REASON =
+  'Quantity has already been taken from a source bin, so this move can no longer be cancelled. Finish it to record where everything went.';
+
 const productKeyOf = (group: GroupedTransfer) =>
   `${group.productName}-${group.ndc}-${group.inventoryType}`;
 
@@ -632,33 +634,24 @@ export default function QuantitySelectionPage({
       isDone: idx < currentIndex
     }));
 
-  // What is on the counter: every source bin already worked, with the quantity actually taken from it.
-  // Groups before currentIndex are done; the one at currentIndex is still a proposal, since the stock does
-  // not leave the bin until the operator moves on from it. A skipped product contributed nothing.
-  const stagedStock = useMemo<StagedStock[]>(
+  /**
+   * Whether any quantity has actually left a source bin.
+   *
+   * Groups before currentIndex are done; the one on screen is still a proposal, since the stock does not
+   * leave the bin until the operator moves on from it. A skipped product contributed nothing, and neither
+   * does a group whose quantity is 0 — an allocation-only move has nothing to carry.
+   */
+  const hasTakenStock = useMemo(
     () =>
       groupedTransfers
         .slice(0, currentIndex)
         .filter(group => !skippedProductKeys.has(productKeyOf(group)))
-        .map(group => {
+        .some(group => {
           const groupKey = `${group.productId}-${group.fromBinId}-group`;
-          return {
-            binId: group.fromBinId,
-            productName: group.productName,
-            quantity: transferQuantities[groupKey] ?? group.transfers[0].moveQuantity,
-            unit: group.unit,
-            ndc: group.ndc,
-            inventoryType: group.inventoryType,
-            description: group.productDescription
-          };
-        })
-        .filter(item => item.quantity > 0),
+          return (transferQuantities[groupKey] ?? group.transfers[0].moveQuantity) > 0;
+        }),
     [groupedTransfers, currentIndex, transferQuantities, skippedProductKeys]
   );
-
-  // Nothing is in the operator's hands until they have finished with a source bin. At the first bin the
-  // quantity on screen is only a proposal — the stock is still where it was.
-  const cancelStage: CancelMoveStage = stagedStock.length > 0 ? 'stock-in-hand' : 'nothing-collected';
 
   // binProducts.ts keys every badge on name | ndc | inventoryType, and this screen carries those three
   // under different field names — so they're shaped into a product-like object rather than each badge
@@ -949,10 +942,21 @@ export default function QuantitySelectionPage({
           <FooterActions>
             {/* Always visible, regardless of which product/source bin is active — unlike Skip, which
                 only makes sense when there's another product to jump to. */}
+            {/* Offered only until the first quantity leaves a source bin. Past that, cancelling would rest
+                entirely on the operator returning the stock to the right bin — which nothing in the app
+                can check, so it is not something to depend on (STEP4-GUIDANCE.md §8). It keeps the label
+                "Cancel" and explains on tap rather than renaming itself. */}
             <FooterButton
               label="Cancel"
               variant="secondary"
-              onClick={() => onCancel(cancelStage, stagedStock)}
+              enabled={!hasTakenStock}
+              onClick={onCancel}
+              onBlockedClick={() =>
+                toast.custom(
+                  () => <ValidationToast message={CANNOT_CANCEL_REASON} />,
+                  { duration: 6000 }
+                )
+              }
             />
             {showSkipButton && (
               <FooterButton label="Skip Product" variant="secondary" onClick={handleSkip} />

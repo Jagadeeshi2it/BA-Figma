@@ -54,8 +54,6 @@ interface HistoryRow {
   unit: string;
   isMove: boolean;
   isUnallocate: boolean;
-  // An abandoned move: stock was handled and put back, so it has source bins but no targets.
-  isCancelled: boolean;
   timestamp: Date;
   createdBy: string;
 }
@@ -76,10 +74,7 @@ export default function HistoryPage({
   const [dateFilter, setDateFilter] = useState('today');
 
   const binChangesCount = useMemo(
-    () =>
-      (history || []).filter(
-        e => e?.transactionType === 'Product moved' || e?.transactionType === 'Move cancelled'
-      ).length,
+    () => (history || []).filter(e => e?.transactionType === 'Product moved').length,
     [history]
   );
   const binAllocationCount = useMemo(
@@ -153,8 +148,7 @@ export default function HistoryPage({
       const isMove = entry.transactionType === 'Product moved';
       const isUnallocate = entry.transactionType === 'Unallocated';
       const isAllocation = entry.transactionType === 'New Bin Allocation';
-      const isCancelled = entry.transactionType === 'Move cancelled';
-      if ((isMove || isCancelled) && !showBinChanges) return;
+      if (isMove && !showBinChanges) return;
       if (isAllocation && !showBinAllocation) return;
       if (isUnallocate && !showUnallocated) return;
       if (!passesDate(entry.timestamp)) return;
@@ -208,7 +202,7 @@ export default function HistoryPage({
         // falling back to the single sourceBin, then to the historyUtils resolver for legacy
         // entries / E-Kit. Each line mirrors Target's "+moved → resulting", but for what left.
         const sources: SourceLine[] = [];
-        if (isMove || isUnallocate || isCancelled) {
+        if (isMove || isUnallocate) {
           const rawSources = (entry.sourceBins && entry.sourceBins.length > 0)
             ? entry.sourceBins
             : (entry.sourceBin ? [entry.sourceBin] : []);
@@ -216,9 +210,7 @@ export default function HistoryPage({
           rawSources.forEach(bin => {
             sources.push({
               label: `Door ${bin.doorNumber}, ${bin.binName}`,
-              // For a cancelled move this is what went BACK into the bin, which is the only quantity
-              // the event has — nothing net left it.
-              movedQty: (isMove || isCancelled) && bin.quantity != null ? bin.quantity : null,
+              movedQty: isMove && bin.quantity != null ? bin.quantity : null,
               remainingQty: bin.remainingQuantity ?? 0
             });
           });
@@ -260,7 +252,6 @@ export default function HistoryPage({
           unit,
           isMove,
           isUnallocate,
-          isCancelled,
           timestamp: entry.timestamp,
           createdBy: 'John Doe'
         });
@@ -441,12 +432,7 @@ export default function HistoryPage({
                                 <div className="text-[14px] text-[#020817] whitespace-nowrap">{s.label}</div>
                                 {s.movedQty != null && (
                                   <div className="text-[12px] text-[#64748b] whitespace-nowrap">
-                                    {/* A cancelled move took nothing out: the stock went back where it
-                                        was, so the "-n → remaining" arithmetic every other row uses would
-                                        claim the bin was drained. It states what was returned instead. */}
-                                    {row.isCancelled
-                                      ? `${s.movedQty} ${pluralizeUnit(row.unit, s.movedQty)} returned`
-                                      : `-${s.movedQty} → ${s.remainingQty} ${pluralizeUnit(row.unit, s.remainingQty)}`}
+                                    -{s.movedQty} → {s.remainingQty} {pluralizeUnit(row.unit, s.remainingQty)}
                                   </div>
                                 )}
                               </div>
@@ -474,14 +460,9 @@ export default function HistoryPage({
                           <td className="px-4 py-4 whitespace-nowrap">
                             <span className={`text-[12px] font-medium px-2.5 py-1 rounded-full ${
                               row.isUnallocate ? 'bg-[#FEE2E2] text-[#B91C1C]' :
-                              // Grey, not the move's blue: nothing ended up anywhere, so it must not read
-                              // as a completed transfer at a glance.
-                              row.isCancelled ? 'bg-[#F1F5F9] text-[#475569]' :
                               row.isMove ? 'bg-[#DBEAFE] text-[#1D4ED8]' : 'bg-[#DCFCE7] text-[#15803D]'
                             }`}>
-                              {row.isUnallocate ? 'Unallocated'
-                                : row.isCancelled ? 'Move cancelled'
-                                : row.isMove ? 'Bin Changes' : 'Bin Allocation'}
+                              {row.isUnallocate ? 'Unallocated' : row.isMove ? 'Bin Changes' : 'Bin Allocation'}
                             </span>
                           </td>
                           <td className="px-4 py-4 whitespace-nowrap">

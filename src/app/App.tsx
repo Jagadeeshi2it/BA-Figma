@@ -16,7 +16,7 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import AllocationBottomBar from "./components/AllocationBottomBar";
 import AllocationSelectionPanel from "./components/AllocationSelectionPanel";
 import AllocateProductsPanel from "./components/AllocateProductsPanel";
-import CancelMoveConfirmModal, { CancelMoveStage, StagedStock, ReturnItem } from "./components/CancelMoveConfirmModal";
+import CancelMoveConfirmModal from "./components/CancelMoveConfirmModal";
 import ZeroInventoryBanner from "./components/ZeroInventoryBanner";
 import { useDebounce } from "./hooks/useDebounce";
 
@@ -26,7 +26,7 @@ import { useSerialNumberModal } from "./hooks/useSerialNumberModal";
 import { cabinets } from "./data/cabinets";
 import { doesProductMatchSearch } from "./utils/textHighlight";
 import { ProductTransfer } from "./types";
-import { planMoveRoute, twoPhaseWalkOrder, compareRouteBins, RouteBin } from "./utils/moveRoute";
+import { planMoveRoute, twoPhaseWalkOrder, RouteBin } from "./utils/moveRoute";
 import { isFridgeDoor } from "./utils/doorUtils";
 import {
   getCurrentShelves,
@@ -111,11 +111,9 @@ export default function App() {
     [moveRoute, routeBinIndex]
   );
 
-  // The pending "really discard this?" prompt for step ④, carrying how far in the operator was so the
-  // dialog can say what leaving actually costs. null when nothing is being asked.
-  const [cancelPrompt, setCancelPrompt] = useState<
-    { stage: CancelMoveStage; staged: StagedStock[] } | null
-  >(null);
+  // Whether the "really discard this?" prompt is open. A plain boolean: cancelling is only offered before
+  // any quantity has been taken, so there is only one thing it can mean (STEP4-GUIDANCE.md §8).
+  const [cancelPromptOpen, setCancelPromptOpen] = useState(false);
 
   // Which single cabinet door is open, shared by both halves of step ④. Replaces an accumulating set of
   // "doors already announced by a toast", which never removed anything and so believed two doors could be
@@ -134,42 +132,6 @@ export default function App() {
    * holding the selection they had just abandoned. handleExitChangeAllocation is what actually leaves the
    * flow, so both halves have to happen.
    */
-  /**
-   * The staged stock resolved to bins and ordered for the walk back.
-   *
-   * A return has nothing to take, so there are no precedence constraints and every door order costs the
-   * same number of visits — which is why this needs no route planning, only the planner's tie-break:
-   * ascending door number, then bin reading order (STEP4-GUIDANCE.md §8, R5). Bins that cannot be resolved
-   * are dropped; a line that cannot say which door to open is worse than no line.
-   */
-  const cancelReturnItems = useMemo<ReturnItem[]>(() => {
-    if (!cancelPrompt) return [];
-    return cancelPrompt.staged
-      .map(item => {
-        const bin = routeBinIndex.get(item.binId);
-        if (!bin) return null;
-        return {
-          binId: bin.binId,
-          binName: bin.binName,
-          doorName: bin.doorName,
-          productName: item.productName,
-          quantity: item.quantity,
-          unit: item.unit,
-          ndc: item.ndc,
-          inventoryType: item.inventoryType,
-          description: item.description
-        } as ReturnItem;
-      })
-      .filter((item): item is ReturnItem => item !== null)
-      .sort((a, b) => {
-        const binDelta = compareRouteBins(
-          routeBinIndex.get(a.binId)!,
-          routeBinIndex.get(b.binId)!
-        );
-        return binDelta !== 0 ? binDelta : a.productName.localeCompare(b.productName);
-      });
-  }, [cancelPrompt, routeBinIndex]);
-
   const resetMoveFlow = useCallback(() => {
     delete (window as any).allocateOnlyTransfers;
     setShowTargetBinScanPage(false);
@@ -586,7 +548,7 @@ export default function App() {
             // Asks rather than acts: discarding a built selection is not something a single tap should
             // do, and by this screen the operator is also holding stock. resetMoveFlow runs only if
             // they confirm.
-            onCancel={(stage, staged) => setCancelPrompt({ stage, staged })}
+            onCancel={() => setCancelPromptOpen(true)}
           />
         </MainLayout>
       ) : showQuantityModal && pendingQuantityTransfers.length > 0 ? (
@@ -648,7 +610,7 @@ export default function App() {
               setShowTargetBinScanPage(true);
               setShowQuantityModal(false);
             }}
-            onCancel={(stage, staged) => setCancelPrompt({ stage, staged })}
+            onCancel={() => setCancelPromptOpen(true)}
           />
         </MainLayout>
       ) : inventoryState.showChangeAllocationModal ? (
@@ -975,28 +937,11 @@ export default function App() {
       
       {/* Unallocation Confirmation Modal - Shows after change allocation when products have zero quantity */}
       <CancelMoveConfirmModal
-        open={!!cancelPrompt}
-        onOpenChange={open => { if (!open) setCancelPrompt(null); }}
-        stage={cancelPrompt?.stage ?? 'nothing-collected'}
-        returnItems={cancelReturnItems}
-        onDismiss={() => setCancelPrompt(null)}
+        open={cancelPromptOpen}
+        onOpenChange={setCancelPromptOpen}
+        onDismiss={() => setCancelPromptOpen(false)}
         onConfirm={() => {
-          // Recorded before the reset, while the list still exists. Only when stock was actually handled —
-          // abandoning before collecting anything is not an event, it is a selection thrown away.
-          if (cancelReturnItems.length > 0) {
-            inventoryState.handleRecordCancelledMove(
-              cancelReturnItems.map(item => ({
-                binId: item.binId,
-                productName: item.productName,
-                quantity: item.quantity,
-                unit: item.unit,
-                ndc: item.ndc,
-                inventoryType: item.inventoryType,
-                description: item.description
-              }))
-            );
-          }
-          setCancelPrompt(null);
+          setCancelPromptOpen(false);
           resetMoveFlow();
         }}
       />

@@ -154,6 +154,14 @@ route once (`planMoveRoute` + `twoPhaseWalkOrder`) and hands the take order to o
 order to the other. This is what stops a move whose sources sit behind two doors sending the operator
 back to a door they had finished with. See [STEP4-GUIDANCE.md](STEP4-GUIDANCE.md).
 
+**Cancelling is offered only before the first quantity leaves a source bin.** Past that the move must be
+finished: cancelling would rest entirely on the operator returning stock to the right bins, and nothing in
+the app can verify that. `Cancel` keeps its own name and explains on tap
+(`CANNOT_CANCEL_REASON`, shared by both screens) rather than renaming itself. On the placement screen it is
+never available, since every quantity has been taken by then. A return checklist was built for the
+stock-in-hand case and removed with this decision — see [STEP4-GUIDANCE.md](STEP4-GUIDANCE.md) §8, which
+keeps the design.
+
 **There is no `Back` in step ④.** Both screens had one — within-batch on the quantity page,
 within-product on the placement page, each stepping up a stage from its first position — and both were
 removed at the operator's request, along with the resume machinery that existed only to serve them
