@@ -70,9 +70,16 @@ The header's **Allocate/Move** button opens a menu with three entries:
 
 | Entry | What it starts |
 |---|---|
-| **Allocate Product** — "Give a product another bin." | Workflow A below. |
-| **Move by Bin** — "Tap whole bins on the shelves." | Workflow B with `moveMode = 'bin'`. |
-| **Move by Product** — "Search the products to move." | Workflow B with `moveMode = 'product'`. |
+| **Allocate Product** — "Give a product another bin. No stock moves." | Workflow A below. |
+| **Select Bin to move** — "Start from a bin, then pick what leaves it." | Workflow B with `moveMode = 'bin'`. |
+| **Select Product to move** — "Start from a product, wherever it's stored." | Workflow B with `moveMode = 'product'`. |
+
+The two Move entries share a shape and differ only in the unit, because they are **one workflow with two
+doors**, not two workflows — `Move by Bin` / `Move by Product` read as separate jobs. Their subtexts each
+name where you *start*, which is the only real difference. The old bin subtext said "Tap whole bins", which
+promised something the flow walks back: picking a bin does not commit its contents, Review still asks which
+of its products are leaving. And Allocate says "No stock moves" because that is the fact most easily assumed
+wrong — a new location opens at `quantity: 0`.
 
 They were one **Change Allocation** mode, then a plain `Allocate` button beside a `Move ▾` picker.
 One trigger now holds all three, so the first decision is always the same: which of the three am I

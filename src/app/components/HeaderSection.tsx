@@ -347,26 +347,39 @@ const HeaderSection = memo(function HeaderSection({
                   className="w-[300px] p-1"
                 >
                   {/* One line each: what unit you pick, and where you pick it. Anything longer stops
-                      being read at the moment the user just wants to get going. */}
+                      being read at the moment the user just wants to get going.
+
+                      The two Move entries share a shape and differ only in the unit — "Select Bin" /
+                      "Select Product" — because they are one workflow with two doors, not two
+                      workflows. "Move by Bin" / "Move by Product" read as separate jobs. Singular,
+                      matching "Allocate Product" above, even though you can pick several. */}
                   <WorkflowOption
                     title="Allocate Product"
-                    description="Give a product another bin."
+                    // "No stock moves" is the fact that distinguishes this from the two below, and the one
+                    // most easily assumed wrong: a new location opens at 0 and is filled by a move later.
+                    description="Give a product another bin. No stock moves."
                     onSelect={() => {
                       setWorkflowMenuOpen(false);
                       handleAllocateProductsClick();
                     }}
                   />
                   <WorkflowOption
-                    title="Move by Bin"
-                    description="Tap whole bins on the shelves."
+                    title="Select Bin to move"
+                    // NOT "tap whole bins": picking a bin does not commit its whole contents — Review still
+                    // asks which of its products are leaving. Saying "whole bins" promised something the
+                    // flow then walks back. What it really offers is a starting point.
+                    description="Start from a bin, then pick what leaves it."
                     onSelect={() => {
                       setWorkflowMenuOpen(false);
                       handleMoveBinClick?.();
                     }}
                   />
                   <WorkflowOption
-                    title="Move by Product"
-                    description="Search the products to move."
+                    title="Select Product to move"
+                    // Parallel with the entry above — both say where you start, which is the only real
+                    // difference between them. "Wherever it's stored" is the actual advantage: you do not
+                    // need to know which bin the drug is in.
+                    description="Start from a product, wherever it's stored."
                     onSelect={() => {
                       setWorkflowMenuOpen(false);
                       handleMoveProductClick?.();
