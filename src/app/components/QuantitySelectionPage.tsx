@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { toast } from "sonner@2.0.3";
 import { Button } from "./ui/button";
-import { Badge } from "./ui/badge";
 import { ChevronRight, Pencil, X, Unlock, Package, LogOut, ListChecks, ArrowLeft, ArrowRight } from "lucide-react";
 import { DoorUnlockedToast } from "./ui/sonner-1";
 import CabinetPipView from "./CabinetPipView";
@@ -19,12 +18,25 @@ import {
 import { ProductTransfer, Bin, DoorShelfConfig } from '../types';
 import { formatBinLocation, getDoorName } from '../utils/changeAllocationUtils';
 import { pluralizeUnit } from '../utils/pluralizeUnit';
+import { getVialType, hasClimateBadge, hasCivBadge } from '../utils/binProducts';
 import svgPaths from "../imports/svg-hyhz42ush2";
+
+/**
+ * A product the operator chose not to move. Only its identity — there is no move left to describe, so
+ * no bins and no quantity. Exported because the placement screen lists these too (see finalizeAll).
+ */
+export interface SkippedProduct {
+  key: string;
+  productName: string;
+  productDescription?: string;
+  ndc?: string;
+  inventoryType?: string;
+}
 
 interface QuantitySelectionPageProps {
   transfers: ProductTransfer[];
   doorShelfConfig: DoorShelfConfig;
-  onConfirm: (transfersWithQuantities: ProductTransfer[], remainingTransfers: ProductTransfer[]) => void;
+  onConfirm: (transfersWithQuantities: ProductTransfer[], skippedProducts: SkippedProduct[]) => void;
   onCancel: () => void;
   // One step back (distinct from onCancel's full-flow abort): from the first source bin it returns to
   // the product-selection modal; from a later one, Back walks within the page (see handleBack).
@@ -74,6 +86,14 @@ interface GroupedTransfer {
   // Index-aligned with targetBinNames.
   targetDoorNames: string[];
 }
+
+/**
+ * The identity a product is skipped and resumed by. At module scope, not inside the component: the
+ * summaryRows useMemo calls it during render, which is before a `const` in the body would have been
+ * initialised — the same "cannot access before initialization" trap scanKey hit on the placement page.
+ */
+const productKeyOf = (group: GroupedTransfer) =>
+  `${group.productName}-${group.ndc}-${group.inventoryType}`;
 
 export default function QuantitySelectionPage({
   transfers,
@@ -254,13 +274,16 @@ export default function QuantitySelectionPage({
           // yet, so none of them is marked.
           isCurrentSource: status === 'current',
           isCurrentTarget: false,
+          // A product the operator has already skipped stays listed, marked, rather than vanishing
+          // from the panel as they walk past it.
+          isSkipped: skippedProductKeys.has(productKeyOf(group)),
           status
         });
       });
     });
     // Left in groupedTransfers' own order — the same order the operator walks through the batch.
     return rows;
-  }, [groupedTransfers, transferQuantities, currentIndex]);
+  }, [groupedTransfers, transferQuantities, currentIndex, skippedProductKeys]);
 
   // Distinct products in the summary, for the footer counter — matches the panel's own header count.
   const summaryProductCount = useMemo(
@@ -372,9 +395,6 @@ export default function QuantitySelectionPage({
     setTempQuantity('');
   };
 
-  const productKeyOf = (group: GroupedTransfer) =>
-    `${group.productName}-${group.ndc}-${group.inventoryType}`;
-
   // The first group belonging to a product other than the one on screen, or -1 if this is the last.
   const findNextProductIndex = () => {
     const currentProductKey = productKeyOf(currentGroup);
@@ -393,8 +413,27 @@ export default function QuantitySelectionPage({
     setIsSaving(true);
 
     const finalTransfers: TransferWithQuantity[] = [];
+    // The skipped products, deduped by identity — a product skipped once is skipped for every source
+    // bin it sits in, so several groups can name the same one. Carried over so the placement screen's
+    // Move Summary can still list them: a product present at Review and simply absent by placement
+    // reads as the app having lost it, not as the operator's own choice.
+    const skippedProducts: SkippedProduct[] = [];
+    const seenSkipped = new Set<string>();
     groupedTransfers.forEach(group => {
-      if (skipped.has(productKeyOf(group))) return;
+      if (skipped.has(productKeyOf(group))) {
+        const key = productKeyOf(group);
+        if (!seenSkipped.has(key)) {
+          seenSkipped.add(key);
+          skippedProducts.push({
+            key,
+            productName: group.productName,
+            productDescription: group.productDescription,
+            ndc: group.ndc,
+            inventoryType: group.inventoryType
+          });
+        }
+        return;
+      }
       group.transfers.forEach(transfer => {
         const key = `${transfer.productId}-${transfer.fromBinId}-${transfer.toBinId}`;
         const updatedQuantity = transferQuantities[key] ?? transfer.moveQuantity;
@@ -412,7 +451,7 @@ export default function QuantitySelectionPage({
       transfers: finalTransfers.length
     });
 
-    onConfirm(finalTransfers, []);
+    onConfirm(finalTransfers, skippedProducts);
   };
 
   const handleSkip = () => {
@@ -592,21 +631,42 @@ export default function QuantitySelectionPage({
       isDone: idx < currentIndex
     }));
 
+  // binProducts.ts keys every badge on name | ndc | inventoryType, and this screen carries those three
+  // under different field names — so they're shaped into a product-like object rather than each badge
+  // call guessing at the group.
+  const badgeIdentity = {
+    name: currentGroup.productName,
+    ndc: currentGroup.ndc,
+    inventoryType: currentGroup.inventoryType
+  };
+
   return (
     <div className="flex flex-col h-full bg-white">
       <div className="flex-1 flex min-h-0">
       <div className="flex-1 min-w-0 flex flex-col min-h-0">
       {/* Product Header */}
-      <div className="border-b bg-white px-6 py-4">
+      <div className="border-b bg-white px-6 py-[12px]">
         <div className="flex items-center justify-between">
           <div className="flex-1">
             <div className="flex items-center gap-2 mb-1">
               <h2 className="text-[16px] font-semibold text-[#020817]">{currentGroup.productName}</h2>
-              {currentGroup.unit && (
-                <Badge className="bg-black text-white text-[12px] font-bold px-2 py-0.5 rounded">
-                  {currentGroup.unit}
-                </Badge>
-              )}
+              {/* The shared badge vocabulary, derived the one shared way (binProducts.ts) off the
+                  identity triple — so this product shows the same badges here as on the source and
+                  target cards it came from. It used to be a bold black pill printing the *unit*
+                  ("vials"), which was the only badge in the app that meant something different from
+                  every other badge while looking louder than all of them. The unit is already stated
+                  everywhere a quantity is. */}
+              <div className="flex items-center gap-1">
+                <span className="bg-[#D1D5DB] text-[#111827] text-[9px] font-medium px-1.5 py-0.5 rounded">
+                  {getVialType(badgeIdentity)}
+                </span>
+                {hasClimateBadge(badgeIdentity) && (
+                  <span className="bg-[#DBEAFE] text-[#1D4ED8] text-[9px] font-medium px-1.5 py-0.5 rounded">CLIMATE</span>
+                )}
+                {hasCivBadge(badgeIdentity) && (
+                  <span className="bg-[#FEF3C7] text-[#B45309] text-[9px] font-medium px-1.5 py-0.5 rounded">CIV</span>
+                )}
+              </div>
             </div>
             {currentGroup.productDescription && (
               <p className="text-[14px] text-[#4a5565]">{currentGroup.productDescription}</p>

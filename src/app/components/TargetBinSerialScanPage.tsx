@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { toast } from "sonner@2.0.3";
 import { Button } from "./ui/button";
-import { Badge } from "./ui/badge";
 import { ChevronRight, Search, Trash2, Unlock, Package, LogIn, ListChecks, ArrowLeft, ArrowRight } from "lucide-react";
 import { DoorUnlockedToast } from "./ui/sonner-1";
 import CabinetPipView from "./CabinetPipView";
@@ -19,6 +18,8 @@ import {
 import { ProductTransfer, Bin, DoorShelfConfig } from '../types';
 import { formatBinLocation, getDoorName } from '../utils/changeAllocationUtils';
 import { pluralizeUnit } from '../utils/pluralizeUnit';
+import { getVialType, hasClimateBadge, hasCivBadge } from '../utils/binProducts';
+import { SkippedProduct } from './QuantitySelectionPage';
 
 interface ScannedItem {
   serial: string;
@@ -37,6 +38,9 @@ interface TargetBinSerialScanPageProps {
   // quantity page resumes on that product rather than restarting the batch (UX-AUDIT H3-2).
   onBack: (productKey?: string) => void;
   remainingTransfers?: ProductTransfer[];
+  // Products the quantity step was told to skip. Listed in the Move Summary, marked, so the operator
+  // can see why a product they picked at Review has no bins or quantities on this screen.
+  skippedProducts?: SkippedProduct[];
   // Only for the stepper's step-1 label, which names the unit this kind of move collects.
   moveMode?: 'bin' | 'product' | null;
   // Doors already announced as unlocked (via toast) elsewhere in this change-allocation session —
@@ -103,6 +107,7 @@ export default function TargetBinSerialScanPage({
   onCancel,
   onBack,
   remainingTransfers,
+  skippedProducts,
   moveMode,
   unlockedDoors,
   onDoorUnlocked
@@ -398,6 +403,24 @@ export default function TargetBinSerialScanPage({
         });
       });
     });
+    // Skipped products last, after everything actually being placed. They carry no bins — the panel
+    // renders a skipped card as a name and a one-line explanation, so fromLabel/toLabel are unused.
+    (skippedProducts ?? []).forEach(skippedProduct => {
+      rows.push({
+        key: `skipped-${skippedProduct.key}`,
+        productName: skippedProduct.productName,
+        productDescription: skippedProduct.productDescription,
+        ndc: skippedProduct.ndc,
+        inventoryType: skippedProduct.inventoryType,
+        fromLabel: '',
+        toLabel: '',
+        sourceQuantity: null,
+        quantity: null,
+        isSkipped: true,
+        status: 'done'
+      });
+    });
+
     // Left in productGroups' own order — the same order the operator walks through placement —
     // rather than re-sorted alphabetically, matching the quantity page's summary.
     return rows;
@@ -407,7 +430,8 @@ export default function TargetBinSerialScanPage({
     currentProductIndex,
     currentTargetBinIndex,
     scannedItems,
-    serialScanningRequired
+    serialScanningRequired,
+    skippedProducts
   ]);
 
   // Distinct products in the summary, for the footer counter — matches the panel's own header count.
@@ -844,21 +868,37 @@ export default function TargetBinSerialScanPage({
     ? saveButtonLabel
     : `Place ${remainingQtyToMove} more ${pluralizeUnit(currentProduct.unit || 'vial', remainingQtyToMove)}`;
 
+  // Same shaping as the quantity screen opposite: binProducts.ts keys badges on
+  // name | ndc | inventoryType, which this screen carries under different field names.
+  const badgeIdentity = {
+    name: currentProduct.productName,
+    ndc: currentProduct.ndc,
+    inventoryType: currentProduct.inventoryType
+  };
+
   return (
     <div className="flex flex-col h-full bg-white">
       <div className="flex-1 flex min-h-0">
       <div className="flex-1 min-w-0 flex flex-col min-h-0">
       {/* Product Header */}
-      <div className="border-b bg-white px-6 py-4">
+      <div className="border-b bg-white px-6 py-[12px]">
         <div className="flex items-center justify-between">
           <div className="flex-1">
             <div className="flex items-center gap-2 mb-1">
               <h2 className="text-[16px] font-semibold text-[#020817]">{currentProduct.productName}</h2>
-              {currentProduct.unit && (
-                <Badge className="bg-black text-white text-[12px] font-bold px-2 py-0.5 rounded">
-                  {currentProduct.unit}
-                </Badge>
-              )}
+              {/* The shared badges, as on the quantity screen — these two are the halves of one step,
+                  so a product cannot wear a different badge on each. */}
+              <div className="flex items-center gap-1">
+                <span className="bg-[#D1D5DB] text-[#111827] text-[9px] font-medium px-1.5 py-0.5 rounded">
+                  {getVialType(badgeIdentity)}
+                </span>
+                {hasClimateBadge(badgeIdentity) && (
+                  <span className="bg-[#DBEAFE] text-[#1D4ED8] text-[9px] font-medium px-1.5 py-0.5 rounded">CLIMATE</span>
+                )}
+                {hasCivBadge(badgeIdentity) && (
+                  <span className="bg-[#FEF3C7] text-[#B45309] text-[9px] font-medium px-1.5 py-0.5 rounded">CIV</span>
+                )}
+              </div>
             </div>
             {currentProduct.productDescription && (
               <p className="text-[14px] text-[#4a5565]">{currentProduct.productDescription}</p>

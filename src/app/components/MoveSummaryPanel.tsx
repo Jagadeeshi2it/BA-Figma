@@ -41,6 +41,12 @@ export interface MoveSummaryRow {
   // the source bin while taking, the target bin while placing. Drives the bold.
   isCurrentSource?: boolean;
   isCurrentTarget?: boolean;
+  // The operator chose not to move this product (Skip Product on the quantity page). It stays in the
+  // panel rather than disappearing from it: a product that was on the list at Review and is simply
+  // absent by the placement half reads as the app having lost it. Its bins and quantities are dropped,
+  // though — there is no move left to describe, and a from → to line under a skipped product would
+  // state a move that isn't happening.
+  isSkipped?: boolean;
   status: 'pending' | 'current' | 'done';
 }
 
@@ -66,7 +72,7 @@ interface MoveSummaryPanelProps {
 }
 
 const STAGE_COPY: Record<Exclude<MoveSummaryStage, 'review'>, { label: string; icon: typeof LogOut }> = {
-  source: { label: 'Taking from source bin', icon: LogOut },
+  source: { label: 'Take qty from source bin', icon: LogOut },
   target: { label: 'Placing in target bin', icon: LogIn }
 };
 
@@ -174,6 +180,40 @@ export default function MoveSummaryPanel({
     </span>
   );
 
+  // One destination line. Extracted because it renders in two places now — indented under its source
+  // bin when a product feeds several targets, and once at the foot of the card when every source
+  // feeds the same one — and the two must not be able to drift apart.
+  const renderTargetLine = (row: MoveSummaryRow, key: string) => {
+    const targetText = quantityText(row.quantity, row.unit);
+    return (
+      <div key={key} className="flex items-center justify-between gap-2 text-[12px] mt-0.5 pl-2">
+        <span className="flex items-center gap-1 min-w-0">
+          <ArrowRight className="w-3 h-3 shrink-0 text-[#94a3b8]" />
+          <span
+            className={`truncate ${
+              row.isCurrentTarget ? 'font-semibold text-[#020817]' : 'text-[#4a5565]'
+            }`}
+          >
+            {binLabel(row.toLabel, row.toDoor)}
+          </span>
+        </span>
+        {/* Quantity placed, and "Moved" only once it actually has been — this bin's own act, so
+            nothing appears here while the operator is still taking stock out at the source. */}
+        <span className="shrink-0 flex items-center gap-1.5 whitespace-nowrap">
+          {targetText && <span className="font-medium text-[#020817]">{targetText}</span>}
+          {targetMovedBadge(row) && doneBadge(targetMovedBadge(row)!)}
+        </span>
+      </div>
+    );
+  };
+
+  // Grey, not green: nothing was accomplished here, so it can't wear the same badge as Taken/Moved.
+  const skippedBadge = (
+    <span className="text-[10px] font-semibold text-[#64748b] bg-[#F1F5F9] rounded-full px-2 py-0.5 shrink-0">
+      Skipped
+    </span>
+  );
+
   return (
     <div className="shrink-0 w-[320px] h-full bg-white border-l border-gray-200 flex flex-col">
       <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 shrink-0">
@@ -217,18 +257,46 @@ export default function MoveSummaryPanel({
             // highlight alone read as "displayed but not highlighted" once a product had several
             // pairings and the current one wasn't the first line the eye landed on.
             const isCurrentCard = group.rows.some(row => row.status === 'current');
+            // A skipped product's rows are all skipped — it is skipped as a product, not per bin.
+            const isSkippedCard = group.rows.length > 0 && group.rows.every(row => row.isSkipped);
+            // Every source of this product feeding one and the same bin. Keyed on bin AND door, as
+            // everywhere else — the same bin name exists behind every door. The row is kept, not just
+            // the label: the destination's own quantity, badge and "you are here" bold all come off
+            // it, and they're identical across the sources that share it.
+            const distinctTargets = new Map(
+              group.rows.map(row => [`${row.toLabel}|${row.toDoor ?? ''}`, row])
+            );
+            // Only worth collecting when there is more than one source to collect: a lone source with
+            // a lone target has nothing repeated, and pulling its destination out from under it would
+            // add a separator between two lines that belong together.
+            const sourceBinCount = new Set(
+              group.rows.map(row => `${row.fromLabel}|${row.fromDoor ?? ''}`)
+            ).size;
+            const singleTarget = distinctTargets.size === 1 && sourceBinCount > 1
+              ? Array.from(distinctTargets.values())[0]
+              : null;
             return (
               <div
                 key={`${group.productName}-${groupIndex}`}
                 className={`rounded-[6px] border p-3 mb-3 ${
-                  isCurrentCard ? 'border-[#095192] bg-[#f0f6fc]' : 'border-gray-200'
+                  isSkippedCard
+                    ? 'border-gray-200 bg-[#f8fafc]'
+                    : isCurrentCard
+                      ? 'border-[#095192] bg-[#f0f6fc]'
+                      : 'border-gray-200'
                 }`}
               >
                 {/* Identity block — same shape as SourceProductCard/TargetProductCard: name, italic
                     generic name, badges, then NDC - inventory type on one line. */}
-                <h4 className="font-normal text-[#020817] text-[14px] leading-[20px] truncate">
-                  {group.productName}
-                </h4>
+                <div className="flex items-start justify-between gap-2">
+                  <h4 className="font-normal text-[#020817] text-[14px] leading-[20px] truncate">
+                    {group.productName}
+                  </h4>
+                  {/* At product level, beside the name — being skipped is a fact about the product,
+                      not about one of its bins, and the bins are exactly what a skipped card has
+                      nothing to say about. */}
+                  {isSkippedCard && skippedBadge}
+                </div>
                 {group.productDescription && (
                   <p className="italic text-gray-500 leading-snug text-[14px] truncate">
                     {group.productDescription}
@@ -255,6 +323,14 @@ export default function MoveSummaryPanel({
                     separate departures of the same stock. Nested, the bin is the parent it actually is.
 
                     No total line: the source line IS the total for everything under it. */}
+                {isSkippedCard ? (
+                  // One sentence in place of the whole bin block. Without it a skipped card is a
+                  // product name and nothing else, and the operator reading the placement screen has
+                  // no way to tell "I skipped this" from "the app dropped it".
+                  <div className="mt-2 pt-2 border-t border-gray-100 text-[12px] text-[#64748b]">
+                    Not moved — you skipped this product at the quantity step.
+                  </div>
+                ) : (
                 <div className={`mt-2 pt-2 border-t space-y-2 ${isCurrentCard ? 'border-[#dbe9f6]' : 'border-gray-100'}`}>
                   {groupBySourceBin(group.rows).map(sourceBin => {
                     // One figure for the bin, not per destination, so it comes off the first row.
@@ -283,39 +359,34 @@ export default function MoveSummaryPanel({
                           </span>
                         </div>
 
-                        {sourceBin.rows.map(row => {
-                          const targetText = quantityText(row.quantity, row.unit);
-                          return (
-                            <div
-                              key={row.key}
-                              className="flex items-center justify-between gap-2 text-[12px] mt-0.5 pl-2"
-                            >
-                              <span className="flex items-center gap-1 min-w-0">
-                                <ArrowRight className="w-3 h-3 shrink-0 text-[#94a3b8]" />
-                                <span
-                                  className={`truncate ${
-                                    row.isCurrentTarget ? 'font-semibold text-[#020817]' : 'text-[#4a5565]'
-                                  }`}
-                                >
-                                  {binLabel(row.toLabel, row.toDoor)}
-                                </span>
-                              </span>
-                              {/* Quantity placed, and "Moved" only once it actually has been — this
-                                  bin's own act, so nothing appears here while the operator is still
-                                  taking stock out at the source. */}
-                              <span className="shrink-0 flex items-center gap-1.5 whitespace-nowrap">
-                                {targetText && (
-                                  <span className="font-medium text-[#020817]">{targetText}</span>
-                                )}
-                                {targetMovedBadge(row) && doneBadge(targetMovedBadge(row)!)}
-                              </span>
-                            </div>
-                          );
-                        })}
+                        {/* No destinations while taking. On this half the operator's whole job is the
+                            source bin in front of them, and how the amount divides between the target
+                            bins isn't decided until the placement screen — so the indented target
+                            lines named bins that carried no figure and no act, competing with the one
+                            line that mattered. They appear on the placement half, where they are the
+                            work.
+
+                            Nor when every source feeds the same single target: it is stated once at
+                            the foot of the card instead (below). */}
+                        {stage !== 'source' &&
+                          !singleTarget &&
+                          sourceBin.rows.map(row => renderTargetLine(row, row.key))}
                       </div>
                     );
                   })}
+
+                  {/* Three sources emptying into one bin is one arrival, not three. Repeated under
+                      each source it printed the same destination three times — and, because the
+                      figure on a target line is what lands in THAT BIN rather than what came from
+                      one source, the same "40 vials" three times over, reading as 120. Stated once,
+                      below the sources it collects, the arrow points from all of them at once. */}
+                  {stage !== 'source' && singleTarget && (
+                    <div className="pt-1 border-t border-dashed border-gray-200">
+                      {renderTargetLine(singleTarget, `single-${singleTarget.key}`)}
+                    </div>
+                  )}
                 </div>
+                )}
               </div>
             );
           })

@@ -8,7 +8,7 @@ import HistoryPage from "./components/HistoryPage";
 import StationSelectionModal from "./components/StationSelectionModal";
 import ChangeAllocationModal from "./components/ChangeAllocationModal";
 import SerialNumberModal from "./components/SerialNumberModal";
-import QuantitySelectionPage from "./components/QuantitySelectionPage";
+import QuantitySelectionPage, { SkippedProduct } from "./components/QuantitySelectionPage";
 import TargetBinSerialScanPage from "./components/TargetBinSerialScanPage";
 import ProductDetailPage from "./components/ProductDetailPage";
 import UnallocateConfirmModal from "./components/UnallocateConfirmModal";
@@ -87,6 +87,10 @@ export default function App() {
       return next;
     });
   }, []);
+
+  // Products the quantity step was told to skip, carried across to the placement screen so its Move
+  // Summary can still list them (marked) rather than silently dropping them.
+  const [skippedMoveProducts, setSkippedMoveProducts] = useState<SkippedProduct[]>([]);
 
   // Unallocation modal state
   const [showUnallocateModal, setShowUnallocateModal] = useState(false);
@@ -427,6 +431,7 @@ export default function App() {
         >
           <TargetBinSerialScanPage
             transfers={pendingSerialTransfers}
+            skippedProducts={skippedMoveProducts}
             doorShelfConfig={inventoryState.doorShelfConfig}
             moveMode={inventoryState.moveMode}
             unlockedDoors={unlockedDoors}
@@ -470,6 +475,7 @@ export default function App() {
                 setShowTargetBinScanPage(false);
                 setPendingSerialTransfers([]);
                 setCompletedTransfers([]);
+                setSkippedMoveProducts([]);
                   setPendingQuantityTransfers([]);
                 setShowQuantityModal(false);
                 
@@ -489,6 +495,7 @@ export default function App() {
               setShowTargetBinScanPage(false);
               setPendingSerialTransfers([]);
               setCompletedTransfers([]);
+              setSkippedMoveProducts([]);
               setPendingQuantityTransfers([]);
               setUnlockedDoors(new Set());
             }}
@@ -501,6 +508,9 @@ export default function App() {
               setShowQuantityModal(true);
               setPendingQuantityTransfers(pendingSerialTransfers);
               setPendingSerialTransfers([]);
+              // The quantity page rebuilds its own skip set as the operator walks it again, so a
+              // stale one carried back here would only be able to disagree with it.
+              setSkippedMoveProducts([]);
               // Land the quantity page on the product the operator was placing, not back at product 0
               // (UX-AUDIT H3-2). productKey is the identity triple carried up from the target page.
               setQuantityResumeProductKey(productKey);
@@ -547,7 +557,7 @@ export default function App() {
               setQuantityResumeProductKey(undefined);
               inventoryState.setShowChangeAllocationModal(true);
             }}
-            onConfirm={(allTransfers) => {
+            onConfirm={(allTransfers, skippedProducts) => {
               // The quantity step walks every product itself and hands the whole move over in one
               // go — see its finalizeAll. It used to report one product at a time, and this handler
               // walked to the target bin for each one, so emptying a bin of four products meant four
@@ -563,6 +573,7 @@ export default function App() {
               });
 
               setPendingQuantityTransfers([]);
+              setSkippedMoveProducts(skippedProducts);
 
               // Skipping every product leaves nothing to carry, and the target page renders behind
               // `pendingSerialTransfers.length > 0` — entering it empty was a blank screen with no
@@ -582,6 +593,7 @@ export default function App() {
               setShowQuantityModal(false);
               setPendingQuantityTransfers([]);
               setCompletedTransfers([]);
+              setSkippedMoveProducts([]);
               delete (window as any).allocateOnlyTransfers;
               setUnlockedDoors(new Set());
             }}
