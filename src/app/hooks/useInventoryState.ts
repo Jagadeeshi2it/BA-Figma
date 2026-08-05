@@ -8,6 +8,17 @@ import { generateUnallocatedProducts } from '../data/unallocatedProducts';
 import { generateSeedHistory } from '../data/seedHistory';
 import { getCurrentShelves, initializeDoorConfigs, getBinLocationDetails, binMatchesSearch } from '../utils/doorUtils';
 import { migrateHistoryEntriesWithSourceBin } from '../utils/historyUtils';
+import { doesProductMatchSearch } from '../utils/textHighlight';
+import {
+  SourcePick,
+  sourcePickKey,
+  hasSourcePick,
+  addSourcePicks,
+  removeSourcePick,
+  removeSourcePicksForProduct,
+  removeSourcePicksForBin,
+  binsFromSourcePicks
+} from '../utils/sourcePicks';
 import { DoorShelfConfig, Bin, AllocationHistoryEntry, Product } from '../types';
 import { productDataService } from '../services/ProductDataService';
 import { pharmaceuticalProducts } from '../data/products';
@@ -128,6 +139,18 @@ export const useInventoryState = () => {
   // modal narrows its source panel to these instead of listing everything sharing those bins.
   // Kept separate from selectedSearchQuery, which step 2 overwrites with the target product.
   const [changeAllocationSourceQuery, setChangeAllocationSourceQuery] = useState<string>("");
+
+  /**
+   * What a Move by Product has actually picked: (bin, product identity) pairs — see utils/sourcePicks.
+   *
+   * `changeAllocationSourceQuery` above is now a PROJECTION of this for highlighting, not the selection
+   * itself. As the selection it could not say which bin an identity came from, so a second bin joining
+   * the move silently adopted every identity already picked elsewhere: picking ALBURX from Bin 1C also
+   * picked the OCTAGAM sitting there, because OCTAGAM had been picked from Bin 1B earlier.
+   *
+   * Empty in a Bin move, where whole bins are picked and there is no per-product scope.
+   */
+  const [sourceProductPicks, setSourceProductPicks] = useState<SourcePick[]>([]);
   
   // State for zero-quantity products after change allocation
   const [zeroQuantityProducts, setZeroQuantityProducts] = useState<any[]>([]);
@@ -513,6 +536,46 @@ export const useInventoryState = () => {
   }, []);
 
   // Handler for selecting source bins from search dropdown
+  /**
+   * Records picks for every product in `binIds` matching any OR-group of `query`, and rebuilds what is
+   * derived from them: the source bin list and the two query channels.
+   *
+   * Both source gestures funnel through here — they differ only in the bins they name. A row tap names
+   * one bin; a search pick names every bin the product lives in, which is the dropdown's whole purpose
+   * and the one case where selecting a product across bins is what the operator asked for.
+   */
+  const applySourcePicks = useCallback(
+    (binIds: string[], query: string) => {
+      const groups = query.split('|').map(group => group.trim()).filter(Boolean);
+      if (groups.length === 0 || binIds.length === 0) return;
+
+      const additions: SourcePick[] = [];
+      binIds.forEach(binId => {
+        const bin = findBinById(binId, doorShelfConfig);
+        if (!bin || bin.available) return;
+        (bin.products || []).forEach((product: any) => {
+          // Matched per group, not against the whole query: a bin only picks up the products the
+          // gesture actually named, never another group's product that happens to sit there too.
+          if (groups.some(group => doesProductMatchSearch(product, group))) {
+            additions.push({ binId, productKey: sourcePickKey(product) });
+          }
+        });
+      });
+      if (additions.length === 0) return;
+
+      // Two separate calls, not one nested inside the other's updater: an updater has to be pure, and a
+      // setState called from inside one is dropped or double-invoked. Because this only ever ADDS, the
+      // bins it puts in play come straight from `additions` — no need to see the merged picks first.
+      setSourceProductPicks(previous => addSourcePicks(previous, additions));
+      const addedBins = binsFromSourcePicks(additions);
+      setChangeAllocationSourceBins(bins => Array.from(new Set([...bins, ...addedBins])));
+
+      setSelectedSearchQuery(previous => groups.reduce((acc, group) => appendQueryGroup(acc, group), previous));
+      setChangeAllocationSourceQuery(previous => groups.reduce((acc, group) => appendQueryGroup(acc, group), previous));
+    },
+    [doorShelfConfig]
+  );
+
   const handleSelectSourceBinsFromSearch = useCallback((binIds: string[], productName: string, highlightQuery?: string) => {
     // Filter out any bins that don't have products (only include bins with products for source)
     const validSourceBins = binIds.filter(binId => {
@@ -541,11 +604,12 @@ export const useInventoryState = () => {
     // the dropdown's own result list keeps showing whatever else still matches. Both channels
     // append: picking a second product adds to the selection, so replacing the query would
     // un-highlight the first product while its bins stay selected.
+    // The pairs this gesture creates: the picked product(s) in EVERY bin the dropdown found them in.
+    // That breadth is deliberate here, unlike a row tap — see applySourcePicks.
     if (highlightQuery) {
-      setSelectedSearchQuery(prev => appendQueryGroup(prev, highlightQuery));
-      setChangeAllocationSourceQuery(prev => appendQueryGroup(prev, highlightQuery));
+      applySourcePicks(validSourceBins, highlightQuery);
     }
-  }, [doorShelfConfig]);
+  }, [doorShelfConfig, applySourcePicks]);
 
   // Handler for selecting target bins from search dropdown
   const handleSelectTargetBinsFromSearch = useCallback((binIds: string[], productName: string, highlightQuery?: string) => {
@@ -954,6 +1018,7 @@ export const useInventoryState = () => {
 
   const handleExitChangeAllocation = () => {
     setChangeAllocationMode(false);
+    setSourceProductPicks([]);
     setMoveMode(null);
     setChangeAllocationStep(1);
     setChangeAllocationSourceBins([]);
@@ -979,16 +1044,20 @@ export const useInventoryState = () => {
     }
   };
 
+  // Clearing the source clears its picks with it: the query and the bins are both derived from them, so
+  // leaving the picks behind would have the next pick rebuild a selection the operator just emptied.
   const handleClearChangeAllocationSelection = () => {
     setChangeAllocationStep(1);
     setChangeAllocationSourceBins([]);
     setChangeAllocationTargetBins([]);
     setChangeAllocationSourceQuery("");
+    setSourceProductPicks([]);
   };
 
   const handleClearSourceBins = () => {
     setChangeAllocationSourceBins([]);
     setChangeAllocationSourceQuery("");
+    setSourceProductPicks([]);
   };
 
   const handleClearTargetBins = () => {
@@ -1005,7 +1074,9 @@ export const useInventoryState = () => {
   // selectedSearchQuery is pruned against source bins AND target bins together, since it's a shared
   // accumulator for both — pruning it against source bins alone would strip groups a target bin
   // still needs highlighted.
+  // Also drops that bin's product picks — the bin is leaving, so anything picked in it is leaving with it.
   const handleRemoveSourceBin = useCallback((binId: string) => {
+    setSourceProductPicks(previous => removeSourcePicksForBin(previous, binId));
     const nextSourceBins = changeAllocationSourceBins.filter(id => id !== binId);
     setChangeAllocationSourceBins(nextSourceBins);
     setChangeAllocationSourceQuery(pruneQueryToBins(changeAllocationSourceQuery, nextSourceBins, doorShelfConfig));
@@ -1050,47 +1121,50 @@ export const useInventoryState = () => {
         })
       );
     }
+
+    // The picks are the selection, so they have to go too — removing a product here means everywhere,
+    // which is the difference between this and un-tapping it in one bin.
+    setSourceProductPicks(previous => removeSourcePicksForProduct(previous, sourcePickKey(product)));
   }, [changeAllocationSourceQuery, doorShelfConfig]);
 
   /**
    * Picking a product off a shelf in a Product move — and un-picking it.
    *
-   * A tap on a product row inside a bin card takes THAT product from THAT bin — scoped to the one bin,
-   * unlike the search dropdown's "Move From", which takes every bin the product lives in. Tapping a
-   * specific row names a specific place, so widening it to the product's other bins would gather stock
-   * the operator never pointed at. Building the selection a row at a time is the product-mode counterpart
-   * to tapping bins in a Bin move.
+   * A tap names THAT product in THAT bin: one pair. Unlike the search dropdown, which names every bin the
+   * product lives in, a specific row names a specific place, so widening it would gather stock the
+   * operator never pointed at.
    *
-   * Tapping a product that is already in the selection takes it back out, which is the same toggle a bin
-   * tap has in a Bin move: a tap that can only ever add leaves the operator with no way to correct a
-   * mis-tap except abandoning the whole selection.
-   *
-   * Removal delegates to handleRemoveSourceProduct rather than repeating it, because taking a product out
-   * is not just dropping its query group — any source bin left holding nothing that is still being moved
-   * has to be released too, or the review panel would list everything in that bin as though it were all
-   * moving. That is also why this sits BELOW that handler: a useCallback's dependency array is evaluated
-   * at render time, so naming a `const` declared further down throws before the callback ever runs.
+   * Tapping a picked product un-picks it — the same toggle a bin tap has in a Bin move. Un-picking is
+   * per bin, so taking a product off one bin leaves it picked in the others, which matters for a product
+   * that arrived via the search dropdown across several bins.
    */
   const handleSelectSourceProductFromBin = useCallback(
     (binId: string, product: any) => {
-      // Same identity triple the search path highlights on, so a product picked from the canvas and one
-      // picked from the dropdown produce an identical scope — see §3 on product identity.
+      const productKey = sourcePickKey(product);
       const group = queryGroupForProduct(product);
       if (!group) return;
 
-      // Already picked? Then this tap is an un-pick. Tested by whether removing the group would actually
-      // change the query — the one signal that tells "this product is tracked" apart from "a bin picked
-      // by hand happens to contain it too".
-      if (removeQueryGroup(changeAllocationSourceQuery, group) !== changeAllocationSourceQuery) {
-        handleRemoveSourceProduct(product);
+      if (hasSourcePick(sourceProductPicks, binId, productKey)) {
+        const next = removeSourcePick(sourceProductPicks, binId, productKey);
+        setSourceProductPicks(next);
+
+        // A bin with nothing left picked in it loses its only reason to be in the selection — otherwise
+        // it sits there and Review, having no scope to show for it, lists everything in it as though it
+        // were all moving.
+        const remainingBins = binsFromSourcePicks(next);
+        setChangeAllocationSourceBins(bins => bins.filter(id => remainingBins.includes(id)));
+
+        // The query is a projection of the picks, so it drops a group only when no bin still picks it.
+        if (!next.some(pick => pick.productKey === productKey)) {
+          setChangeAllocationSourceQuery(previous => removeQueryGroup(previous, group));
+          setSelectedSearchQuery(previous => removeQueryGroup(previous, group));
+        }
         return;
       }
 
-      setChangeAllocationSourceBins(prev => (prev.includes(binId) ? prev : [...prev, binId]));
-      setSelectedSearchQuery(prev => appendQueryGroup(prev, group));
-      setChangeAllocationSourceQuery(prev => appendQueryGroup(prev, group));
+      applySourcePicks([binId], group);
     },
-    [changeAllocationSourceQuery, handleRemoveSourceProduct]
+    [sourceProductPicks, applySourcePicks]
   );
 
   const handleOpenChangeAllocationModal = () => {
@@ -1982,6 +2056,7 @@ export const useInventoryState = () => {
     handleSelectBinsForAssignment,
     handleSelectSourceBinsFromSearch,
     handleSelectSourceProductFromBin,
+    sourceProductPicks,
     handleSelectTargetBinsFromSearch,
     handleSearchProductClick,
     handleConfirmAssignment,

@@ -1,4 +1,5 @@
 import React from 'react';
+import { SourcePick } from '../utils/sourcePicks';
 import { Search } from 'lucide-react';
 import ShelfLayout from './ShelfLayout';
 
@@ -16,9 +17,8 @@ interface ShelvesSectionProps {
   // Passed straight through to ShelfLayout, which needs it to decide whether the search highlight is
   // a locator (Bin move, source step) or a record of the committed selection.
   moveMode?: 'bin' | 'product' | null;
-  // Which products the source selection is scoped to — the channel that records the selection, not the
-  // one that tints the shelves (CLAUDE.md §3). A bin card counts its selected products from this.
-  sourceProductQuery?: string;
+  // The (bin, product) pairs a Move by Product has picked; each bin card counts its own slice.
+  sourceProductPicks?: SourcePick[];
   changeAllocationSourceBins: string[];
   changeAllocationTargetBins: string[];
   showUnallocatedProducts: boolean;
@@ -44,7 +44,7 @@ export default function ShelvesSection({
   changeAllocationMode,
   changeAllocationStep,
   moveMode,
-  sourceProductQuery = '',
+  sourceProductPicks = [],
   changeAllocationSourceBins,
   changeAllocationTargetBins,
   showUnallocatedProducts,
@@ -75,7 +75,7 @@ export default function ShelvesSection({
               changeAllocationMode={changeAllocationMode}
               changeAllocationStep={changeAllocationStep}
               moveMode={moveMode}
-              sourceProductQuery={sourceProductQuery}
+              sourceProductPicks={sourceProductPicks}
               onSelectSourceProduct={onSelectSourceProduct}
               changeAllocationSourceBins={changeAllocationSourceBins}
               changeAllocationTargetBins={changeAllocationTargetBins}
@@ -116,7 +116,7 @@ export default function ShelvesSection({
               changeAllocationMode={changeAllocationMode}
               changeAllocationStep={changeAllocationStep}
               moveMode={moveMode}
-              sourceProductQuery={sourceProductQuery}
+              sourceProductPicks={sourceProductPicks}
               onSelectSourceProduct={onSelectSourceProduct}
               changeAllocationSourceBins={changeAllocationSourceBins}
               changeAllocationTargetBins={changeAllocationTargetBins}

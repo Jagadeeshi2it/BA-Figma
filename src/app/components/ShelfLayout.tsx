@@ -1,4 +1,5 @@
 import React from 'react';
+import { SourcePick, productKeysForBin } from '../utils/sourcePicks';
 import BinCard from './BinCard';
 import { Shelf, Bin } from '../types';
 import {
@@ -25,8 +26,8 @@ interface ShelfLayoutProps {
   // Which kind of move is running. In a Bin move's source step the search is a locator rather than a
   // record of what's committed, which changes who the highlight reaches — see resolveSearchQuery.
   moveMode?: 'bin' | 'product' | null;
-  // The selection's own query channel, distinct from the highlight one this component resolves per bin.
-  sourceProductQuery?: string;
+  // The (bin, product) pairs a Move by Product has picked — each bin card gets its own slice.
+  sourceProductPicks?: SourcePick[];
   changeAllocationSourceBins?: string[];
   changeAllocationTargetBins?: string[];
   showUnallocatedProducts?: boolean;
@@ -51,7 +52,7 @@ export default function ShelfLayout({
   changeAllocationMode = false,
   changeAllocationStep = 1,
   moveMode = null,
-  sourceProductQuery = '',
+  sourceProductPicks = [],
   changeAllocationSourceBins = [],
   changeAllocationTargetBins = [],
   showUnallocatedProducts = false,
@@ -126,7 +127,7 @@ export default function ShelfLayout({
                   onProductClick={onProductClick}
                   canPickSourceProduct={canPickSourceProduct}
                   moveMode={moveMode}
-                  sourceProductQuery={sourceProductQuery}
+                  pickedProductKeys={productKeysForBin(sourceProductPicks, bin.id)}
                   onSelectSourceProduct={product => onSelectSourceProduct?.(bin.id, product)}
                   allProductsBinId={allProductsBinId}
                   onOpenAllProducts={onOpenAllProducts}
@@ -164,7 +165,7 @@ export default function ShelfLayout({
             onProductClick={onProductClick}
                   canPickSourceProduct={canPickSourceProduct}
                   moveMode={moveMode}
-                  sourceProductQuery={sourceProductQuery}
+                  pickedProductKeys={productKeysForBin(sourceProductPicks, bin.id)}
                   onSelectSourceProduct={product => onSelectSourceProduct?.(bin.id, product)}
             allProductsBinId={allProductsBinId}
             onOpenAllProducts={onOpenAllProducts}
@@ -201,7 +202,7 @@ export default function ShelfLayout({
             onProductClick={onProductClick}
                   canPickSourceProduct={canPickSourceProduct}
                   moveMode={moveMode}
-                  sourceProductQuery={sourceProductQuery}
+                  pickedProductKeys={productKeysForBin(sourceProductPicks, bin.id)}
                   onSelectSourceProduct={product => onSelectSourceProduct?.(bin.id, product)}
             allProductsBinId={allProductsBinId}
             onOpenAllProducts={onOpenAllProducts}
@@ -251,7 +252,7 @@ export default function ShelfLayout({
           onProductClick={onProductClick}
                   canPickSourceProduct={canPickSourceProduct}
                   moveMode={moveMode}
-                  sourceProductQuery={sourceProductQuery}
+                  pickedProductKeys={productKeysForBin(sourceProductPicks, bin.id)}
                   onSelectSourceProduct={product => onSelectSourceProduct?.(bin.id, product)}
           allProductsBinId={allProductsBinId}
           onOpenAllProducts={onOpenAllProducts}

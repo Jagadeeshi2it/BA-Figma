@@ -144,6 +144,11 @@ export interface ChangeAllocationModalProps {
   // Query describing the product(s) picked from the search bar when the source bins were chosen.
   // When set, the source panel shows only those products — see changeAllocationSourceQuery.
   sourceProductQuery?: string;
+  /**
+   * The (bin, product identity) pairs the source selection was built from. Scoping each bin's list by
+   * these rather than by the query is what stops a bin offering a product picked in a different bin.
+   */
+  sourceProductPicks?: Array<{ binId: string; productKey: string }>;
   // The move kind. 'product' forces the Review to the product perspective (every picked product, one
   // at a time); 'bin' forces the per-bin view. Undefined falls back to the old bin-count heuristic.
   moveMode?: 'bin' | 'product' | null;

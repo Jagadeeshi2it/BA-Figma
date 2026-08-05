@@ -10,6 +10,7 @@ import {
 } from '../utils/textHighlight';
 // Grouping and badges are shared with AllProductsPanel so both views of a bin agree.
 import { consolidateBinProducts, getVialType, hasClimateBadge, hasCivBadge } from '../utils/binProducts';
+import { sourcePickKey } from '../utils/sourcePicks';
 
 interface BinCardProps {
   bin: Bin;
@@ -29,12 +30,11 @@ interface BinCardProps {
   // Which kind of move is running, so a source bin can describe itself in the unit the operator picked.
   moveMode?: 'bin' | 'product' | null;
   /**
-   * Which products the source selection is scoped to. NOT the `searchQuery` above: that one is the
-   * highlight channel, and the two are deliberately separate (CLAUDE.md §3). Picking a product off a
-   * shelf records it here; the highlight query only follows when the pick came through the search box, so
-   * counting from `searchQuery` reported 0 for products picked by tapping.
+   * The product identities picked IN THIS BIN (utils/sourcePicks). Counting from a query instead — even
+   * the source query — overstated it: a query has no bin attached, so every identity picked anywhere
+   * matched whatever this bin happened to contain.
    */
-  sourceProductQuery?: string;
+  pickedProductKeys?: string[];
   onSelectSourceProduct?: (product: any) => void;
   // "All products" modal state lives in App so it survives the product detail page.
   allProductsBinId?: string | null;
@@ -60,7 +60,7 @@ export default function BinCard({
   onProductClick,
   canPickSourceProduct = false,
   moveMode = null,
-  sourceProductQuery = '',
+  pickedProductKeys,
   onSelectSourceProduct,
   allProductsBinId = null,
   onOpenAllProducts,
@@ -158,17 +158,13 @@ export default function BinCard({
   const additionalCount = consolidatedProducts.length - visibleProducts.length;
 
   /**
-   * How many of THIS bin's products are in the move, matched on the query the SELECTION is scoped to.
+   * How many of THIS bin's products the operator picked.
    *
    * Only meaningful in a Product move, where a source bin was added *because* a product in it was picked
    * and is therefore scoped to that product (CLAUDE.md §3). In a Bin move the whole bin was chosen, so
    * there is no subset to count.
    */
-  const selectedProductCount = React.useMemo(() => {
-    const query = sourceProductQuery.trim();
-    if (moveMode !== 'product' || !query) return 0;
-    return consolidatedProducts.filter(product => doesProductMatchSearch(product, query)).length;
-  }, [moveMode, sourceProductQuery, consolidatedProducts]);
+  const selectedProductCount = moveMode === 'product' ? (pickedProductKeys?.length ?? 0) : 0;
 
   // Measures the row height and leftover space in the actual, grid-stretched card, then converts
   // that into extra rows for heightFitCount above. A ResizeObserver rather than a one-shot effect:
@@ -219,6 +215,19 @@ export default function BinCard({
     (highlightAvailable && bin.available) ||
     (isSelectedForAssignment && !changeAllocationMode);
 
+  /**
+   * The query a product row is highlighted against.
+   *
+   * In a Product move a source bin highlights only what was picked IN IT. The highlight query is a union
+   * of every picked identity with no bin attached, so Bin 1C's OCTAGAM lit up merely because OCTAGAM had
+   * been picked in Bin 1B — the row looked selected while the card's own "1 Selected" said otherwise.
+   * Blanking the query for an unpicked row is what keeps the two in agreement.
+   */
+  const highlightQueryFor = (product: any): string => {
+    if (moveMode !== 'product' || !isChangeAllocationSource || !pickedProductKeys) return searchQuery;
+    return pickedProductKeys.includes(sourcePickKey(product)) ? searchQuery : '';
+  };
+
   const renderProduct = (product: any, index: number) => {
     // In a Product move's source step a row tap MEANS "take this product from this bin", so it wins
     // over the view-mode behaviour of opening the product's detail page — navigating away mid-selection
@@ -264,7 +273,7 @@ export default function BinCard({
       >
         <div className="flex-1 box-border content-stretch flex flex-col gap-0.5 items-start justify-start min-w-0 p-0 relative">
           <div className="w-full flex flex-col font-normal justify-center leading-[0] not-italic relative text-[#020817] text-xs text-left">
-            <p className="block leading-[16px] text-[14px] text-[11px]">{highlightText(product.name, searchQuery, productHighlightColor, product)}</p>
+            <p className="block leading-[16px] text-[14px] text-[11px]">{highlightText(product.name, highlightQueryFor(product), productHighlightColor, product)}</p>
           </div>
           <div className="flex items-center gap-1 my-1">
             <span className="bg-[#D1D5DB] text-[#111827] text-[9px] font-medium px-1.5 py-0.5 rounded">{getVialType(product)}</span>
@@ -276,7 +285,7 @@ export default function BinCard({
             )}
           </div>
           <div className="flex flex-col font-normal justify-center leading-[0] not-italic relative shrink-0 text-[#676b74] text-xs text-left w-full">
-            <p className="block leading-[16px] break-words overflow-hidden text-[14px]">{highlightNDC(`${product.ndc} - ${product.inventoryType}`, searchQuery, productHighlightColor, product)}</p>
+            <p className="block leading-[16px] break-words overflow-hidden text-[14px]">{highlightNDC(`${product.ndc} - ${product.inventoryType}`, highlightQueryFor(product), productHighlightColor, product)}</p>
           </div>
         </div>
         <div className="bg-[#f7f7f7] box-border content-stretch flex flex-col items-center justify-center p-[4px] relative rounded shrink-0 w-12">

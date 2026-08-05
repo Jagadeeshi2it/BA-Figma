@@ -309,6 +309,36 @@ It also decides how the source is gathered (below), what the step ① label says
 which instruction the footer prints (`instructionFor`), and what unit an empty summary counts in.
 **Any new branch on "what kind of move is this" belongs here, not in a heuristic over the data.**
 
+### The source selection is (bin, product) pairs — the query is a projection of it
+
+`sourceProductPicks: SourcePick[]` in `useInventoryState`, helpers in `utils/sourcePicks.ts`. A Move by
+Product's selection is a set of **(binId, productKey)** pairs; `changeAllocationSourceQuery` is derived
+from them for highlighting and is **not** the selection itself.
+
+It used to be. A query is a list of identities with no bin attached, so the moment a second bin joined,
+every identity already picked adopted whatever that bin happened to contain: picking ALBURX from Bin 1C
+also picked the OCTAGAM sitting there, because OCTAGAM had been picked from Bin 1B earlier. Pairs cannot
+express that — a pick names one bin.
+
+**Breadth comes from the gesture, never from matching:**
+
+| Gesture | Pairs |
+|---|---|
+| Tap a product row on a bin card | one — that product, that bin |
+| Pick a product from the search dropdown | one per bin the product lives in — deliberate, it is what "wherever this drug is" means |
+
+Both funnel through `applySourcePicks(binIds, query)`, which differs only in the bins it is handed. Three
+things follow, and all three were bugs before:
+
+- **A bin card counts its own picks** (`productKeysForBin`), not query matches.
+- **A row is highlighted only if picked in that bin** (`highlightQueryFor` in `BinCard`) — otherwise the
+  badge said `1 Selected` while two rows looked selected.
+- **Review scopes each bin's list to its picks** (`getSourceProducts`), so a bin never offers a product
+  picked somewhere else. A bin with no picks — hand-picked in a Bin move — still offers everything.
+
+Un-picking is per bin; the review panel's per-product Remove drops the product from every bin. Verified by
+`node scripts/verify-source-picks.mjs` (16 assertions, including the exception above).
+
 ### Three separate query channels
 
 | Channel | Meaning |

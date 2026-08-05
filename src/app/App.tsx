@@ -645,6 +645,7 @@ export default function App() {
             targetBins={getTargetBins}
             doorShelfConfig={inventoryState.doorShelfConfig}
             sourceProductQuery={inventoryState.changeAllocationSourceQuery}
+            sourceProductPicks={inventoryState.sourceProductPicks}
             moveMode={inventoryState.moveMode}
             onConfirmAllocation={handleChangeAllocationConfirm}
             onCancel={inventoryState.handleExitChangeAllocation}
@@ -839,7 +840,7 @@ export default function App() {
           />
 
           <ShelvesSection
-            sourceProductQuery={inventoryState.changeAllocationSourceQuery ?? ''}
+            sourceProductPicks={inventoryState.sourceProductPicks}
             allProductsBinId={allProductsBinId}
             onOpenAllProducts={setAllProductsBinId}
             onCloseAllProducts={() => setAllProductsBinId(null)}

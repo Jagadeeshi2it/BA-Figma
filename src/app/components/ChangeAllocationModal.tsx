@@ -12,6 +12,7 @@ import { Card, CardContent } from "./ui/card";
 import { Package, ChevronLeft, ChevronRight, ListChecks, AlertTriangle, ArrowLeft, ArrowRight } from "lucide-react";
 import SourceProductCard from "./SourceProductCard";
 import TargetProductCard from "./TargetProductCard";
+import { productKeysForBin, sourcePickKey } from '../utils/sourcePicks';
 import ProductCentricCard from "./ProductCentricCard";
 import MoveSummaryPanel, { MoveSummaryRow } from "./MoveSummaryPanel";
 import { formatBinLocation, getDoorName } from '../utils/changeAllocationUtils';
@@ -36,6 +37,7 @@ export default function ChangeAllocationModal({
   targetBins,
   doorShelfConfig,
   sourceProductQuery,
+  sourceProductPicks = [],
   moveMode,
   onConfirmAllocation,
   onCancel
@@ -709,12 +711,15 @@ export default function ChangeAllocationModal({
       });
     }
 
-    // Search-driven selection: only the picked product is in scope for this move — but only for the
-    // bins the search actually put here. A bin hand-picked off the shelf during the same session was
-    // chosen for its whole contents, so scoping it to another bin's searched product would hide the
-    // very products the user picked it for.
-    if (focusedQuery && isBinScopedByQuery(sourceBin)) {
-      products = products.filter(product => productMatchesQuery(product, focusedQuery));
+    // Scoped to what was picked IN THIS BIN. A bin the operator picked products from offers exactly
+    // those; a bin hand-picked off the shelf has no picks and offers its whole contents, which is what it
+    // was chosen for.
+    //
+    // This used to filter by the query, which has no bin attached — so a bin offered any product whose
+    // identity had been picked anywhere, including ones the operator never pointed at in this bin.
+    const pickedHere = productKeysForBin(sourceProductPicks, sourceBin.id);
+    if (pickedHere.length > 0) {
+      products = products.filter(product => pickedHere.includes(sourcePickKey(product)));
     }
 
     return products;
