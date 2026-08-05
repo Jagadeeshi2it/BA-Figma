@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { toast } from "sonner@2.0.3";
 import { Button } from "./ui/button";
-import { ChevronRight, Pencil, X, Unlock, Package, LogOut, ListChecks, ArrowLeft, ArrowRight } from "lucide-react";
+import { ChevronRight, Pencil, X, Unlock, Package, LogOut, ListChecks, ArrowRight } from "lucide-react";
 import { DoorUnlockedToast } from "./ui/sonner-1";
 import CabinetPipView from "./CabinetPipView";
 import SideSheet from "./SideSheet";
@@ -39,12 +39,6 @@ interface QuantitySelectionPageProps {
   doorShelfConfig: DoorShelfConfig;
   onConfirm: (transfersWithQuantities: ProductTransfer[], skippedProducts: SkippedProduct[]) => void;
   onCancel: () => void;
-  // One step back (distinct from onCancel's full-flow abort): from the first source bin it returns to
-  // the product-selection modal; from a later one, Back walks within the page (see handleBack).
-  onBack?: () => void;
-  // When re-entered from the target page's Back, land on the product the operator was placing rather
-  // than restarting the batch at product 0 (UX-AUDIT H3-2). Keyed by the product identity triple.
-  initialProductKey?: string;
   // Only for the stepper's step-1 label, which names the unit this kind of move collects.
   moveMode?: 'bin' | 'product' | null;
   // Which single door is open, and how to ask for another. Only one door at the station can be unlocked
@@ -105,8 +99,6 @@ export default function QuantitySelectionPage({
   doorShelfConfig,
   onConfirm,
   onCancel,
-  onBack,
-  initialProductKey,
   moveMode,
   cabinetAccess,
   takeBinOrder
@@ -319,20 +311,6 @@ export default function QuantitySelectionPage({
     [summaryRows]
   );
 
-  // On first mount, jump to the product the caller asked to resume (the target page's Back), so
-  // fixing one product's quantity doesn't mean clicking forward through the whole batch again
-  // (UX-AUDIT H3-2). Runs once; later navigation is the operator's own Save/Back within the page.
-  const didResumeRef = useRef(false);
-  useEffect(() => {
-    if (didResumeRef.current) return;
-    if (!initialProductKey || groupedTransfers.length === 0) return;
-    const idx = groupedTransfers.findIndex(
-      g => `${g.productName}-${g.ndc}-${g.inventoryType}` === initialProductKey
-    );
-    if (idx >= 0) setCurrentIndex(idx);
-    didResumeRef.current = true;
-  }, [initialProductKey, groupedTransfers]);
-
   const currentGroup = groupedTransfers[currentIndex];
 
   // Unlock the door this source bin is behind, locking whatever was open. Announced only when a
@@ -541,18 +519,6 @@ export default function QuantitySelectionPage({
     }
 
     finalizeAll(skippedProductKeys);
-  };
-
-  const handleBack = () => {
-    // One step back through the batch. Every earlier group's quantity is held in transferQuantities,
-    // so stepping back and forward loses nothing. From the first group there is nothing earlier on
-    // this page — hand back up a stage to the product-selection modal, distinct from Cancel's abort.
-    if (currentIndex > 0) {
-      setCurrentIndex(currentIndex - 1);
-      setEditingQuantity(false);
-      return;
-    }
-    onBack?.();
   };
 
   if (!currentGroup) return null;
@@ -950,17 +916,6 @@ export default function QuantitySelectionPage({
             {/* Always visible, regardless of which product/source bin is active — unlike Skip, which
                 only makes sense when there's another product to jump to. */}
             <FooterButton label="Cancel" variant="secondary" onClick={onCancel} />
-            {(currentIndex > 0 || onBack) && (
-              // One step back, distinct from Cancel's full-flow abort beside it. Within the batch it
-              // returns to the previous source bin/product with its quantity intact; from the first, up
-              // to the product-selection stage.
-              <FooterButton
-                label="Back"
-                variant="secondary"
-                onClick={handleBack}
-                leadingIcon={<ArrowLeft className="w-4 h-4" />}
-              />
-            )}
             {showSkipButton && (
               <FooterButton label="Skip Product" variant="secondary" onClick={handleSkip} />
             )}

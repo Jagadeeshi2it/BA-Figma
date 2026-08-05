@@ -573,12 +573,9 @@ export default function MoveSummaryPanel({
 
                     No total line: the source line IS the total for everything under it. */}
                 {isSkippedCard ? (
-                  // One sentence in place of the whole bin block. Without it a skipped card is a
-                  // product name and nothing else, and the operator reading the placement screen has
-                  // no way to tell "I skipped this" from "the app dropped it".
-                  <div className="mt-2 pt-2 border-t border-gray-100 text-[12px] text-[#64748b]">
-                    Not moved — you skipped this product at the quantity step.
-                  </div>
+                  // Nothing below the identity block: the Skipped badge beside the product name already
+                  // says it, and a sentence restating it was the second telling.
+                  null
                 ) : (
                 <div className={`mt-2 pt-2 border-t space-y-2 ${isCurrentCard ? 'border-[#dbe9f6]' : 'border-gray-100'}`}>
                   {groupBySourceBin(group.rows).map(sourceBin => {

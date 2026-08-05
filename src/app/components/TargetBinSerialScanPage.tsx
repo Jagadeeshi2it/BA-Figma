@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { toast } from "sonner@2.0.3";
 import { Button } from "./ui/button";
-import { ChevronRight, Search, Trash2, Unlock, Package, LogIn, ListChecks, ArrowLeft, ArrowRight } from "lucide-react";
+import { ChevronRight, Search, Trash2, Unlock, Package, LogIn, ListChecks, ArrowRight } from "lucide-react";
 import { DoorUnlockedToast } from "./ui/sonner-1";
 import CabinetPipView from "./CabinetPipView";
 import SideSheet from "./SideSheet";
@@ -35,9 +35,6 @@ interface TargetBinSerialScanPageProps {
   doorShelfConfig: DoorShelfConfig;
   onConfirm: (transfersWithSerials: ProductTransfer[]) => void;
   onCancel: () => void;
-  // Steps back to the quantity stage. Carries the product identity currently on screen so the
-  // quantity page resumes on that product rather than restarting the batch (UX-AUDIT H3-2).
-  onBack: (productKey?: string) => void;
   remainingTransfers?: ProductTransfer[];
   // Products the quantity step was told to skip. Listed in the Move Summary, marked, so the operator
   // can see why a product they picked at Review has no bins or quantities on this screen.
@@ -106,7 +103,6 @@ export default function TargetBinSerialScanPage({
   doorShelfConfig,
   onConfirm,
   onCancel,
-  onBack,
   remainingTransfers,
   skippedProducts,
   moveMode,
@@ -691,23 +687,6 @@ export default function TargetBinSerialScanPage({
     }));
   };
 
-  const handleBack = () => {
-    // Within a product, Back reviews its earlier target bins. At a product's FIRST target bin, Back
-    // becomes a stage step: return to the quantity page resumed ON THIS PRODUCT (its key), rather
-    // than paging into a previous product's bins and eventually restarting the whole batch's
-    // quantities from product 0 (UX-AUDIT H3-2). The trade: Back no longer walks across products on
-    // this page — the footer's Product counter is where the whole batch is reviewed.
-    if (currentTargetBinIndex > 0) {
-      setCurrentTargetBinIndex(currentTargetBinIndex - 1);
-      setSerialInput('');
-      return;
-    }
-    const productKey = currentProduct
-      ? `${currentProduct.productName}-${currentProduct.ndc}-${currentProduct.inventoryType}`
-      : undefined;
-    onBack(productKey);
-  };
-
   const handleSave = () => {
     if (!currentProduct || !currentTargetBin) return;
 
@@ -1171,15 +1150,9 @@ export default function TargetBinSerialScanPage({
           />
 
           <FooterActions>
-            {/* Always visible full-flow exit, distinct from "Back" which only steps back one target bin
-                at a time within this screen's own hierarchy. */}
+            {/* The only way out of step ④ now that Back is gone: leaving discards the move, it does not
+                step back through it. */}
             <FooterButton label="Cancel" variant="secondary" onClick={onCancel} />
-            <FooterButton
-              label="Back"
-              variant="secondary"
-              onClick={handleBack}
-              leadingIcon={<ArrowLeft className="w-4 h-4" />}
-            />
             <FooterButton
               label={effectiveSaveLabel}
               variant="primary"

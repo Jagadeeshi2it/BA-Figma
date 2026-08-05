@@ -68,9 +68,6 @@ export default function App() {
   // Quantity selection modal state
   const [showQuantityModal, setShowQuantityModal] = useState(false);
   const [pendingQuantityTransfers, setPendingQuantityTransfers] = useState<ProductTransfer[]>([]);
-  // Product the quantity page should resume on when re-entered via the target page's Back — its
-  // identity triple, or undefined for a fresh entry (which lands on the first product). See H3-2.
-  const [quantityResumeProductKey, setQuantityResumeProductKey] = useState<string | undefined>(undefined);
 
   // Target bin serial scan state
   const [showTargetBinScanPage, setShowTargetBinScanPage] = useState(false);
@@ -307,9 +304,6 @@ export default function App() {
         // New session at a locked cabinet: an open door left over from an abandoned attempt would have
         // the next one believing it already had access.
         cabinetAccess.lockAll();
-        // Fresh entry from the modal starts at the first product; only a target-page Back resumes on
-        // a specific one, so clear any leftover resume key from an earlier back-navigation.
-        setQuantityResumeProductKey(undefined);
         setPendingQuantityTransfers(moveTransfers);
         setShowQuantityModal(true);
       }
@@ -533,22 +527,6 @@ export default function App() {
               setPendingQuantityTransfers([]);
               cabinetAccess.lockAll();
             }}
-            onBack={(productKey) => {
-              // Go back to quantity selection. CRITICAL: merge the current product's transfers
-              // back together with whatever other products were still pending — otherwise the
-              // quantity page reopens believing this is the ONLY product in the batch, silently
-              // dropping every other queued product/bin from the allocation.
-              setShowTargetBinScanPage(false);
-              setShowQuantityModal(true);
-              setPendingQuantityTransfers(pendingSerialTransfers);
-              setPendingSerialTransfers([]);
-              // The quantity page rebuilds its own skip set as the operator walks it again, so a
-              // stale one carried back here would only be able to disagree with it.
-              setSkippedMoveProducts([]);
-              // Land the quantity page on the product the operator was placing, not back at product 0
-              // (UX-AUDIT H3-2). productKey is the identity triple carried up from the target page.
-              setQuantityResumeProductKey(productKey);
-            }}
           />
         </MainLayout>
       ) : showQuantityModal && pendingQuantityTransfers.length > 0 ? (
@@ -579,18 +557,7 @@ export default function App() {
             takeBinOrder={moveWalk?.takeBinOrder}
             doorShelfConfig={inventoryState.doorShelfConfig}
             cabinetAccess={cabinetAccess}
-            initialProductKey={quantityResumeProductKey}
             moveMode={inventoryState.moveMode}
-            onBack={() => {
-              // One stage back to the product-selection modal (the "Review Selection" overlay on
-              // step ②), distinct from onCancel's full abort below. The source and target bins live
-              // in inventoryState and survive, so the modal reopens on the same selection; per-bin
-              // product picks are re-chosen there. Clear the batch so the modal rebuilds it on Move Qty.
-              setShowQuantityModal(false);
-              setPendingQuantityTransfers([]);
-              setQuantityResumeProductKey(undefined);
-              inventoryState.setShowChangeAllocationModal(true);
-            }}
             onConfirm={(allTransfers, skippedProducts) => {
               // The quantity step walks every product itself and hands the whole move over in one
               // go — see its finalizeAll. It used to report one product at a time, and this handler
