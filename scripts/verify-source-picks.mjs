@@ -24,7 +24,7 @@ try {
 }
 
 const {
-  sourcePickKey, hasSourcePick, addSourcePicks, removeSourcePick,
+  sourcePickKey, sourcePickQueryGroup, hasSourcePick, addSourcePicks, removeSourcePick,
   removeSourcePicksForProduct, removeSourcePicksForBin,
   binsFromSourcePicks, productKeysForBin, allPickedProductKeys
 } = M;
@@ -98,6 +98,16 @@ console.log('\n--- idempotence and identity');
   check('inventory type is part of the identity', charity === oct, false);
   check('case does not matter', sourcePickKey({ name: 'Octagam 10% VL 5GM 50ML', ndc: '68982085002', inventoryType: 'sample' }), oct);
   check('a bin with no picks reports none', productKeysForBin(picks, 'nope'), []);
+}
+
+console.log('\n--- a picked row is highlighted against its own identity');
+{
+  // Not against the search box: clearing the box must not un-highlight something still picked.
+  check('the group is the comma-separated AND-set the query channels use',
+    sourcePickQueryGroup(OCTAGAM), 'OCTAGAM 10% VL 5GM 50ML, 68982085002, Sample');
+  check('missing fields are dropped rather than leaving empty terms',
+    sourcePickQueryGroup({ name: 'X' }), 'X');
+  check('nothing to say produces nothing', sourcePickQueryGroup({}), '');
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

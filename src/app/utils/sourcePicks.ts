@@ -31,6 +31,22 @@ export const sourcePickKey = (product: {
 }): string =>
   `${product?.name ?? ''}|${product?.ndc ?? ''}|${product?.inventoryType ?? ''}`.toLowerCase();
 
+/**
+ * The search-query group that matches exactly this product — `name, ndc, inventoryType`, the same
+ * comma-separated AND-set the query channels use.
+ *
+ * Needed so a picked row can be highlighted against its OWN identity rather than against whatever is in
+ * the search box. Otherwise clearing the box wipes the highlight off products that are still picked.
+ */
+export const sourcePickQueryGroup = (product: {
+  name?: string;
+  ndc?: string;
+  inventoryType?: string;
+}): string =>
+  [product?.name, product?.ndc, product?.inventoryType]
+    .filter(term => term && String(term).trim().length > 0)
+    .join(', ');
+
 const samePick = (pick: SourcePick, binId: string, productKey: string) =>
   pick.binId === binId && pick.productKey === productKey;
 

@@ -330,9 +330,12 @@ express that — a pick names one bin.
 Both funnel through `applySourcePicks(binIds, query)`, which differs only in the bins it is handed. Three
 things follow, and all three were bugs before:
 
-- **A bin card counts its own picks** (`productKeysForBin`), not query matches.
-- **A row is highlighted only if picked in that bin** (`highlightQueryFor` in `BinCard`) — otherwise the
-  badge said `1 Selected` while two rows looked selected.
+- **A bin card counts its own picks** (`productKeysForBin`), not query matches — and so does the footer's
+  `n Products` cell, which otherwise disagreed with the cards.
+- **A row's highlight comes from the picks, not the search box** (`highlightQueryFor` in `BinCard`), in
+  both directions: an unpicked row gets an empty query, or the badge would say `1 Selected` while two rows
+  looked selected; and a picked row is matched against **its own identity**
+  (`sourcePickQueryGroup`), so clearing the search cannot un-highlight something still selected.
 - **Review scopes each bin's list to its picks** (`getSourceProducts`), so a bin never offers a product
   picked somewhere else. A bin with no picks — hand-picked in a Bin move — still offers everything.
 

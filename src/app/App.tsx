@@ -426,20 +426,21 @@ export default function App() {
   // hand was chosen for everything in it. Deduped on the shared name + NDC + inventory type identity,
   // so one drug across three bins counts once.
   const sourceProductCount = useMemo(() => {
-    const query = inventoryState.changeAllocationSourceQuery?.trim();
-    const identities = new Set<string>();
+    // A Product move counts its picks — they ARE the selection (CLAUDE.md §3). Deduped on the identity, so
+    // one drug picked in three bins counts once. Counting query matches instead disagreed with the bin
+    // cards' own "n Selected", because the query has no bin attached.
+    const picks = inventoryState.sourceProductPicks ?? [];
+    if (picks.length > 0) return new Set(picks.map(pick => pick.productKey)).size;
 
+    // A Bin move has no picks: whole bins were chosen, so the figure is what those bins hold.
+    const identities = new Set<string>();
     getSourceBins.forEach(bin => {
-      const products = bin?.products ?? [];
-      const scoped = !!query && products.some((product: any) => doesProductMatchSearch(product, query));
-      products.forEach((product: any) => {
-        if (scoped && !doesProductMatchSearch(product, query!)) return;
+      (bin?.products ?? []).forEach((product: any) => {
         identities.add(`${product.name}|${product.ndc}|${product.inventoryType}`.toLowerCase());
       });
     });
-
     return identities.size;
-  }, [getSourceBins, inventoryState.changeAllocationSourceQuery]);
+  }, [getSourceBins, inventoryState.sourceProductPicks]);
   useEffect(() => {
     if (!inventoryState.changeAllocationMode) {
       setAllocationPanel(null);

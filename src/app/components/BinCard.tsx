@@ -10,7 +10,7 @@ import {
 } from '../utils/textHighlight';
 // Grouping and badges are shared with AllProductsPanel so both views of a bin agree.
 import { consolidateBinProducts, getVialType, hasClimateBadge, hasCivBadge } from '../utils/binProducts';
-import { sourcePickKey } from '../utils/sourcePicks';
+import { sourcePickKey, sourcePickQueryGroup } from '../utils/sourcePicks';
 
 interface BinCardProps {
   bin: Bin;
@@ -218,14 +218,20 @@ export default function BinCard({
   /**
    * The query a product row is highlighted against.
    *
-   * In a Product move a source bin highlights only what was picked IN IT. The highlight query is a union
-   * of every picked identity with no bin attached, so Bin 1C's OCTAGAM lit up merely because OCTAGAM had
-   * been picked in Bin 1B — the row looked selected while the card's own "1 Selected" said otherwise.
-   * Blanking the query for an unpicked row is what keeps the two in agreement.
+   * In a Product move a source bin highlights exactly what was picked IN IT, derived from the picks and
+   * nothing else — so the search box has no say in it, in either direction:
+   *
+   * - an UNPICKED row gets an empty query, or Bin 1C's OCTAGAM would light up merely because OCTAGAM was
+   *   picked in Bin 1B (the highlight query is a union of identities with no bin attached)
+   * - a PICKED row is matched against its own identity, so clearing the search box cannot un-highlight
+   *   something that is still selected
    */
   const highlightQueryFor = (product: any): string => {
     if (moveMode !== 'product' || !isChangeAllocationSource || !pickedProductKeys) return searchQuery;
-    return pickedProductKeys.includes(sourcePickKey(product)) ? searchQuery : '';
+    // Matched against the product's OWN identity, not the ambient query. The pick is the reason the row is
+    // highlighted, so the highlight has to survive the search box being cleared — reading the query meant
+    // clearing it wiped the blue off products that were still very much selected.
+    return pickedProductKeys.includes(sourcePickKey(product)) ? sourcePickQueryGroup(product) : '';
   };
 
   const renderProduct = (product: any, index: number) => {
