@@ -16,6 +16,7 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import AllocationBottomBar from "./components/AllocationBottomBar";
 import AllocationSelectionPanel from "./components/AllocationSelectionPanel";
 import AllocateProductsPanel from "./components/AllocateProductsPanel";
+import CancelMoveConfirmModal, { CancelMoveStage } from "./components/CancelMoveConfirmModal";
 import { useDebounce } from "./hooks/useDebounce";
 
 import { useInventoryState } from "./hooks/useInventoryState";
@@ -109,6 +110,12 @@ export default function App() {
     [moveRoute, routeBinIndex]
   );
 
+  // The pending "really discard this?" prompt for step ④, carrying how far in the operator was so the
+  // dialog can say what leaving actually costs. null when nothing is being asked.
+  const [cancelPrompt, setCancelPrompt] = useState<
+    { stage: CancelMoveStage; collectedBinCount: number } | null
+  >(null);
+
   // Which single cabinet door is open, shared by both halves of step ④. Replaces an accumulating set of
   // "doors already announced by a toast", which never removed anything and so believed two doors could be
   // unlocked at once — something the station cannot do (STEP4-GUIDANCE.md §1).
@@ -117,6 +124,27 @@ export default function App() {
   // Products the quantity step was told to skip, carried across to the placement screen so its Move
   // Summary can still list them (marked) rather than silently dropping them.
   const [skippedMoveProducts, setSkippedMoveProducts] = useState<SkippedProduct[]>([]);
+
+  /**
+   * Back to the default view with nothing retained — the same end state a completed move leaves behind.
+   *
+   * The step-④ Cancel used to clear only the pipeline's own state, which left changeAllocationMode on
+   * with the source and target bins still selected: the operator "cancelled" and landed back in step ②
+   * holding the selection they had just abandoned. handleExitChangeAllocation is what actually leaves the
+   * flow, so both halves have to happen.
+   */
+  const resetMoveFlow = useCallback(() => {
+    delete (window as any).allocateOnlyTransfers;
+    setShowTargetBinScanPage(false);
+    setShowQuantityModal(false);
+    setPendingSerialTransfers([]);
+    setPendingQuantityTransfers([]);
+    setCompletedTransfers([]);
+    setSkippedMoveProducts([]);
+    cabinetAccess.lockAll();
+    inventoryState.handleExitChangeAllocation();
+  }, [cabinetAccess, inventoryState.handleExitChangeAllocation]);
+
 
   // Unallocation modal state
   const [showUnallocateModal, setShowUnallocateModal] = useState(false);
@@ -515,18 +543,10 @@ export default function App() {
                 }, 0);
               }
             }}
-            onCancel={() => {
-              // Full-flow abort: reset every piece of pipeline state, not just this page's own
-              // slice — otherwise leftover remaining/completed transfers from this attempt could
-              // silently bleed into the next Change Allocation the user starts.
-              delete (window as any).allocateOnlyTransfers;
-              setShowTargetBinScanPage(false);
-              setPendingSerialTransfers([]);
-              setCompletedTransfers([]);
-              setSkippedMoveProducts([]);
-              setPendingQuantityTransfers([]);
-              cabinetAccess.lockAll();
-            }}
+            // Asks rather than acts: discarding a built selection is not something a single tap should
+            // do, and by this screen the operator is also holding stock. resetMoveFlow runs only if
+            // they confirm.
+            onCancel={(stage, collectedBinCount) => setCancelPrompt({ stage, collectedBinCount })}
           />
         </MainLayout>
       ) : showQuantityModal && pendingQuantityTransfers.length > 0 ? (
@@ -588,16 +608,7 @@ export default function App() {
               setShowTargetBinScanPage(true);
               setShowQuantityModal(false);
             }}
-            onCancel={() => {
-              // Full-flow abort: also clear remaining/completed state so a later Change
-              // Allocation attempt never inherits leftovers from this cancelled one.
-              setShowQuantityModal(false);
-              setPendingQuantityTransfers([]);
-              setCompletedTransfers([]);
-              setSkippedMoveProducts([]);
-              delete (window as any).allocateOnlyTransfers;
-              cabinetAccess.lockAll();
-            }}
+            onCancel={(stage, collectedBinCount) => setCancelPrompt({ stage, collectedBinCount })}
           />
         </MainLayout>
       ) : inventoryState.showChangeAllocationModal ? (
@@ -908,6 +919,18 @@ export default function App() {
       />
       
       {/* Unallocation Confirmation Modal - Shows after change allocation when products have zero quantity */}
+      <CancelMoveConfirmModal
+        open={!!cancelPrompt}
+        onOpenChange={open => { if (!open) setCancelPrompt(null); }}
+        stage={cancelPrompt?.stage ?? 'nothing-collected'}
+        collectedBinCount={cancelPrompt?.collectedBinCount ?? 0}
+        onDismiss={() => setCancelPrompt(null)}
+        onConfirm={() => {
+          setCancelPrompt(null);
+          resetMoveFlow();
+        }}
+      />
+
       <UnallocateConfirmModal
         open={showUnallocateModal}
         onOpenChange={setShowUnallocateModal}

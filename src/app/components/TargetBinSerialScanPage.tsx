@@ -21,6 +21,7 @@ import { pluralizeUnit } from '../utils/pluralizeUnit';
 import { getVialType, hasClimateBadge, hasCivBadge } from '../utils/binProducts';
 import { SkippedProduct } from './QuantitySelectionPage';
 import { CabinetAccess } from '../hooks/useCabinetAccess';
+import { CancelMoveStage } from './CancelMoveConfirmModal';
 
 interface ScannedItem {
   serial: string;
@@ -34,7 +35,8 @@ interface TargetBinSerialScanPageProps {
   transfers: ProductTransfer[];
   doorShelfConfig: DoorShelfConfig;
   onConfirm: (transfersWithSerials: ProductTransfer[]) => void;
-  onCancel: () => void;
+  /** Leaving step ④. Only offered while nothing has been placed — see hasPlacedStock below. */
+  onCancel: (stage: CancelMoveStage, collectedBinCount: number) => void;
   remainingTransfers?: ProductTransfer[];
   // Products the quantity step was told to skip. Listed in the Move Summary, marked, so the operator
   // can see why a product they picked at Review has no bins or quantities on this screen.
@@ -493,6 +495,27 @@ export default function TargetBinSerialScanPage({
     );
     return () => toast.dismiss(toastId);
   }, [currentTargetBin?.targetDoorName]);
+
+  /**
+   * Whether any stock has actually gone into a target bin. Past this point cancelling is off: the cabinet
+   * has begun to change, and there is no honest "put it back" for stock already placed and scanned.
+   *
+   * Two signals, because one alone is not enough. scannedItems covers a move that requires scanning; the
+   * indices cover one that does not, where a bin is completed by saving it with no serials to record.
+   */
+  const hasPlacedStock = useMemo(
+    () =>
+      Object.values(scannedItems).some(items => items.length > 0) ||
+      currentProductIndex > 0 ||
+      currentTargetBinIndex > 0,
+    [scannedItems, currentProductIndex, currentTargetBinIndex]
+  );
+
+  // Source bins the stock in hand came out of — what would have to be put back.
+  const collectedBinCount = useMemo(
+    () => new Set(transfers.map(transfer => transfer.fromBinId)).size,
+    [transfers]
+  );
 
   const getTargetBinKey = (targetBin: TargetBinGroup) =>
     scanKey(currentProduct.productId, targetBin.toBinId);
@@ -1150,9 +1173,16 @@ export default function TargetBinSerialScanPage({
           />
 
           <FooterActions>
-            {/* The only way out of step ④ now that Back is gone: leaving discards the move, it does not
-                step back through it. */}
-            <FooterButton label="Cancel" variant="secondary" onClick={onCancel} />
+            {/* Off once anything has been placed. The operator is certain about this: the cabinet has
+                started to change, so there is nothing left that "cancel" could honestly mean. Disabled
+                rather than removed — a control that vanishes reads as a control that failed — and it
+                states the reason in its own label, as every disabled button here does. */}
+            <FooterButton
+              label={hasPlacedStock ? 'Cannot cancel — stock placed' : 'Cancel'}
+              variant="secondary"
+              enabled={!hasPlacedStock}
+              onClick={() => onCancel('stock-in-hand', collectedBinCount)}
+            />
             <FooterButton
               label={effectiveSaveLabel}
               variant="primary"

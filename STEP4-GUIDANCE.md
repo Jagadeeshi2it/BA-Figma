@@ -1,8 +1,18 @@
 # Step ④ guidance rules — moving stock at the cabinet
 
-**Status: specification. The route planner (§4, §5) is built — `src/app/utils/moveRoute.ts`, verified by
-`node scripts/verify-move-route.mjs` against every scenario in §8. Nothing else here is built: no UI
-consumes the planner yet, and the constraints in §1 are not enforced anywhere on screen.**
+**Status: part specification, part built.**
+
+- **§4–§5, the route planner** — built (`src/app/utils/moveRoute.ts`), verified against every scenario in
+  §9 by `node scripts/verify-move-route.mjs`.
+- **§1's one-door rule** — built (`useCabinetAccess` + `utils/cabinetAccess.ts`), verified by
+  `node scripts/verify-cabinet-access.mjs`. Bin illumination is **not** modelled at all.
+- **Step ④ walks the route** — built: both screens order themselves by it
+  (`node scripts/verify-step4-walk.mjs`). They are still the original two screens, so a route needing
+  true interleaving falls back to two phases and reports the cost (§9's last case).
+- **§6, the panel's itinerary** — written but **not wired**: `MoveSummaryPanel` accepts a route, and
+  nothing passes it one yet. Step ④'s summary is still product-major.
+- **§8's cancellation** — regimes A and C built, B open.
+- **§7's re-planning** — not built.
 
 This is the rule set for how step ④ of the move pipeline should guide an operator through the physical
 cabinet. It is deliberately a separate document from [CLAUDE.md](CLAUDE.md): the rules here are
@@ -38,7 +48,7 @@ Door → cabinet mapping, from `data/cabinets.ts` and `doorUtils.ts`:
 | `Door 1–4` | Cabinet 1 | Yes |
 | `Door 5–8` | Cabinet 2 | Yes |
 | `Door 9–14` | Virtual (fridges), one pooled bin each | **No** |
-| `Door 17–19` | Emergency kit (floor doors) | Assumed yes — unconfirmed, see §10 |
+| `Door 17–19` | Emergency kit (floor doors) | Assumed yes — unconfirmed, see §11 |
 
 ---
 
@@ -114,7 +124,7 @@ Given the transfers from step ③:
    - A door holding only sources can go early; a door holding only targets must come after the doors
      feeding it.
    - **A door holding both** should be placed so its sources are worked and its targets filled in the
-     same visit — which is what makes scenario 2 below work.
+     same visit — which is what makes scenario 2 in §9 work.
 4. **Order the stops within a door visit** by R3/R4/R5: takes for that visit, then places, ascending bin
    label within each.
    - A bin that both gives and receives is normally **one stop** — emptied then filled while it is lit,
@@ -266,7 +276,55 @@ locked stays where it is in the panel's history, even if the new plan would not 
 
 ---
 
-## 8. Worked scenarios
+## 8. Cancelling
+
+Cancelling is three different acts depending on where the stock is, and only the first is a discard.
+
+| Regime | State | Behaviour |
+|---|---|---|
+| **A — nothing collected** | No source bin worked yet. The quantity on screen is a proposal; the stock has not moved. | Confirm, then discard. **Built.** |
+| **B — stock in hand** | Quantities taken, nothing placed. The stock is on the counter. | Confirm, warning that it must be put back. **Partly built** — see below. |
+| **C — placing started** | Any stock has gone into a target bin. | **No cancel.** Built: the control is disabled and says why in its own label. |
+
+**A is a discard and nothing more.** The dialog names what is lost (the selection) and states what is not
+(the cabinet). Confirming resets the whole flow to the default view — mode, step, source and target bins,
+both search channels, and the open door — the same end state a completed move leaves behind. Anything
+short of that drops the operator back into step ② holding the selection they just abandoned.
+
+**B is not an undo, it is a return move.** Nothing the app does can put vials back; the operator has to.
+So the honest model is not "cancel" at all but a **second route, source and target swapped** — from the
+counter back to the bins the stock came from, under the same one-door constraint as any other route. The
+planner already computes this: it is `planMoveRoute` over the reversed transfers.
+
+That reframing dissolves the distinction between "all from one door" and "moved away from that door".
+They are the same act with different route lengths:
+
+- All from the door still open → a one-stop return. A dialog is enough: put it back, confirm.
+- Several doors, or the door since locked → a multi-stop return with its own door transitions, which
+  deserves the same guidance as the forward move rather than a sentence in a dialog.
+
+Consequences that follow, and are **not** yet decided:
+
+- **A return has to be recorded.** Silently restoring stock makes the audit trail claim nothing happened,
+  when a door was opened and vials were handled. "Move cancelled, stock returned" is a real event.
+- **A return can itself be abandoned**, leaving stock split between the counter and the bins. If the
+  return is a move like any other, that is just an incomplete move — but the staging state has to survive
+  on screen so whoever picks it up can see what is outstanding.
+- **The control should not say "Cancel" in regime B.** It is not cancelling, it is returning stock and
+  leaving. One word for both acts hides the work the second one costs.
+
+**C is closed, and for a stronger reason than "inventory has changed".** Nothing is committed until the
+end of the flow, so state is not the obstacle. The obstacle is that **the move is no longer identifiable
+in the bin**: a target bin that already stocked the product now holds one merged quantity, and the app
+cannot tell the arriving vials from the ones that were there. There is nothing to take back out.
+
+That leaves the operator with no exit but completing the move, which is a real operational question:
+if abandoning mid-placement has to be possible, it cannot be a cancel — it needs a path that records a
+discrepancy rather than pretending the move can be unwound.
+
+---
+
+## 9. Worked scenarios
 
 Throughout: `S` = source bin, `T` = target bin.
 
@@ -339,7 +397,7 @@ and only Door 2 is split.
 
 ---
 
-## 9. What the code does not model yet
+## 10. What the code does not model yet
 
 Every item here is a prerequisite, not a nice-to-have.
 
@@ -359,7 +417,7 @@ Every item here is a prerequisite, not a nice-to-have.
 
 ---
 
-## 10. Open questions
+## 11. Open questions
 
 - **Emergency-kit floor doors (17–19)** — same lock and lighting constraints as cabinet doors? Assumed
   yes above.
@@ -375,6 +433,10 @@ Every item here is a prerequisite, not a nice-to-have.
 
 ## Revisions
 
+- **2026-08-05** — Cancellation (§8). Three regimes, of which A and C are built. The team is certain
+  about C: once placing has begun, Cancel is off. B is open, and writing it up produced the reframing
+  above — cancelling with stock in hand is a return MOVE, not an undo, which makes "same door" versus
+  "moved away" one act with two route lengths rather than two problems.
 - **2026-08-05** — Panel spec (§6) and re-planning (§7) added. Two decisions from the pharmacy team: the
   **product view never disappears** in step ④ — the panel carries the route and a per-product progress
   section together, not behind a toggle, because the panel's purpose is continuous visual guidance; and

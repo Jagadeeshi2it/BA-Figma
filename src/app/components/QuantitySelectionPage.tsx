@@ -20,6 +20,7 @@ import { formatBinLocation, getDoorName } from '../utils/changeAllocationUtils';
 import { pluralizeUnit } from '../utils/pluralizeUnit';
 import { getVialType, hasClimateBadge, hasCivBadge } from '../utils/binProducts';
 import { CabinetAccess } from '../hooks/useCabinetAccess';
+import { CancelMoveStage } from './CancelMoveConfirmModal';
 import svgPaths from "../imports/svg-hyhz42ush2";
 
 /**
@@ -38,7 +39,12 @@ interface QuantitySelectionPageProps {
   transfers: ProductTransfer[];
   doorShelfConfig: DoorShelfConfig;
   onConfirm: (transfersWithQuantities: ProductTransfer[], skippedProducts: SkippedProduct[]) => void;
-  onCancel: () => void;
+  /**
+   * Leaving step ④. Reports how far in the operator is so the caller can confirm accordingly: nothing
+   * collected costs only the selection, but stock already taken has to be physically put back, and only
+   * this screen knows which it is.
+   */
+  onCancel: (stage: CancelMoveStage, collectedBinCount: number) => void;
   // Only for the stepper's step-1 label, which names the unit this kind of move collects.
   moveMode?: 'bin' | 'product' | null;
   // Which single door is open, and how to ask for another. Only one door at the station can be unlocked
@@ -626,6 +632,18 @@ export default function QuantitySelectionPage({
       isDone: idx < currentIndex
     }));
 
+  // Source bins already worked. currentIndex is a position in the group list (one group per product per
+  // bin), so the bins are counted distinctly — two products taken from one bin is one bin to put back.
+  const collectedBinCount = useMemo(() => {
+    const bins = new Set<string>();
+    groupedTransfers.slice(0, currentIndex).forEach(group => bins.add(group.fromBinId));
+    return bins.size;
+  }, [groupedTransfers, currentIndex]);
+
+  // Nothing is in the operator's hands until they have finished with a source bin. At the first bin the
+  // quantity on screen is only a proposal — the stock is still where it was.
+  const cancelStage: CancelMoveStage = collectedBinCount > 0 ? 'stock-in-hand' : 'nothing-collected';
+
   // binProducts.ts keys every badge on name | ndc | inventoryType, and this screen carries those three
   // under different field names — so they're shaped into a product-like object rather than each badge
   // call guessing at the group.
@@ -915,7 +933,11 @@ export default function QuantitySelectionPage({
           <FooterActions>
             {/* Always visible, regardless of which product/source bin is active — unlike Skip, which
                 only makes sense when there's another product to jump to. */}
-            <FooterButton label="Cancel" variant="secondary" onClick={onCancel} />
+            <FooterButton
+              label="Cancel"
+              variant="secondary"
+              onClick={() => onCancel(cancelStage, collectedBinCount)}
+            />
             {showSkipButton && (
               <FooterButton label="Skip Product" variant="secondary" onClick={handleSkip} />
             )}

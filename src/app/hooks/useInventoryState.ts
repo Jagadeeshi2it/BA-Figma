@@ -988,8 +988,11 @@ export const useInventoryState = () => {
     setChangeAllocationSourceBins([]);
     setChangeAllocationTargetBins([]);
     setShowChangeAllocationModal(false);
-    setSelectedSearchQuery(""); // Clear search highlighting when exiting change allocation mode
     setChangeAllocationSourceQuery("");
+    // Both query channels, matching what a completed move does — abandoning the task leaves the search
+    // serving nothing just as finishing it does, so the home page comes back clean either way. This used
+    // to clear only the highlight, so the typed query stayed in the box after exiting.
+    clearProductSearch();
   };
 
   const handleNextStep = () => {
