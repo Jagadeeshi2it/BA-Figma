@@ -137,7 +137,7 @@ Step ① gathers its source differently per kind, and only its own way works:
 |---|---|---|
 | Bin tap | selects the bin | **inert** |
 | Product row tap | inert | selects that product (shelves, `+N more`, or search) |
-| Search box | locates and highlights | the primary route — focused once on entry |
+| Search box | locates and highlights | the primary route (not auto-focused) |
 | Review shows | products per bin | the product's bins to take from |
 
 **The two ends are called `Move From` and `Move To`, everywhere.** Not "Source Bin" / "Target Bin" —
@@ -393,7 +393,11 @@ means "the user is picking bins right now", and both flows feed it.
 (`handleBinClick` returns early) and the *product rows* are the tap target — on the shelves, in the
 `+N more` panel, or from search. The unit being picked is a product, so the bin cannot be the thing
 that answers a tap. `canPickSourceProduct` / `onSelectSourceProduct` carry this into `BinCard` and
-`AllProductsPanel`; `handleSelectSourceProductFromBin` adds the bin scoped to that product.
+`AllProductsPanel`; `handleSelectSourceProductFromBin` adds the bin scoped to that product — and
+**toggles**: tapping a picked product un-picks it, the same as a bin tap in a Bin move. Un-picking
+delegates to `handleRemoveSourceProduct`, which also releases any source bin left holding nothing that is
+still being moved. That is why the pick handler is declared *below* the removal one: a `useCallback`'s
+dependency array is evaluated at render time, so naming a `const` further down throws (§4).
 
 So a product row means three different things depending on where you are, and every surface showing
 one has to handle all three:

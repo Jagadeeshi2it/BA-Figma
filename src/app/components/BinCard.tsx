@@ -400,8 +400,11 @@ export default function BinCard({
                 }`}>
                   {visibleProducts.map((product, index) => (
                     <React.Fragment key={product.id}>
+                      {/* py-1 on the wrapper: 4px each side of the rule. dividerRef measures this
+                          wrapper's height to work out how many rows fit before "+N more", so the value has
+                          to live here rather than as margin on the rule inside it. */}
                       {isStackedProductList && index > 0 && (
-                        <div className="w-full py-0.5" ref={index === 1 ? dividerRef : undefined}>
+                        <div className="w-full py-1" ref={index === 1 ? dividerRef : undefined}>
                           <div className="h-px bg-gray-200" />
                         </div>
                       )}

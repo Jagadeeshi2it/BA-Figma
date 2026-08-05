@@ -119,8 +119,6 @@ export const useInventoryState = () => {
   // while the Review and Move pages are up: a latch local to it would reset on remount and refocus
   // when the user stepped back. The header clears the flag as soon as it has used it, so returning to
   // the source step — from the target step or from further down the flow — never steals focus again.
-  const [pendingSearchFocus, setPendingSearchFocus] = useState(false);
-  const clearPendingSearchFocus = useCallback(() => setPendingSearchFocus(false), []);
   const [changeAllocationSourceBins, setChangeAllocationSourceBins] = useState<string[]>([]);
   const [changeAllocationTargetBins, setChangeAllocationTargetBins] = useState<string[]>([]);
   const [changeAllocationStep, setChangeAllocationStep] = useState<1 | 2>(1);
@@ -567,30 +565,6 @@ export const useInventoryState = () => {
     }
   }, [changeAllocationSourceBins]);
 
-  // Move by Product, picking straight off the canvas. A tap on a product row inside a bin card takes
-  // THAT product from THAT bin — scoped to the one bin, unlike the search dropdown's "Select as
-  // Source" which takes every bin the product lives in. Tapping a specific row names a specific
-  // place, so widening it to the product's other bins would gather stock the operator never pointed
-  // at. Building the selection a row at a time is the product-mode counterpart to tapping bins in a
-  // Bin move.
-  //
-  // Add-only, which matches the search route — neither toggles. Removal is per-product in the review
-  // panel (handleRemoveSourceProduct), where the whole selection is visible at once.
-  const handleSelectSourceProductFromBin = useCallback((binId: string, product: any) => {
-    // Same identity triple the search path highlights on, so a product picked from the canvas and one
-    // picked from the dropdown produce an identical scope — see §3 on product identity.
-    const group = [product?.name, product?.ndc, product?.inventoryType]
-      .filter(term => term && String(term).trim().length > 0)
-      .join(', ');
-
-    setChangeAllocationSourceBins(prev => (prev.includes(binId) ? prev : [...prev, binId]));
-
-    if (group) {
-      setSelectedSearchQuery(prev => appendQueryGroup(prev, group));
-      setChangeAllocationSourceQuery(prev => appendQueryGroup(prev, group));
-    }
-  }, []);
-
   // Handler for clicking on a product in search dropdown (when change allocation mode is off)
   const handleSearchProductClick = useCallback((productName: string, ndc: string, inventoryType: string) => {
     // Create a specific search query with product name, NDC, and inventory type
@@ -835,7 +809,6 @@ export const useInventoryState = () => {
     enterMoveMode('product');
     // Searching is the only way to pick a source in this kind, so the box gets the cursor — once, here
     // at the start, not on every return to the source step.
-    setPendingSearchFocus(true);
   };
   // Kept for any remaining callers; defaults to the bin kind (the old catch-all behaviour).
   const handleChangeAllocationClick = () => enterMoveMode('bin');
@@ -982,8 +955,6 @@ export const useInventoryState = () => {
   const handleExitChangeAllocation = () => {
     setChangeAllocationMode(false);
     setMoveMode(null);
-    // Drop an unused focus request so it can't fire into the next flow the user starts.
-    setPendingSearchFocus(false);
     setChangeAllocationStep(1);
     setChangeAllocationSourceBins([]);
     setChangeAllocationTargetBins([]);
@@ -1080,6 +1051,47 @@ export const useInventoryState = () => {
       );
     }
   }, [changeAllocationSourceQuery, doorShelfConfig]);
+
+  /**
+   * Picking a product off a shelf in a Product move — and un-picking it.
+   *
+   * A tap on a product row inside a bin card takes THAT product from THAT bin — scoped to the one bin,
+   * unlike the search dropdown's "Move From", which takes every bin the product lives in. Tapping a
+   * specific row names a specific place, so widening it to the product's other bins would gather stock
+   * the operator never pointed at. Building the selection a row at a time is the product-mode counterpart
+   * to tapping bins in a Bin move.
+   *
+   * Tapping a product that is already in the selection takes it back out, which is the same toggle a bin
+   * tap has in a Bin move: a tap that can only ever add leaves the operator with no way to correct a
+   * mis-tap except abandoning the whole selection.
+   *
+   * Removal delegates to handleRemoveSourceProduct rather than repeating it, because taking a product out
+   * is not just dropping its query group — any source bin left holding nothing that is still being moved
+   * has to be released too, or the review panel would list everything in that bin as though it were all
+   * moving. That is also why this sits BELOW that handler: a useCallback's dependency array is evaluated
+   * at render time, so naming a `const` declared further down throws before the callback ever runs.
+   */
+  const handleSelectSourceProductFromBin = useCallback(
+    (binId: string, product: any) => {
+      // Same identity triple the search path highlights on, so a product picked from the canvas and one
+      // picked from the dropdown produce an identical scope — see §3 on product identity.
+      const group = queryGroupForProduct(product);
+      if (!group) return;
+
+      // Already picked? Then this tap is an un-pick. Tested by whether removing the group would actually
+      // change the query — the one signal that tells "this product is tracked" apart from "a bin picked
+      // by hand happens to contain it too".
+      if (removeQueryGroup(changeAllocationSourceQuery, group) !== changeAllocationSourceQuery) {
+        handleRemoveSourceProduct(product);
+        return;
+      }
+
+      setChangeAllocationSourceBins(prev => (prev.includes(binId) ? prev : [...prev, binId]));
+      setSelectedSearchQuery(prev => appendQueryGroup(prev, group));
+      setChangeAllocationSourceQuery(prev => appendQueryGroup(prev, group));
+    },
+    [changeAllocationSourceQuery, handleRemoveSourceProduct]
+  );
 
   const handleOpenChangeAllocationModal = () => {
     if (changeAllocationSourceBins.length > 0 && changeAllocationTargetBins.length > 0) {
@@ -1937,8 +1949,6 @@ export const useInventoryState = () => {
     showHistoryModal,
     changeAllocationMode,
     moveMode,
-    pendingSearchFocus,
-    clearPendingSearchFocus,
     changeAllocationStep,
     changeAllocationSourceBins,
     changeAllocationTargetBins,
