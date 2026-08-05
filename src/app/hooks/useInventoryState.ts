@@ -756,9 +756,14 @@ export const useInventoryState = () => {
                     } as Product;
                   });
                   
+                  // Prepended, not appended, and for the same reason workflow A prepends: a bin card
+                  // shows only as many rows as its footprint fits and hides the rest behind "+N more",
+                  // so a product added to the end of a full bin's list landed straight in the hidden
+                  // remainder — the operator allocated it, watched the toast, and saw nothing change on
+                  // the shelf. First in the list is where the result of the last action belongs.
                   return {
                     ...bin,
-                    products: [...bin.products, ...newProducts],
+                    products: [...newProducts, ...bin.products],
                     available: false // Bin is no longer available since it has products
                   };
                 }
@@ -1387,9 +1392,12 @@ export const useInventoryState = () => {
                       ...sourceProduct,
                       quantity: transfer.quantity
                     };
+                    // Front of the list, as in the two allocate paths: stock arriving in a bin is the
+                    // result of the operator's last action, and appending it to a full bin buried it
+                    // behind "+N more".
                     return {
                       ...bin,
-                      products: [...bin.products, newProduct],
+                      products: [newProduct, ...bin.products],
                       available: false
                     };
                   }
