@@ -222,7 +222,7 @@ export default function AllocationSelectionPanel({
 
   // One list, newest first. `bins` arrives in the order bins were added to the selection, which makes
   // that array the record of what happened when — so a product's recency is the latest bin its own
-  // selection contributed (all of them land together on one "Select as Source"), and a hand-picked
+  // selection contributed (all of them land together on one "Move From"), and a hand-picked
   // bin's is simply its own position. Sorting both by that interleaves the two kinds correctly
   // without needing to timestamp anything, and it's why no grouping labels are needed: the newest
   // thing you did is at the top whichever kind it was.
@@ -259,8 +259,9 @@ export default function AllocationSelectionPanel({
         {/* Header */}
         <div className="p-4 border-b border-gray-200 flex items-start justify-between gap-3">
           <div className="min-w-0">
+            {/* The same words the footer cell that opened this panel uses, so the two name one thing. */}
             <h2 className="font-semibold text-[16px] leading-[24px]">
-              {isSource ? 'Source' : 'Target'} Selection
+              {isSource ? 'Move From' : 'Move To'}
             </h2>
             <p className="text-sm text-gray-500">
               {bins.length} bin{bins.length !== 1 ? 's' : ''}

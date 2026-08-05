@@ -409,7 +409,9 @@ export default function HistoryPage({
                   <table className="w-full border-collapse">
                     <thead>
                       <tr className="bg-[#f9fafb] border-b border-[#e5e7eb]">
-                        {['Product', 'NDC', 'Inventory Type', 'Source', 'Target', 'Status', 'Created By'].map(h => (
+                        {/* Past tense: this is a ledger of moves that happened, not the task. Same
+                            vocabulary as the move flow's "Move From" / "Move To", one tense back. */}
+                        {['Product', 'NDC', 'Inventory Type', 'Moved From', 'Moved To', 'Status', 'Created By'].map(h => (
                           <th key={h} className="text-left px-4 py-3 text-[13px] font-semibold text-[#475569] whitespace-nowrap">{h}</th>
                         ))}
                       </tr>

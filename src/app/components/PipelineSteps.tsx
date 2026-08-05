@@ -30,12 +30,12 @@ export const instructionFor = (step: PipelineStep, moveMode: MoveMode): string =
         ? 'Search for and select product(s) to move, or select product(s) from bin(s).'
         : 'Tap the bins holding the stock you want to move.';
     case 2:
-      return 'Tap the bins the stock should go to.';
+      return 'Tap the bins to move the stock to.';
     case 3:
       return moveMode === 'product'
         ? "Choose which of the product's bins to take from."
         : 'Choose which products to move out of each bin.';
     case 4:
-      return 'Take the quantity at the source bin, then place it in the target bin.';
+      return 'Take the quantity where you are moving from, then place it where you are moving to.';
   }
 };

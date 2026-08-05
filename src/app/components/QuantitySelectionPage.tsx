@@ -97,7 +97,7 @@ interface GroupedTransfer {
  * different reasons for the same rule.
  */
 export const CANNOT_CANCEL_REASON =
-  'Quantity has already been taken from a source bin, so this move can no longer be cancelled. Finish it to record where everything went.';
+  'Quantity has already been taken out of a bin, so this move can no longer be cancelled. Finish it to record where everything went.';
 
 const productKeyOf = (group: GroupedTransfer) =>
   `${group.productName}-${group.ndc}-${group.inventoryType}`;
@@ -581,10 +581,10 @@ export default function QuantitySelectionPage({
   );
 
   const primaryActionLabel = hasMoreSourceBinsForProduct
-    ? 'Next Source Bin'
+    ? 'Next Bin to Move From'
     : hasMoreProductsAfterThis
       ? 'Save & Continue'
-      : 'Proceed to Target Bin';
+      : 'Proceed to Move To';
   
   // Show Skip button ONLY if:
   // 1. This is the first source bin of the product AND
@@ -723,7 +723,7 @@ export default function QuantitySelectionPage({
 
             {/* Source Bin */}
             <div>
-              <p className="text-[12px] font-semibold text-[#25282a] opacity-50 mb-3">Source Bin</p>
+              <p className="text-[12px] font-semibold text-[#25282a] opacity-50 mb-3">Move From</p>
               <div className="space-y-2">
                 <div className="flex gap-2 items-center">
                   <span className="text-[14px] text-[#4a5565]">Door:</span>
@@ -917,7 +917,7 @@ export default function QuantitySelectionPage({
               <FooterDivider />
               <SummaryCell
                 icon={<LogOut className="w-4 h-4" />}
-                label="Source Bin"
+                label="Move From"
                 value={`${sourceBinSummaries.filter(b => b.isDone).length + 1} of ${sourceBinSummaries.length}`}
                 active={activeSheet === 'sourceBin'}
                 enabled
@@ -997,7 +997,7 @@ export default function QuantitySelectionPage({
                     NDC: {p.ndc || 'N/A'} · {p.inventoryType || 'Purchased'}
                   </p>
                   <p className="text-[12px] text-[#64748b]">
-                    {p.binCount} source bin{p.binCount !== 1 ? 's' : ''}
+                    {p.binCount} bin{p.binCount !== 1 ? 's' : ''} to move from
                   </p>
                 </div>
                 <div className="flex flex-col items-end gap-1 shrink-0">
@@ -1017,7 +1017,7 @@ export default function QuantitySelectionPage({
       {/* Source bin list sheet — bins for the CURRENT product */}
       <SideSheet
         open={activeSheet === 'sourceBin'}
-        title="Source bins"
+        title="Bins to move from"
         subtitle={currentGroup.productName}
         onClose={() => setActiveSheet(null)}
       >

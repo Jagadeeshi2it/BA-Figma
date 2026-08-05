@@ -140,8 +140,21 @@ Step ① gathers its source differently per kind, and only its own way works:
 | Search box | locates and highlights | the primary route — focused once on entry |
 | Review shows | products per bin | the product's bins to take from |
 
-Buttons name **what happens next**: `Select` / `Remove` on the cards, `Next Source Bin` →
-`Save & Continue` → `Proceed to Target Bin` on the quantity page. Nothing says "Confirm" until it
+**The two ends are called `Move From` and `Move To`, everywhere.** Not "Source Bin" / "Target Bin" —
+source and target are the app's words for the roles; move-from and move-to are the operator's, and the
+label usually sits on a shelf they are about to reach into. It applies to the bin badges, the footer's two
+summary cells and its step buttons, the side panels those cells open, and both step-④ screens. The History
+page uses the past tense (`Moved From` / `Moved To`) because it is a ledger of moves that happened.
+
+**A Product move's source badge says `2 Selected` instead**, counting *that bin's* products in the move.
+They picked products, not bins — the bin joined the selection as a consequence — so the badge reports what
+they chose. Per bin, not per move: the label is on one card, and a figure identical on every source bin
+would say nothing about the one it is attached to. It counts against `changeAllocationSourceQuery`, **not**
+the highlight query (§3) — picking a product off a shelf records it in the former, and only a pick made
+through the search box reaches the latter, so counting from the highlight reported 0 for shelf picks.
+
+Buttons name **what happens next**: `Select` / `Remove` on the cards, `Next Bin to Move From` →
+`Save & Continue` → `Proceed to Move To` on the quantity page. Nothing says "Confirm" until it
 commits — Review's primary is `Start Qty Move`.
 
 **All quantities are taken at the source before anything is carried to the target.** The quantity

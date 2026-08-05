@@ -101,8 +101,8 @@ interface MoveSummaryPanelProps {
 }
 
 const STAGE_COPY: Record<Exclude<MoveSummaryStage, 'review' | 'route'>, { label: string; icon: typeof LogOut }> = {
-  source: { label: 'Take qty from source bin', icon: LogOut },
-  target: { label: 'Placing in target bin', icon: LogIn }
+  source: { label: 'Take qty from the bin you are moving from', icon: LogOut },
+  target: { label: 'Place qty in the bin you are moving to', icon: LogIn }
 };
 
 /** What the operator does at a stop, in the words the stop's own screen uses. */

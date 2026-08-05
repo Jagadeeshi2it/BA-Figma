@@ -939,7 +939,7 @@ export default function TargetBinSerialScanPage({
 
             {/* Target Bin with Source Bins List */}
             <div>
-              <p className="text-[12px] font-semibold text-[#25282a] opacity-50 mb-3">Target Bin</p>
+              <p className="text-[12px] font-semibold text-[#25282a] opacity-50 mb-3">Move To</p>
               <div className="space-y-2">
                 <div className="flex gap-2 items-center">
                   <span className="text-[14px] text-[#4a5565]">Door:</span>
@@ -1134,7 +1134,7 @@ export default function TargetBinSerialScanPage({
               <FooterDivider />
               <SummaryCell
                 icon={<LogIn className="w-4 h-4" />}
-                label="Target Bin"
+                label="Move To"
                 value={`${currentTargetBinIndex + 1} of ${currentProduct.targetBins.length}`}
                 active={activeSheet === 'targetBin'}
                 enabled
@@ -1182,7 +1182,7 @@ export default function TargetBinSerialScanPage({
       <SideSheet
         open={activeSheet === 'product'}
         title="Products in this step"
-        subtitle={`${productGroups.length} product${productGroups.length !== 1 ? 's' : ''} being placed into target bins`}
+        subtitle={`${productGroups.length} product${productGroups.length !== 1 ? 's' : ''} being placed`}
         onClose={() => setActiveSheet(null)}
       >
         {productGroups.map((p, idx) => {
@@ -1204,7 +1204,7 @@ export default function TargetBinSerialScanPage({
                     NDC: {p.ndc || 'N/A'} · {p.inventoryType || 'Purchased'}
                   </p>
                   <p className="text-[12px] text-[#64748b]">
-                    {p.targetBins.length} target bin{p.targetBins.length !== 1 ? 's' : ''}
+                    {p.targetBins.length} bin{p.targetBins.length !== 1 ? 's' : ''} to move to
                   </p>
                 </div>
                 <div className="flex flex-col items-end gap-1 shrink-0">
@@ -1229,7 +1229,7 @@ export default function TargetBinSerialScanPage({
       {/* Target bin list sheet — bins for the CURRENT product */}
       <SideSheet
         open={activeSheet === 'targetBin'}
-        title="Target bins"
+        title="Bins to move to"
         subtitle={currentProduct.productName}
         onClose={() => setActiveSheet(null)}
       >
@@ -1249,7 +1249,7 @@ export default function TargetBinSerialScanPage({
                   <p className="text-[14px] font-semibold text-[#020817]">{tb.targetBinName}</p>
                   <p className="text-[12px] text-[#64748b]">{tb.targetDoorName}</p>
                   <p className="text-[12px] text-[#64748b] mt-1">
-                    From {tb.sourceBins.map(sb => sb.sourceBinName).filter(Boolean).join(', ') || 'source bin'}
+                    From {tb.sourceBins.map(sb => sb.sourceBinName).filter(Boolean).join(', ') || 'the bin you moved from'}
                   </p>
                 </div>
                 <div className="flex flex-col items-end gap-1 shrink-0">

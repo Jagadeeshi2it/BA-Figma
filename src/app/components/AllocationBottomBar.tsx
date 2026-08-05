@@ -73,7 +73,7 @@ export default function AllocationBottomBar({
 
       <SummaryCell
         icon={<LogOut className="w-4 h-4" />}
-        label="Move"
+        label="Move From"
         value={sourceValue}
         active={openPanel === 'source'}
         enabled={sourceBinCount > 0}
@@ -82,7 +82,7 @@ export default function AllocationBottomBar({
       <FooterDivider />
       <SummaryCell
         icon={<LogIn className="w-4 h-4" />}
-        label="Move to"
+        label="Move To"
         value={targetValue}
         active={openPanel === 'target'}
         enabled={targetBinCount > 0}
@@ -92,8 +92,9 @@ export default function AllocationBottomBar({
       <FooterActions>
         <FooterButton label="Cancel" variant="secondary" onClick={onCancel} />
         {step === 2 && (
+          // Named for the step it returns to, as the forward button is named for the step it advances to.
           <FooterButton
-            label="Source Selection"
+            label="Move From"
             variant="secondary"
             onClick={onBackToSource}
             leadingIcon={<ArrowLeft className="w-4 h-4" />}
@@ -105,7 +106,7 @@ export default function AllocationBottomBar({
           // they needed and was told nothing about why it wouldn't work (UX-AUDIT H6-2). The forward
           // arrow is dropped while blocked: it promises a next step that can't happen.
           <FooterButton
-            label={sourceBinCount > 0 ? 'Target Selection' : 'Select a source bin'}
+            label={sourceBinCount > 0 ? 'Move To' : 'Select what to move from'}
             variant="primary"
             enabled={sourceBinCount > 0}
             onClick={onNext}
@@ -113,7 +114,7 @@ export default function AllocationBottomBar({
           />
         ) : (
           <FooterButton
-            label={targetBinCount > 0 ? 'Review Selection' : 'Select a target bin'}
+            label={targetBinCount > 0 ? 'Review Selection' : 'Select where to move to'}
             variant="primary"
             enabled={targetBinCount > 0}
             onClick={onConfirm}

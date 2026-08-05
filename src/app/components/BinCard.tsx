@@ -26,6 +26,15 @@ interface BinCardProps {
   // Move by Product, source step: the BIN is not selectable there, but its product rows are — a tap
   // picks that product out of this bin, so the canvas is a second way in alongside the search bar.
   canPickSourceProduct?: boolean;
+  // Which kind of move is running, so a source bin can describe itself in the unit the operator picked.
+  moveMode?: 'bin' | 'product' | null;
+  /**
+   * Which products the source selection is scoped to. NOT the `searchQuery` above: that one is the
+   * highlight channel, and the two are deliberately separate (CLAUDE.md §3). Picking a product off a
+   * shelf records it here; the highlight query only follows when the pick came through the search box, so
+   * counting from `searchQuery` reported 0 for products picked by tapping.
+   */
+  sourceProductQuery?: string;
   onSelectSourceProduct?: (product: any) => void;
   // "All products" modal state lives in App so it survives the product detail page.
   allProductsBinId?: string | null;
@@ -50,6 +59,8 @@ export default function BinCard({
   onClick,
   onProductClick,
   canPickSourceProduct = false,
+  moveMode = null,
+  sourceProductQuery = '',
   onSelectSourceProduct,
   allProductsBinId = null,
   onOpenAllProducts,
@@ -145,6 +156,19 @@ export default function BinCard({
   }, [consolidatedProducts, shouldLimit, searchQuery, displayLimit]);
 
   const additionalCount = consolidatedProducts.length - visibleProducts.length;
+
+  /**
+   * How many of THIS bin's products are in the move, matched on the query the SELECTION is scoped to.
+   *
+   * Only meaningful in a Product move, where a source bin was added *because* a product in it was picked
+   * and is therefore scoped to that product (CLAUDE.md §3). In a Bin move the whole bin was chosen, so
+   * there is no subset to count.
+   */
+  const selectedProductCount = React.useMemo(() => {
+    const query = sourceProductQuery.trim();
+    if (moveMode !== 'product' || !query) return 0;
+    return consolidatedProducts.filter(product => doesProductMatchSearch(product, query)).length;
+  }, [moveMode, sourceProductQuery, consolidatedProducts]);
 
   // Measures the row height and leftover space in the actual, grid-stretched card, then converts
   // that into extra rows for heightFitCount above. A ResizeObserver rather than a one-shot effect:
@@ -308,15 +332,22 @@ export default function BinCard({
         style={style}
         onClick={() => onClick(bin.id)}
       >
-        {/* Source/Target Bin Label */}
+        {/* Named for the act, not the role: "Move From" / "Move To" rather than "Source Bin" / "Target
+            Bin". Source and target are the app's words for the two ends; move-from and move-to are the
+            operator's, and the label is on a shelf they are about to reach into.
+
+            In a Product move the source says "2 Selected" instead. They picked products — the bin is
+            where those products happen to live and joined the selection as a consequence — so the badge
+            reports what they chose. The count is per bin: the label sits on this card, so a figure that
+            was the same on every source bin would say nothing about the one it is attached to. */}
         {isChangeAllocationSource && (
           <p className="absolute font-['Inter:Regular',sans-serif] font-normal leading-[16px] right-3 not-italic text-[#165dfc] text-[14px] text-nowrap text-right top-2">
-            Source Bin
+            {selectedProductCount > 0 ? `${selectedProductCount} Selected` : 'Move From'}
           </p>
         )}
         {isChangeAllocationTarget && (
           <p className="absolute font-['Inter:Regular',sans-serif] font-normal leading-[16px] right-3 not-italic text-[#359f5a] text-[14px] text-nowrap text-right top-2">
-            Target Bin
+            Move To
           </p>
         )}
         

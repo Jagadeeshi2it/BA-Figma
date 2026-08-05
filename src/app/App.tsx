@@ -841,6 +841,7 @@ export default function App() {
           />
 
           <ShelvesSection
+            sourceProductQuery={inventoryState.changeAllocationSourceQuery ?? ''}
             allProductsBinId={allProductsBinId}
             onOpenAllProducts={setAllProductsBinId}
             onCloseAllProducts={() => setAllProductsBinId(null)}

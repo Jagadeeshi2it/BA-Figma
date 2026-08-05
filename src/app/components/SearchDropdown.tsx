@@ -199,7 +199,7 @@ const SearchDropdown = memo(function SearchDropdown({
     searchResults.every(result =>
       getBinIdsForProduct(result).every(binId => sourceBinIds.includes(binId))
     );
-  const unavailablePrefix = onlyInSourceBins ? 'Only stocked in source bins' : 'Already selected';
+  const unavailablePrefix = onlyInSourceBins ? 'Only stocked in the bins you are moving from' : 'Already selected';
   const alreadySelectedMessage = names.length <= 3
     ? `${unavailablePrefix}: ${names.join(', ')}`
     : `${unavailablePrefix}: ${names.slice(0, 3).join(', ')} and ${names.length - 3} more`;
