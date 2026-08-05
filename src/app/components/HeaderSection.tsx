@@ -355,9 +355,11 @@ const HeaderSection = memo(function HeaderSection({
                       matching "Allocate Product" above, even though you can pick several. */}
                   <WorkflowOption
                     title="Allocate Product"
-                    // "No stock moves" is the fact that distinguishes this from the two below, and the one
-                    // most easily assumed wrong: a new location opens at 0 and is filled by a move later.
-                    description="Give a product another bin. No stock moves."
+                    // "Existing" is the load-bearing word: this gives ANOTHER bin to a product already in
+                    // the cabinet. Products with no bin at all go through the Unallocated tray instead, which
+                    // is a different flow entirely — and "Give a product another bin" never said which of
+                    // the two this was.
+                    description="Assign bins to an existing product."
                     onSelect={() => {
                       setWorkflowMenuOpen(false);
                       handleAllocateProductsClick();
