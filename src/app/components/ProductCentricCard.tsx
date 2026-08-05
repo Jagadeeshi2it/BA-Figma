@@ -54,10 +54,9 @@ export default function ProductCentricCard({
             <button
               onClick={allMoved ? undefined : onMoveAll}
               disabled={allMoved}
-              className={`h-8 px-3 rounded-[4px] font-['Inter:Regular',_sans-serif] font-normal text-[14px] leading-[20px] text-center border ${
-                allMoved
-                  ? 'bg-white border-gray-300 text-gray-400 cursor-not-allowed'
-                  : 'bg-white border-[#095192] text-[#095192] cursor-pointer hover:bg-[#F1F6FA]'
+              // Dimmed, not recoloured — same rule as the per-row Select below it.
+              className={`h-8 px-3 rounded-[4px] font-['Inter:Regular',_sans-serif] font-normal text-[14px] leading-[20px] text-center border bg-white border-[#095192] text-[#095192] ${
+                allMoved ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:bg-[#F1F6FA]'
               }`}
             >
               {allMoved ? 'All selected' : 'Select All'}
@@ -96,17 +95,15 @@ export default function ProductCentricCard({
                   </div>
                 </div>
                 
-                {/* Stays put once picked, greyed rather than gone — a row losing its control looks
+                {/* Stays put once picked, dimmed rather than gone — a row losing its control looks
                     like the control failed, not like the work is done. */}
                 <button
                   onClick={hasMoved ? undefined : () => onMoveFromBin(binLocation.productId, binLocation.binId)}
                   disabled={hasMoved}
                   // Secondary, matching Select on the bin-centric card: the two render in the same
                   // column depending on the move kind, so they can't differ in weight.
-                  className={`h-8 px-3 rounded-[4px] font-['Inter:Regular',_sans-serif] font-normal text-[14px] leading-[20px] text-center border transition-colors ${
-                    hasMoved
-                      ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
-                      : 'bg-white text-[#095192] border-[#095192] cursor-pointer hover:bg-[#F1F6FA]'
+                  className={`h-8 px-3 rounded-[4px] font-['Inter:Regular',_sans-serif] font-normal text-[14px] leading-[20px] text-center border transition-colors bg-white text-[#095192] border-[#095192] ${
+                    hasMoved ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:bg-[#F1F6FA]'
                   }`}
                 >
                   {hasMoved ? 'Selected' : 'Select'}

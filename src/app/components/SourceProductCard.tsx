@@ -154,10 +154,12 @@ export default function SourceProductCard({
                 // buttons they were the loudest thing on the page and competed with Move Qty — the
                 // one control that actually advances the flow. Outlined, they still read as the
                 // row's action while leaving a single primary on the screen.
-                className={`h-8 px-3 rounded-[4px] font-['Inter:Regular',_sans-serif] font-normal text-[14px] leading-[20px] whitespace-nowrap border transition-colors ${
-                  alreadySelected
-                    ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
-                    : 'bg-white text-[#095192] border-[#095192] cursor-pointer hover:bg-[#F1F6FA]'
+                // Still a secondary button when it's spent: same white fill, same blue, just dimmed.
+                // Recolouring it grey made "Selected" look like a different kind of control from the
+                // "Select" beside it, when it is the same button reporting that its work is done — and
+                // the footer's own disabled buttons dim rather than recolour, so grey was the odd one.
+                className={`h-8 px-3 rounded-[4px] font-['Inter:Regular',_sans-serif] font-normal text-[14px] leading-[20px] whitespace-nowrap border transition-colors bg-white text-[#095192] border-[#095192] ${
+                  alreadySelected ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:bg-[#F1F6FA]'
                 }`}
               >
                 {alreadySelected ? 'Selected' : 'Select'}

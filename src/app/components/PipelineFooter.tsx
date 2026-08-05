@@ -74,7 +74,7 @@ export function StepCell({
   moveMode?: 'bin' | 'product' | null;
 }) {
   return (
-    <div className="shrink-0 w-[200px]">
+    <div className="shrink-0 w-[240px]">
       <span className="block text-[12px] leading-[16px] font-semibold text-[#020817]">
         Step {step}/{TOTAL_PIPELINE_STEPS}
       </span>

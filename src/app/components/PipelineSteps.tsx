@@ -25,15 +25,17 @@ type MoveMode = 'bin' | 'product' | null | undefined;
  */
 export const instructionFor = (step: PipelineStep, moveMode: MoveMode): string => {
   switch (step) {
+    // Steps ① and ② are deliberately parallel — "to move stock from" / "to move stock to" — because they
+    // are the same gesture at the two ends, and the footer cells beside them are named the same way.
     case 1:
       return moveMode === 'product'
-        ? 'Search for and select product(s) to move, or select product(s) from bin(s).'
-        : 'Tap the bins holding the stock you want to move.';
+        ? 'Search for the products to move, or tap them in a bin.'
+        : 'Tap the bins to move stock from.';
     case 2:
-      return 'Tap the bins to move the stock to.';
+      return 'Tap the bins to move stock to.';
     case 3:
       return moveMode === 'product'
-        ? "Choose which of the product's bins to take from."
+        ? "Choose which of the product's bins to move from."
         : 'Choose which products to move out of each bin.';
     case 4:
       return 'Take the quantity where you are moving from, then place it where you are moving to.';

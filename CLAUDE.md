@@ -190,8 +190,9 @@ Every stage renders `PipelineFooterShell` from `PipelineFooter.tsx`, left to rig
 [ Step n/4 + instruction ] │ [ summary cell ] [ summary cell ]        [ Cancel ] [ Back ] [ primary → ]
 ```
 
-- `StepCell` is a fixed **200px** — the instructions differ in length between steps, and a cell that
-  resized with them would shunt everything to its right sideways on every step change.
+- `StepCell` is a fixed **240px** — the instructions differ in length between steps, and a cell that
+  resized with them would shunt everything to its right sideways on every step change. It was 200px until
+  the from/to rewording, which the extra width lets sit on one line.
 - The instruction sentence comes from `instructionFor(step, moveMode)`. Knowing you are on step 1 of
   4 does not tell you what to do on step 1, and the canvas cannot say it — in a move,
   `changeAllocationMode` reaches `BinCard` only to *disable* things, so the shelves go quiet.
@@ -556,6 +557,10 @@ been violations of it.
   about it. Note `onBlockedClick` deliberately does **not** set the `disabled` attribute: a disabled
   button swallows the click, so the operator taps, nothing happens at all, and a blocked control is
   indistinguishable from a broken one. `aria-disabled` still carries the state.
+- **A disabled secondary keeps its own look, dimmed.** `Selected` / `All selected` on the Review cards stay
+  white-and-blue at `opacity-50` rather than turning grey. Recolouring made a spent button look like a
+  different kind of control from the live one beside it, when it is the same button reporting that its work
+  is done — and `FooterButton` already dims rather than recolours, so grey was the odd one out.
 - **`Cancel` and `Back` are blue secondary buttons, everywhere.** Leaving a flow discards a selection
   that was never committed — a step back, not a deletion, so neither earns the destructive red they
   used to carry. `#C6362C` is for things that actually destroy data.
