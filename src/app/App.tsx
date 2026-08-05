@@ -19,6 +19,7 @@ import AllocateProductsPanel from "./components/AllocateProductsPanel";
 import { useDebounce } from "./hooks/useDebounce";
 
 import { useInventoryState } from "./hooks/useInventoryState";
+import { useCabinetAccess } from "./hooks/useCabinetAccess";
 import { useSerialNumberModal } from "./hooks/useSerialNumberModal";
 import { cabinets } from "./data/cabinets";
 import { doesProductMatchSearch } from "./utils/textHighlight";
@@ -74,19 +75,10 @@ export default function App() {
   const [pendingSerialTransfers, setPendingSerialTransfers] = useState<ProductTransfer[]>([]);
   const [completedTransfers, setCompletedTransfers] = useState<ProductTransfer[]>([]);
 
-  // Doors already announced as "unlocked" (via toast) during the current change-allocation
-  // session — shared between QuantitySelectionPage (source door) and TargetBinSerialScanPage
-  // (target door) so the same physical door never gets a duplicate unlock toast, e.g. when a
-  // product's source and destination bin happen to sit behind the same door.
-  const [unlockedDoors, setUnlockedDoors] = useState<Set<string>>(new Set());
-  const handleDoorUnlocked = useCallback((doorName: string) => {
-    setUnlockedDoors(prev => {
-      if (prev.has(doorName)) return prev;
-      const next = new Set(prev);
-      next.add(doorName);
-      return next;
-    });
-  }, []);
+  // Which single cabinet door is open, shared by both halves of step ④. Replaces an accumulating set of
+  // "doors already announced by a toast", which never removed anything and so believed two doors could be
+  // unlocked at once — something the station cannot do (STEP4-GUIDANCE.md §1).
+  const cabinetAccess = useCabinetAccess();
 
   // Products the quantity step was told to skip, carried across to the placement screen so its Move
   // Summary can still list them (marked) rather than silently dropping them.
@@ -275,8 +267,9 @@ export default function App() {
         (window as any).allocateOnlyTransfers = allocateOnlyTransfers;
         
         // Store transfers and open quantity selection modal for move transfers only
-        // New session: forget which doors were already announced as unlocked.
-        setUnlockedDoors(new Set());
+        // New session at a locked cabinet: an open door left over from an abandoned attempt would have
+        // the next one believing it already had access.
+        cabinetAccess.lockAll();
         // Fresh entry from the modal starts at the first product; only a target-page Back resumes on
         // a specific one, so clear any leftover resume key from an earlier back-navigation.
         setQuantityResumeProductKey(undefined);
@@ -434,8 +427,7 @@ export default function App() {
             skippedProducts={skippedMoveProducts}
             doorShelfConfig={inventoryState.doorShelfConfig}
             moveMode={inventoryState.moveMode}
-            unlockedDoors={unlockedDoors}
-            onDoorUnlocked={handleDoorUnlocked}
+            cabinetAccess={cabinetAccess}
             onConfirm={(transfers) => {
               // Handle serial scan confirmation
               console.log('🔧 Serial Scan Confirmation:', {
@@ -478,6 +470,10 @@ export default function App() {
                 setSkippedMoveProducts([]);
                   setPendingQuantityTransfers([]);
                 setShowQuantityModal(false);
+                // The move is done, so the cabinet is closed. The old accumulating set was never reset
+                // here, which did no harm while it only suppressed duplicate toasts — but an open door
+                // outliving the move it was opened for is a lie about the hardware.
+                cabinetAccess.lockAll();
                 
                 // Use setTimeout to ensure state cleanup completes before the handler runs
                 setTimeout(() => {
@@ -497,7 +493,7 @@ export default function App() {
               setCompletedTransfers([]);
               setSkippedMoveProducts([]);
               setPendingQuantityTransfers([]);
-              setUnlockedDoors(new Set());
+              cabinetAccess.lockAll();
             }}
             onBack={(productKey) => {
               // Go back to quantity selection. CRITICAL: merge the current product's transfers
@@ -543,8 +539,7 @@ export default function App() {
           <QuantitySelectionPage
             transfers={pendingQuantityTransfers}
             doorShelfConfig={inventoryState.doorShelfConfig}
-            unlockedDoors={unlockedDoors}
-            onDoorUnlocked={handleDoorUnlocked}
+            cabinetAccess={cabinetAccess}
             initialProductKey={quantityResumeProductKey}
             moveMode={inventoryState.moveMode}
             onBack={() => {
@@ -595,7 +590,7 @@ export default function App() {
               setCompletedTransfers([]);
               setSkippedMoveProducts([]);
               delete (window as any).allocateOnlyTransfers;
-              setUnlockedDoors(new Set());
+              cabinetAccess.lockAll();
             }}
           />
         </MainLayout>

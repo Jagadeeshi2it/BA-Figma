@@ -182,7 +182,20 @@ export { Toaster, CustomToast, ChangeAllocationToast };
 
 // Door-unlock notification: fired when a user lands on a page referencing a physical door,
 // confirming the (simulated) hardware has unlocked it for them.
-export const DoorUnlockedToast = ({ doorName, onDismiss }: { doorName: string; onDismiss?: () => void }) => {
+/**
+ * A door transition. `lockedDoor` is the door given up to open this one — only one door at the station
+ * can be unlocked at a time (STEP4-GUIDANCE.md §1), so an unlock is usually also a lock, and saying only
+ * half of it leaves the operator thinking two doors are open.
+ */
+export const DoorUnlockedToast = ({
+  doorName,
+  lockedDoor,
+  onDismiss
+}: {
+  doorName: string;
+  lockedDoor?: string | null;
+  onDismiss?: () => void;
+}) => {
   return (
     <div className="bg-[#E1F5EC] relative rounded-md w-full shadow-sm">
       <div className="absolute border-[#12805C] border-[0px_0px_0px_8px] border-solid inset-0 pointer-events-none rounded-md" />
@@ -190,6 +203,11 @@ export const DoorUnlockedToast = ({ doorName, onDismiss }: { doorName: string; o
         <div className="box-border content-stretch flex flex-row gap-2 items-center justify-start px-6 py-4 relative flex-1">
           <CheckCircle2 className="w-[21px] h-[21px] text-[#12805C] shrink-0" />
           <p className="text-[14px] text-[#25282a] leading-[normal]">
+            {lockedDoor && (
+              <>
+                <span className="font-bold">{lockedDoor}</span> is locked.{' '}
+              </>
+            )}
             <span className="font-bold">{doorName}</span> is unlocked now.
           </p>
         </div>

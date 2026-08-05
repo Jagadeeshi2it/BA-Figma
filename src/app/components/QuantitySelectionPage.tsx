@@ -19,6 +19,7 @@ import { ProductTransfer, Bin, DoorShelfConfig } from '../types';
 import { formatBinLocation, getDoorName } from '../utils/changeAllocationUtils';
 import { pluralizeUnit } from '../utils/pluralizeUnit';
 import { getVialType, hasClimateBadge, hasCivBadge } from '../utils/binProducts';
+import { CabinetAccess } from '../hooks/useCabinetAccess';
 import svgPaths from "../imports/svg-hyhz42ush2";
 
 /**
@@ -46,10 +47,9 @@ interface QuantitySelectionPageProps {
   initialProductKey?: string;
   // Only for the stepper's step-1 label, which names the unit this kind of move collects.
   moveMode?: 'bin' | 'product' | null;
-  // Doors already announced as unlocked (via toast) elsewhere in this change-allocation session —
-  // avoids re-announcing a door that was already unlocked for, e.g., this same product's target bin.
-  unlockedDoors?: Set<string>;
-  onDoorUnlocked?: (doorName: string) => void;
+  // Which single door is open, and how to ask for another. Only one door at the station can be unlocked
+  // at a time (STEP4-GUIDANCE.md §1), so this is a lock/unlock transition, not a growing set.
+  cabinetAccess: CabinetAccess;
 }
 
 interface TransferWithQuantity extends ProductTransfer {
@@ -103,8 +103,7 @@ export default function QuantitySelectionPage({
   onBack,
   initialProductKey,
   moveMode,
-  unlockedDoors,
-  onDoorUnlocked
+  cabinetAccess
 }: QuantitySelectionPageProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   // Products the operator chose not to move. The walk stays on one list now rather than the parent
@@ -307,15 +306,16 @@ export default function QuantitySelectionPage({
 
   const currentGroup = groupedTransfers[currentIndex];
 
-  // Notify the user the source door has been unlocked for them — once per door for the whole
-  // change-allocation session, not on every bin-to-bin navigation, and not again if this same
-  // door was already announced (e.g. as a target door) elsewhere in the flow.
+  // Unlock the door this source bin is behind, locking whatever was open. Announced only when a
+  // transition actually happened: requestDoor is idempotent, so arriving at a second bin behind the door
+  // already open is silent — the door did not change, and saying so again would imply it had.
   useEffect(() => {
     const doorName = currentGroup?.sourceDoorName;
-    if (!doorName || unlockedDoors?.has(doorName)) return;
-    onDoorUnlocked?.(doorName);
+    if (!doorName) return;
+    const { locked, unlocked } = cabinetAccess.requestDoor(doorName);
+    if (!unlocked) return;
     const toastId = toast.custom(
-      (t) => <DoorUnlockedToast doorName={doorName} onDismiss={() => toast.dismiss(t)} />,
+      (t) => <DoorUnlockedToast doorName={unlocked} lockedDoor={locked} onDismiss={() => toast.dismiss(t)} />,
       { duration: 4000 }
     );
     return () => toast.dismiss(toastId);
@@ -706,9 +706,15 @@ export default function QuantitySelectionPage({
                 <div className="flex gap-2 items-center">
                   <span className="text-[14px] text-[#4a5565]">Door:</span>
                   <span className="text-[14px] text-[#020817]">{currentGroup.sourceDoorName}</span>
-                  <span className="text-[14px] text-[#12805C] ml-2 inline-flex items-center gap-1">
-                    <Unlock className="w-3.5 h-3.5" /> Unlocked
-                  </span>
+                  {/* Stated only when this door really is the open one. It used to be unconditional,
+                      which meant every door the operator ever looked at claimed to be unlocked — and
+                      under a one-door-at-a-time station that is a claim about the hardware, not a label.
+                      A fridge shows nothing: it has no lock to report (STEP4-GUIDANCE.md §1). */}
+                  {cabinetAccess.isOpen(currentGroup.sourceDoorName) && (
+                    <span className="text-[14px] text-[#12805C] ml-2 inline-flex items-center gap-1">
+                      <Unlock className="w-3.5 h-3.5" /> Unlocked
+                    </span>
+                  )}
                 </div>
                 <div className="flex gap-2">
                   <span className="text-[14px] text-[#4a5565]">Bin:</span>
