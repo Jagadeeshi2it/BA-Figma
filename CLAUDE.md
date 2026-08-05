@@ -125,7 +125,9 @@ Three things about that shape are deliberate and easy to undo by accident:
 - **Step ④ spans two screens.** Taking the quantity at the source and placing it in the target are
   two halves of one move; a separate "Place" step misrepresented them as separate errands. The step
   number stays `4/4` across both, and each screen's own header says whether you are taking or
-  placing.
+  placing. **This fixed take-then-place shape is specified to change** — see
+  [STEP4-GUIDANCE.md](STEP4-GUIDANCE.md), which replaces it with a cabinet-aware route under the
+  one-door-at-a-time constraint. Nothing of it is built; the document is the spec, not the code.
 - **Review is a page, not a modal.** It was a dialog overlay, which read as a different kind of
   surface from the pages either side of it.
 
