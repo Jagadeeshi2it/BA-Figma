@@ -74,6 +74,11 @@ export interface AllocationHistoryEntry {
     badge: string;
     quantity: number;
     unit: string;
+    // Both were already being written by the allocate and cancel paths and read by the History page; the
+    // type simply hadn't caught up. The generic name and inventory type are what make a row name the same
+    // drug the bins do.
+    description?: string;
+    inventoryType?: string;
   }[];
   bins: {
     binId: string;
@@ -105,8 +110,11 @@ export interface AllocationHistoryEntry {
     quantity?: number; // Quantity taken out of THIS source bin
     remainingQuantity?: number; // Quantity left in THIS source bin after the move
   }[];
-  action: 'allocation' | 'move' | 'change-allocation' | 'unallocate';
-  transactionType: 'New Bin Allocation' | 'Product moved' | 'Unallocated';
+  // 'move-cancelled' is a move the operator abandoned with stock already in hand: nothing ended up
+  // anywhere new, but a door was opened and vials were handled, so the trail must not claim the session
+  // never happened (STEP4-GUIDANCE.md §8).
+  action: 'allocation' | 'move' | 'change-allocation' | 'unallocate' | 'move-cancelled';
+  transactionType: 'New Bin Allocation' | 'Product moved' | 'Unallocated' | 'Move cancelled';
 }
 
 export interface ProductTransfer {

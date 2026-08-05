@@ -11,7 +11,8 @@
   true interleaving falls back to two phases and reports the cost (§9's last case).
 - **§6, the panel's itinerary** — written but **not wired**: `MoveSummaryPanel` accepts a route, and
   nothing passes it one yet. Step ④'s summary is still product-major.
-- **§8's cancellation** — regimes A and C built, B open.
+- **§8's cancellation** — all three regimes built (B as the phase-1 checklist); verification of a return
+  and partial returns are open.
 - **§7's re-planning** — not built.
 
 This is the rule set for how step ④ of the move pipeline should guide an operator through the physical
@@ -283,7 +284,7 @@ Cancelling is three different acts depending on where the stock is, and only the
 | Regime | State | Behaviour |
 |---|---|---|
 | **A — nothing collected** | No source bin worked yet. The quantity on screen is a proposal; the stock has not moved. | Confirm, then discard. **Built.** |
-| **B — stock in hand** | Quantities taken, nothing placed. The stock is on the counter. | Confirm, warning that it must be put back. **Partly built** — see below. |
+| **B — stock in hand** | Quantities taken, nothing placed. The stock is on the counter. | The dialog becomes a **return checklist**, grouped by door. **Built (phase 1)** — see below. |
 | **C — placing started** | Any stock has gone into a target bin. | **No cancel.** Built: the control is disabled and says why in its own label. |
 
 **A is a discard and nothing more.** The dialog names what is lost (the selection) and states what is not
@@ -297,21 +298,42 @@ counter back to the bins the stock came from, under the same one-door constraint
 planner already computes this: it is `planMoveRoute` over the reversed transfers.
 
 That reframing dissolves the distinction between "all from one door" and "moved away from that door".
-They are the same act with different route lengths:
+They are the same act with different route lengths — which is what makes a simple phase 1 possible.
 
-- All from the door still open → a one-stop return. A dialog is enough: put it back, confirm.
-- Several doors, or the door since locked → a multi-stop return with its own door transitions, which
-  deserves the same guidance as the forward move rather than a sentence in a dialog.
+### Phase 1, as built
 
-Consequences that follow, and are **not** yet decided:
+**One rule:** cancelling is available until the first placement. Not gated on doors, not on how many bins
+were worked. Two states, not three.
 
-- **A return has to be recorded.** Silently restoring stock makes the audit trail claim nothing happened,
-  when a door was opened and vials were handled. "Move cancelled, stock returned" is a real event.
-- **A return can itself be abandoned**, leaving stock split between the counter and the bins. If the
-  return is a move like any other, that is just an incomplete move — but the staging state has to survive
-  on screen so whoever picks it up can see what is outstanding.
-- **The control should not say "Cancel" in regime B.** It is not cancelling, it is returning stock and
-  leaving. One word for both acts hides the work the second one costs.
+**One list:** the dialog *is* the return checklist — what to put back, per bin, grouped by door and
+ordered so the walk back costs the fewest openings. It is on screen exactly while the operator is walking
+back, and confirming is the acknowledgement that they did it. No second screen, no stop-by-stop flow, no
+new state machine.
+
+Ordering needs no route planning: a return has nothing to take, so there are no precedence constraints and
+every door order costs the same number of visits. With cost tied, R5 decides outright — ascending door
+number, then bin reading order (`compareRouteBins`).
+
+**One history entry** — `action: 'move-cancelled'`, listing the bins the stock went back to and what went
+into each. Without it the trail claims nothing happened, when a door was opened and vials were handled.
+
+**The control is relabelled**: `Return the stock, then confirm` / `Returned — Exit` rather than
+"Cancel". It is not cancelling.
+
+The limitation is accepted knowingly and stated on screen: **the app cannot verify the stock went back.**
+Phase 1 takes the operator's word, and the history entry is what makes that word auditable rather than
+invisible. If verification is needed later it is a scan-on-return, which is a phase 2 conversation.
+
+Deliberately deferred: guiding the return stop by stop, tracking a partially completed return, and any
+same-door / different-door branching (which the ordered list dissolves).
+
+### Still open
+
+Consequences that phase 1 does not answer:
+
+- **A return can itself be abandoned**, leaving stock split between the counter and the bins. Phase 1
+  records the return as complete because the operator said so; nothing models a partial one.
+- **Nothing verifies the return.** See above — accepted for phase 1, stated on screen.
 
 **C is closed, and for a stronger reason than "inventory has changed".** Nothing is committed until the
 end of the flow, so state is not the obstacle. The obstacle is that **the move is no longer identifiable
@@ -433,6 +455,10 @@ Every item here is a prerequisite, not a nice-to-have.
 
 ## Revisions
 
+- **2026-08-05** — §8 phase 1 built: one rule (cancel until the first placement), one checklist (the
+  dialog, grouped by door), one history entry. Building it found the placed-stock signal was wrong —
+  `scannedItems` is auto-populated when scanning is not required, so Cancel was disabling itself the moment
+  the placement screen opened, before the operator had done anything.
 - **2026-08-05** — Cancellation (§8). Three regimes, of which A and C are built. The team is certain
   about C: once placing has begun, Cancel is off. B is open, and writing it up produced the reframing
   above — cancelling with stock in hand is a return MOVE, not an undo, which makes "same door" versus

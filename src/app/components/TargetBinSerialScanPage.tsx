@@ -21,7 +21,7 @@ import { pluralizeUnit } from '../utils/pluralizeUnit';
 import { getVialType, hasClimateBadge, hasCivBadge } from '../utils/binProducts';
 import { SkippedProduct } from './QuantitySelectionPage';
 import { CabinetAccess } from '../hooks/useCabinetAccess';
-import { CancelMoveStage } from './CancelMoveConfirmModal';
+import { CancelMoveStage, StagedStock } from './CancelMoveConfirmModal';
 
 interface ScannedItem {
   serial: string;
@@ -36,7 +36,7 @@ interface TargetBinSerialScanPageProps {
   doorShelfConfig: DoorShelfConfig;
   onConfirm: (transfersWithSerials: ProductTransfer[]) => void;
   /** Leaving step ④. Only offered while nothing has been placed — see hasPlacedStock below. */
-  onCancel: (stage: CancelMoveStage, collectedBinCount: number) => void;
+  onCancel: (stage: CancelMoveStage, staged: StagedStock[]) => void;
   remainingTransfers?: ProductTransfer[];
   // Products the quantity step was told to skip. Listed in the Move Summary, marked, so the operator
   // can see why a product they picked at Review has no bins or quantities on this screen.
@@ -497,25 +497,52 @@ export default function TargetBinSerialScanPage({
   }, [currentTargetBin?.targetDoorName]);
 
   /**
-   * Whether any stock has actually gone into a target bin. Past this point cancelling is off: the cabinet
-   * has begun to change, and there is no honest "put it back" for stock already placed and scanned.
+   * Whether the operator has actually put stock into a target bin. Past this point cancelling is off: the
+   * cabinet has begun to change, and there is no honest "put it back" for stock already placed.
    *
-   * Two signals, because one alone is not enough. scannedItems covers a move that requires scanning; the
-   * indices cover one that does not, where a bin is completed by saving it with no serials to record.
+   * Two signals, and both need their guard:
+   *
+   * - **Advanced past a target bin.** Saving a bin is placing its stock, whether or not serials were
+   *   recorded. This is the only signal when scanning isn't required.
+   * - **Scanned items, but only when scanning IS required.** When it is not, the effect above
+   *   auto-populates scannedItems the moment the screen opens — so reading it unguarded disabled Cancel
+   *   before the operator had done anything at all, which is not what "started placing" means.
    */
   const hasPlacedStock = useMemo(
     () =>
-      Object.values(scannedItems).some(items => items.length > 0) ||
       currentProductIndex > 0 ||
-      currentTargetBinIndex > 0,
-    [scannedItems, currentProductIndex, currentTargetBinIndex]
+      currentTargetBinIndex > 0 ||
+      (serialScanningRequired && Object.values(scannedItems).some(items => items.length > 0)),
+    [scannedItems, currentProductIndex, currentTargetBinIndex, serialScanningRequired]
   );
 
-  // Source bins the stock in hand came out of — what would have to be put back.
-  const collectedBinCount = useMemo(
-    () => new Set(transfers.map(transfer => transfer.fromBinId)).size,
-    [transfers]
-  );
+  // Everything on this screen was taken at the source before any of it was carried, so the whole batch is
+  // on the counter. One entry per source bin per product; a product gathered from three bins is three
+  // things to put back, in three places.
+  const stagedStock = useMemo<StagedStock[]>(() => {
+    const byBinAndProduct = new Map<string, StagedStock>();
+    transfers.forEach(transfer => {
+      const productName = (transfer as any).productName ?? '';
+      const key = `${transfer.fromBinId}|${productName}`;
+      const existing = byBinAndProduct.get(key);
+      if (existing) {
+        // A source feeding several target bins carries its whole amount on every transfer (CLAUDE.md §3),
+        // so this must not sum — it is one quantity that left the bin once.
+        existing.quantity = Math.max(existing.quantity, transfer.quantity);
+        return;
+      }
+      byBinAndProduct.set(key, {
+        binId: transfer.fromBinId,
+        productName,
+        quantity: transfer.quantity,
+        unit: (transfer as any).unit,
+        ndc: (transfer as any).ndc,
+        inventoryType: (transfer as any).inventoryType,
+        description: (transfer as any).productDescription
+      });
+    });
+    return Array.from(byBinAndProduct.values()).filter(item => item.quantity > 0);
+  }, [transfers]);
 
   const getTargetBinKey = (targetBin: TargetBinGroup) =>
     scanKey(currentProduct.productId, targetBin.toBinId);
@@ -1181,7 +1208,7 @@ export default function TargetBinSerialScanPage({
               label={hasPlacedStock ? 'Cannot cancel — stock placed' : 'Cancel'}
               variant="secondary"
               enabled={!hasPlacedStock}
-              onClick={() => onCancel('stock-in-hand', collectedBinCount)}
+              onClick={() => onCancel('stock-in-hand', stagedStock)}
             />
             <FooterButton
               label={effectiveSaveLabel}

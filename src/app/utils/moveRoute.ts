@@ -184,6 +184,19 @@ const binNameCompare = (a: string, b: string): number => {
   return a.localeCompare(b);
 };
 
+/**
+ * Ascending door number, then bin reading order.
+ *
+ * Exported because a return walk needs it too: putting stock back has nothing to take, so there are no
+ * precedence constraints at all, and every door order costs the same number of visits. With cost tied,
+ * R5 decides outright — the operator should be able to guess the order.
+ */
+export const compareRouteBins = (a: RouteBin, b: RouteBin): number => {
+  const doorDelta = doorNumberOf(a.doorName) - doorNumberOf(b.doorName);
+  if (doorDelta !== 0) return doorDelta;
+  return binNameCompare(a.binName, b.binName);
+};
+
 /** Ascending door number, then bin reading order — the tie-break R5 asks for. */
 const stopCompare = (a: RouteStop, b: RouteStop): number => {
   const doorDelta = doorNumberOf(a.doorName) - doorNumberOf(b.doorName);

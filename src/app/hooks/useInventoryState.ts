@@ -979,6 +979,74 @@ export const useInventoryState = () => {
     );
   };
 
+  /**
+   * Records a move the operator abandoned with stock already in hand (STEP4-GUIDANCE.md §8).
+   *
+   * Nothing is written to inventory: the stock never left as far as the app is concerned, and the operator
+   * has put it back themselves. What is written is the fact that it happened — a door was opened and vials
+   * were handled, and a trail that shows nothing would be claiming the session never took place. Phase 1
+   * takes the operator's word that the return is done; this entry is what makes that word auditable.
+   */
+  const handleRecordCancelledMove = (
+    returned: Array<{
+      binId: string;
+      productName: string;
+      quantity: number;
+      unit?: string;
+      ndc?: string;
+      inventoryType?: string;
+      description?: string;
+    }>
+  ) => {
+    if (returned.length === 0) return;
+
+    // Same shape as a move's source bins, so the History page can read it with the machinery it already
+    // has rather than a second code path for one entry type.
+    const binsByLocation = new Map<string, any>();
+    returned.forEach(item => {
+      if (binsByLocation.has(item.binId)) return;
+      const location = getBinLocationDetails(item.binId, doorShelfConfig);
+      if (!location) return;
+      const [binName, rest] = location.split(' - ');
+      const [shelfName, doorPart, cabinetPart] = (rest ?? '').split(', ');
+      binsByLocation.set(item.binId, {
+        binId: item.binId,
+        binName,
+        shelfName,
+        doorNumber: (doorPart ?? '').replace('Door ', ''),
+        cabinetNumber: (cabinetPart ?? '').replace('Cabinet ', '')
+      });
+    });
+
+    const entry: AllocationHistoryEntry = {
+      id: `move-cancelled-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      timestamp: new Date(),
+      products: returned.map((item, index) => ({
+        id: `${item.binId}-${index}`,
+        name: item.productName,
+        ndc: item.ndc || '',
+        badge: '',
+        description: item.description,
+        inventoryType: item.inventoryType,
+        // What went back, which is the only quantity this event has.
+        quantity: item.quantity,
+        unit: item.unit || 'vial'
+      })),
+      // No target bins: nothing arrived anywhere.
+      bins: [],
+      sourceBins: Array.from(binsByLocation.values()).map(bin => ({
+        ...bin,
+        quantity: returned
+          .filter(item => item.binId === bin.binId)
+          .reduce((sum, item) => sum + item.quantity, 0)
+      })),
+      action: 'move-cancelled',
+      transactionType: 'Move cancelled'
+    };
+
+    setAllocationHistory(prev => [entry, ...prev]);
+  };
+
   const handleExitChangeAllocation = () => {
     setChangeAllocationMode(false);
     setMoveMode(null);
@@ -1985,6 +2053,7 @@ export const useInventoryState = () => {
     handleCloseAllocateProducts,
     handleAssignProductsToBins,
     handleExitChangeAllocation,
+    handleRecordCancelledMove,
     handleNextStep,
     handlePreviousStep,
     handleClearChangeAllocationSelection,

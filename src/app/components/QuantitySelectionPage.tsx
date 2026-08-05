@@ -20,7 +20,7 @@ import { formatBinLocation, getDoorName } from '../utils/changeAllocationUtils';
 import { pluralizeUnit } from '../utils/pluralizeUnit';
 import { getVialType, hasClimateBadge, hasCivBadge } from '../utils/binProducts';
 import { CabinetAccess } from '../hooks/useCabinetAccess';
-import { CancelMoveStage } from './CancelMoveConfirmModal';
+import { CancelMoveStage, StagedStock } from './CancelMoveConfirmModal';
 import svgPaths from "../imports/svg-hyhz42ush2";
 
 /**
@@ -44,7 +44,7 @@ interface QuantitySelectionPageProps {
    * collected costs only the selection, but stock already taken has to be physically put back, and only
    * this screen knows which it is.
    */
-  onCancel: (stage: CancelMoveStage, collectedBinCount: number) => void;
+  onCancel: (stage: CancelMoveStage, staged: StagedStock[]) => void;
   // Only for the stepper's step-1 label, which names the unit this kind of move collects.
   moveMode?: 'bin' | 'product' | null;
   // Which single door is open, and how to ask for another. Only one door at the station can be unlocked
@@ -632,17 +632,33 @@ export default function QuantitySelectionPage({
       isDone: idx < currentIndex
     }));
 
-  // Source bins already worked. currentIndex is a position in the group list (one group per product per
-  // bin), so the bins are counted distinctly — two products taken from one bin is one bin to put back.
-  const collectedBinCount = useMemo(() => {
-    const bins = new Set<string>();
-    groupedTransfers.slice(0, currentIndex).forEach(group => bins.add(group.fromBinId));
-    return bins.size;
-  }, [groupedTransfers, currentIndex]);
+  // What is on the counter: every source bin already worked, with the quantity actually taken from it.
+  // Groups before currentIndex are done; the one at currentIndex is still a proposal, since the stock does
+  // not leave the bin until the operator moves on from it. A skipped product contributed nothing.
+  const stagedStock = useMemo<StagedStock[]>(
+    () =>
+      groupedTransfers
+        .slice(0, currentIndex)
+        .filter(group => !skippedProductKeys.has(productKeyOf(group)))
+        .map(group => {
+          const groupKey = `${group.productId}-${group.fromBinId}-group`;
+          return {
+            binId: group.fromBinId,
+            productName: group.productName,
+            quantity: transferQuantities[groupKey] ?? group.transfers[0].moveQuantity,
+            unit: group.unit,
+            ndc: group.ndc,
+            inventoryType: group.inventoryType,
+            description: group.productDescription
+          };
+        })
+        .filter(item => item.quantity > 0),
+    [groupedTransfers, currentIndex, transferQuantities, skippedProductKeys]
+  );
 
   // Nothing is in the operator's hands until they have finished with a source bin. At the first bin the
   // quantity on screen is only a proposal — the stock is still where it was.
-  const cancelStage: CancelMoveStage = collectedBinCount > 0 ? 'stock-in-hand' : 'nothing-collected';
+  const cancelStage: CancelMoveStage = stagedStock.length > 0 ? 'stock-in-hand' : 'nothing-collected';
 
   // binProducts.ts keys every badge on name | ndc | inventoryType, and this screen carries those three
   // under different field names — so they're shaped into a product-like object rather than each badge
@@ -936,7 +952,7 @@ export default function QuantitySelectionPage({
             <FooterButton
               label="Cancel"
               variant="secondary"
-              onClick={() => onCancel(cancelStage, collectedBinCount)}
+              onClick={() => onCancel(cancelStage, stagedStock)}
             />
             {showSkipButton && (
               <FooterButton label="Skip Product" variant="secondary" onClick={handleSkip} />
