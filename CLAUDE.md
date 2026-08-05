@@ -338,6 +338,10 @@ things follow, and all three were bugs before:
   (`sourcePickQueryGroup`), so clearing the search cannot un-highlight something still selected.
 - **Review scopes each bin's list to its picks** (`getSourceProducts`), so a bin never offers a product
   picked somewhere else. A bin with no picks — hand-picked in a Bin move — still offers everything.
+- **The side panel lists each bin's picks** (`AllocationSelectionPanel`'s `groups`), so a bin that joined
+  the selection for one product does not also report another product it merely holds. That one was
+  arithmetic, not decoration: OCTAGAM read `225 vials` across Bin 1B and Bin 1C when only Bin 1B's 200 had
+  been picked.
 - **The search dropdown judges availability per pair** (`selectableBinIds`). On step ① it used to block
   every bin in `changeAllocationSourceBins`, so one product picked in a bin hid every *other* product that
   bin holds: with ALIMTA picked in Bin 1B and PEMETREXED in Bin 1A, searching ALIMTA offered nothing even

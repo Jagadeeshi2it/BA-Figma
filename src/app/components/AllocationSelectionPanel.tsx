@@ -1,4 +1,5 @@
 import React from 'react';
+import { SourcePick, sourcePickKey, productKeysForBin } from '../utils/sourcePicks';
 import { X, Search, CircleMinus } from 'lucide-react';
 import { Input } from './ui/input';
 import { Separator } from './ui/separator';
@@ -12,6 +13,12 @@ interface AllocationSelectionPanelProps {
   // The `|`-joined query behind a search-driven source selection. Where it exists it says which
   // products are actually being moved, so a source bin holding forty other lots doesn't drown them.
   sourceQuery: string;
+  /**
+   * The (bin, product) pairs picked as sources. A source bin lists exactly what was picked IN IT — scoping
+   * by `sourceQuery` instead listed any product whose identity was picked anywhere, so a bin that joined
+   * the selection for one product also reported another product it merely happens to hold.
+   */
+  sourceProductPicks?: SourcePick[];
   // Drop one bin from this half of the selection — under a product in the source view, on the bin
   // header in the target view.
   onRemoveBin: (binId: string) => void;
@@ -131,6 +138,7 @@ export default function AllocationSelectionPanel({
   role,
   bins,
   sourceQuery,
+  sourceProductPicks = [],
   onRemoveBin,
   onRemoveProduct,
   onRemoveAll,
@@ -163,8 +171,9 @@ export default function AllocationSelectionPanel({
   const groups = React.useMemo(() => {
     return bins.map(bin => {
       const all = consolidateBinProducts(bin);
-      const moving = isSource && sourceQuery.trim()
-        ? all.filter(product => doesProductMatchSearch(product, sourceQuery))
+      const pickedHere = isSource ? productKeysForBin(sourceProductPicks, bin.id) : [];
+      const moving = pickedHere.length > 0
+        ? all.filter(product => pickedHere.includes(sourcePickKey(product)))
         : [];
       // Fall back to everything when the query matches nothing in this bin — better to show the
       // bin's contents than an empty group that reads as "this bin is empty".
@@ -177,7 +186,7 @@ export default function AllocationSelectionPanel({
         : rows;
       return { bin, rows: filtered, scoped: moving.length > 0, totalInBin: all.length };
     });
-  }, [bins, isSource, sourceQuery, query]);
+  }, [bins, isSource, sourceProductPicks, query]);
 
   const visibleGroups = query ? groups.filter(group => group.rows.length > 0) : groups;
 

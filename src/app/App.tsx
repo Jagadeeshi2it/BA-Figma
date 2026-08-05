@@ -789,6 +789,7 @@ export default function App() {
                 role={allocationPanel}
                 bins={allocationPanel === 'source' ? getSourceBins : getTargetBins}
                 sourceQuery={inventoryState.changeAllocationSourceQuery ?? ''}
+            sourceProductPicks={inventoryState.sourceProductPicks}
                 onRemoveBin={
                   allocationPanel === 'source'
                     ? inventoryState.handleRemoveSourceBin
