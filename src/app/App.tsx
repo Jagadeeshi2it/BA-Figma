@@ -734,6 +734,7 @@ export default function App() {
               changeAllocationStep={inventoryState.changeAllocationStep}
               changeAllocationSourceBins={inventoryState.changeAllocationSourceBins}
               changeAllocationTargetBins={inventoryState.changeAllocationTargetBins}
+              sourceProductPicks={inventoryState.sourceProductPicks}
               unallocatedProductsCount={inventoryState.unallocatedProductsCount}
               doorShelfConfig={inventoryState.doorShelfConfig}
               selectedBinsForAssignment={inventoryState.selectedBinsForAssignment}

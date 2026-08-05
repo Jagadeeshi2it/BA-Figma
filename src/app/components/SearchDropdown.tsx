@@ -1,4 +1,5 @@
 import React, { memo } from 'react';
+import { SourcePick, sourcePickKey, hasSourcePick } from '../utils/sourcePicks';
 import { Button } from './ui/button';
 import { ProductSearchResult, getBinIdsForProduct } from '../utils/productSearchUtils';
 import { getVialType, hasClimateBadge, hasCivBadge } from '../utils/binProducts';
@@ -14,6 +15,12 @@ interface SearchDropdownProps {
   // Bins already picked as source/target (whichever step we're on) — matching results are
   // dropped from the list so it only ever shows what's still left to pick.
   excludeBinIds?: string[];
+  /**
+   * The (bin, product) pairs already picked as sources. On step 1 a bin is spent for THIS product only
+   * where this product is picked in it — not merely because the bin is in the selection for some other
+   * product, which used to hide a product's remaining bins entirely.
+   */
+  sourceProductPicks?: SourcePick[];
   // View-mode counterpart to excludeBinIds: products already clicked/selected from this same
   // search, so the list shrinks the same way it does in change allocation mode.
   viewedProductKeys?: string[];
@@ -52,6 +59,7 @@ const SearchDropdown = memo(function SearchDropdown({
   changeAllocationStep = 1,
   moveMode = null,
   excludeBinIds = [],
+  sourceProductPicks = [],
   viewedProductKeys = [],
   onSelectAllBins,
   onSelectSourceBins,
@@ -76,10 +84,20 @@ const SearchDropdown = memo(function SearchDropdown({
   const selectableBinIds = (result: ProductSearchResult): string[] => {
     const binIds = [...new Set(getBinIdsForProduct(result))];
     if (!changeAllocationMode) return binIds;
-    const blocked = changeAllocationStep === 2
-      ? [...excludeBinIds, ...sourceBinIds]
-      : excludeBinIds;
-    return binIds.filter(binId => !blocked.includes(binId));
+
+    // Step 2 picks bins wholesale, so what's spent is bin-level: already a target, or a source (a bin
+    // can't be both ends of the same move).
+    if (changeAllocationStep === 2) {
+      const blocked = [...excludeBinIds, ...sourceBinIds];
+      return binIds.filter(binId => !blocked.includes(binId));
+    }
+
+    // Step 1 is per (bin, product). Blocking every bin in the source selection meant one product picked
+    // in a bin hid every OTHER product that bin holds: picking ALIMTA in Bin 1B and PEMETREXED in Bin 1A
+    // made both bins "spent", so searching ALIMTA offered nothing even though Bin 1A's ALIMTA was
+    // untouched.
+    const productKey = sourcePickKey(result);
+    return binIds.filter(binId => !hasSourcePick(sourceProductPicks, binId, productKey));
   };
 
   // In change allocation mode a result is "done" once it has no bin left this step could take —

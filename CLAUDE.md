@@ -338,6 +338,11 @@ things follow, and all three were bugs before:
   (`sourcePickQueryGroup`), so clearing the search cannot un-highlight something still selected.
 - **Review scopes each bin's list to its picks** (`getSourceProducts`), so a bin never offers a product
   picked somewhere else. A bin with no picks — hand-picked in a Bin move — still offers everything.
+- **The search dropdown judges availability per pair** (`selectableBinIds`). On step ① it used to block
+  every bin in `changeAllocationSourceBins`, so one product picked in a bin hid every *other* product that
+  bin holds: with ALIMTA picked in Bin 1B and PEMETREXED in Bin 1A, searching ALIMTA offered nothing even
+  though Bin 1A's ALIMTA was untouched. Step ② is unchanged — it picks bins wholesale, so what's spent
+  there really is bin-level.
 
 Un-picking is per bin; the review panel's per-product Remove drops the product from every bin. Verified by
 `node scripts/verify-source-picks.mjs` (16 assertions, including the exception above).

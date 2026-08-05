@@ -1,4 +1,5 @@
 import React, { memo, useState, useEffect, useRef } from 'react';
+import { SourcePick } from '../utils/sourcePicks';
 import { Button } from './ui/button';
 import { Clock, X, ChevronDown } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
@@ -20,6 +21,8 @@ interface HeaderSectionProps {
   changeAllocationMode: boolean;
   changeAllocationStep: 1 | 2;
   changeAllocationSourceBins: string[];
+  // The (bin, product) pairs already picked, so the dropdown can judge availability per pair.
+  sourceProductPicks?: SourcePick[];
   changeAllocationTargetBins: string[];
   unallocatedProductsCount: number; // CRITICAL FIX: Pass unallocated products count as prop
   doorShelfConfig: DoorShelfConfig;
@@ -83,6 +86,7 @@ const HeaderSection = memo(function HeaderSection({
   changeAllocationMode,
   changeAllocationStep,
   changeAllocationSourceBins,
+  sourceProductPicks = [],
   changeAllocationTargetBins,
   unallocatedProductsCount,
   doorShelfConfig,
@@ -294,6 +298,7 @@ const HeaderSection = memo(function HeaderSection({
               changeAllocationStep={changeAllocationStep}
               moveMode={moveMode}
               excludeBinIds={changeAllocationStep === 1 ? changeAllocationSourceBins : changeAllocationTargetBins}
+              sourceProductPicks={sourceProductPicks}
               viewedProductKeys={viewedProductKeys}
               onSelectAllBins={handleSelectAllBins}
               onSelectSourceBins={handleSelectSourceBinsFromSearch}
