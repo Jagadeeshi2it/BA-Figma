@@ -114,7 +114,9 @@ export default function AllocationBottomBar({
           />
         ) : (
           <FooterButton
-            label={targetBinCount > 0 ? 'Review Selection' : 'Select where to move to'}
+            // Step ② is always about bins, whichever unit the source was gathered in, so "Bin" is safe
+            // here in a way it would not be on step ①'s label — a Product move gathers products there.
+            label={targetBinCount > 0 ? 'Review Selection' : 'Select Bin to move'}
             variant="primary"
             enabled={targetBinCount > 0}
             onClick={onConfirm}
