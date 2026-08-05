@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { toast } from "sonner@2.0.3";
 import { Button } from "./ui/button";
 import { ChevronRight, Search, Trash2, Unlock, Package, LogIn, ListChecks, ArrowRight } from "lucide-react";
-import { DoorUnlockedToast } from "./ui/sonner-1";
+import { DoorUnlockedToast, ValidationToast } from "./ui/sonner-1";
 import CabinetPipView from "./CabinetPipView";
 import SideSheet from "./SideSheet";
 import MoveSummaryPanel, { MoveSummaryRow } from "./MoveSummaryPanel";
@@ -1200,15 +1200,23 @@ export default function TargetBinSerialScanPage({
           />
 
           <FooterActions>
-            {/* Off once anything has been placed. The operator is certain about this: the cabinet has
-                started to change, so there is nothing left that "cancel" could honestly mean. Disabled
-                rather than removed — a control that vanishes reads as a control that failed — and it
-                states the reason in its own label, as every disabled button here does. */}
+            {/* Off once anything has been placed: the cabinet has started to change, so there is nothing
+                left that "cancel" could honestly mean. It keeps the label "Cancel" and answers a tap with
+                the reason, rather than renaming itself to a sentence — the label is the control's name,
+                and replacing it makes the operator re-read the button to work out what it was. */}
             <FooterButton
-              label={hasPlacedStock ? 'Cannot cancel — stock placed' : 'Cancel'}
+              label="Cancel"
               variant="secondary"
               enabled={!hasPlacedStock}
               onClick={() => onCancel('stock-in-hand', stagedStock)}
+              onBlockedClick={() =>
+                toast.custom(
+                  t => (
+                    <ValidationToast message="Stock has already been placed in a target bin, so this move can no longer be cancelled. Finish it to record where everything went." />
+                  ),
+                  { duration: 6000 }
+                )
+              }
             />
             <FooterButton
               label={effectiveSaveLabel}

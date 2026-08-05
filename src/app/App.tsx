@@ -17,6 +17,7 @@ import AllocationBottomBar from "./components/AllocationBottomBar";
 import AllocationSelectionPanel from "./components/AllocationSelectionPanel";
 import AllocateProductsPanel from "./components/AllocateProductsPanel";
 import CancelMoveConfirmModal, { CancelMoveStage, StagedStock, ReturnItem } from "./components/CancelMoveConfirmModal";
+import ZeroInventoryBanner from "./components/ZeroInventoryBanner";
 import { useDebounce } from "./hooks/useDebounce";
 
 import { useInventoryState } from "./hooks/useInventoryState";
@@ -204,12 +205,15 @@ export default function App() {
     };
   }, []);
   
-  // Watch for zero-quantity products after change allocation
+  // A move that empties a bin raises the banner above the cabinet, not a modal over it.
+  //
+  // The modal used to open the instant a move committed, which interrupted the operator at the one moment
+  // they had just finished something — to ask about a decision with no deadline. A product sitting at 0
+  // still holds its bin and can be unallocated whenever. So this is an acknowledgement they can act on or
+  // set aside, and the modal now opens only when they ask for it.
   useEffect(() => {
     if (inventoryState.zeroQuantityProducts.length > 0) {
-      console.log('🔔 Zero-quantity products detected, showing modal:', inventoryState.zeroQuantityProducts);
       setProductsToUnallocate(inventoryState.zeroQuantityProducts);
-      setShowUnallocateModal(true);
     }
   }, [inventoryState.zeroQuantityProducts]);
 
@@ -844,6 +848,21 @@ export default function App() {
             ) : null
           }
         >
+          {/* Above the blueprint, so it reads as a note about the cabinet the operator is looking at rather
+              than a system alert. Hidden while the review modal is open — the modal is the same question. */}
+          {!showUnallocateModal && (
+            <ZeroInventoryBanner
+              productCount={productsToUnallocate.length}
+              onReview={() => setShowUnallocateModal(true)}
+              onDismiss={() => {
+                // Clearing the hook's list too, or the effect above would re-raise the banner on the next
+                // render — dismissing has to mean dismissed, not dismissed until something re-renders.
+                inventoryState.handleClearZeroQuantityProducts();
+                setProductsToUnallocate([]);
+              }}
+            />
+          )}
+
           <CabinetSelection
             selectedCabinet={inventoryState.selectedCabinet}
             selectedDoor={inventoryState.selectedDoor}

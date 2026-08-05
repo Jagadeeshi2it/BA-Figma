@@ -145,6 +145,7 @@ export function FooterButton({
   variant,
   enabled = true,
   onClick,
+  onBlockedClick,
   leadingIcon,
   trailingIcon
 }: {
@@ -152,6 +153,17 @@ export function FooterButton({
   variant: 'primary' | 'secondary';
   enabled?: boolean;
   onClick: () => void;
+  /**
+   * What to do when the button is tapped while unavailable. Given one, the button keeps its normal label
+   * and stays tappable — it just answers with an explanation instead of acting.
+   *
+   * This is the alternative to the convention of putting the requirement in the label
+   * ("Select a source bin"). That works for a primary the operator is trying to reach, where the label
+   * names what to do next. It reads badly on a control whose whole meaning is one word: "Cannot cancel —
+   * stock placed" replaces the name of the button with a sentence about it, so the operator has to
+   * re-read it to find out what the button even was.
+   */
+  onBlockedClick?: () => void;
   // Which side an arrow sits on is the whole message on the step buttons: leading points back to the
   // step you came from, trailing points on to the next one.
   leadingIcon?: React.ReactNode;
@@ -163,12 +175,20 @@ export function FooterButton({
     variant === 'primary'
       ? 'bg-[#095192] text-white hover:bg-[#074080]'
       : 'bg-white text-[#095192] border border-[#095192] hover:bg-[#F1F6FA]';
+
+  // Not the `disabled` attribute when there is something to explain: a disabled button swallows the click,
+  // so the operator taps it, nothing happens at all, and they cannot tell a blocked control from a broken
+  // one. It stays focusable and keeps aria-disabled so assistive tech is still told it is unavailable.
+  const explains = !enabled && !!onBlockedClick;
   return (
     <button
       type="button"
-      onClick={enabled ? onClick : undefined}
-      disabled={!enabled}
-      className={`${base} ${look} ${enabled ? 'cursor-pointer' : 'opacity-50 cursor-not-allowed'}`}
+      onClick={enabled ? onClick : onBlockedClick}
+      disabled={!enabled && !explains}
+      aria-disabled={!enabled}
+      className={`${base} ${look} ${
+        enabled ? 'cursor-pointer' : explains ? 'opacity-50 cursor-pointer' : 'opacity-50 cursor-not-allowed'
+      }`}
     >
       {leadingIcon}
       {label}

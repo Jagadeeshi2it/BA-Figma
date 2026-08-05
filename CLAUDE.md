@@ -216,8 +216,12 @@ its own `MoveSummaryRow[]` from state it already holds (§3).
 ### C. Unallocation — not a workflow
 
 There is no way to *start* an unallocation. `handleUnallocateProduct` is only reachable from
-`UnallocateConfirmModal`, which only opens from the `zeroQuantityProducts` effect **after a move
-empties a bin**. This is deliberate: an allocate/unallocate panel was built and then removed
+`UnallocateConfirmModal`, which only opens **when the operator asks for it** from
+`ZeroInventoryBanner` — the acknowledgement raised above the cabinet blueprint after a move empties a
+bin. The modal used to open itself the instant a move committed, interrupting the operator at the one
+moment they had just finished something to ask a question with no deadline: a product at 0 still holds
+its bin and can be unallocated whenever. Dismissing the banner is a real answer, and it clears the
+hook's `zeroQuantityProducts` too — otherwise the effect re-raises it on the next render. This is deliberate: an allocate/unallocate panel was built and then removed
 because having both directions on one screen, gated on a quantity rule, was hard to read.
 
 The post-move scan behind that prompt walks **every** transfer's source bin, not just the ones with
@@ -525,7 +529,12 @@ been violations of it.
   codebase leans heavily on this; match it.
 - Buttons are named for what they do next, never "Confirm" unless they commit.
 - **A disabled primary states its requirement in its own label.** Never grey a button and leave the
-  reason off screen.
+  reason off screen. **The exception is a control whose label is its identity** — step ④'s `Cancel` keeps
+  the word "Cancel" when it is unavailable and explains via a toast on tap (`FooterButton`'s
+  `onBlockedClick`), because "Cannot cancel — stock placed" replaced the button's *name* with a sentence
+  about it. Note `onBlockedClick` deliberately does **not** set the `disabled` attribute: a disabled
+  button swallows the click, so the operator taps, nothing happens at all, and a blocked control is
+  indistinguishable from a broken one. `aria-disabled` still carries the state.
 - **`Cancel` and `Back` are blue secondary buttons, everywhere.** Leaving a flow discards a selection
   that was never committed — a step back, not a deletion, so neither earns the destructive red they
   used to carry. `#C6362C` is for things that actually destroy data.
