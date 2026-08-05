@@ -350,7 +350,7 @@ const HeaderSection = memo(function HeaderSection({
                   // edge. Only bites if the window is narrow enough to push it, which align="end" makes
                   // less likely but not impossible.
                   collisionPadding={16}
-                  className="w-[320px] p-1"
+                  className="w-[360px] p-1"
                 >
                   {/* One line each: what unit you pick, and where you pick it. Anything longer stops
                       being read at the moment the user just wants to get going.
