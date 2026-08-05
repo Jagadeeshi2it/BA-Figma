@@ -147,8 +147,19 @@ commits — Review's primary is `Start Qty Move`.
 **All quantities are taken at the source before anything is carried to the target.** The quantity
 page walks every product itself and hands the whole move over once. It used to report one product
 at a time and the flow walked to the target and back for each — four products meant four round
-trips over the same two doors. `Back` from the target page returns to **the product you were on**
-(`initialProductKey` → `quantityResumeProductKey`), not to the top of the batch.
+trips over the same two doors.
+
+**Both screens walk in the route's order**, not the order the transfers arrived in — `App` plans the
+route once (`planMoveRoute` + `twoPhaseWalkOrder`) and hands the take order to one screen and the place
+order to the other. This is what stops a move whose sources sit behind two doors sending the operator
+back to a door they had finished with. See [STEP4-GUIDANCE.md](STEP4-GUIDANCE.md).
+
+**There is no `Back` in step ④.** Both screens had one — within-batch on the quantity page,
+within-product on the placement page, each stepping up a stage from its first position — and both were
+removed at the operator's request, along with the resume machinery that existed only to serve them
+(`initialProductKey` → `quantityResumeProductKey`, UX-AUDIT H3-2). **`Cancel` is the only exit, and it
+discards the move** rather than stepping back through it: there is no route back to Review without
+losing the selection.
 
 #### The footer is the pipeline's only chrome
 
