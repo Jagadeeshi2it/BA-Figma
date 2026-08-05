@@ -46,6 +46,8 @@ interface TargetBinSerialScanPageProps {
   moveMode?: 'bin' | 'product' | null;
   // Which single door is open, and how to ask for another (STEP4-GUIDANCE.md §1).
   cabinetAccess: CabinetAccess;
+  /** Target bin ids in the order the route says to fill them. Undefined keeps the arrival order. */
+  placeBinOrder?: string[];
 }
 
 interface TransferWithInfo extends ProductTransfer {
@@ -108,7 +110,8 @@ export default function TargetBinSerialScanPage({
   remainingTransfers,
   skippedProducts,
   moveMode,
-  cabinetAccess
+  cabinetAccess,
+  placeBinOrder
 }: TargetBinSerialScanPageProps) {
   const [currentProductIndex, setCurrentProductIndex] = useState(0);
   const [currentTargetBinIndex, setCurrentTargetBinIndex] = useState(0);
@@ -322,8 +325,30 @@ export default function TargetBinSerialScanPage({
       }))
     });
 
+    // Placed in the route's order. The placement walk is product-major (product, then its target bins), so
+    // the route's bin order is applied at both levels: each product's target bins are sorted by it, and the
+    // products themselves by the earliest-ranked bin they place into. That keeps a door's placements
+    // together, which is what stops the operator reopening a door they had finished with
+    // (STEP4-GUIDANCE.md §4).
+    if (placeBinOrder && placeBinOrder.length > 0) {
+      const rank = new Map(placeBinOrder.map((binId, index) => [binId, index]));
+      const rankOf = (toBinId: string) => rank.get(toBinId) ?? Number.MAX_SAFE_INTEGER;
+      groups.forEach(group => {
+        group.targetBins.sort((a, b) => {
+          const delta = rankOf(a.toBinId) - rankOf(b.toBinId);
+          return delta !== 0 ? delta : a.targetBinName.localeCompare(b.targetBinName);
+        });
+      });
+      groups.sort((a, b) => {
+        const earliest = (group: ProductGroup) =>
+          Math.min(...group.targetBins.map(bin => rankOf(bin.toBinId)));
+        const delta = earliest(a) - earliest(b);
+        return delta !== 0 ? delta : a.productName.localeCompare(b.productName);
+      });
+    }
+
     return groups;
-  }, [transfers, doorShelfConfig]);
+  }, [transfers, doorShelfConfig, placeBinOrder]);
 
   // What the Move Summary panel shows on the placement half of step 4 — one row per source→target
   // pairing, which the panel nests under the source bin each pairing leaves from. A target bin fed by

@@ -24,6 +24,8 @@ import { useSerialNumberModal } from "./hooks/useSerialNumberModal";
 import { cabinets } from "./data/cabinets";
 import { doesProductMatchSearch } from "./utils/textHighlight";
 import { ProductTransfer } from "./types";
+import { planMoveRoute, twoPhaseWalkOrder, RouteBin } from "./utils/moveRoute";
+import { isFridgeDoor } from "./utils/doorUtils";
 import {
   getCurrentShelves,
   getAllAvailableBins,
@@ -74,6 +76,41 @@ export default function App() {
   const [showTargetBinScanPage, setShowTargetBinScanPage] = useState(false);
   const [pendingSerialTransfers, setPendingSerialTransfers] = useState<ProductTransfer[]>([]);
   const [completedTransfers, setCompletedTransfers] = useState<ProductTransfer[]>([]);
+
+  // Every bin resolved to its door and storage kind — what the route planner needs to know about the
+  // cabinet. Derived here rather than inside the step-④ screens so both halves order themselves against
+  // one route instead of each deciding a walk of its own.
+  const routeBinIndex = useMemo(() => {
+    const index = new Map<string, RouteBin>();
+    Object.keys(inventoryState.doorShelfConfig).forEach(doorName => {
+      inventoryState.doorShelfConfig[doorName]?.forEach(shelf => {
+        shelf.bins?.forEach(bin => {
+          index.set(bin.id, {
+            binId: bin.id,
+            binName: bin.name,
+            doorName,
+            storage: isFridgeDoor(doorName) ? 'fridge' : 'cabinet'
+          });
+        });
+      });
+    });
+    return index;
+  }, [inventoryState.doorShelfConfig]);
+
+  // The route for the move currently in step ④. Both halves are walking the same set of bins, so
+  // whichever list is populated describes the same route.
+  const moveRoute = useMemo(() => {
+    const transfers = pendingQuantityTransfers.length > 0 ? pendingQuantityTransfers : pendingSerialTransfers;
+    if (transfers.length === 0) return null;
+    return planMoveRoute(transfers as any, routeBinIndex);
+  }, [pendingQuantityTransfers, pendingSerialTransfers, routeBinIndex]);
+
+  // The route flattened into the order two phases can execute — see twoPhaseWalkOrder. This is what the
+  // screens sort themselves by; the route itself is what the Move Summary will eventually draw.
+  const moveWalk = useMemo(
+    () => (moveRoute ? twoPhaseWalkOrder(moveRoute, routeBinIndex) : null),
+    [moveRoute, routeBinIndex]
+  );
 
   // Which single cabinet door is open, shared by both halves of step ④. Replaces an accumulating set of
   // "doors already announced by a toast", which never removed anything and so believed two doors could be
@@ -424,6 +461,7 @@ export default function App() {
         >
           <TargetBinSerialScanPage
             transfers={pendingSerialTransfers}
+            placeBinOrder={moveWalk?.placeBinOrder}
             skippedProducts={skippedMoveProducts}
             doorShelfConfig={inventoryState.doorShelfConfig}
             moveMode={inventoryState.moveMode}
@@ -538,6 +576,7 @@ export default function App() {
         >
           <QuantitySelectionPage
             transfers={pendingQuantityTransfers}
+            takeBinOrder={moveWalk?.takeBinOrder}
             doorShelfConfig={inventoryState.doorShelfConfig}
             cabinetAccess={cabinetAccess}
             initialProductKey={quantityResumeProductKey}

@@ -50,6 +50,11 @@ interface QuantitySelectionPageProps {
   // Which single door is open, and how to ask for another. Only one door at the station can be unlocked
   // at a time (STEP4-GUIDANCE.md §1), so this is a lock/unlock transition, not a growing set.
   cabinetAccess: CabinetAccess;
+  /**
+   * Source bin ids in the order the route says to work them. Undefined falls back to the order the
+   * transfers arrived in, which is what this screen used to do.
+   */
+  takeBinOrder?: string[];
 }
 
 interface TransferWithQuantity extends ProductTransfer {
@@ -103,7 +108,8 @@ export default function QuantitySelectionPage({
   onBack,
   initialProductKey,
   moveMode,
-  cabinetAccess
+  cabinetAccess,
+  takeBinOrder
 }: QuantitySelectionPageProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   // Products the operator chose not to move. The walk stays on one list now rather than the parent
@@ -224,8 +230,31 @@ export default function QuantitySelectionPage({
       });
     });
 
+    // Walked in the route's order, not the order the transfers happened to arrive in.
+    //
+    // This is the whole point of the planner: with sources behind Door 1 and Door 7 and the target behind
+    // Door 1, arrival order sends the operator to Door 1, then Door 7, then back to Door 1 — three door
+    // interactions for two doors' worth of work. The route puts the door that also holds the target LAST
+    // among the sources, so its takes run straight into the placements behind the same door and it never
+    // closes in between (STEP4-GUIDANCE.md §4).
+    //
+    // Groups whose bin the route didn't rank keep their arrival position at the end rather than jumping to
+    // the front, so a bin the planner couldn't resolve degrades to the old behaviour instead of
+    // reordering everything around it.
+    if (takeBinOrder && takeBinOrder.length > 0) {
+      const rank = new Map(takeBinOrder.map((binId, index) => [binId, index]));
+      const positionOf = (group: GroupedTransfer) => rank.get(group.fromBinId) ?? Number.MAX_SAFE_INTEGER;
+      groups.sort((a, b) => {
+        const delta = positionOf(a) - positionOf(b);
+        if (delta !== 0) return delta;
+        // Within one bin the operator works the products in a stated order; name keeps it stable, and
+        // matches the order the route lists that stop's actions in.
+        return a.productName.localeCompare(b.productName);
+      });
+    }
+
     return groups;
-  }, [enhancedTransfers, doorShelfConfig]);
+  }, [enhancedTransfers, doorShelfConfig, takeBinOrder]);
 
   // What the Move Summary panel shows on this half of step 4 — one row per source→target pairing.
   // The panel nests them, so a source bin states itself once with its destinations beneath; the

@@ -79,6 +79,70 @@ export interface MoveRoute {
   splitDoors: string[];
 }
 
+/**
+ * The route reduced to the order a walk can follow when it must finish every take before starting any
+ * place — which is the shape step ④'s two screens have (`QuantitySelectionPage` then
+ * `TargetBinSerialScanPage`).
+ *
+ * Most routes are already in that shape, including the important one: when a door holds both sources and
+ * the target, the planner visits it last among the sources, so its takes and its places sit together at
+ * the end and the door never closes between them. Those routes lose nothing here.
+ *
+ * A route that genuinely interleaves — a place at one door followed by a take at another — cannot be
+ * executed by two phases, and `needsInterleaving` says so rather than letting the walk quietly cost more
+ * door visits than the plan promised. `extraDoorVisits` is how much more.
+ */
+export interface TwoPhaseWalk {
+  /** Bin ids with something to take, in route order. */
+  takeBinOrder: string[];
+  /** Bin ids with something to place, in route order. */
+  placeBinOrder: string[];
+  needsInterleaving: boolean;
+  extraDoorVisits: number;
+}
+
+export function twoPhaseWalkOrder(route: MoveRoute, binIndex: Map<string, RouteBin>): TwoPhaseWalk {
+  const takeBinOrder: string[] = [];
+  const placeBinOrder: string[] = [];
+  const kindSequence: Array<'take' | 'place'> = [];
+
+  route.stops.forEach(stop => {
+    stop.actions.forEach(action => kindSequence.push(action.kind));
+    if (stop.actions.some(a => a.kind === 'take') && !takeBinOrder.includes(stop.binId)) {
+      takeBinOrder.push(stop.binId);
+    }
+    if (stop.actions.some(a => a.kind === 'place') && !placeBinOrder.includes(stop.binId)) {
+      placeBinOrder.push(stop.binId);
+    }
+  });
+
+  const firstPlace = kindSequence.indexOf('place');
+  const lastTake = kindSequence.lastIndexOf('take');
+  const needsInterleaving = firstPlace !== -1 && lastTake !== -1 && firstPlace < lastTake;
+
+  // Door visits the two-phase order actually costs: consecutive stops behind one door share a visit, so
+  // count the changes.
+  const doorOf = (binId: string) => binIndex.get(binId);
+  const countVisits = (binIds: string[]): string[] =>
+    binIds.reduce<string[]>((doors, binId) => {
+      const bin = doorOf(binId);
+      if (!bin || bin.storage !== 'cabinet') return doors;
+      if (doors[doors.length - 1] !== bin.doorName) doors.push(bin.doorName);
+      return doors;
+    }, []);
+
+  // The two phases run back to back, so a door ending the take phase and opening the place phase is one
+  // visit, not two — which is exactly what saves the door in the source-and-target-behind-one-door case.
+  const walkedDoors = countVisits([...takeBinOrder, ...placeBinOrder]);
+
+  return {
+    takeBinOrder,
+    placeBinOrder,
+    needsInterleaving,
+    extraDoorVisits: Math.max(0, walkedDoors.length - route.cabinetDoorVisits)
+  };
+}
+
 /** A transfer as the pipeline stages it. Only the four fields the route needs are required. */
 export interface RouteTransfer {
   productId: string;
