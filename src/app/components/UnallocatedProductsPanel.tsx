@@ -79,7 +79,8 @@ export default function UnallocatedProductsPanel({
       </div>
 
       {/* Search, then a Select All checkbox row. */}
-      <div className="p-4 border-b border-gray-200 space-y-3">
+      {/* py-3, matching the header above it: 12px is the panel's vertical rhythm throughout. */}
+      <div className="py-3 px-4 border-b border-gray-200 space-y-3">
         <Input
           type="text"
           placeholder="Search products"
@@ -125,7 +126,7 @@ export default function UnallocatedProductsPanel({
               <div
                 key={product.id}
                 onClick={() => onProductSelect(product.id)}
-                className={`flex gap-3 px-4 py-4 cursor-pointer transition-colors duration-200 ${
+                className={`flex gap-3 px-4 py-3 cursor-pointer transition-colors duration-200 ${
                   isSelected(product.id) ? 'bg-[#F1F6FA]' : 'hover:bg-gray-50'
                 }`}
               >
@@ -197,7 +198,7 @@ export default function UnallocatedProductsPanel({
 
       {/* Always-present action bar. The status text on the left says what is still missing, and
           Allocate stays disabled until both a product and a bin are chosen. */}
-      <div className="p-4 border-t border-gray-200 bg-white flex items-center justify-between gap-3">
+      <div className="py-3 px-4 border-t border-gray-200 bg-white flex items-center justify-between gap-3">
         {/* Nothing selected yet needs no instruction — the disabled button already says so. */}
         <div className="text-[14px] leading-[20px]">
           {productCount > 0 && (
@@ -222,7 +223,7 @@ export default function UnallocatedProductsPanel({
           <button
             type="button"
             onClick={onClose}
-            className="px-3 py-2 rounded-[4px] text-[14px] leading-[20px] bg-white text-[#095192] border border-[#095192] hover:bg-[#F1F6FA] transition-colors cursor-pointer"
+            className="h-9 px-3 inline-flex items-center rounded-[4px] text-[14px] leading-[20px] bg-white text-[#095192] border border-[#095192] hover:bg-[#F1F6FA] transition-colors cursor-pointer"
           >
             Cancel
           </button>
@@ -233,7 +234,7 @@ export default function UnallocatedProductsPanel({
             }`}
             onClick={canAllocate ? onConfirmAssignment : undefined}
           >
-            <div className="box-border flex gap-2 items-center justify-center px-4 py-3">
+            <div className="box-border flex gap-2 items-center justify-center h-9 px-4">
               <CheckCircle2 className="w-4 h-4 text-white" />
               <div className="capitalize font-['Inter:Regular',_sans-serif] font-normal leading-[0] not-italic shrink-0 text-[14px] text-nowrap text-white">
                 <p className="leading-[20px] whitespace-pre text-[14px]">Allocate</p>
