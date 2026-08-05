@@ -349,39 +349,39 @@ const HeaderSection = memo(function HeaderSection({
                   {/* One line each: what unit you pick, and where you pick it. Anything longer stops
                       being read at the moment the user just wants to get going.
 
-                      The two Move entries share a shape and differ only in the unit — "Select Bin" /
-                      "Select Product" — because they are one workflow with two doors, not two
-                      workflows. "Move by Bin" / "Move by Product" read as separate jobs. Singular,
-                      matching "Allocate Product" above, even though you can pick several. */}
+                      The two Move entries share a shape and differ only in where you start, because they
+                      are one workflow with two doors, not two workflows — "Move by Bin" / "Move by
+                      Product" read as separate jobs. "Move from …" also echoes the pipeline's own
+                      Move From / Move To vocabulary, and avoids colliding with step ②'s disabled
+                      primary, which is itself "Select Bin to move". */}
                   <WorkflowOption
                     title="Allocate Product"
-                    // "Existing" is the load-bearing word: this gives ANOTHER bin to a product already in
+                    // "Existing" is the load-bearing word: this gives ANOTHER bin to products already in
                     // the cabinet. Products with no bin at all go through the Unallocated tray instead, which
                     // is a different flow entirely — and "Give a product another bin" never said which of
                     // the two this was.
-                    description="Assign bins to an existing product."
+                    description="Assign bins to existing products."
                     onSelect={() => {
                       setWorkflowMenuOpen(false);
                       handleAllocateProductsClick();
                     }}
                   />
                   <WorkflowOption
-                    title="Select Bin to move"
-                    // NOT "tap whole bins": picking a bin does not commit its whole contents — Review still
-                    // asks which of its products are leaving. Saying "whole bins" promised something the
-                    // flow then walks back. What it really offers is a starting point.
-                    description="Start from a bin, then pick what leaves it."
+                    title="Move from Bin"
+                    // "one or more products" is the correction that matters: picking a bin does not commit
+                    // its whole contents — Review still asks which of its products are leaving. The old
+                    // "Tap whole bins on the shelves" promised something the flow then walks back.
+                    description="Move one or more products starting from a bin."
                     onSelect={() => {
                       setWorkflowMenuOpen(false);
                       handleMoveBinClick?.();
                     }}
                   />
                   <WorkflowOption
-                    title="Select Product to move"
-                    // Parallel with the entry above — both say where you start, which is the only real
-                    // difference between them. "Wherever it's stored" is the actual advantage: you do not
-                    // need to know which bin the drug is in.
-                    description="Start from a product, wherever it's stored."
+                    title="Move from Product"
+                    // Deliberately the same sentence as the entry above bar its last word. The two flows
+                    // reach the same place, so the copy differs by exactly what differs: where you start.
+                    description="Move one or more products starting from a product."
                     onSelect={() => {
                       setWorkflowMenuOpen(false);
                       handleMoveProductClick?.();

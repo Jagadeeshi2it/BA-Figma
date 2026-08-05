@@ -70,17 +70,19 @@ The header's **Allocate/Move** button opens a menu with three entries:
 
 | Entry | What it starts |
 |---|---|
-| **Allocate Product** — "Assign bins to an existing product." | Workflow A below. |
-| **Select Bin to move** — "Start from a bin, then pick what leaves it." | Workflow B with `moveMode = 'bin'`. |
-| **Select Product to move** — "Start from a product, wherever it's stored." | Workflow B with `moveMode = 'product'`. |
+| **Allocate Product** — "Assign bins to existing products." | Workflow A below. |
+| **Move from Bin** — "Move one or more products starting from a bin." | Workflow B with `moveMode = 'bin'`. |
+| **Move from Product** — "Move one or more products starting from a product." | Workflow B with `moveMode = 'product'`. |
 
-The two Move entries share a shape and differ only in the unit, because they are **one workflow with two
-doors**, not two workflows — `Move by Bin` / `Move by Product` read as separate jobs. Their subtexts each
-name where you *start*, which is the only real difference. The old bin subtext said "Tap whole bins", which
-promised something the flow walks back: picking a bin does not commit its contents, Review still asks which
-of its products are leaving. And **"existing"** is load-bearing on the Allocate entry: it gives *another* bin
-to a product already in the cabinet, whereas a product with no bin at all goes through the Unallocated tray
-(§D), a different flow — and the old "Give a product another bin" never said which of the two it was.
+The two Move entries are **the same sentence bar its last word**, because they are one workflow with two
+doors, not two workflows — `Move by Bin` / `Move by Product` read as separate jobs. `Move from …` also
+echoes the pipeline's own **Move From / Move To** vocabulary.
+
+Two corrections live in that copy. **"one or more products"**: picking a bin does not commit its contents —
+Review still asks which of its products are leaving, so the old "Tap whole bins on the shelves" promised
+something the flow then walked back. And **"existing"** on the Allocate entry: it gives *another* bin to
+products already in the cabinet, whereas a product with no bin at all goes through the Unallocated tray
+(§D), a different flow the old "Give a product another bin" never distinguished it from.
 
 They were one **Change Allocation** mode, then a plain `Allocate` button beside a `Move ▾` picker.
 One trigger now holds all three, so the first decision is always the same: which of the three am I
