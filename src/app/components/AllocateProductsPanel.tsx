@@ -42,6 +42,136 @@ function ProductBadges({ product }: { product: any }) {
 }
 
 /**
+ * One product row, shared by the search results and the "selected so far" list under the empty state.
+ *
+ * Extracted rather than written twice: both lists show the same product in the same state, and a row that
+ * drifted between them would make the selected list read as a different kind of thing from the results it
+ * came from. Module scope, above the panel, because it is a pure function of its props — the same reason
+ * scanKey lives outside its screen (CLAUDE.md §4).
+ */
+function ProductRow({
+  product,
+  isSelected,
+  onToggle,
+  selectedBinsForAssignment,
+  doorShelfConfig
+}: {
+  product: ProductSearchResult;
+  isSelected: boolean;
+  onToggle: (product: ProductSearchResult) => void;
+  selectedBinsForAssignment: string[];
+  doorShelfConfig: DoorShelfConfig;
+}) {
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      aria-pressed={isSelected}
+      aria-label={`Select ${product.name} for assignment`}
+      onClick={() => onToggle(product)}
+      onKeyDown={event => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          onToggle(product);
+        }
+      }}
+      className={`px-4 py-3 cursor-pointer transition-colors duration-200 ${
+        isSelected ? 'bg-[#F1F6FA]' : 'hover:bg-gray-50'
+      }`}
+    >
+      <div className="flex items-start gap-3">
+        {/* Same square as the unallocated list rather than a native checkbox — the whole
+            row is the control here too, and a real checkbox invites aiming at the box. */}
+        <div
+          className={`mt-0.5 w-5 h-5 rounded-[4px] shrink-0 flex items-center justify-center ${
+            isSelected ? 'bg-[#095192]' : 'border border-gray-300 bg-white'
+          }`}
+        >
+          {isSelected && <Check className="w-3.5 h-3.5 text-white" strokeWidth={3} />}
+        </div>
+
+        <div className="min-w-0 flex-1 space-y-1.5">
+          {/* Display name and generic name are one block, badges below both — the shape
+              the bin rows and the other side panels use. */}
+          <div>
+            <h3 className="font-normal leading-[20px] text-[14px] text-[#020817]">
+              {product.name}
+            </h3>
+            {product.description && (
+              <p className="italic text-gray-500 leading-snug text-[14px]">
+                {product.description}
+              </p>
+            )}
+          </div>
+          <ProductBadges product={product} />
+          <div className="text-gray-500 text-[14px] break-words">
+            {product.ndc} - {product.inventoryType}
+          </div>
+
+        </div>
+
+        {/* Total across every location, in the same figure box the other side panels
+            use — so the number answers "how much of this is in the cabinet?" rather than
+            repeating one bin's share. */}
+        <div className="bg-[#f7f7f7] box-border flex flex-col items-center justify-center p-[4px] relative rounded shrink-0 w-12">
+          <div className="absolute border-[1px] border-[#e9e9e9] border-solid inset-0 pointer-events-none rounded" />
+          <div className="font-medium text-[#020817] text-[14px] leading-[16px]">
+            {product.totalQuantity}
+          </div>
+          <div className="font-semibold text-[#676b74] text-[9px] leading-[normal]">
+            {pluralizeUnit('vial', product.totalQuantity)}
+          </div>
+        </div>
+      </div>
+
+      {/* Where it already lives, spanning the row's full width so each bin's quantity
+          lines up under the total above it. Indented to the product name: the tick box
+          belongs to the row, not to the locations. */}
+      <div className="pt-2 ml-8 space-y-1">
+            {product.binLocations.map(location => (
+              <div
+                key={location.binId}
+                className="flex items-center justify-between gap-2 text-[13px]"
+              >
+                <span className="text-[#020817] min-w-0 truncate">
+                  {location.binName} - {location.shelfName}, {location.doorName}
+                </span>
+                <span className={`shrink-0 ${location.quantity === 0 ? 'text-[#676b74]' : 'text-[#020817]'}`}>
+                  {location.quantity} {pluralizeUnit('vial', location.quantity)}
+                </span>
+              </div>
+            ))}
+      </div>
+
+      {/* Where it is about to go, once bins have been tapped — below the product, in the
+          same purple the shelf gives an assignment-selected bin (BinCard's #8F48D2 ring
+          and border), so this list and the highlighted card read as one selection rather
+          than the panel inventing its own colour for it. Only on picked rows: the bins
+          belong to the selection, not to every product on screen. */}
+      {isSelected && selectedBinsForAssignment.length > 0 && (
+        <div className="ml-8">
+          <Separator className="my-2" />
+          <div className="space-y-1">
+            {selectedBinsForAssignment.map(binId => {
+              const location = getBinLocationDetails(binId, doorShelfConfig, false);
+              return location ? (
+                // text-[13px], matching the already-allocated bin list directly above rather than the
+                // 12px it used to be: the two lists are the same kind of fact about the same product —
+                // where it is now, where it is going — and a size change between them read as a change
+                // of importance rather than of meaning. The purple carries the difference.
+                <div key={binId} className="text-[13px] text-[#8F48D2] font-medium">
+                  {location}
+                </div>
+              ) : null;
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
  * Giving products additional bins. Search for products, tick them, tap bins on the shelves.
  *
  * This deliberately does NOT unallocate. Releasing a bin used to live here too — a control on any
@@ -158,7 +288,10 @@ export default function AllocateProductsPanel({
     <div className="fixed inset-y-0 right-0 w-[440px] bg-white border-l border-gray-200 shadow-lg z-[70] flex flex-col">
       <div className="px-4 py-3 border-b border-gray-200 flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h2 className="text-[16px] font-medium text-[#020817]">Allocate Product</h2>
+          {/* Named for the menu entry that opens it. It said "Allocate Product", which is now the OTHER
+              entry — the one for products with no bin at all — so the panel was announcing itself as the
+              flow the operator had just chosen not to run. */}
+          <h2 className="text-[16px] font-medium text-[#020817]">Multi Bin Assignment</h2>
         </div>
         <button
           type="button"
@@ -177,9 +310,25 @@ export default function AllocateProductsPanel({
           <Input
             value={query}
             onChange={event => setQuery(event.target.value)}
-            placeholder="Search products in this cabinet"
-            className="pl-9"
+            // "Search products", same as the tray's. "…in this cabinet" was scoping the search out loud,
+            // which the panel it sits in already does.
+            placeholder="Search products"
+            // pr-9 leaves room for the clear button, so a long query runs under the icon rather than
+            // behind it.
+            className="pl-9 pr-9"
           />
+          {/* Only once there is something to clear — an always-present X on an empty box is a control
+              that does nothing. Same affordance as the header's own search box. */}
+          {query && (
+            <button
+              type="button"
+              aria-label="Clear search"
+              onClick={() => setQuery('')}
+              className="absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 rounded flex items-center justify-center text-[#676b74] hover:bg-gray-100 cursor-pointer"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
         </div>
 
         {/* Same control as the unallocated list: ticking everything and clearing it are the same
@@ -205,122 +354,60 @@ export default function AllocateProductsPanel({
 
       <div className="flex-1 overflow-y-auto">
         {results.length === 0 ? (
-          <div className="p-8 text-center text-[14px] text-[#676b74]">
-            {hasQuery
-              ? 'No products match that search.'
-              : 'Search for and select one or more products, then select one or more bins on the left canvas to allocate them.'}
-          </div>
+          /* Nothing listed by the search — but the selection is not the search's to lose. The picks
+             survive a query changing (see selectedProducts), so with the box cleared they existed only
+             as a number in the footer: "2 Products selected" with no way to see WHICH two, or to drop
+             one, without remembering the query that found it. They are listed here instead, in the same
+             rows they were ticked in, so a tap unticks. */
+          <>
+            {hasQuery && (
+              <div className="p-8 text-center text-[14px] text-[#676b74]">
+                No products match that search.
+              </div>
+            )}
+
+            {selectedProducts.length > 0 ? (
+              <>
+                {/* No count here — the footer already carries it, and two figures for one number
+                    invites checking whether they agree. This says what the list IS. */}
+                <div className="px-4 py-2 border-b border-gray-200 bg-[#f7f7f7] text-[12px] leading-[16px] font-medium text-[#676b74]">
+                  Selected products
+                </div>
+                <div className="divide-y divide-gray-200">
+                  {selectedProducts.map(product => (
+                    <ProductRow
+                      key={productKeyOf(product)}
+                      product={product}
+                      // Always ticked: this list IS the selection, so the row's tap can only remove.
+                      isSelected
+                      onToggle={toggleProduct}
+                      selectedBinsForAssignment={selectedBinsForAssignment}
+                      doorShelfConfig={doorShelfConfig}
+                    />
+                  ))}
+                </div>
+              </>
+            ) : (
+              !hasQuery && (
+                <div className="p-8 text-center text-[14px] text-[#676b74]">
+                  Search for and select one or more products, then select one or more bins on the left
+                  canvas to allocate them.
+                </div>
+              )
+            )}
+          </>
         ) : (
           <div className="divide-y divide-gray-200">
-            {results.map(product => {
-              const key = productKeyOf(product);
-              const isSelected = selectedKeys.has(key);
-
-              return (
-                <div
-                  key={key}
-                  role="button"
-                  tabIndex={0}
-                  aria-pressed={isSelected}
-                  aria-label={`Select ${product.name} for assignment`}
-                  onClick={() => toggleProduct(product)}
-                  onKeyDown={event => {
-                    if (event.key === 'Enter' || event.key === ' ') {
-                      event.preventDefault();
-                      toggleProduct(product);
-                    }
-                  }}
-                  className={`px-4 py-3 cursor-pointer transition-colors duration-200 ${
-                    isSelected ? 'bg-[#F1F6FA]' : 'hover:bg-gray-50'
-                  }`}
-                >
-                  <div className="flex items-start gap-3">
-                    {/* Same square as the unallocated list rather than a native checkbox — the whole
-                        row is the control here too, and a real checkbox invites aiming at the box. */}
-                    <div
-                      className={`mt-0.5 w-5 h-5 rounded-[4px] shrink-0 flex items-center justify-center ${
-                        isSelected ? 'bg-[#095192]' : 'border border-gray-300 bg-white'
-                      }`}
-                    >
-                      {isSelected && <Check className="w-3.5 h-3.5 text-white" strokeWidth={3} />}
-                    </div>
-
-                    <div className="min-w-0 flex-1 space-y-1.5">
-                      {/* Display name and generic name are one block, badges below both — the shape
-                          the bin rows and the other side panels use. */}
-                      <div>
-                        <h3 className="font-normal leading-[20px] text-[14px] text-[#020817]">
-                          {product.name}
-                        </h3>
-                        {product.description && (
-                          <p className="italic text-gray-500 leading-snug text-[14px]">
-                            {product.description}
-                          </p>
-                        )}
-                      </div>
-                      <ProductBadges product={product} />
-                      <div className="text-gray-500 text-[14px] break-words">
-                        {product.ndc} - {product.inventoryType}
-                      </div>
-
-                    </div>
-
-                    {/* Total across every location, in the same figure box the other side panels
-                        use — so the number answers "how much of this is in the cabinet?" rather than
-                        repeating one bin's share. */}
-                    <div className="bg-[#f7f7f7] box-border flex flex-col items-center justify-center p-[4px] relative rounded shrink-0 w-12">
-                      <div className="absolute border-[1px] border-[#e9e9e9] border-solid inset-0 pointer-events-none rounded" />
-                      <div className="font-medium text-[#020817] text-[14px] leading-[16px]">
-                        {product.totalQuantity}
-                      </div>
-                      <div className="font-semibold text-[#676b74] text-[9px] leading-[normal]">
-                        {pluralizeUnit('vial', product.totalQuantity)}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Where it already lives, spanning the row's full width so each bin's quantity
-                      lines up under the total above it. Indented to the product name: the tick box
-                      belongs to the row, not to the locations. */}
-                  <div className="pt-2 ml-8 space-y-1">
-                        {product.binLocations.map(location => (
-                          <div
-                            key={location.binId}
-                            className="flex items-center justify-between gap-2 text-[13px]"
-                          >
-                            <span className="text-[#020817] min-w-0 truncate">
-                              {location.binName} - {location.shelfName}, {location.doorName}
-                            </span>
-                            <span className={`shrink-0 ${location.quantity === 0 ? 'text-[#676b74]' : 'text-[#020817]'}`}>
-                              {location.quantity} {pluralizeUnit('vial', location.quantity)}
-                            </span>
-                          </div>
-                        ))}
-                  </div>
-
-                  {/* Where it is about to go, once bins have been tapped — below the product, in the
-                      same purple the shelf gives an assignment-selected bin (BinCard's #8F48D2 ring
-                      and border), so this list and the highlighted card read as one selection rather
-                      than the panel inventing its own colour for it. Only on picked rows: the bins
-                      belong to the selection, not to every product on screen. */}
-                  {isSelected && selectedBinsForAssignment.length > 0 && (
-                    <div className="ml-8">
-                      <Separator className="my-2" />
-                      <div className="space-y-1">
-                        {selectedBinsForAssignment.map(binId => {
-                          const location = getBinLocationDetails(binId, doorShelfConfig, false);
-                          return location ? (
-                            <div key={binId} className="text-xs text-[#8F48D2] font-medium">
-                              {location}
-                            </div>
-                          ) : null;
-                        })}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+            {results.map(product => (
+              <ProductRow
+                key={productKeyOf(product)}
+                product={product}
+                isSelected={selectedKeys.has(productKeyOf(product))}
+                onToggle={toggleProduct}
+                selectedBinsForAssignment={selectedBinsForAssignment}
+                doorShelfConfig={doorShelfConfig}
+              />
+            ))}
           </div>
         )}
       </div>

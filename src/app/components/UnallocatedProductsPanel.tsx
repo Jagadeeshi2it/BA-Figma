@@ -66,31 +66,66 @@ export default function UnallocatedProductsPanel({
 
   return (
     <div className="fixed right-0 top-0 h-full w-[440px] bg-white border-l border-gray-200 shadow-lg z-50 flex flex-col">
-      {/* Header. py-3 rather than p-4's default: matches AllocateProductsPanel's header, whose
-          vertical padding was already 12px. */}
-      <div className="py-3 px-4 border-b border-gray-200 flex items-center justify-between">
-        <h2 className="font-semibold">Unallocated Products ({filteredProducts.length})</h2>
-        <div
-          className="bg-white relative rounded-[4px] cursor-pointer w-8 h-8 flex items-center justify-center"
-          onClick={onClose}
-        >
-          <X className="w-4 h-4 text-gray-600" />
+      {/* Header, identical to AllocateProductsPanel's — the two panels are the menu's two allocation
+          entries, so they should not look like two different kinds of surface. The padding always matched
+          at px-4 py-3; what made this bar 8px taller was the close control being a 32px box where the
+          other panel uses a 24px one, and the title being an unsized font-semibold against a specified
+          16px medium.
+
+          The close control is also a real <button> with an accessible name now, rather than a div with an
+          onClick: it was reachable by neither keyboard nor screen reader. */}
+      <div className="px-4 py-3 border-b border-gray-200 flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h2 className="text-[16px] font-medium text-[#020817]">
+            Unallocated Products ({filteredProducts.length})
+          </h2>
         </div>
+        <button
+          type="button"
+          aria-label="Close"
+          onClick={onClose}
+          className="shrink-0 w-6 h-6 rounded flex items-center justify-center text-[#676b74] hover:bg-gray-100 cursor-pointer"
+        >
+          <X className="w-4 h-4" />
+        </button>
       </div>
 
       {/* Search, then a Select All checkbox row. */}
       {/* py-3, matching the header above it: 12px is the panel's vertical rhythm throughout. */}
       <div className="py-3 px-4 border-b border-gray-200 space-y-3">
-        <Input
-          type="text"
-          placeholder="Search products"
-          value={unallocatedSearchQuery}
-          onChange={(e) => onSearchChange(e.target.value)}
-          className="w-full text-[14px]"
-        />
+        {/* Same search control as AllocateProductsPanel's, down to the leading magnifier this one was
+            missing: the two panels are the menu's two allocation entries, so a search box that looks
+            different in each says the two searches work differently. */}
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#676b74]" />
+          <Input
+            type="text"
+            placeholder="Search products"
+            value={unallocatedSearchQuery}
+            onChange={(e) => onSearchChange(e.target.value)}
+            className="w-full text-[14px] pl-9 pr-9"
+          />
+          {/* Only once there is something to clear — an always-present X on an empty box is a control
+              that does nothing. */}
+          {unallocatedSearchQuery && (
+            <button
+              type="button"
+              aria-label="Clear search"
+              onClick={() => onSearchChange('')}
+              className="absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 rounded flex items-center justify-center text-[#676b74] hover:bg-gray-100 cursor-pointer"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
 
         {/* The checkbox clears the selection on its own once everything is ticked, so a separate
-            Clear Selection control would be redundant. */}
+            Clear Selection control would be redundant.
+
+            Withheld when nothing is listed, matching AllocateProductsPanel: "Select All" over an empty
+            list has nothing to select, and a control that cannot act reads as broken rather than as
+            unavailable. It sat above the no-results message before, offering to tick nothing. */}
+        {filteredProducts.length > 0 && (
         <div className="flex items-center gap-2 cursor-pointer w-fit" onClick={onSelectAll}>
           <div
             className={`w-5 h-5 rounded-[4px] shrink-0 flex items-center justify-center ${
@@ -107,18 +142,25 @@ export default function UnallocatedProductsPanel({
           </div>
           <span className="text-[14px] text-gray-900">Select All</span>
         </div>
+        )}
       </div>
 
       {/* Product list: plain rows split by dividers rather than individual cards. The checkbox and
           a light tint carry the selected state, so no border is needed. */}
       <div className="flex-1 overflow-y-auto">
         {filteredProducts.length === 0 ? (
-          <div className="text-center py-8 px-4">
-            <Search className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No products found</h3>
-            <p className="text-gray-600">
-              Try searching for a different product name, NDC code, or keyword.
-            </p>
+          /* One quiet line, the same as AllocateProductsPanel's. A 48px icon over a heading over a
+             sentence of advice made an ordinary non-result look like an error state — three elements and
+             a page of vertical space to say what the panel beside it says in six words. The advice went
+             too: "try a different name, NDC code, or keyword" only restates what the box already
+             accepts.
+
+             Two different nothings, though, and they are not interchangeable: a query that matched
+             nothing, versus a tray with nothing left in it because every product now has a bin. */
+          <div className="p-8 text-center text-[14px] text-[#676b74]">
+            {unallocatedSearchQuery.trim()
+              ? 'No products match that search.'
+              : 'Nothing to allocate — every product already has a bin.'}
           </div>
         ) : (
           <div className="divide-y divide-gray-200">

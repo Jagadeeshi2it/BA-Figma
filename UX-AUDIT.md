@@ -140,9 +140,13 @@ abandoning an uncommitted selection is a step back, not a deletion, and the red 
 
 ## H4 — Consistency and standards
 
-- [ ] **H4-1** Two multi-select idioms coexist. The allocate panel and unallocated tray use a
+- [~] **H4-1** Two multi-select idioms coexist. The allocate panel and unallocated tray use a
   tappable row with a custom tick square; the search dropdown uses per-row buttons with a coloured
-  product name and no checkbox at all.
+  product name and no checkbox at all. **Half-closed 2026-08-06:** the two *panels* were themselves
+  drifting apart and are now one design — same header, search box, clear button, empty state and
+  withheld `Select All` — which matters more than before, since they are the menu's two adjacent
+  allocation entries. The dropdown is still the odd one out, and deliberately: its rows act rather than
+  accumulate (`Highlight`, `Move`), so a tick square would promise a selection it does not keep.
 - [~] **H4-2** Three bin-selection states look alike and mean different things — source (blue
   border), target (green), assignment (purple) — and nothing on screen decodes them. Learnable, but
   only by trial. **Reopened 2026-08-03.** A colour legend was added beside the stepper and then
@@ -248,8 +252,13 @@ headings, so neither has to be inferred from which cards happen to carry a `Remo
 
 Strong overall.
 
-- [ ] **H7-1** The `/` keyboard shortcut that reveals the Unallocated Products button is
-  undiscoverable and undocumented.
+- [x] **H7-1** The `/` keyboard shortcut that reveals the Unallocated Products button is
+  undiscoverable and undocumented. Fixed 2026-08-06 by removing the shortcut and the button rather than
+  documenting them: allocating a product that has no bin is the app's most basic job, so it is now the
+  **first entry** in the workflow menu (`Allocate Product`), alongside the three that were already there.
+  The flow it opens is unchanged. What used to be called `Allocate Product` — giving an *already*
+  allocated product another bin — is now `Multi Bin Assignment`, which is the specialised case and reads
+  like one.
 
 **Working well:** `Move all` per bin; `Select All` per product across its bins; `Select All` in both
 panels; multi-select surviving a re-search; a `|`-separated OR query grammar letting one search
@@ -295,7 +304,7 @@ types, and both ways out.
   descriptions, plus a per-step instruction in the footer written as the physical act — the device the
   quantity page already used ("Remove the quantity shown from this bin, then tap…") and which this
   audit singled out as working. Still `[~]`: the domain vocabulary in `H2-1` and the `/` shortcut in
-  `H7-1` have nowhere to be explained.
+  the domain vocabulary in `H2-1` has nowhere to be explained.
 - [x] **H10-2** The zero-quantity release rule had to be explained in a menu description because the
   UI could not show it — a sign the rule needed a visible home, not better prose. Resolved by
   removing unallocation from that workflow entirely (2026-07-31); it now lives only where it is

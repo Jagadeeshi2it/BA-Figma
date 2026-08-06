@@ -302,8 +302,12 @@ const SearchDropdown = memo(function SearchDropdown({
                 {/* Which bins hold it — a search hit is only actionable once you know where to walk. */}
                 {result.binLocations.length > 0 && (
                   <div className="flex flex-col gap-0.5 items-start justify-start mt-1 relative shrink-0 w-full">
+                    {/* 13px, the size every other "where this product lives" line uses — both side panels
+                        list bin locations at 13px, and this is the same fact on a different surface. It was
+                        12px, which made the dropdown's locations read as a footnote to the panels' rather
+                        than the same information. */}
                     {formatBinLocations(result).map(location => (
-                      <p key={location} className={`block font-normal leading-[16px] not-italic text-[12px] text-left break-words ${isPicked(result) ? 'text-[#A16207]' : 'text-[#020817]'}`}>
+                      <p key={location} className={`block font-normal leading-[16px] not-italic text-[13px] text-left break-words ${isPicked(result) ? 'text-[#A16207]' : 'text-[#020817]'}`}>
                         {location}
                       </p>
                     ))}

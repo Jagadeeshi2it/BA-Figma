@@ -59,8 +59,6 @@ export default function App() {
     setPendingScrollBinId(null);
   }, [pendingScrollBinId, inventoryState.selectedDoor]);
 
-  // State for showing/hiding the Unallocated Products button
-  const [showUnallocatedButton, setShowUnallocatedButton] = useState(false);
 
   // Product detail page state
   const [showProductDetail, setShowProductDetail] = useState(false);
@@ -149,24 +147,6 @@ export default function App() {
   const [showUnallocateModal, setShowUnallocateModal] = useState(false);
   const [productsToUnallocate, setProductsToUnallocate] = useState<any[]>([]);
 
-  // Keyboard event listener for "/" key to show Unallocated Products button
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      // Only activate on "/" key and when not typing in an input or search field
-      if (event.key === "/" && 
-          document.activeElement?.tagName !== "INPUT" &&
-          document.activeElement?.tagName !== "TEXTAREA") {
-        event.preventDefault(); // Prevent "/" from being typed
-        setShowUnallocatedButton(true);
-      }
-    };
-
-    document.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, []);
-  
   // A move that empties a bin raises the banner above the cabinet, not a modal over it.
   //
   // The modal used to open the instant a move committed, which interrupted the operator at the one moment
@@ -728,14 +708,12 @@ export default function App() {
               highlightAvailableBins={inventoryState.highlightAvailableBins}
               allAvailableBins={allAvailableBins}
               showUnallocatedProducts={inventoryState.showUnallocatedProducts}
-              showUnallocatedButton={showUnallocatedButton}
               showAllocateProducts={inventoryState.showAllocateProducts}
               changeAllocationMode={inventoryState.changeAllocationMode}
               changeAllocationStep={inventoryState.changeAllocationStep}
               changeAllocationSourceBins={inventoryState.changeAllocationSourceBins}
               changeAllocationTargetBins={inventoryState.changeAllocationTargetBins}
               sourceProductPicks={inventoryState.sourceProductPicks}
-              unallocatedProductsCount={inventoryState.unallocatedProductsCount}
               doorShelfConfig={inventoryState.doorShelfConfig}
               selectedBinsForAssignment={inventoryState.selectedBinsForAssignment}
               handleSearchQueryChange={inventoryState.handleSearchQueryChange}

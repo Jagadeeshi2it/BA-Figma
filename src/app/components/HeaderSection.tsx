@@ -17,14 +17,12 @@ interface HeaderSectionProps {
   highlightAvailableBins: boolean;
   allAvailableBins: number;
   showUnallocatedProducts: boolean;
-  showUnallocatedButton: boolean;
   changeAllocationMode: boolean;
   changeAllocationStep: 1 | 2;
   changeAllocationSourceBins: string[];
   // The (bin, product) pairs already picked, so the dropdown can judge availability per pair.
   sourceProductPicks?: SourcePick[];
   changeAllocationTargetBins: string[];
-  unallocatedProductsCount: number; // CRITICAL FIX: Pass unallocated products count as prop
   doorShelfConfig: DoorShelfConfig;
   selectedBinsForAssignment?: string[];
   handleSearchQueryChange: (query: string) => void;
@@ -41,8 +39,6 @@ interface HeaderSectionProps {
   // Which kind of move is in progress (null outside a move). Passed to the search dropdown so it can
   // offer "Select as Source" for products only in the Product kind.
   moveMode?: 'bin' | 'product' | null;
-  // One-shot: true right after a Product move is started, asking for the search box to take the
-  // cursor. Cleared as soon as it's used, so it fires once per flow rather than on every step change.
   handleAllocateProductsClick: () => void;
   handleUnallocatedProductsClick: () => void;
   handleHistoryClick: () => void;
@@ -82,13 +78,11 @@ const HeaderSection = memo(function HeaderSection({
   highlightAvailableBins,
   allAvailableBins,
   showUnallocatedProducts,
-  showUnallocatedButton,
   changeAllocationMode,
   changeAllocationStep,
   changeAllocationSourceBins,
   sourceProductPicks = [],
   changeAllocationTargetBins,
-  unallocatedProductsCount,
   doorShelfConfig,
   selectedBinsForAssignment = [],
   showAllocateProducts = false,
@@ -360,13 +354,25 @@ const HeaderSection = memo(function HeaderSection({
                       Product" read as separate jobs. "Move from …" also echoes the pipeline's own
                       Move From / Move To vocabulary, and avoids colliding with step ②'s disabled
                       primary, which is itself "Select Bin to move". */}
+                  {/* The two allocation entries are one verb apart, and the difference is the whole point:
+                      a product with NO bin is a different job from a product that wants another one.
+                      "Allocate Product" is the first thing in the menu because it is the one that gets
+                      stock into the cabinet at all — the tray it opens used to be reachable only by
+                      pressing "/" to reveal a button, which is nobody's first guess (UX-AUDIT H7-1). */}
                   <WorkflowOption
                     title="Allocate Product"
-                    // "Existing" is the load-bearing word: this gives ANOTHER bin to products already in
-                    // the cabinet. Products with no bin at all go through the Unallocated tray instead, which
-                    // is a different flow entirely — and "Give a product another bin" never said which of
-                    // the two this was.
-                    description="Assign bins to existing products."
+                    description="Assign bins to unallocated products."
+                    onSelect={() => {
+                      setWorkflowMenuOpen(false);
+                      handleUnallocatedProductsClick();
+                    }}
+                  />
+                  <WorkflowOption
+                    title="Multi Bin Assignment"
+                    // Deliberately parallel to the entry above: same verb, and the two words that change
+                    // are the two things that differ — "additional" bins, for products already "allocated".
+                    // It was called "Allocate Product" itself, which put the two jobs behind one name.
+                    description="Assign additional bins to allocated products."
                     onSelect={() => {
                       setWorkflowMenuOpen(false);
                       handleAllocateProductsClick();
@@ -395,47 +401,18 @@ const HeaderSection = memo(function HeaderSection({
                   />
                 </PopoverContent>
               </Popover>
-              {/* Only show Unallocated Products button if there are products to allocate and keyboard shortcut was pressed */}
-              {unallocatedProductsCount > 0 && showUnallocatedButton && (
-                <div
-                  className="bg-white relative rounded-[4px] cursor-pointer"
-                  onClick={handleUnallocatedProductsClick}
-                >
-                  <div aria-hidden="true" className="absolute border border-[#095192] border-solid inset-0 pointer-events-none rounded-[4px]" />
-                  <div className="flex flex-row items-center justify-end relative size-full">
-                    <div className="box-border content-stretch flex gap-2 items-center justify-end px-3 py-2 relative size-full">
-                      <div className="capitalize font-['Inter:Regular',_sans-serif] font-normal leading-[0] not-italic relative shrink-0 text-[#095192] text-[14px] text-nowrap">
-                        <p className="leading-[20px] whitespace-pre text-[14px]">Unallocated ({unallocatedProductsCount})</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
+              {/* The Unallocated Products button stood here, revealed by pressing "/". The workflow menu's
+                  own Allocate Product entry opens that tray now, so the button was a second door to the
+                  same room — and the one nobody could find, since the shortcut that revealed it was
+                  undocumented and unhinted (UX-AUDIT H7-1). The "/" listener went with it. */}
             </>
           )}
 
-          {/* Leaving the mode lives on the bottom bar's Cancel, which calls the same handler — two
-              buttons for one action, at opposite ends of the screen, only raised the question of
-              whether they did different things. */}
-
-          {/* Show active state when in unallocated products mode */}
-          {showUnallocatedProducts && (
-            <div
-              className="bg-[#095192]/5 relative rounded-[4px] cursor-pointer"
-              onClick={handleUnallocatedProductsClick}
-            >
-              <div aria-hidden="true" className="absolute border border-[#095192] border-solid inset-0 pointer-events-none rounded-[4px]" />
-              <div className="flex flex-row items-center justify-end relative size-full">
-                <div className="box-border content-stretch flex gap-2 items-center justify-end px-3 py-2 relative size-full">
-                  <div className="capitalize font-['Inter:Regular',_sans-serif] font-normal leading-[0] not-italic relative shrink-0 text-[#095192] text-[14px] text-nowrap">
-                    <p className="leading-[20px] whitespace-pre text-[14px]">
-                      Unallocated{unallocatedProductsCount > 0 ? ` (${unallocatedProductsCount})` : ''}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
+          {/* A tinted "Unallocated (n)" chip used to sit here while the tray was open, doubling as the
+              way to close it. No other workflow puts a chip in the header — they leave by their own
+              panel's Cancel or X, which this panel has too — so once the tray was entered from the menu
+              like the rest, the chip was the only one of its kind and a second close for one panel.
+              Removing it retired the last use of unallocatedProductsCount, which went with it. */}
 
           {/* History hides with the workflow buttons above, for the same reason: leaving for a
               full-page history mid-selection would discard it. */}

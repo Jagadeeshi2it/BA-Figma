@@ -64,16 +64,28 @@ geometry. That is why the demo steps are last.
 
 ---
 
-## 2. The three workflows
+## 2. The four workflows
 
 The header's **Allocate/Move** button opens a 360px menu, **right-aligned to the trigger** (`align="end"`),
-with three entries:
+with four entries:
 
 | Entry | What it starts |
 |---|---|
-| **Allocate Product** — "Assign bins to existing products." | Workflow A below. |
+| **Allocate Product** — "Assign bins to unallocated products." | Workflow D below — the Unallocated tray. |
+| **Multi Bin Assignment** — "Assign additional bins to allocated products." | Workflow A below. |
 | **Move from Bin** — "Move one or more products starting from a bin." | Workflow B with `moveMode = 'bin'`. |
 | **Move from Product** — "Move one or more products starting from a product." | Workflow B with `moveMode = 'product'`. |
+
+**The first entry is the tray, not workflow A.** Getting stock into a bin *at all* is the job an operator
+reaches for first, so it takes the plainest name and the top slot; giving an already-stocked product a
+second bin is the specialised case and says so. Workflow A was itself called `Allocate Product`, which put
+both jobs behind one name — and the tray, the more fundamental of the two, was reachable only by pressing
+`/` to reveal a button (`UX-AUDIT H7-1`, now closed by this).
+
+The two allocation entries are **the same sentence bar two words**: same verb, differing in `additional`
+and in `unallocated`/`allocated`, which is exactly what differs between them. The panel that workflow A
+opens is titled `Multi Bin Assignment` too — it said `Allocate Product`, so after the rename it announced
+itself as the flow the operator had just chosen *not* to run.
 
 The two Move entries are **the same sentence bar its last word**, because they are one workflow with two
 doors, not two workflows — `Move by Bin` / `Move by Product` read as separate jobs. `Move from …` also
@@ -96,7 +108,7 @@ screen, and a second entry point invites abandoning a half-built selection.
 Beside the `Allocation` title is a **`Bins Available(n)`** checkbox — a view filter, not a workflow.
 It was a button until it started reading as a fourth action.
 
-### A. Allocate Product — give a product another bin
+### A. Multi Bin Assignment — give an allocated product another bin
 
 `AllocateProductsPanel` (right, 440px) → `handleAssignProductsToBins`.
 
@@ -111,6 +123,13 @@ what stops you picking a bin it is already in.
   rows in one bin and every count in the app would double it.
 - Multi-select survives re-searching: the panel holds the **picked product objects**, not their
   keys, so a product picked under one query is not lost when the query changes.
+- **With nothing listed, the empty state lists the selection instead** under a `Selected products`
+  header, in the same `ProductRow` the results use, always ticked — so a tap can only remove. Surviving
+  a query change used to mean surviving *invisibly*: the footer said `2 Products selected` with no way
+  to see which two, or drop one, without remembering the query that found each. The header carries no
+  count, because the footer already does and two figures for one number invite checking whether they
+  agree. `ProductRow` is at module scope and shared by both lists, so the selected list cannot drift
+  into looking like a different kind of thing from the results it came from.
 - **No history entry is written.** Known gap — see §7.
 
 ### B. Move Quantity — move stock between bins a product already occupies
@@ -283,10 +302,37 @@ What this touches, and why each part is easy to break again:
   nothing" guard is now conditional on another source covering the move, or the whole thing silently
   cancelled.
 
-### D. Unallocated Products tray — a separate, older flow
+### D. Allocate Product — the Unallocated Products tray
 
-`UnallocatedProductsPanel` assigns products that have **no** bin at all. Reached by pressing `/`
-then the button. Shares the `selectedBinsForAssignment` channel with workflow A.
+`UnallocatedProductsPanel` assigns products that have **no** bin at all — seeded on mount by
+`generateUnallocatedProducts`, which is every catalogue product not already in a bin (8 in the current
+seed). Shares the `selectedBinsForAssignment` channel with workflow A, so a bin tap means the same thing
+in both.
+
+Reached from the menu's first entry. It used to be reachable **only** by pressing `/` to reveal a header
+button, gated on `showUnallocatedButton` — an undocumented shortcut in front of the app's most basic
+allocation job. Both the button and the `/` listener are gone; `handleUnallocatedProductsClick` now clears
+the previous visit's product ticks and bin picks **on open** as well as on close, because a menu entry has
+to start from nothing the way `handleAllocateProductsClick` does (the panel's own X can dismiss it without
+clearing).
+
+**It reads like workflow A now, deliberately.** Same header (`px-4 py-3`, 16px medium title, a real 24px
+close button), same search box (leading magnifier, clear X once there is something to clear), same
+one-line empty state at 14px — and the same `Select All`, withheld when nothing is listed rather than
+offering to tick an empty list. The tray's no-result state used to be a 48px icon over a heading over a
+sentence of advice, which made an ordinary non-result look like an error; the advice ("try a different
+name, NDC code, or keyword") only restated what the box already accepts. It keeps **two** distinct
+nothings, which are not interchangeable: `No products match that search.` versus
+`Nothing to allocate — every product already has a bin.`
+
+**Nothing of the old entry point is left.** The `/` listener, `showUnallocatedButton`, the button itself,
+the tinted `Unallocated (n)` chip that used to sit in the header while the tray was open, and the
+`unallocatedProductsCount` prop that only those two rendered — all gone. `handleUnallocatedProductsClick`
+was a toggle for the button's sake and is now **open-only**: the menu is hidden whenever the tray is open,
+so the close half could never run again, and closing is `closeUnallocatedProducts`, which the panel's own
+X and Cancel already call. Its clearing is *not* redundant with that close — `enterMoveMode` also drops the
+tray without touching its selections, so a visit abandoned by starting a move would otherwise leave ticks
+and tapped bins for the next open to inherit.
 
 ---
 
@@ -624,6 +670,17 @@ been violations of it.
 - Shared visual vocabulary: product rows are name → italic generic name → grey badges →
   `ndc - inventoryType`; primary `#095192`, secondary white/`#095192` border, destructive `#C6362C`,
   selected tint `#F1F6FA`, assignment border `#8F48D2`.
+- **A "where this product lives" line is 13px, wherever it appears** — the bin locations under a product
+  in either side panel, the purple list of bins it is about to be assigned to, and the search dropdown's
+  locations. They are the same fact on four surfaces. Three of them were 12px at some point, which read
+  as a footnote to whichever one was 13px rather than as the same information; the purple list's
+  *colour* is what makes it a different fact, not its size.
+- **The two side panels are one design.** `AllocateProductsPanel` and `UnallocatedProductsPanel` are the
+  menu's two allocation entries, so they share a header (`px-4 py-3`, a 16px medium `h2`, a real 24px
+  close `button` with `aria-label`), a search box (`Search products`, leading magnifier, a clear `X` that
+  appears only once there is something to clear), a one-line 14px empty state, and a `Select All` that is
+  withheld when nothing is listed. A difference between them implies the two flows work differently.
+  Change one and check the other.
 - **A move stage does not write its own footer.** Compose `PipelineFooter`'s parts (§2) so a stage
   chooses *what* to report, never how it looks. The step count comes from `TOTAL_PIPELINE_STEPS`, so
   it cannot disagree with the step vocabulary it describes.
@@ -672,6 +729,12 @@ physically impossible allocation without objection (§5).
   arrives. Note the features it was built for — a 0-inventory filter and a per-location release
   control — have since been removed, so its remaining purpose is thin.
 - **`BinCard`'s `showUnallocatedProducts` prop is misnamed** for what it does (see §3).
+- **The Unallocated tray's selection goes invisible when its filter hides it.** Tick a product, search
+  something else, and it stays selected — `selectedUnallocatedProducts` is independent of the filter, as
+  it should be — but nothing on screen says so, and the empty state says `No products match that search.`
+  over a selection that is still live. This is exactly the gap workflow A closed by listing the picks
+  under its empty state (§2 A); the tray needs the same, which means extracting its row the way
+  `ProductRow` was extracted. The footer's `n Products selected` is currently the only trace.
 - **Step ④'s position counters are switched off, not decided.** `SHOW_STEP4_POSITION_COUNTERS = false`
   (§2). The operator asked to hide them while the Move Summary is judged alone and said they would call
   it; the cells and their side sheets stay wired. If the answer is "off", delete them — that is the

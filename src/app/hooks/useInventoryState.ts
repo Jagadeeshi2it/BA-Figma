@@ -422,17 +422,22 @@ export const useInventoryState = () => {
     setSelectedSearchQuery("");
   }, []);
 
+  /**
+   * The workflow menu's Allocate Product entry. Opens only — it was a toggle, which made sense while a
+   * header button both opened and closed the tray, but that button is gone: the menu is hidden whenever
+   * the tray is open, so the close half could never run again, and closing belongs to
+   * closeUnallocatedProducts, which the panel's own X and Cancel already call.
+   *
+   * The clearing is not redundant with that close. `enterMoveMode` also drops the tray
+   * (setShowUnallocatedProducts(false)) without touching its selections, so a visit abandoned by starting
+   * a move leaves product ticks and tapped bins behind for the next open to inherit.
+   */
   const handleUnallocatedProductsClick = () => {
-    // CRITICAL FIX: Toggle behavior - if already open, close it; if closed, open it
-    if (showUnallocatedProducts) {
-      setShowUnallocatedProducts(false);
-      setSelectedUnallocatedProducts([]);
-      setSelectedBinsForAssignment([]);
-    } else {
-      setShowUnallocatedProducts(true);
-      setShowBinInventory(false);
-      setSelectedBin(null);
-    }
+    setShowUnallocatedProducts(true);
+    setShowBinInventory(false);
+    setSelectedBin(null);
+    setSelectedUnallocatedProducts([]);
+    setSelectedBinsForAssignment([]);
   };
 
   const closeUnallocatedProducts = () => {
@@ -2030,7 +2035,6 @@ export const useInventoryState = () => {
     showChangeAllocationModal,
     doorShelfConfig,
     unallocatedProducts, // CRITICAL FIX: Add unallocated products array
-    unallocatedProductsCount: unallocatedProducts.length, // CRITICAL FIX: Add unallocated products count
     showAllocateProducts,
     allocateSelectedProductKeys,
     setAllocateSelectedProductKeys,
