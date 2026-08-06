@@ -6,6 +6,9 @@ import ShelfLayout from './ShelfLayout';
 interface ShelvesSectionProps {
   currentShelves: any[];
   searchQuery: string;
+  // Bins lit because the operator asked for those bins by name. Held as ids, not as a query — a bin
+  // name is only unique within its door, so a query would light every namesake. See useInventoryState.
+  binHighlight?: { binIds: string[]; query: string } | null;
   searchMatchCount: number;
   selectedDoor: string | null;
   selectedBin: string | null;
@@ -35,6 +38,7 @@ interface ShelvesSectionProps {
 export default function ShelvesSection({
   currentShelves,
   searchQuery,
+  binHighlight = null,
   searchMatchCount,
   selectedDoor,
   selectedBin,
@@ -71,6 +75,7 @@ export default function ShelvesSection({
               showBinInventory={showBinInventory}
               highlightAvailableBins={highlightAvailableBins}
               searchQuery={searchQuery}
+              binHighlight={binHighlight}
               selectedBinsForAssignment={selectedBinsForAssignment}
               changeAllocationMode={changeAllocationMode}
               changeAllocationStep={changeAllocationStep}
@@ -112,6 +117,7 @@ export default function ShelvesSection({
               showBinInventory={showBinInventory}
               highlightAvailableBins={highlightAvailableBins}
               searchQuery={searchQuery}
+              binHighlight={binHighlight}
               selectedBinsForAssignment={selectedBinsForAssignment}
               changeAllocationMode={changeAllocationMode}
               changeAllocationStep={changeAllocationStep}

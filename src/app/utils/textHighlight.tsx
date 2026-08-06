@@ -1,4 +1,5 @@
 import React from 'react';
+import { splitOrGroups, splitTerms, fieldsMatchAllTerms } from './searchQuery';
 
 // Escape every regex metacharacter in a search term before it goes into an alternation. Product
 // names really do contain them — "ALBURX (HUMAN) 25% VIAL 25GM/100ML" — and unescaped parentheses
@@ -6,29 +7,27 @@ import React from 'react';
 // participate in the match. That undefined then hit .toLowerCase() and crashed the page.
 const escapeRegExp = (term: string): string => term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-// A query is one or more "|"-separated OR-groups, each an AND'd set of comma-separated terms —
-// same convention as productMatchesQuery/binMatchesSearch. Returns the original-case terms of
-// the first group this product satisfies (so callers can highlight exactly those terms, not the
-// whole query — a combined multi-product query's OTHER groups don't apply to this product), or
-// null if none match.
+// Returns the original-case terms of the first OR-group this product satisfies (so callers highlight
+// exactly those terms, not the whole query — a combined multi-product query's OTHER groups don't apply
+// to this product), or null if none match. Grammar from utils/searchQuery, which is the point: the
+// highlighter has to tokenise identically to the matcher, or a search finds a product and then colours
+// nothing in it.
 const getMatchingGroupTerms = (product: any, searchQuery: string): string[] | null => {
   if (!searchQuery.trim() || !product) {
     return null;
   }
 
-  const searchableText = [
-    product.name || '',
-    product.description || '',
-    product.ndc || '',
-    product.inventoryType || '',
-    product.genericName || ''
-  ].join(' ').toLowerCase();
+  const fields = [
+    product.name,
+    product.description,
+    product.ndc,
+    product.inventoryType,
+    product.genericName
+  ];
 
-  const orGroups = searchQuery.split('|').map(group => group.trim()).filter(group => group.length > 0);
-
-  for (const group of orGroups) {
-    const terms = group.split(',').map(term => term.trim()).filter(term => term.length > 0);
-    if (terms.length > 0 && terms.every(term => searchableText.includes(term.toLowerCase()))) {
+  for (const group of splitOrGroups(searchQuery)) {
+    const terms = splitTerms(group);
+    if (fieldsMatchAllTerms(fields, terms)) {
       return terms;
     }
   }
@@ -97,10 +96,9 @@ export const highlightText = (
     return text;
   }
 
-  const searchTerms = matchedGroupTerms ?? searchQuery
-    .split(',')
-    .map(term => term.trim())
-    .filter(term => term.length > 0);
+  // No product context: tokenise the query the same way, so the highlight can never disagree with
+  // the matcher about where a term begins and ends.
+  const searchTerms = matchedGroupTerms ?? splitTerms(searchQuery);
 
   // Create a single regex pattern that matches any of the search terms
   const escapedTerms = searchTerms.map(escapeRegExp);
@@ -165,10 +163,9 @@ export const highlightNDC = (
     return ndcText;
   }
 
-  const searchTerms = matchedGroupTerms ?? searchQuery
-    .split(',')
-    .map(term => term.trim())
-    .filter(term => term.length > 0);
+  // No product context: tokenise the query the same way, so the highlight can never disagree with
+  // the matcher about where a term begins and ends.
+  const searchTerms = matchedGroupTerms ?? splitTerms(searchQuery);
 
   // We'll highlight any matching terms, not just numeric ones
   // This allows highlighting of both NDC numbers and inventory types like "Specialty Pharmacy"

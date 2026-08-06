@@ -1,5 +1,6 @@
 import { DoorShelfConfig, Product, Bin } from '../types';
 import { productDataService } from '../services/ProductDataService';
+import { queryMatchesFields, matchingGroupForText, textMatchesAllTerms, splitOrGroups, splitTerms } from './searchQuery';
 
 export interface ProductSearchResult {
   ndc: string;
@@ -18,28 +19,20 @@ export interface ProductSearchResult {
   }>;
 }
 
-// Helper function to check if a product matches all search terms (AND within a group)
-const productMatchesAllSearchTerms = (product: any, searchTerms: string[]): boolean => {
-  // For each search term, check if it matches at least one product field
-  return searchTerms.every(term => {
-    return product.name.toLowerCase().includes(term) ||
-           product.ndc.toLowerCase().includes(term) ||
-           product.source.toLowerCase().includes(term) ||
-           product.inventoryType.toLowerCase().includes(term) ||
-           (product.description && product.description.toLowerCase().includes(term));
-  });
-};
+// The fields a product is searchable by. One list, so the matcher and anything else asking "would
+// this product be found by X" cannot drift apart.
+const searchableFieldsOf = (product: any): Array<string | undefined> => [
+  product?.name,
+  product?.ndc,
+  product?.source,
+  product?.inventoryType,
+  product?.description
+];
 
-// A query is one or more "|"-separated OR-groups, each an AND'd set of comma-separated terms.
-// Plain typed queries (no "|") are a single group, so narrowing ("insulin, sanofi") is unchanged.
-// "|" lets callers (e.g. "Select All") OR together several independent products' own AND-groups.
-const productMatchesQuery = (product: any, searchQuery: string): boolean => {
-  const orGroups = searchQuery.split('|').map(group => group.trim()).filter(group => group.length > 0);
-  return orGroups.some(group => {
-    const terms = group.split(',').map(term => term.trim().toLowerCase()).filter(term => term.length > 0);
-    return terms.length > 0 && productMatchesAllSearchTerms(product, terms);
-  });
-};
+// Grammar lives in utils/searchQuery — terms split on whitespace OR commas and each may be answered by
+// a different field, which is what makes `carbo 600` and `carbo purchased` work.
+const productMatchesQuery = (product: any, searchQuery: string): boolean =>
+  queryMatchesFields(searchQuery, searchableFieldsOf(product));
 
 // Walk every bin in the cabinet, keeping the products a predicate accepts, grouped by NDC +
 // inventory type with one entry per location. Both exports below are this with a different filter.
@@ -140,14 +133,9 @@ export const searchBinsByName = (
 ): BinSearchResult[] => {
   if (!searchQuery.trim()) return [];
 
-  const orGroups = searchQuery.split('|').map(group => group.trim()).filter(group => group.length > 0);
-  const matchesName = (binName: string): boolean => {
-    const target = binName.toLowerCase();
-    return orGroups.some(group => {
-      const terms = group.split(',').map(term => term.trim().toLowerCase()).filter(term => term.length > 0);
-      return terms.length > 0 && terms.every(term => target.includes(term));
-    });
-  };
+  const orGroups = splitOrGroups(searchQuery);
+  const matchesName = (binName: string): boolean =>
+    orGroups.some(group => textMatchesAllTerms(binName, splitTerms(group)));
 
   const results: BinSearchResult[] = [];
 
@@ -187,19 +175,8 @@ export const searchBinsByName = (
  * every bin that merely holds the drug. A bin-name group is the opposite: it names one bin outright,
  * so it can't over-reach, and it means "you asked where this is" rather than "you chose this".
  */
-export const binNameQueryGroup = (query: string, binName: string): string => {
-  if (!query.trim() || !binName) return '';
-  const target = binName.toLowerCase();
-  const match = query
-    .split('|')
-    .map(group => group.trim())
-    .filter(group => group.length > 0)
-    .find(group => {
-      const terms = group.split(',').map(term => term.trim().toLowerCase()).filter(term => term.length > 0);
-      return terms.length > 0 && terms.every(term => target.includes(term));
-    });
-  return match ?? '';
-};
+export const binNameQueryGroup = (query: string, binName: string): string =>
+  matchingGroupForText(query, binName);
 
 // Helper function to get cabinet name from door name
 const getCabinetNameFromDoorName = (doorName: string): string => {

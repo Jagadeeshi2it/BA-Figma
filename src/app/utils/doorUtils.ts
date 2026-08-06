@@ -1,6 +1,7 @@
 import { DoorType, Bin, Shelf, Cabinet, DoorShelfConfig } from '../types';
 import { cabinets } from '../data/cabinets';
 import { getConfiguredDoorType } from './shelfLayoutConfig';
+import { splitOrGroups, splitTerms, textMatchesAllTerms, fieldsMatchAllTerms } from './searchQuery';
 
 // Get door type. Doors 1/5 are single, 2/3/6/7 are double, 4/8 are the wide
 // "bottom" doors (a 5x5 grid, so 'unique'). The OCSRI import carries no
@@ -151,43 +152,26 @@ export const initializeDoorConfigs = (doorShelfConfig: DoorShelfConfig): DoorShe
   return updatedConfig;
 };
 
-// Helper function to check if all search terms match a target string
-const matchesAllTerms = (target: string, searchTerms: string[]): boolean => {
-  const targetLower = target.toLowerCase();
-  return searchTerms.every(term => targetLower.includes(term));
-};
-
-// Helper function to check if a product matches all search terms
-const productMatchesAllTerms = (product: any, searchTerms: string[]): boolean => {
-  // For each search term, check if it matches at least one product field
-  return searchTerms.every(term => {
-    return product.name.toLowerCase().includes(term) ||
-           product.ndc.toLowerCase().includes(term) ||
-           product.source.toLowerCase().includes(term) ||
-           product.inventoryType.toLowerCase().includes(term) ||
-           (product.description && product.description.toLowerCase().includes(term));
-  });
-};
-
-// Check if a bin matches the search query for highlighting.
-// A query is one or more "|"-separated OR-groups, each an AND'd set of comma-separated terms.
-// Plain typed queries (no "|") are a single group, so narrowing ("insulin, sanofi") is unchanged.
-// "|" lets callers (e.g. "Select All") OR together several independent products' own AND-groups.
+// Check if a bin matches the search query for highlighting — by its own name, or by anything it holds.
+// Grammar lives in utils/searchQuery; this file used to carry its own copy of it.
 export const binMatchesSearch = (bin: Bin, query: string): boolean => {
   if (!query.trim()) return false;
 
-  const orGroups = query.split('|').map(group => group.trim()).filter(group => group.length > 0);
-  if (orGroups.length === 0) return false;
+  return splitOrGroups(query).some(group => {
+    const terms = splitTerms(group);
+    if (terms.length === 0) return false;
 
-  return orGroups.some(group => {
-    const searchTerms = group.split(',').map(term => term.trim().toLowerCase()).filter(term => term.length > 0);
-    if (searchTerms.length === 0) return false;
+    if (textMatchesAllTerms(bin.name, terms)) return true;
 
-    // For multiple terms (comma-separated), check if bin name matches all terms
-    if (matchesAllTerms(bin.name, searchTerms)) return true;
-
-    // For products, each search term must match at least one field of the same product
-    return bin.products.some(product => productMatchesAllTerms(product, searchTerms));
+    // Per product, not across the bin: the terms have to describe ONE of its products, or a bin
+    // holding a Sample of one drug and a Purchased pack of another would answer "carbo purchased"
+    // with a product that is neither.
+    return bin.products.some(product =>
+      fieldsMatchAllTerms(
+        [product.name, product.ndc, product.source, product.inventoryType, product.description],
+        terms
+      )
+    );
   });
 };
 

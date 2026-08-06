@@ -183,16 +183,41 @@ export default function App() {
   // still matches a leftover query after its only matching bin was removed from the panel would light
   // up as found for a product that was just taken back out — doorsWithChangeAllocationBins already
   // covers the doors that genuinely hold a selection.
+  // The doors a highlighted bin sits behind. Exempt from the change-allocation suppression below and
+  // from the query channel entirely: this is the operator asking where a named bin is, and only one
+  // door of the eight holding a "Bin 1A" is the answer. Without it Highlight All says nothing at the
+  // cabinet level, which is the one level where seeing every instance at once is the point — the
+  // shelves only ever show the open door.
+  const doorsWithHighlightedBins = useMemo(() => {
+    const binIds = inventoryState.binHighlight?.binIds;
+    if (!binIds?.length || !inventoryState.doorShelfConfig) return [];
+    return Object.entries(inventoryState.doorShelfConfig)
+      .filter(([, shelves]) =>
+        shelves.some(shelf => shelf.bins?.some(bin => binIds.includes(bin.id)))
+      )
+      .map(([doorName]) => doorName);
+  }, [inventoryState.doorShelfConfig, inventoryState.binHighlight]);
+
+  // CabinetComponent only tests this for truthiness — "is a search live at all", the gate on drawing a
+  // door's match dot — and never matches against it. A bin highlight sets no query channel of its own,
+  // so without this its doors would compute their matches and then decline to draw them.
+  const cabinetSearchGateQuery =
+    inventoryState.selectedSearchQuery || inventoryState.binHighlight?.query || '';
+
   const doorsWithSearchMatches = useMemo(() => {
     // A Bin move's source step breaks the assumption above on purpose: "Highlight in Bin" locates a
     // product without selecting anything, so "found, not yet selected" is exactly the state it
     // creates — and the door has to light up or the user can't tell which door to open to reach it.
     const isLocatorSearch =
       inventoryState.moveMode === 'bin' && inventoryState.changeAllocationStep === 1;
-    if (inventoryState.changeAllocationMode && !isLocatorSearch) return [];
-    if (!debouncedSelectedSearchQuery.trim() || !inventoryState.doorShelfConfig) return [];
-    return getDoorsWithSearchMatches(inventoryState.doorShelfConfig, debouncedSelectedSearchQuery);
-  }, [inventoryState.doorShelfConfig, debouncedSelectedSearchQuery, inventoryState.changeAllocationMode, inventoryState.moveMode, inventoryState.changeAllocationStep]);
+    const fromQuery =
+      (inventoryState.changeAllocationMode && !isLocatorSearch) ||
+      !debouncedSelectedSearchQuery.trim() ||
+      !inventoryState.doorShelfConfig
+        ? []
+        : getDoorsWithSearchMatches(inventoryState.doorShelfConfig, debouncedSelectedSearchQuery);
+    return [...new Set([...fromQuery, ...doorsWithHighlightedBins])];
+  }, [inventoryState.doorShelfConfig, debouncedSelectedSearchQuery, inventoryState.changeAllocationMode, inventoryState.moveMode, inventoryState.changeAllocationStep, doorsWithHighlightedBins]);
 
   const doorsWithSelectedBins = useMemo(() => {
     if (inventoryState.selectedBinsForAssignment.length === 0 || !inventoryState.doorShelfConfig) return [];
@@ -730,7 +755,7 @@ export default function App() {
               handleSelectSourceBinsFromSearch={inventoryState.handleSelectSourceBinsFromSearch}
               handleSelectTargetBinsFromSearch={inventoryState.handleSelectTargetBinsFromSearch}
               handleSelectBinFromSearch={inventoryState.handleSelectBinFromSearch}
-              handleHighlightBinFromSearch={inventoryState.handleHighlightBinFromSearch}
+              handleHighlightBins={inventoryState.handleHighlightBins}
               handleSearchProductClick={inventoryState.handleSearchProductClick}
               handleDoorClick={inventoryState.handleDoorClick}
               handleScrollToBin={setPendingScrollBinId}
@@ -815,7 +840,7 @@ export default function App() {
             doorsWithSearchMatches={doorsWithSearchMatches}
             doorsWithSelectedBins={doorsWithSelectedBins}
             doorsWithChangeAllocationBins={doorsWithChangeAllocationBins}
-            searchQuery={inventoryState.selectedSearchQuery}
+            searchQuery={cabinetSearchGateQuery}
             showUnallocatedProducts={inventoryState.showUnallocatedProducts}
             changeAllocationMode={inventoryState.changeAllocationMode}
             onCabinetClick={inventoryState.handleCabinetClick}
@@ -829,6 +854,7 @@ export default function App() {
             onCloseAllProducts={() => setAllProductsBinId(null)}
             currentShelves={currentShelves}
             searchQuery={inventoryState.selectedSearchQuery}
+            binHighlight={inventoryState.binHighlight}
             searchMatchCount={searchMatchCount}
             selectedDoor={inventoryState.selectedDoor}
             selectedBin={inventoryState.selectedBin}

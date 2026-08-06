@@ -104,6 +104,20 @@ export const useInventoryState = () => {
   const [highlightAvailableBins, setHighlightAvailableBins] = useState(false);
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [selectedSearchQuery, setSelectedSearchQuery] = useState<string>(""); // Only set when user selects from dropdown
+
+  /**
+   * Bins highlighted because the operator asked for THOSE BINS, held as ids rather than as a query.
+   *
+   * A bin-name query cannot express this. `bin.name` is only unique within its door, so "Bin 1A" names
+   * eight bins in the current seed — putting it in selectedSearchQuery lit every one of them when the
+   * operator had picked exactly one row out of a list that had already told them the eight apart.
+   * Identity is what a bin hit selects, so identity is what the highlight has to carry.
+   *
+   * `query` rides along only to tell the bin card WHICH TEXT to colour in its header; it never decides
+   * which bins are lit. Both list actions land here and differ only in how many ids they pass —
+   * Highlight Bin sends one, Highlight All sends every match.
+   */
+  const [binHighlight, setBinHighlight] = useState<{ binIds: string[]; query: string } | null>(null);
   const [showSearch, setShowSearch] = useState(false);
   const [showUnallocatedProducts, setShowUnallocatedProducts] = useState(false);
   const [selectedUnallocatedProducts, setSelectedUnallocatedProducts] = useState<string[]>([]);
@@ -395,6 +409,7 @@ export const useInventoryState = () => {
     // changeAllocationSourceQuery keeps its product scope, so the Review still commits the same move.
     if (query.trim() === "") {
       setSelectedSearchQuery("");
+      setBinHighlight(null);
       return;
     }
 
@@ -404,7 +419,15 @@ export const useInventoryState = () => {
     if (query !== selectedSearchQuery && !changeAllocationMode) {
       setSelectedSearchQuery("");
     }
-  }, [selectedSearchQuery, changeAllocationMode]);
+
+    // The bin highlight goes in every mode, unlike the product one. It marks bins the operator asked
+    // to SEE, never bins they committed to, so there is nothing in it worth preserving across a new
+    // search — and the autofill route (below) is what keeps a fresh pick from being wiped by the query
+    // it just wrote into the box.
+    if (binHighlight && query !== binHighlight.query) {
+      setBinHighlight(null);
+    }
+  }, [selectedSearchQuery, changeAllocationMode, binHighlight]);
 
   // Autofill the search box from a dropdown pick. Deliberately NOT handleSearchQueryChange: that
   // clears the highlight whenever the typed text diverges from it, which would wipe the highlight
@@ -420,6 +443,7 @@ export const useInventoryState = () => {
   const clearProductSearch = useCallback(() => {
     setSearchQuery("");
     setSelectedSearchQuery("");
+    setBinHighlight(null);
   }, []);
 
   /**
@@ -682,14 +706,15 @@ export const useInventoryState = () => {
   }, [changeAllocationMode, changeAllocationStep, moveMode, doorShelfConfig, changeAllocationSourceBins]);
 
   /**
-   * Locate a bin found by name, without selecting it — the bin-hit counterpart of "Highlight in Bin".
-   * Used outside a move, and in a Product move's source step where the bin is not the unit being picked.
+   * Light up bins found by name, without selecting them — the bin-hit counterpart of "Highlight in Bin".
+   *
+   * Replaces, never appends. The two actions that call this are alternatives to each other: asking for
+   * one bin after asking for all of them means you want the one, and accumulating would make the
+   * narrower request produce a wider result than the broader one.
    */
-  const handleHighlightBinFromSearch = useCallback((binName: string) => {
-    setSelectedSearchQuery(prev =>
-      changeAllocationMode ? appendQueryGroup(prev, binName) : binName
-    );
-  }, [changeAllocationMode]);
+  const handleHighlightBins = useCallback((binIds: string[], query: string) => {
+    setBinHighlight(binIds.length > 0 ? { binIds, query } : null);
+  }, []);
 
   // Handler for clicking on a product in search dropdown (when change allocation mode is off)
   const handleSearchProductClick = useCallback((productName: string, ndc: string, inventoryType: string) => {
@@ -2120,7 +2145,8 @@ export const useInventoryState = () => {
     sourceProductPicks,
     handleSelectTargetBinsFromSearch,
     handleSelectBinFromSearch,
-    handleHighlightBinFromSearch,
+    handleHighlightBins,
+    binHighlight,
     handleSearchProductClick,
     handleConfirmAssignment,
     closeBinInventory,

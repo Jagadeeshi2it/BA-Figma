@@ -8,12 +8,18 @@ interface SearchDropdownProps {
   searchResults: ProductSearchResult[];
   /** Bins whose name matches the query. Listed above the products — see the section comment below. */
   binResults?: BinSearchResult[];
+  /** What is typed in the box. Only used to say which text Highlight All should colour. */
+  query?: string;
   /** Bins already picked as Move To, so a bin hit can report its own state rather than going dead. */
   targetBinIds?: string[];
   /** Select/release a bin found by name. Only wired where the bin is the unit being picked. */
   onSelectBin?: (binId: string, binName: string) => void;
-  /** Locate a bin found by name without selecting it. */
-  onHighlightBin?: (binName: string) => void;
+  /**
+   * Light up bins without selecting them, BY ID. One id from a row's own Highlight Bin, every id from
+   * the section's Highlight All — the two are deliberately separate acts, so the wide one has to be
+   * asked for. `query` only says which text to colour in the bin's header.
+   */
+  onHighlightBins?: (binIds: string[], query: string) => void;
   isVisible: boolean;
   changeAllocationMode?: boolean;
   changeAllocationStep?: 1 | 2;
@@ -105,9 +111,10 @@ const binActionFor = (
 const SearchDropdown = memo(function SearchDropdown({
   searchResults,
   binResults = [],
+  query = '',
   targetBinIds = [],
   onSelectBin,
-  onHighlightBin,
+  onHighlightBins,
   isVisible,
   changeAllocationMode = false,
   changeAllocationStep = 1,
@@ -276,6 +283,32 @@ const SearchDropdown = memo(function SearchDropdown({
     ? `${unavailablePrefix}: ${names.join(', ')}`
     : `${unavailablePrefix}: ${names.slice(0, 3).join(', ')} and ${names.length - 3} more`;
 
+  /**
+   * Available bins first, then the door order searchBinsByName produced.
+   *
+   * The list is most often read to pick a destination, and a free bin is the one that can take stock
+   * without a second thought — so scanning past occupied bins to find one is work the sort can do.
+   *
+   * Two refinements it needs to be right rather than merely as asked:
+   *
+   * - **A blocked row sinks below everything**, whatever its availability. It is the one row that can't
+   *   be acted on at all, so promoting it would put the least useful bin at the top.
+   * - **A Bin move's source step inverts the preference**, because there an available bin is precisely
+   *   the one with nothing to move — it is blocked, by the rule above, and lands at the bottom on that
+   *   count alone. Nothing extra is needed for it; noting it because the two rules look contradictory
+   *   until you see they never apply to the same row.
+   *
+   * Stable, so bins that tie keep their door order and the list still reads as a walk.
+   */
+  const orderedBinResults = [...binResults].sort((a, b) => {
+    const rank = (bin: BinSearchResult) => {
+      const action = binActionFor(bin, changeAllocationMode, changeAllocationStep, moveMode, sourceBinIds, targetBinIds);
+      if (action.kind === 'blocked') return 2;
+      return bin.available ? 0 : 1;
+    };
+    return rank(a) - rank(b);
+  });
+
   // Locate, or select, or neither — plus the jump, which every acted-on bin gets: a bin hit is only
   // useful once the door holding it is open, and that door is usually not the one on screen.
   const handleBinAction = (bin: BinSearchResult, action: BinAction) => {
@@ -284,7 +317,10 @@ const SearchDropdown = memo(function SearchDropdown({
     if (action.kind === 'select') {
       onSelectBin?.(bin.binId, bin.binName);
     } else {
-      onHighlightBin?.(bin.binName);
+      // This one bin, by id. Passing its NAME instead lit every bin sharing it — eight of them for
+      // "Bin 1A" — which is what Highlight All is for, out of a list that had just distinguished them
+      // by door. Picking one row out of eight has to mean the one.
+      onHighlightBins?.([bin.binId], bin.binName);
     }
 
     onDoorClick?.(bin.doorName);
@@ -299,6 +335,21 @@ const SearchDropdown = memo(function SearchDropdown({
     }
   };
 
+  // Every match at once, and only when asked for. Lands on the first so the result isn't left entirely
+  // off-screen, exactly as the products' Select All does. The typed query is what describes this
+  // selection — there is no single name to put in the box — so the box is left alone and the list just
+  // dismissed, again mirroring Select All.
+  const handleHighlightAllBins = () => {
+    if (binResults.length === 0) return;
+    // The typed query, not any one bin's name: these matches need not share a name ("Bin 1" finds
+    // 1A, 1B, 1C), and the card colours whichever part of its own label the query accounts for.
+    onHighlightBins?.(orderedBinResults.map(bin => bin.binId), query);
+    // The first as LISTED, so the jump lands on the row the operator's eye is already on.
+    onDoorClick?.(orderedBinResults[0].doorName);
+    onScrollToBin?.(orderedBinResults[0].binId);
+    onDismissList?.();
+  };
+
   return (
     <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-[#bcc3cd] rounded-[4px] shadow-lg z-[60] max-h-96 overflow-y-auto">
       <div>
@@ -310,13 +361,27 @@ const SearchDropdown = memo(function SearchDropdown({
             instead. */}
         {binResults.length > 0 && (
           <div>
-            <div className="px-4 py-3">
+            <div className="box-border content-stretch flex flex-row gap-3 items-center justify-between relative shrink-0 w-full px-4 py-3">
               <p className="block font-normal leading-[16px] not-italic text-[#020817] text-[14px] text-left">
                 <span className="font-semibold">{binResults.length}</span> matching bin{binResults.length !== 1 ? 's' : ''}
               </p>
+              {/* The wide act, and the only one that lights more than the bin you point at. It shares
+                  the count's row the way the products' Select All does, and appears on the same terms:
+                  only with more than one match, since a single row's own button already covers that
+                  case. Offered in every mode — it selects nothing, so it cannot disagree with a
+                  selection the way a Select would. */}
+              {binResults.length > 1 && (
+                <Button
+                  variant="ghost"
+                  onClick={handleHighlightAllBins}
+                  className="bg-transparent hover:bg-transparent text-[#095192] hover:text-[#074080] hover:underline text-[14px] font-medium h-auto p-0 shrink-0"
+                >
+                  Highlight All
+                </Button>
+              )}
             </div>
             <div className="divide-y divide-gray-200 border-t border-gray-200">
-              {binResults.map(bin => {
+              {orderedBinResults.map(bin => {
                 const action = binActionFor(
                   bin, changeAllocationMode, changeAllocationStep, moveMode, sourceBinIds, targetBinIds
                 );
@@ -366,7 +431,10 @@ const SearchDropdown = memo(function SearchDropdown({
                         action.kind === 'blocked' ? 'opacity-50 cursor-not-allowed hover:bg-white' : ''
                       }`}
                     >
-                      {action.kind === 'locate' ? 'Highlight in Bin' : action.label}
+                      {/* Not the products' "Highlight in Bin": that means "show me this drug inside
+                          whichever bins hold it". Here the bin IS the thing being shown, and the row
+                          has to read as the narrow act next to Highlight All above it. */}
+                      {action.kind === 'locate' ? 'Highlight Bin' : action.label}
                     </Button>
                   </div>
                 );

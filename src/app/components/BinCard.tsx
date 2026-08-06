@@ -17,6 +17,13 @@ interface BinCardProps {
   isSelected?: boolean;
   highlightAvailable: boolean;
   highlightSearch?: boolean;
+  /**
+   * Which part of this bin's own NAME to colour in, or '' for none — supplied only when the operator
+   * asked for this bin by name. Handed down rather than derived from searchQuery, because the decision
+   * is per bin id: a bin name repeats across doors, so nothing this card can see distinguishes the bin
+   * that was asked for from its seven namesakes (see ShelfLayout's isBinHighlighted).
+   */
+  binNameHighlightQuery?: string;
   isSelectedForAssignment?: boolean;
   isChangeAllocationSource?: boolean;
   isChangeAllocationTarget?: boolean;
@@ -51,6 +58,7 @@ export default function BinCard({
   isSelected = false,
   highlightAvailable,
   highlightSearch = false,
+  binNameHighlightQuery = '',
   isSelectedForAssignment = false,
   isChangeAllocationSource = false,
   isChangeAllocationTarget = false,
@@ -205,6 +213,7 @@ export default function BinCard({
     : isChangeAllocationTarget
       ? TARGET_HIGHLIGHT_COLOR
       : SEARCH_HIGHLIGHT_COLOR;
+
 
   // Any state that draws its own coloured stroke on this card — see the resting outline below.
   const hasStateStroke =
@@ -385,7 +394,18 @@ export default function BinCard({
               <div className="box-border content-stretch flex flex-row items-center justify-start p-0 relative shrink-0 w-full mb-2">
                 <div className="basis-0 flex flex-col font-bold grow justify-center leading-[0] min-h-px min-w-px not-italic relative shrink-0 text-[#020817] text-xs text-left">
                   <p className="block leading-[12px] text-[14px]">
-                    {bin.name} <span className="text-[#7A7D85]">({getBinSizeDisplay(bin.size)})</span>
+                    {/* The name carries the match when the search was FOR this bin. The card's amber
+                        stroke says a match landed here but not what matched — with a product query
+                        the highlighted row inside answers that, and with a bin-name query nothing
+                        did, so the one bin the operator named looked the same as a bin that merely
+                        holds a hit. Scoped to the group naming this bin (binNameQueryGroup) rather
+                        than the whole query, so a product term that happens to appear in a bin's
+                        label can't tint it. Same colour as the products below: amber for a hit,
+                        blue once it's a source, green once it's a target. */}
+                    {binNameHighlightQuery
+                      ? highlightText(bin.name, binNameHighlightQuery, productHighlightColor)
+                      : bin.name}{' '}
+                    <span className="text-[#7A7D85]">({getBinSizeDisplay(bin.size)})</span>
                   </p>
                 </div>
               </div>

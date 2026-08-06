@@ -21,6 +21,8 @@ interface ShelfLayoutProps {
   showBinInventory: boolean;
   highlightAvailableBins: boolean;
   searchQuery?: string;
+  // Bins lit by identity because the operator named them in the search list — see isBinHighlighted.
+  binHighlight?: { binIds: string[]; query: string } | null;
   selectedBinsForAssignment?: string[];
   changeAllocationMode?: boolean;
   changeAllocationStep?: 1 | 2;
@@ -49,6 +51,7 @@ export default function ShelfLayout({
   showBinInventory,
   highlightAvailableBins,
   searchQuery = "",
+  binHighlight = null,
   selectedBinsForAssignment = [],
   changeAllocationMode = false,
   changeAllocationStep = 1,
@@ -90,15 +93,20 @@ export default function ShelfLayout({
     // the selection: a leftover query must not tint a bin that was taken back out.
     const isSource = changeAllocationSourceBins.includes(bin.id);
     const isTarget = changeAllocationTargetBins.includes(bin.id);
-    if (isSource || isTarget) return searchQuery;
-    // One exception to that scoping: a group naming this bin OUTRIGHT. "Highlight in Bin" on a bin
-    // hit has to light the bin up wherever the flow is — a Product move's source step scopes the
-    // highlight to picked bins, and a located bin is by definition not picked yet, so without this the
-    // button would jump to the door and light nothing. Safe to let through where a product group is
-    // not: a bin-name group matches exactly the bin it names, so it cannot spread to bins that merely
-    // hold something. Only that group is passed on, so the products inside stay unhighlighted.
-    return binNameQueryGroup(searchQuery, bin.name);
+    return isSource || isTarget ? searchQuery : '';
   };
+
+  // Lit because the operator named THIS bin, which the query channel above cannot express: bin names
+  // repeat across doors, so a name in the query lights every namesake. Independent of that channel in
+  // both directions — it survives the move scoping (a located bin is by definition not selected yet,
+  // so the scoping would blank it) and it never reaches a bin the operator didn't ask for.
+  const isBinHighlighted = (bin: Bin): boolean => !!binHighlight?.binIds.includes(bin.id);
+
+  // Which part of its own label the bin should colour in. Derived per bin rather than taken whole from
+  // binHighlight.query, because Highlight All's matches need not share a name — "Bin 1" finds 1A, 1B
+  // and 1C, and each card colours the "Bin 1" its own name actually contains.
+  const binNameHighlightQueryFor = (bin: Bin): string =>
+    isBinHighlighted(bin) ? binNameQueryGroup(binHighlight!.query, bin.name) : '';
 
   // Render a slotted grid shelf: double doors are 2 rows x 5 cols, bottom doors 5x5.
   // Placement comes straight from bin.gridPosition and is applied as explicit start
@@ -125,7 +133,8 @@ export default function ShelfLayout({
                   bin={bin}
                   isSelected={selectedBin === bin.id && showBinInventory}
                   highlightAvailable={highlightAvailableBins}
-                  highlightSearch={binMatchesSearch(bin, resolveSearchQuery(bin))}
+                  highlightSearch={binMatchesSearch(bin, resolveSearchQuery(bin)) || isBinHighlighted(bin)}
+                  binNameHighlightQuery={binNameHighlightQueryFor(bin)}
                   isSelectedForAssignment={selectedBinsForAssignment.includes(bin.id)}
                   isChangeAllocationSource={changeAllocationSourceBins.includes(bin.id)}
                   isChangeAllocationTarget={changeAllocationTargetBins.includes(bin.id)}
@@ -163,7 +172,8 @@ export default function ShelfLayout({
             bin={bin}
             isSelected={selectedBin === bin.id && showBinInventory}
             highlightAvailable={highlightAvailableBins}
-            highlightSearch={binMatchesSearch(bin, resolveSearchQuery(bin))}
+            highlightSearch={binMatchesSearch(bin, resolveSearchQuery(bin)) || isBinHighlighted(bin)}
+            binNameHighlightQuery={binNameHighlightQueryFor(bin)}
             isSelectedForAssignment={selectedBinsForAssignment.includes(bin.id)}
             isChangeAllocationSource={changeAllocationSourceBins.includes(bin.id)}
             isChangeAllocationTarget={changeAllocationTargetBins.includes(bin.id)}
@@ -200,7 +210,8 @@ export default function ShelfLayout({
             bin={bin}
             isSelected={selectedBin === bin.id && showBinInventory}
             highlightAvailable={highlightAvailableBins}
-            highlightSearch={binMatchesSearch(bin, resolveSearchQuery(bin))}
+            highlightSearch={binMatchesSearch(bin, resolveSearchQuery(bin)) || isBinHighlighted(bin)}
+            binNameHighlightQuery={binNameHighlightQueryFor(bin)}
             isSelectedForAssignment={selectedBinsForAssignment.includes(bin.id)}
             isChangeAllocationSource={changeAllocationSourceBins.includes(bin.id)}
             isChangeAllocationTarget={changeAllocationTargetBins.includes(bin.id)}
@@ -250,7 +261,8 @@ export default function ShelfLayout({
           bin={bin}
           isSelected={selectedBin === bin.id && showBinInventory}
           highlightAvailable={highlightAvailableBins}
-          highlightSearch={binMatchesSearch(bin, resolveSearchQuery(bin))}
+          highlightSearch={binMatchesSearch(bin, resolveSearchQuery(bin)) || isBinHighlighted(bin)}
+          binNameHighlightQuery={binNameHighlightQueryFor(bin)}
           isSelectedForAssignment={selectedBinsForAssignment.includes(bin.id)}
           isChangeAllocationSource={changeAllocationSourceBins.includes(bin.id)}
           isChangeAllocationTarget={changeAllocationTargetBins.includes(bin.id)}

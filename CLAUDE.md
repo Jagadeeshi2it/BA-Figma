@@ -416,9 +416,34 @@ Un-picking is per bin; the review panel's per-product Remove drops the product f
 | `selectedSearchQuery` | what is highlighted on the shelves |
 | `changeAllocationSourceQuery` | which products a source selection is scoped to |
 
-They are independent on purpose and most historical bugs came from conflating them. Query grammar:
-`|`-separated OR-groups, each an `,`-separated AND-set. `appendQueryGroup` / `removeQueryGroup` /
-`pruneQueryToBins` maintain them.
+They are independent on purpose and most historical bugs came from conflating them.
+`appendQueryGroup` / `removeQueryGroup` / `pruneQueryToBins` maintain them.
+
+### The query grammar lives in `utils/searchQuery.ts`
+
+`|`-separated OR-groups, each an AND-set of terms. **A term is separated by whitespace or a comma,
+interchangeably**, and every term must appear in *some* searchable field — not necessarily the same one.
+That last part is what makes `carbo purchased` work: `carbo` is answered by the name, `purchased` by the
+inventory type.
+
+Terms used to split on commas alone, so a typed `carbo 600` was **one** term needing to appear verbatim.
+The product reads `CARBOPLATIN 600`, which contains no such substring, so the obvious query returned
+nothing and the box looked broken. Nobody discovers a comma convention.
+
+The grammar had **three copies** — `productSearchUtils`, `doorUtils` and `textHighlight` each split the
+query themselves. They are now one module, which is the point: the highlighter has to tokenise
+identically to the matcher, or a search finds a product and then colours nothing in it. It is import-free,
+so `node scripts/verify-search-query.mjs` (30 assertions) covers it.
+
+`|` groups are never typed — callers build them to OR several product identities into one highlight
+query. A product name can contain a comma but never a pipe, which is why that separator survives.
+
+Two subtleties worth not re-deriving:
+
+- **`binMatchesSearch` matches per product, not across the bin.** A bin holding a Sample of one drug and
+  a Purchased pack of another must not answer `carbo purchased` with a product that is neither.
+- **`splitTerms` preserves case.** The highlighter needs the original-case term to colour what it found;
+  comparison lowercases at the point of use.
 
 **Nothing on the canvas reads `searchQuery`.** The bin highlight, the door dots and the match count all
 read `selectedSearchQuery`, which only a dropdown pick sets. `ShelfLayout`'s prop is *named* `searchQuery`
@@ -468,6 +493,43 @@ Rows are `Door 3 - Bin 1A`, the one-string form the move panels and review cards
 real work: `binLabel` scopes uniqueness to the door, so the current seed answers `Bin 1A` with **eight**
 bins. Real cabinets are expected to carry globally unique names, which makes this a display concern
 rather than a modelling one — but the qualifier stays either way.
+
+**Available bins sort first**, since the list is most often read to pick a destination and a free bin is
+the one that can take stock without a second thought. Two refinements make that right rather than merely
+literal: a **blocked** row sinks below everything (it is the one row that can't be acted on, so promoting
+it would put the least useful bin on top), and in a Bin move's source step an available bin is precisely
+the one with nothing to move — it is blocked already, so it lands at the bottom on that count alone. The
+sort is stable, so ties keep `searchBinsByName`'s door order and the list still reads as a walk.
+
+### Highlighting a bin is keyed on identity, never on a query
+
+`binHighlight: { binIds, query }` in `useInventoryState`. The query channel cannot express "this bin":
+`bin.name` is unique only within its door, so `Bin 1A` in `selectedSearchQuery` lit all eight — out of a
+list that had just told them apart by door. `query` rides along **only** to say which text the card
+should colour; it never decides which bins light up.
+
+Two separate acts, and the wide one has to be asked for:
+
+| Action | Sends |
+|---|---|
+| `Highlight Bin`, on a row | that bin's id alone |
+| `Highlight All`, in the section header | every match's id |
+
+`Highlight All` passes the **typed** query rather than any one bin's name, because its matches need not
+share one — `Bin 1` finds 1A, 1B and 1C, and each card colours the part of its own label the query
+accounts for (`binNameHighlightQueryFor` in `ShelfLayout`).
+
+The row button is `Highlight Bin`, not the products' `Highlight in Bin`: that one means "show me this drug
+inside whichever bins hold it", whereas here the bin *is* what is being shown.
+
+`handleHighlightBins` **replaces, never appends** — the two actions are alternatives, and accumulating
+would make the narrower request produce a wider result than the broader one.
+
+Because the highlight sets no query channel, two things had to be taught about it: `ShelfLayout`'s
+`isBinHighlighted` is ORed into `highlightSearch` (and survives the move scoping, since a located bin is
+by definition not selected yet), and `cabinetSearchGateQuery` in `App` opens the door-dot gate, which
+tests `searchQuery` only for truthiness. Without the latter, `Highlight All` computes its doors and then
+declines to draw them — and cabinet level is the only place every instance is visible at once.
 
 `MIN_SEARCH_LENGTH = 3` applies to both lists, so a two-character bin name (`1A`) finds nothing.
 

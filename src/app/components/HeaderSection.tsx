@@ -47,7 +47,7 @@ interface HeaderSectionProps {
   handleSelectTargetBinsFromSearch?: (binIds: string[], productName: string, highlightQuery?: string) => void;
   // A bin found by NAME, rather than by the product it holds — see searchBinsByName.
   handleSelectBinFromSearch?: (binId: string, binName: string) => void;
-  handleHighlightBinFromSearch?: (binName: string) => void;
+  handleHighlightBins?: (binIds: string[], query: string) => void;
   handleSearchProductClick?: (productName: string, ndc: string, inventoryType: string) => void;
   handleDoorClick?: (doorName: string) => void;
   handleScrollToBin?: (binId: string) => void;
@@ -103,7 +103,7 @@ const HeaderSection = memo(function HeaderSection({
   handleSelectSourceBinsFromSearch,
   handleSelectTargetBinsFromSearch,
   handleSelectBinFromSearch,
-  handleHighlightBinFromSearch,
+  handleHighlightBins,
   handleSearchProductClick,
   handleDoorClick,
   handleScrollToBin
@@ -305,9 +305,10 @@ const HeaderSection = memo(function HeaderSection({
             <SearchDropdown
               searchResults={searchResults}
               binResults={binResults}
+              query={searchQuery}
               targetBinIds={changeAllocationTargetBins}
               onSelectBin={handleSelectBinFromSearch}
-              onHighlightBin={handleHighlightBinFromSearch}
+              onHighlightBins={handleHighlightBins}
               isVisible={showSearchDropdown}
               changeAllocationMode={changeAllocationMode}
               changeAllocationStep={changeAllocationStep}
