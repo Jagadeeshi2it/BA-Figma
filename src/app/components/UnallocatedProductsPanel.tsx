@@ -76,8 +76,14 @@ export default function UnallocatedProductsPanel({
           onClick: it was reachable by neither keyboard nor screen reader. */}
       <div className="px-4 py-3 border-b border-gray-200 flex items-start justify-between gap-3">
         <div className="min-w-0">
+          {/* The whole tray, not the filtered view. The title names what this panel IS — everything
+              still waiting for a bin — and that total does not change because someone typed in the
+              search box. Counting the filter made it read as a result count, so searching a product
+              with eight instances left showed "(1)" and looked like seven had gone somewhere. The
+              filtered figure is not lost: the list underneath is the filtered view, and its own empty
+              state says when a query matches nothing. */}
           <h2 className="text-[16px] font-medium text-[#020817]">
-            Unallocated Products ({filteredProducts.length})
+            Unallocated Products ({unallocatedProducts.length})
           </h2>
         </div>
         <button

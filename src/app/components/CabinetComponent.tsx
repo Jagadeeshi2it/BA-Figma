@@ -7,6 +7,8 @@ interface CabinetComponentProps {
   selectedCabinet: string;
   selectedDoor: string;
   doorsWithAvailableBins?: string[];
+  // Per-door free-bin counts, for Demo Mode's door anchors — see DoorButton.
+  freeBinsByDoor?: Record<string, number>;
   highlightAvailableBins?: boolean;
   doorsWithSearchMatches?: string[];
   doorsWithSelectedBins?: string[];
@@ -38,6 +40,7 @@ function DoorButton({
   isSelected, 
   isFirst, 
   hasAvailableBins,
+  freeBinCount,
   highlightAvailableBins,
   hasSearchMatches,
   hasSelectedBins,
@@ -51,6 +54,10 @@ function DoorButton({
   isSelected: boolean; 
   isFirst: boolean;
   hasAvailableBins: boolean;
+  // How many bins behind this door have room. Read by Demo Mode, which cannot count them itself: only
+  // the open door's bins are in the DOM, so a walkthrough needing two free bins has to be able to pick
+  // a door that has two BEFORE opening it.
+  freeBinCount: number;
   highlightAvailableBins: boolean;
   hasSearchMatches: boolean;
   hasSelectedBins: boolean;
@@ -75,6 +82,8 @@ function DoorButton({
       <div
         className="bg-[#ffffff] h-[50px] min-h-12 relative rounded shrink-0 flex-1 cursor-pointer"
         data-name={`Button - ${door}`}
+        data-demo="door"
+        data-door-free-bins={freeBinCount}
         onClick={onClick}
       >
         <div className={`absolute border ${
@@ -139,6 +148,8 @@ function DoorButton({
     <div
       className="bg-[#ffffff] box-border content-stretch flex flex-col items-center justify-center min-h-12 px-[13px] py-[9px] relative rounded shrink-0 w-[88px] cursor-pointer"
       data-name={`Button - ${door}`}
+      data-demo="door"
+      data-door-free-bins={freeBinCount}
       onClick={onClick}
     >
       <div className={`absolute border ${
@@ -187,6 +198,7 @@ function FullWidthDoorButton({
   door, 
   isSelected,
   hasAvailableBins,
+  freeBinCount,
   highlightAvailableBins,
   hasSearchMatches,
   hasSelectedBins,
@@ -199,6 +211,10 @@ function FullWidthDoorButton({
   door: string; 
   isSelected: boolean;
   hasAvailableBins: boolean;
+  // How many bins behind this door have room. Read by Demo Mode, which cannot count them itself: only
+  // the open door's bins are in the DOM, so a walkthrough needing two free bins has to be able to pick
+  // a door that has two BEFORE opening it.
+  freeBinCount: number;
   highlightAvailableBins: boolean;
   hasSearchMatches: boolean;
   hasSelectedBins: boolean;
@@ -222,6 +238,8 @@ function FullWidthDoorButton({
     <div
       className="bg-[#ffffff] min-h-12 relative rounded shrink-0 w-full cursor-pointer"
       data-name={`Button - ${door}`}
+      data-demo="door"
+      data-door-free-bins={freeBinCount}
       onClick={onClick}
     >
       <div className={`absolute border ${
@@ -274,6 +292,7 @@ function DoorsContainer({
   doors, 
   selectedDoor, 
   doorsWithAvailableBins,
+  freeBinsByDoor,
   highlightAvailableBins,
   doorsWithSearchMatches,
   doorsWithSelectedBins,
@@ -286,6 +305,7 @@ function DoorsContainer({
   doors: string[]; 
   selectedDoor: string;
   doorsWithAvailableBins: string[];
+  freeBinsByDoor: Record<string, number>;
   highlightAvailableBins: boolean;
   doorsWithSearchMatches: string[];
   doorsWithSelectedBins: string[];
@@ -307,6 +327,7 @@ function DoorsContainer({
           isSelected={selectedDoor === door}
           isFirst={index === 0}
           hasAvailableBins={doorsWithAvailableBins.includes(door)}
+          freeBinCount={freeBinsByDoor[door] ?? 0}
           highlightAvailableBins={highlightAvailableBins}
           hasSearchMatches={doorsWithSearchMatches.includes(door)}
           hasSelectedBins={doorsWithSelectedBins.includes(door)}
@@ -328,6 +349,7 @@ function CabinetBackground({
   doors, 
   selectedDoor, 
   doorsWithAvailableBins,
+  freeBinsByDoor,
   highlightAvailableBins,
   doorsWithSearchMatches,
   doorsWithSelectedBins,
@@ -341,6 +363,7 @@ function CabinetBackground({
   doors: string[]; 
   selectedDoor: string;
   doorsWithAvailableBins: string[];
+  freeBinsByDoor: Record<string, number>;
   highlightAvailableBins: boolean;
   doorsWithSearchMatches: string[];
   doorsWithSelectedBins: string[];
@@ -362,6 +385,7 @@ function CabinetBackground({
             doors={doors} 
             selectedDoor={selectedDoor} 
             doorsWithAvailableBins={doorsWithAvailableBins}
+        freeBinsByDoor={freeBinsByDoor}
             highlightAvailableBins={highlightAvailableBins}
             doorsWithSearchMatches={doorsWithSearchMatches}
             doorsWithSelectedBins={doorsWithSelectedBins}
@@ -376,6 +400,7 @@ function CabinetBackground({
               door={doors[3]}
               isSelected={selectedDoor === doors[3]}
               hasAvailableBins={doorsWithAvailableBins.includes(doors[3])}
+              freeBinCount={freeBinsByDoor[doors[3]] ?? 0}
               highlightAvailableBins={highlightAvailableBins}
               hasSearchMatches={doorsWithSearchMatches.includes(doors[3])}
               hasSelectedBins={doorsWithSelectedBins.includes(doors[3])}
@@ -401,6 +426,7 @@ export default function CabinetComponent({
   selectedCabinet,
   selectedDoor,
   doorsWithAvailableBins = [],
+  freeBinsByDoor = {},
   highlightAvailableBins = false,
   doorsWithSearchMatches = [],
   doorsWithSelectedBins = [],
@@ -426,6 +452,7 @@ export default function CabinetComponent({
         doors={doors} 
         selectedDoor={selectedDoor} 
         doorsWithAvailableBins={doorsWithAvailableBins}
+        freeBinsByDoor={freeBinsByDoor}
         highlightAvailableBins={highlightAvailableBins}
         doorsWithSearchMatches={doorsWithSearchMatches}
         doorsWithSelectedBins={doorsWithSelectedBins}

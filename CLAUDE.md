@@ -851,6 +851,24 @@ undefined variable, a wrong prop type, or a duplicated component body serves 200
 no `tsc` in the project. Verify with greps for dangling references and a browser reload — and be
 aware a syntactically valid but semantically broken file will look fine.
 
+### Clearing a "focused" flag without blurring desyncs React from the DOM
+
+`HeaderSection` gates the search dropdown on `isSearchFocused`, React state set by the input's
+`onFocus`. Three places used to clear that flag **without blurring the input**, which let React's idea
+of focus and `document.activeElement` disagree: the box was genuinely focused, the flag was false, and
+the dropdown would not open for anything typed into it.
+
+A real user recovers by accident — a real mousedown elsewhere blurs, so their next click refocuses and
+fires `onFocus`. **A synthetic click cannot**: `.focus()` on the element that is already
+`document.activeElement` fires no event, so nothing tells React, and the state is unrecoverable for the
+rest of the session. Demo Mode drives the app with synthetic clicks and stalled on exactly this.
+
+Every close now goes through `dismissSearchList`, which blurs. Declared above its callers because a
+`const` is not hoisted and one caller is a `useEffect`. **Any flag mirroring DOM focus must be cleared
+with a blur, not on its own** — and the general form of the trap is that a synthetic click is not a
+real one, so anything relying on the browser's implicit blur-on-mousedown will behave differently under
+Demo Mode than under a finger.
+
 ### Reading the DOM straight after a click measures the previous render
 
 React state updates are async. `el.click(); el.className` returns the **old** class. Any browser

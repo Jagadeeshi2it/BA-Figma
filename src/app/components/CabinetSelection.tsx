@@ -8,6 +8,8 @@ interface CabinetSelectionProps {
   selectedCabinet: string | null;
   selectedDoor: string | null;
   doorsWithAvailableBins: string[];
+  // Per-door free-bin counts, threaded through for Demo Mode's door anchors (see CabinetComponent).
+  freeBinsByDoor?: Record<string, number>;
   highlightAvailableBins: boolean;
   doorsWithSearchMatches: string[];
   doorsWithSelectedBins: string[];
@@ -23,6 +25,7 @@ const CabinetSelection = memo(function CabinetSelection({
   selectedCabinet,
   selectedDoor,
   doorsWithAvailableBins,
+  freeBinsByDoor = {},
   highlightAvailableBins,
   doorsWithSearchMatches,
   doorsWithSelectedBins,
@@ -91,6 +94,7 @@ const CabinetSelection = memo(function CabinetSelection({
                 selectedCabinet={selectedCabinet}
                 selectedDoor={selectedDoor}
                 doorsWithAvailableBins={doorsWithAvailableBins}
+                freeBinsByDoor={freeBinsByDoor}
                 highlightAvailableBins={highlightAvailableBins}
                 doorsWithSearchMatches={doorsWithSearchMatches}
                 doorsWithSelectedBins={doorsWithSelectedBins}

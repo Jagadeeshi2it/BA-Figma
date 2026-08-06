@@ -23,7 +23,8 @@ import { DemoStep, DemoScenario } from '../types';
  */
 
 /**
- * Six of the eight products the seed reserves for the tray (`UNALLOCATED_RESERVE_IDS`), matched by NAME.
+ * The products the searching rounds ask for by NAME, out of the eight the seed reserves for the tray
+ * (`UNALLOCATED_RESERVE_IDS`).
  * Tray ids are `unalloc-1`, `unalloc-2`… assigned by index over whatever is still unallocated, so they
  * renumber after every round of this very scenario — a step naming one would be wrong by round two.
  *
@@ -33,30 +34,84 @@ import { DemoStep, DemoScenario } from '../types';
 const ROUND_1 = ['SOLU-CORTEF'];
 const ROUND_2 = ['MESNA', 'KADCYLA'];
 const ROUND_3 = ['VYLOY'];
-const ROUND_4 = ['DOXORUBICIN', 'VINORELBINE'];
+// Round 4 names nothing: it picks the top two rows off the unfiltered list (see pickFromList), which in
+// the current seed leaves FLUOROURACIL and DOXORUBICIN by the time it runs. Naming them would be a
+// second place to keep in step with the three rounds above.
+
 
 /**
- * The bins with room, in the order they appear on the open door — resolved when a step runs, never
+ * The bins with room on the OPEN door, in the order they appear — resolved when a step runs, never
  * written as ids. Which bins are empty is a property of the seed, and this scenario changes it four
  * times as it goes.
  *
  * Selecting a bin does not change `bin.available`; only allocating does. So within a round these
  * resolve to the same cards throughout (which is what lets a reverse step tap one again to release it),
  * and between rounds they advance past whatever was just filled.
- *
- * Door 1 is where the app opens and holds nine free bins in the current seed; the walk needs six. If
- * that stops being true, `nthFreeBin` returns null and the runner stops with a stated reason rather
- * than clicking nothing.
  */
 const freeBins = () =>
   Array.from(document.querySelectorAll('[data-bin-id][data-bin-available="true"]'));
 const nthFreeBin = (index: number) => () => freeBins()[index] ?? null;
 
 /**
- * The first free bin's name, for the search box — read from `data-bin-name` rather than the card's
- * heading, which carries the size suffix ("Bin 1A (1x1)") the search would not match.
+ * A door with at least `count` bins still free — the step that has to run before every round.
+ *
+ * The walk needs six free bins and no single door has them. The seed spreads fifteen across the
+ * cabinet: one behind Door 1, two behind each of Doors 2–8. Worse, only the OPEN door's bins are in the
+ * DOM, so a scenario cannot count another door's free bins by looking — which is what `data-door-free-bins`
+ * on each door button is for.
+ *
+ * This is also the more honest demonstration. Setting up a cabinet is not done standing at one door;
+ * the operator works along the shelves, and the walk showing that is closer to the job than one that
+ * happened to find everything in front of it.
+ *
+ * Re-resolved every round, so it naturally moves on as doors fill up. Returns null when no door has
+ * enough left, and the runner stops with a stated reason rather than clicking nothing.
  */
-const firstFreeBinName = () => freeBins()[0]?.getAttribute('data-bin-name') ?? '';
+const doorWithFreeBins = (count: number) => () =>
+  Array.from(document.querySelectorAll('[data-demo="door"]')).find(
+    door => Number(door.getAttribute('data-door-free-bins') ?? 0) >= count
+  ) ?? null;
+
+/**
+ * Round 2 used to find its bin by NAME first — typing it into the main search and pressing Highlight
+ * Bin, so the destination lit up a beat before the cursor arrived. It is removed, and not because the
+ * idea was wrong: the dropdown does not reliably open for a synthetic click on the search box, so the
+ * step stalled the walk in front of the viewer. The runner's dispatchRealClick focuses its target, but
+ * the box's list is gated on React's own onFocus having fired, and during a run it sometimes has not.
+ * Worth revisiting as a runner fix rather than a scenario one — see DEMO.md §12.
+ *
+ * Open a door with room before a round starts. Tapping the door already open is a harmless no-op, so
+ * this can be unconditional rather than the scenario trying to predict when it is needed.
+ */
+const openDoorWithRoom = (count: number): DemoStep => ({
+  kind: 'click',
+  label: count === 1 ? 'Open a door with a free bin' : `Open a door with ${count} free bins`,
+  target: doorWithFreeBins(count),
+  settleMs: 1200,
+  // Nothing to put back: which door is open is not part of the selection, and the previous round's
+  // door is wherever the resolver was pointing before — the rebuild handles it if Previous goes past.
+  reverse: [],
+});
+
+/**
+ * A tray row by position, for the rounds that pick off the list rather than searching.
+ *
+ * Position is only safe because the list is unfiltered when these run: the tray's order is the seed's,
+ * minus whatever this walk has already allocated, so it is deterministic within a run. It would NOT be
+ * safe under a filter, which is why the round clears the box first — and it is still no basis for
+ * naming a product, so these steps' labels say "a product", not which one.
+ */
+const nthTrayProduct = (index: number) => () =>
+  document.querySelectorAll('[data-demo="unallocated-product"]')[index] ?? null;
+
+/** Tick a row straight off the list. */
+const pickFromList = (index: number, label: string): DemoStep => ({
+  kind: 'click',
+  label,
+  target: nthTrayProduct(index),
+  settleMs: 1200,
+  reverse: [{ kind: 'click', label: 'Un-tick it', target: nthTrayProduct(index) }],
+});
 
 /** Find a product in the tray and tick it. Two steps, and every round is built from them. */
 const pickProduct = (term: string, previousTerm?: string): DemoStep[] => [
@@ -141,6 +196,7 @@ export const allocateProduct: DemoScenario = {
 
     // ── 1. One product, one bin ────────────────────────────────────────────────
     { kind: 'note', label: 'One product, one bin', settleMs: 1400 },
+    openDoorWithRoom(1),
     ...pickProduct(ROUND_1[0]),
     pickBin(0, 'Tap a free bin'),
     allocate('Allocate'),
@@ -148,6 +204,7 @@ export const allocateProduct: DemoScenario = {
 
     // ── 2. Several products, one bin ───────────────────────────────────────────
     { kind: 'note', label: 'Now several products into one bin', settleMs: 1400 },
+    openDoorWithRoom(1),
     ...pickProduct(ROUND_2[0]),
     ...pickProduct(ROUND_2[1], ROUND_2[0]),
     {
@@ -168,45 +225,14 @@ export const allocateProduct: DemoScenario = {
         },
       ],
     },
-    {
-      kind: 'type',
-      // The one round that finds its destination by name. The main search stays visible while the tray
-      // is open precisely so it can be used this way, and it puts an amber ring on the bin a beat before
-      // the cursor lands there — so the viewer sees the destination being CHOSEN rather than a cursor
-      // arriving somewhere arbitrary. Done once, not in all four rounds: the capability is worth showing,
-      // and showing it four times is padding.
-      label: 'Search for the destination bin',
-      target: '[data-demo="main-search"]',
-      text: firstFreeBinName,
-      settleMs: 1200,
-      reverse: [
-        { kind: 'type', label: 'Clear the bin search', target: '[data-demo="main-search"]', text: '' },
-      ],
-    },
-    {
-      kind: 'click',
-      // Highlight, not select: in the tray a bin hit only locates (binActionFor); the bin is taken by
-      // tapping the card, which is the next step.
-      //
-      // The FIRST bin row is the right one, and not by luck. Bin names are unique only within a door,
-      // so this query matches one bin per door; searchBinsByName sorts free bins first and keeps door
-      // order within that group, and the destination is by definition a free bin on Door 1.
-      label: 'Highlight it on the shelf',
-      target: '[data-demo="search-bin-action"]',
-      settleMs: 1500,
-      // Clearing the box drops the highlight too, so one act undoes both the ring and the query the
-      // button wrote into the box.
-      reverse: [
-        { kind: 'type', label: 'Clear the bin search', target: '[data-demo="main-search"]', text: '' },
-      ],
-    },
-    pickBin(0, 'Tap the bin the search found'),
+    pickBin(0, 'Tap a free bin'),
     { kind: 'note', label: 'Two products, one location', settleMs: 1800 },
     allocate('Allocate'),
     { kind: 'note', label: 'Both landed in the same bin', settleMs: 2200 },
 
     // ── 3. One product, several bins ───────────────────────────────────────────
     { kind: 'note', label: 'Now one product across two bins', settleMs: 1400 },
+    openDoorWithRoom(2),
     ...pickProduct(ROUND_3[0]),
     pickBin(0, 'Tap the first bin'),
     pickBin(1, 'Tap a second bin'),
@@ -218,23 +244,28 @@ export const allocateProduct: DemoScenario = {
 
     // ── 4. Several products, several bins ──────────────────────────────────────
     { kind: 'note', label: 'And the general case: several of each', settleMs: 1400 },
-    ...pickProduct(ROUND_4[0]),
-    ...pickProduct(ROUND_4[1], ROUND_4[0]),
+    openDoorWithRoom(2),
     {
       kind: 'type',
-      label: 'Clear the search to see both picks',
+      // Searching is not the only way in, and by this round it would be the wrong one to show. An
+      // operator setting up a cabinet works down the list of what still needs a home rather than
+      // recalling six names to type — so this round clears the filter and picks off the list, which is
+      // also what makes the remaining tray visible as a list at all.
+      label: 'Clear the filter to browse what is left',
       target: '[data-demo="unallocated-search"]',
       text: '',
       settleMs: 1600,
       reverse: [
         {
           kind: 'type',
-          label: `Back to ${ROUND_4[1]}`,
+          label: `Back to ${ROUND_3[0]}`,
           target: '[data-demo="unallocated-search"]',
-          text: ROUND_4[1],
+          text: ROUND_3[0],
         },
       ],
     },
+    pickFromList(0, 'Tick a product from the list'),
+    pickFromList(1, 'And the one below it'),
     pickBin(0, 'Tap the first bin'),
     pickBin(1, 'Tap a second bin'),
     // Every product goes into every bin — the tray assigns the cross product, not a pairing. Worth a

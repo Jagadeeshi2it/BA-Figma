@@ -34,6 +34,7 @@ import {
   getCurrentShelves,
   getAllAvailableBins,
   getDoorsWithAvailableBins,
+  getFreeBinCountByDoor,
   getDoorsWithSearchMatches,
   countSearchMatches,
   getDoorsWithSelectedBins,
@@ -175,6 +176,13 @@ export default function App() {
     if (!inventoryState.doorShelfConfig) return [];
     return getDoorsWithAvailableBins(inventoryState.doorShelfConfig);
   }, [inventoryState.doorShelfConfig]);
+
+  // The same fact as a count per door, for Demo Mode's door anchors: only the open door's bins are in
+  // the DOM, so a walkthrough that needs two free bins has to be able to pick a door that has two.
+  const freeBinsByDoor = useMemo(
+    () => (inventoryState.doorShelfConfig ? getFreeBinCountByDoor(inventoryState.doorShelfConfig) : {}),
+    [inventoryState.doorShelfConfig]
+  );
 
   // Debounce selected search query (only set when user picks from dropdown) to prevent excessive calculations
   const debouncedSelectedSearchQuery = useDebounce(inventoryState.selectedSearchQuery, 300);
@@ -857,6 +865,7 @@ export default function App() {
             selectedCabinet={inventoryState.selectedCabinet}
             selectedDoor={inventoryState.selectedDoor}
             doorsWithAvailableBins={doorsWithAvailableBins}
+            freeBinsByDoor={freeBinsByDoor}
             highlightAvailableBins={inventoryState.highlightAvailableBins}
             doorsWithSearchMatches={doorsWithSearchMatches}
             doorsWithSelectedBins={doorsWithSelectedBins}

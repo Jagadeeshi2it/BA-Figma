@@ -134,6 +134,26 @@ const HeaderSection = memo(function HeaderSection({
   // whose card showed as unselected.
   const autofilledQuery = useRef<string | null>(null);
 
+  // The only way to close the list. Blurring is the load-bearing part, not just closing: the effect
+  // below reopens the dropdown whenever the query changes while the box still counts as focused, and
+  // a box that never lost focus won't fire onFocus again — so the list could never be brought back.
+  //
+  // That is not only an app concern. `isSearchFocused` used to be cleared without a blur in three
+  // places, which let React's idea of focus and `document.activeElement` disagree: the box was
+  // genuinely focused, `isSearchFocused` was false, and the dropdown would not open for anything
+  // typed into it. A real user recovers by accident — a real mousedown elsewhere blurs, so the next
+  // click refocuses and fires onFocus — but a synthetic click cannot: `.focus()` on the element that
+  // is already `document.activeElement` fires no event, so nothing tells React. Demo Mode drives the
+  // app with synthetic clicks and stalled on exactly this. Blur here and the two cannot drift.
+  //
+  // Declared above every caller: a `const` is not hoisted, and one of the callers is a `useEffect`
+  // whose dependency array is evaluated during the render body (§4 of CLAUDE.md).
+  const dismissSearchList = () => {
+    setIsSearchFocused(false);
+    setShowSearchDropdown(false);
+    searchInputRef.current?.blur();
+  };
+
   // Refining a query keeps the picks it still applies to. Typing "carbop" after picking all four
   // "carbo" results leaves those four on screen, so clearing them would silently untick cards the
   // user can still see; only keys whose product dropped out of the results are forgotten.
@@ -199,8 +219,7 @@ const HeaderSection = memo(function HeaderSection({
   useEffect(() => {
     const handleClickOutside = (event: PointerEvent) => {
       if (searchContainerRef.current && !searchContainerRef.current.contains(event.target as Node)) {
-        setShowSearchDropdown(false);
-        setIsSearchFocused(false);
+        dismissSearchList();
       }
     };
 
@@ -220,8 +239,7 @@ const HeaderSection = memo(function HeaderSection({
       // Show success message
       console.log(`Selected ${binIds.length} bins containing ${productName}`);
     }
-    setShowSearchDropdown(false);
-    setIsSearchFocused(false);
+    dismissSearchList();
   };
 
   // Handle search input focus
@@ -230,15 +248,6 @@ const HeaderSection = memo(function HeaderSection({
     if (searchResults.length > 0 || binResults.length > 0) {
       setShowSearchDropdown(true);
     }
-  };
-
-  // Blurring is the load-bearing part, not just closing: the effect above reopens the dropdown
-  // whenever the query changes while the box still counts as focused, and a box that never lost
-  // focus won't fire onFocus again — so the list could never be brought back by clicking it.
-  const dismissSearchList = () => {
-    setIsSearchFocused(false);
-    setShowSearchDropdown(false);
-    searchInputRef.current?.blur();
   };
 
   // A single view-mode pick fills the box with what was picked and dismisses the list.
@@ -299,8 +308,7 @@ const HeaderSection = memo(function HeaderSection({
                 className="absolute right-1 h-6 w-6 p-0 font-normal z-10"
                 onClick={() => {
                   handleSearchQueryChange("");
-                  setShowSearchDropdown(false);
-                  setIsSearchFocused(false);
+                  dismissSearchList();
                 }}
               >
                 <X className="w-3 h-3" />

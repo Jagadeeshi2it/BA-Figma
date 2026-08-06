@@ -112,6 +112,24 @@ export const getDoorsWithAvailableBins = (doorShelfConfig: DoorShelfConfig): str
   });
 };
 
+/**
+ * How many bins with room each door holds.
+ *
+ * The boolean list above answers "does this door have any", which is all the door dot needs. Demo Mode
+ * needs the number: only the OPEN door's bins are in the DOM, so a walkthrough that wants two free bins
+ * cannot count them before it gets there — it has to be able to pick a door that has enough.
+ */
+export const getFreeBinCountByDoor = (doorShelfConfig: DoorShelfConfig): Record<string, number> => {
+  const counts: Record<string, number> = {};
+  cabinets.flatMap(cabinet => cabinet.doors).forEach(doorName => {
+    counts[doorName] = (doorShelfConfig[doorName] || []).reduce(
+      (total, shelf) => total + shelf.bins.filter(bin => bin.available).length,
+      0
+    );
+  });
+  return counts;
+};
+
 // Get shelves for a specific door
 export const getCurrentShelves = (selectedDoor: string, doorShelfConfig: DoorShelfConfig): Shelf[] => {
   return doorShelfConfig[selectedDoor] || [];
