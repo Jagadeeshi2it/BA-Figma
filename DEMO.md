@@ -311,12 +311,12 @@ interface DemoStep {
 | `note` | A pause. No cursor movement, no interaction |
 
 **A target may be a function**, re-evaluated at the moment the step runs. That is the escape hatch for
-anything only the scenario can identify — see `firstEmptyBin` in `allocateUnallocatedProduct.ts`. It
-is what keeps the runner from having to learn about bins.
+anything only the scenario can identify — see `nthFreeBin` in `allocateProduct.ts`. It is what keeps
+the runner from having to learn about bins.
 
 **So may `text`**, for the same reason: a scenario that resolves "a bin with room" from the DOM has to
 be able to type *that* bin's name, and a hard-coded one would rot with the seed exactly as a
-hard-coded bin id would. See `destinationBinName` in `allocateMultipleToOneBin.ts`.
+hard-coded bin id would. See `firstFreeBinName` in `allocateProduct.ts`.
 
 **Labels name the step; they never narrate it.** They are read in the control panel and in the failure
 message, and nowhere else.
@@ -354,83 +354,59 @@ Two more, in the runner:
 
 ---
 
-## 10. Scenario: Allocate an Unallocated Product
+## 10. Scenario: Allocate Product
 
-Thirteen steps. Workflow D, the Unallocated Products tray (CLAUDE.md §2 D).
+One walk, four rounds, in order of increasing shape:
 
-| # | Step | Reverse |
-|---|---|---|
-| 1 | *note* — the cabinet as it stands | free |
-| 2 | Open the Allocate/Move menu | tap the trigger again |
-| 3 | Choose Allocate Product | close the tray, reopen the menu |
-| 4 | *await* — the tray opens | free |
-| 5 | Type `SOLU-CORTEF` in the tray's search | clear the search |
-| 6 | Tick the product | un-tick it |
-| 7 | *note* — the panel now asks for a bin | free |
-| 8 | Tap the first empty bin | tap it again |
-| 9 | **Allocate** | **none — rebuild** |
-| 10 | *note* — allocated | free |
-| 11 | Close the tray | reopen the menu, reopen the tray |
-| 12 | Open History | leave History |
-| 13 | *note* — recorded under Today | free |
+| Round | Pattern | Products | Bins |
+|---|---|---|---|
+| 1 | one → one | `SOLU-CORTEF` | first free |
+| 2 | many → one | `MESNA`, `KADCYLA` | first free, found by name |
+| 3 | one → many | `VYLOY` | first two free |
+| 4 | many → many | `DOXORUBICIN`, `VINORELBINE` | first two free |
 
-**The product is pinned by name, not position.** Tray ids are `unalloc-1`, `unalloc-2`… assigned by
-index over whatever is still unallocated, so the third row is a different product the moment anything
-else is allocated. SOLU-CORTEF is also `Purchased`, so the scenario cannot trip the E-Kit rule — the
-one real domain constraint (CLAUDE.md §5) — if it ever lands on an E-Kit bin.
+Then: close the tray, open History, end on four entries under Today.
 
-**Steps 11 and 12 are in that order because they have to be.** History hides while any workflow is
-open, so closing the tray is what puts the button back on screen.
+**The panel never closes between rounds, and that is the point.** Split into four scenarios, each would
+open the tray, do one thing and shut it — which is not how a cabinet gets set up. Run as one walk it
+also shows what four separate demos cannot: the tray shortening and the free bins running out as the
+work proceeds.
 
-**It ends at the ledger on purpose.** An allocation that shows only as a 0-vial row in a bin reads as
-nothing having happened; the entry under Today is the proof that a transaction was recorded.
+**The seam between rounds is free.** `handleConfirmAssignment` leaves the panel open and resets exactly
+what should reset: allocated products leave the tray, the ticks and bin picks clear, and the filled bin
+flips to `available: false`. So a round starts clean without a step to clean it, and `nthFreeBin` simply
+finds what is left.
 
-**`data/seedHistory.ts` seeds nothing into today.** It used to carry a multi-product unallocation
-stamped today at 08:40, which rendered as the only two rows in Today's list — so a walkthrough's own
-transaction landed among strangers and the viewer had to hunt for the row they had just watched being
-created. Every record type the History page can render is still covered by the older entries.
+**Products are matched by name, never by tray id.** Ids are `unalloc-1`, `unalloc-2`… assigned by index
+over whatever is still unallocated, so they renumber after every round of this very scenario — a step
+naming one would be wrong by round two. Six of the eight reserved products are used; two are left so the
+tray still has something in it at the end rather than bottoming out into its empty state.
 
----
-
-## 10b. Scenario: Allocate Multiple Products to One Location
-
-Nineteen steps, same workflow. The first scenario proves the mechanism; this one proves the point of
-it — setting up a cabinet means allocating dozens of products, and the tray takes several at once into
-one bin.
-
-| # | Step | Reverse |
-|---|---|---|
-| 1 | *note* — the cabinet as it stands | free |
-| 2–4 | Open the menu, choose Allocate Product, *await* the tray | as §10 |
-| 5 | Type `MESNA` in the tray's search | clear it |
-| 6 | Tick it | un-tick it |
-| 7 | Type `KADCYLA` | back to `MESNA` |
-| 8 | Tick it | un-tick it |
-| 9 | Clear the search — both ticks now visible | back to `KADCYLA` |
-| 10 | *note* — two products on the list | free |
-| 11 | Type the destination bin's name in the **main** search | clear it |
-| 12 | Highlight the bin on the shelf | clear the search |
-| 13 | *note* — the destination, found by name | free |
-| 14 | Tap that bin | tap it again |
-| 15 | *note* — two products, one location | free |
-| 16 | **Allocate** | **none — rebuild** |
-| 17 | *note* — both allocated | free |
-| 18–19 | Close the tray, open History, *note* | as §10 |
-
-**Step 9 is the demonstration, not housekeeping.** Ticking survives a query change, so the two picks
-are made under different filters and clearing the box is the only moment both are on screen at once —
-which is exactly the gap CLAUDE.md §8 records against the tray.
-
-**Steps 11–12 use the main search, which stays visible while the tray is open.** Typing a bin name and
-pressing Highlight Bin is how an operator sent to a specific bin finds it, and it puts an amber ring on
-the destination a beat before the cursor lands there — so the viewer sees the bin being *chosen*
-rather than a cursor arriving somewhere arbitrary.
+**Only round 2 finds its bin by name.** Typing the bin's name into the main search — which stays visible
+while the tray is open — and pressing Highlight Bin puts an amber ring on the destination a beat before
+the cursor lands there, so the viewer sees the bin being *chosen*. Worth showing once; four times is
+padding.
 
 **The first bin row in that dropdown is the right one, and not by luck.** Bin names are unique only
-within a door, so the query matches one bin per door; `searchBinsByName` sorts available bins first and
-keeps door order within that group, and the destination is by definition an available bin on Door 1.
+within a door, so the query matches one bin per door; `searchBinsByName` sorts free bins first and keeps
+door order within that group, and the destination is by definition a free bin on Door 1.
 
-**Neither product is the one §10 uses**, so running that scenario first does not empty this one's tray.
+**Round 4 assigns the cross product**, not a pairing: every ticked product goes into every tapped bin,
+which is why two ticks and two taps produce four rows.
+
+**The walk needs six free bins on Door 1**, which holds nine in the current seed. If that stops being
+true, `nthFreeBin` returns null and the runner stops with a stated reason rather than clicking nothing.
+
+**Closing the tray and opening History are two steps in that order because they have to be.** History
+hides while any workflow is open.
+
+**It ends at the ledger on purpose.** An allocation that shows only as a 0-vial row in a bin reads as
+nothing having happened; four entries under Today are the proof that four transactions were recorded.
+
+**`data/seedHistory.ts` seeds nothing into today.** It used to carry a multi-product unallocation
+stamped today at 08:40, which rendered as the only rows in Today's list — so a walkthrough's own
+transactions landed among strangers and the viewer had to hunt for the ones they had just watched being
+created. Every record type the History page can render is still covered by the older entries.
 
 ---
 
