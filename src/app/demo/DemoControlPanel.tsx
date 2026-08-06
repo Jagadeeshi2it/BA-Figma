@@ -117,6 +117,15 @@ export default function DemoControlPanel() {
     []
   );
 
+  // A walk that ends while the panel is a dot and two icons ends silently: the cursor stops, the
+  // app sits there, and nothing says whether that was the finish or a stall. Opening the panel is
+  // the announcement — it states that the demo is over and puts Restart, Previous and Exit in front
+  // of the viewer at the moment they are wondering what to do next.
+  const ended = status === 'finished' || status === 'failed';
+  useEffect(() => {
+    if (ended) setExpanded(true);
+  }, [ended]);
+
   if (status === 'idle' || !scenario) return null;
 
   const duration = reducedMotion ? 0 : 220;
@@ -131,7 +140,11 @@ export default function DemoControlPanel() {
   // A short grace period on the way out. The panel shrinks as the pointer leaves, which can pull an
   // edge out from under a cursor that was heading for a button — the delay makes that a non-event
   // rather than a control that dodges the click.
+  //
+  // Once the walk has ended the panel stays open regardless: it is holding a message, and a message
+  // that vanishes the moment the pointer drifts off has not been delivered.
   const close = () => {
+    if (ended) return;
     if (collapseTimer.current) window.clearTimeout(collapseTimer.current);
     collapseTimer.current = window.setTimeout(() => setExpanded(false), 260);
   };
@@ -161,7 +174,14 @@ export default function DemoControlPanel() {
               stalled demo says the opposite of the truth. */}
           <span
             className={`h-2 w-2 shrink-0 rounded-full ${
-              failed ? 'bg-[#C6362C]' : running ? 'bg-[#22C55E] motion-safe:animate-pulse' : 'bg-white/50'
+              failed
+                ? 'bg-[#C6362C]'
+                : running
+                  ? 'bg-[#22C55E] motion-safe:animate-pulse'
+                  : // Solid green, not pulsing: finished is a result, not an activity.
+                    finished
+                    ? 'bg-[#22C55E]'
+                    : 'bg-white/50'
             }`}
           />
         </button>
@@ -195,9 +215,16 @@ export default function DemoControlPanel() {
             />
 
             {/* The step being performed, or the one Next will perform. Derived from the same
-                position the walk runs on, so the name and the counter cannot disagree with it. */}
-            <span className="ml-1.5 max-w-[240px] truncate pr-1 text-[13px] leading-[18px] text-white">
-              {failed ? failure : finished ? 'Finished' : stepLabel}
+                position the walk runs on, so the name and the counter cannot disagree with it.
+
+                At the end it becomes the message instead — "Demo completed", not "Finished", which
+                could as easily be a step name as a verdict. */}
+            <span
+              className={`ml-1.5 max-w-[240px] truncate pr-1 text-[13px] leading-[18px] ${
+                finished ? 'font-medium text-[#7EE2A8]' : 'text-white'
+              }`}
+            >
+              {failed ? `Demo stopped — ${failure}` : finished ? 'Demo completed' : stepLabel}
             </span>
             {!finished && !failed && (
               <span className="shrink-0 pr-1 text-[11px] leading-[16px] tabular-nums text-white/60">

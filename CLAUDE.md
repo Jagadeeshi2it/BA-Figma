@@ -1112,6 +1112,27 @@ the name of the step being performed.
   its own width, so a longer step name cannot be clipped by a number somebody picked once.
 - **Every button carries `aria-label` and `title`**, so an icon-only panel is not a row of unnamed
   controls, and the dot's tooltip carries the scenario or the reason it stopped.
+- **It opens itself when the walk ends, and stays open.** A demo that finishes while the panel is a
+  dot and two icons finishes silently — the cursor stops, the app sits there, and nothing says
+  whether that was the end or a stall. The panel expands to `Demo completed` with Restart, Previous
+  and Exit in front of the viewer, and `close()` is a no-op from then on: a message that vanishes
+  when the pointer drifts off has not been delivered.
+
+### The real pointer hides, and comes back the instant it moves
+
+Two cursors at once is the worst of both worlds — the viewer cannot tell which one is theirs — so the
+shield carries `cursor: none` while the demo drives. But hiding it unconditionally makes the panel
+feel unreachable: you move the mouse, nothing appears, and the walkthrough reads as something you are
+locked inside.
+
+So a genuine `pointermove` brings it straight back, and **`isTrusted` is the whole trick**: the
+demo's own synthetic pointer events report `false`, so the demo cannot mistake itself for the user.
+It hides again after 2s of real stillness, and only while the walk is actually *running* — the moment
+it is paused the user is in charge and the pointer stays.
+
+The `cursor` rule lives on the shield rather than on `body` because the shield is exactly the area
+the demo owns. Over the control panel the real pointer is always visible, which is what makes "move
+the mouse and take over" work mid-step.
 
 ### Previous steps back; it does not replay
 
