@@ -251,6 +251,12 @@ export default function BinCard({
     const isProductClickable =
       picksSourceProduct || (!changeAllocationMode && !showUnallocatedProducts && onProductClick);
 
+    // No refusal toast on these rows, deliberately. An unclickable row here has no handler, so the tap
+    // bubbles to the card and selects the BIN — which in a Bin move, and at either kind's target step,
+    // is exactly the right outcome. The only genuinely silent product row is the one in
+    // AllProductsPanel, which has no bin card above it to catch the tap; that is where the mirror of
+    // handleBinClick's refusal lives.
+
     return (
       <div
         key={product.id}

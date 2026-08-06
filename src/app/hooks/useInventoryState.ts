@@ -9,6 +9,7 @@ import { generateSeedHistory } from '../data/seedHistory';
 import { getCurrentShelves, initializeDoorConfigs, getBinLocationDetails, binMatchesSearch } from '../utils/doorUtils';
 import { migrateHistoryEntriesWithSourceBin } from '../utils/historyUtils';
 import { doesProductMatchSearch } from '../utils/textHighlight';
+import { binTapRefusal, WRONG_UNIT_TOAST_ID } from '../components/PipelineSteps';
 import {
   SourcePick,
   sourcePickKey,
@@ -259,9 +260,18 @@ export const useInventoryState = () => {
       if (changeAllocationMode) {
         if (changeAllocationStep === 1) {
           // Move › Product picks the source by searching products, not by tapping the shelves — a
-          // shelf tap there has no product to scope to, so it's a no-op. Target taps (step 2) are
-          // unaffected: the target is always a bin, whichever kind of move this is.
-          if (moveMode === 'product') {
+          // shelf tap there has no product to scope to, so it cannot select anything. Target taps
+          // (step 2) are unaffected: the target is always a bin, whichever kind of move this is.
+          //
+          // It says so rather than returning in silence, which is how it used to end: the operator
+          // tapped a bin, nothing happened at all, and a rule working as designed was indistinguishable
+          // from a dead control.
+          const refusal = binTapRefusal(changeAllocationStep, moveMode);
+          if (refusal) {
+            toast.custom(() => React.createElement(ValidationToast, { message: refusal }), {
+              id: WRONG_UNIT_TOAST_ID,
+              duration: 4000
+            });
             return;
           }
           // Step 1: Select multiple source bins (must contain products)

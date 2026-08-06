@@ -624,6 +624,36 @@ one has to handle all three:
 undefined : handleProductClick`). Omitting that guard on a new surface is how the `+N more` panel
 started navigating away mid-move.
 
+**"Nothing" is not the same as "no handler".** On a bin card the third row above has no `onClick`, so
+the tap bubbles to the card and selects the **bin** — which is the right answer in a Bin move and at
+either kind's target step. `AllProductsPanel` is an overlay with no card beneath it, so the identical
+row swallows the tap entirely. That is the only genuinely dead product row in the app, and the only one
+that needs the refusal toast below.
+
+### A refused tap says which control would work
+
+Two taps are legitimately refused, and both used to be refused in silence — the operator taps, nothing
+at all happens, and a rule working as designed is indistinguishable from a broken control
+(`UX-AUDIT H9-1`):
+
+| Tap | Where | Says |
+|---|---|---|
+| a **bin** | Product move, step ① | *This move goes by product — tap a product inside the bin, or search for it.* |
+| a **product** | `AllProductsPanel`, in a move | *This move goes by bin…* / *Tap the bin itself to choose it as Move To.* |
+
+`binTapRefusal` / `productTapRefusal` live in `PipelineSteps.tsx` beside `instructionFor`, so the
+correction and the footer's standing advice cannot drift into contradicting each other. Both return
+`null` where the tap is legitimate, so a caller can use the copy as the test. Both fire under one
+`WRONG_UNIT_TOAST_ID`, or a repeated tap stacks eight identical toasts.
+
+The refused row keeps its **inert look** — no cursor, no hover. Tapping it still achieves nothing; it
+just explains itself now. Same reasoning as `FooterButton`'s `onBlockedClick`, which stops short of
+`disabled` for exactly this reason.
+
+`AllProductsPanel` takes the message as a prop (`tapRefusal`) rather than deriving it: `App` is what
+holds the move's mode and step, and threading three flags through `MainLayout` to re-derive one string
+would be three chances for it to disagree with the shelves.
+
 ---
 
 ## 4. Edge cases and traps

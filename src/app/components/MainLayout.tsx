@@ -16,6 +16,9 @@ interface MainLayoutProps {
   // Move by Product, source step: a row in the "+N more" panel selects the product instead of opening
   // its detail page. Same pair BinCard takes; App decides when it applies.
   allProductsCanPickSourceProduct?: boolean;
+  // What to say when a product row in that panel can't be tapped — resolved in App, which holds the
+  // move's mode and step. Null when the tap is legitimate.
+  allProductsTapRefusal?: string | null;
   onAllProductsSelectSourceProduct?: (product: any) => void;
   closeAllProducts?: () => void;
   showUnallocatedProducts: boolean;
@@ -59,6 +62,7 @@ export default function MainLayout({
   searchQuery,
   onAllProductsProductClick,
   allProductsCanPickSourceProduct,
+  allProductsTapRefusal = null,
   onAllProductsSelectSourceProduct,
   closeAllProducts,
   showUnallocatedProducts,
@@ -143,6 +147,7 @@ export default function MainLayout({
           searchQuery={searchQuery ?? ''}
           onProductClick={onAllProductsProductClick}
           canPickSourceProduct={allProductsCanPickSourceProduct}
+          tapRefusal={allProductsTapRefusal}
           onSelectSourceProduct={onAllProductsSelectSourceProduct}
           onClose={closeAllProducts ?? (() => {})}
         />

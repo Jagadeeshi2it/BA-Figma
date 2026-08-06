@@ -4,6 +4,9 @@ import { Input } from './ui/input';
 import { Bin } from '../types';
 import { highlightText, highlightNDC, SEARCH_HIGHLIGHT_COLOR } from '../utils/textHighlight';
 import { consolidateBinProducts, getVialType, hasClimateBadge, hasCivBadge } from '../utils/binProducts';
+import { toast } from 'sonner@2.0.3';
+import { ValidationToast } from './ui/sonner-1';
+import { WRONG_UNIT_TOAST_ID } from './PipelineSteps';
 
 interface AllProductsPanelProps {
   bin: Bin | undefined;
@@ -16,6 +19,16 @@ interface AllProductsPanelProps {
   // user on the product detail page instead — the one route out of the flow, from inside the flow.
   canPickSourceProduct?: boolean;
   onSelectSourceProduct?: (product: any) => void;
+  /**
+   * What to say if a row is tapped when it cannot be picked, or null when the tap is legitimate.
+   *
+   * Only this panel needs it. On the shelves an unpickable row has no handler, so the tap bubbles to
+   * the bin card and selects the bin — the right answer in a Bin move and at either kind's target
+   * step. This is an overlay with nothing beneath it, so the identical tap lands nowhere at all: the
+   * operator opens "+N more" precisely because the product they want is in here, taps it, and gets
+   * silence.
+   */
+  tapRefusal?: string | null;
   onClose: () => void;
 }
 
@@ -37,11 +50,18 @@ export default function AllProductsPanel({
   onProductClick,
   canPickSourceProduct = false,
   onSelectSourceProduct,
+  tapRefusal = null,
   onClose
 }: AllProductsPanelProps) {
   // Selecting wins over navigating, same precedence as BinCard: mid-selection, a tap on a product is
   // the operator naming it, not asking to read about it.
   const picksSourceProduct = canPickSourceProduct && !!onSelectSourceProduct;
+
+  // Answered, but not advertised: the row keeps its inert look (no cursor, no hover) because tapping
+  // it still achieves nothing — it just explains itself now. Same reasoning as FooterButton's
+  // onBlockedClick, which stops short of `disabled` for exactly this: a disabled control swallows the
+  // click, so the operator taps, nothing happens, and blocked is indistinguishable from broken.
+  const explainsRefusal = !picksSourceProduct && !onProductClick && !!tapRefusal;
   const [panelSearch, setPanelSearch] = React.useState('');
 
   // A fresh bin starts with a clean filter — the previous bin's query shouldn't carry over.
@@ -111,7 +131,12 @@ export default function AllProductsPanel({
                 className={`flex items-start justify-between gap-3 px-4 py-4 ${
                   picksSourceProduct || onProductClick ? 'cursor-pointer hover:bg-gray-50 transition-colors' : ''
                 }`}
-                onClick={picksSourceProduct ? () => onSelectSourceProduct!(product) : onProductClick ? () => {
+                onClick={picksSourceProduct ? () => onSelectSourceProduct!(product) : explainsRefusal ? () => {
+                  toast.custom(() => React.createElement(ValidationToast, { message: tapRefusal! }), {
+                    id: WRONG_UNIT_TOAST_ID,
+                    duration: 4000
+                  });
+                } : onProductClick ? () => {
                   const location = {
                     cabinet: 'Cabinet',
                     door: selectedDoor || '',

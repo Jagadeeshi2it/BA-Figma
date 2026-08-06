@@ -23,6 +23,35 @@ type MoveMode = 'bin' | 'product' | null | undefined;
  * kind, so telling the user to "tap a bin" would aim them at the one thing that cannot answer — the
  * silently dead control H9-1 describes.
  */
+/**
+ * What to say when a tap lands on the wrong kind of thing.
+ *
+ * Both halves of a move step have exactly one unit — the bin in a Bin move, the product in a Product
+ * move, the bin again at the target — and a tap on the other one is refused. It used to be refused in
+ * silence: `handleBinClick` returns early for a Product move and the product rows simply stop being
+ * clickable in a Bin move, so the operator taps, nothing at all happens, and a control that is working
+ * exactly as designed is indistinguishable from one that is broken (`UX-AUDIT H9-1`).
+ *
+ * The message names the thing that WOULD work, not the mistake — the footer instruction already says
+ * what the step is for, and repeating it as a scolding adds nothing. Both live here, beside that
+ * instruction, so the correction and the standing advice cannot drift into contradicting each other.
+ *
+ * Returns null where the tap is legitimate, so a caller can use it as the test as well as the copy.
+ */
+export const binTapRefusal = (step: PipelineStep, moveMode: MoveMode): string | null =>
+  step === 1 && moveMode === 'product'
+    ? 'This move goes by product — tap a product inside the bin, or search for it.'
+    : null;
+
+export const productTapRefusal = (step: PipelineStep, moveMode: MoveMode): string | null => {
+  // The target is a whole bin in either kind of move, so a product row means nothing on step ②.
+  if (step === 2) return 'Tap the bin itself to choose it as Move To.';
+  return moveMode === 'bin' ? 'This move goes by bin — tap the bin itself to choose it as Move From.' : null;
+};
+
+/** One id for both, so tapping repeatedly replaces the toast instead of stacking eight of them. */
+export const WRONG_UNIT_TOAST_ID = 'move-wrong-unit';
+
 export const instructionFor = (step: PipelineStep, moveMode: MoveMode): string => {
   switch (step) {
     // Steps ① and ② are deliberately parallel — "to move stock from" / "to move stock to" — because they

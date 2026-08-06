@@ -28,6 +28,7 @@ import { doesProductMatchSearch } from "./utils/textHighlight";
 import { ProductTransfer } from "./types";
 import { planMoveRoute, twoPhaseWalkOrder, RouteBin } from "./utils/moveRoute";
 import { isFridgeDoor } from "./utils/doorUtils";
+import { productTapRefusal } from "./components/PipelineSteps";
 import {
   getCurrentShelves,
   getAllAvailableBins,
@@ -709,6 +710,16 @@ export default function App() {
             if (!allProductsBinId) return;
             inventoryState.handleSelectSourceProductFromBin(allProductsBinId, product);
           }}
+          // The mirror of handleBinClick's refusal, and the only place it is needed for a product row.
+          // On the shelves an unclickable row lets the tap bubble to the bin card, which selects the
+          // bin — the right answer in a Bin move and at either kind's target step. This panel is an
+          // overlay with no card beneath it, so the same tap lands nowhere at all. Resolved here rather
+          // than in the panel because App is what holds the move's mode and step.
+          allProductsTapRefusal={
+            inventoryState.changeAllocationMode
+              ? productTapRefusal(inventoryState.changeAllocationStep, inventoryState.moveMode)
+              : null
+          }
           closeAllProducts={() => setAllProductsBinId(null)}
           showUnallocatedProducts={inventoryState.showUnallocatedProducts}
           currentBin={currentBin}
