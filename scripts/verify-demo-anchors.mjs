@@ -32,6 +32,15 @@ const appSource = sourceFiles.map(path => readFileSync(path, 'utf8')).join('\n')
 
 const scenarioFiles = walk(SCENARIOS_DIR).filter(path => /\.ts$/.test(path));
 
+// Every string literal inside a `data-demo={…}` expression. Kept deliberately narrow — it reads the
+// braces' own contents, not the file at large — so a matching string somewhere else in the component
+// cannot vouch for an anchor that is never rendered.
+const conditionalAnchors = new Set(
+  Array.from(appSource.matchAll(/data-demo=\{([^}]*)\}/g)).flatMap(match =>
+    Array.from(match[1].matchAll(/['"`]([^'"`]+)['"`]/g), quoted => quoted[1])
+  )
+);
+
 let checked = 0;
 const failures = [];
 
@@ -40,17 +49,23 @@ for (const path of scenarioFiles) {
   for (const match of source.matchAll(/\[data-demo="([^"]+)"\]/g)) {
     const id = match[1];
     checked += 1;
-    // Matches both the literal attribute and the `demoId="…"` prop the workflow menu passes
-    // through to one, since the anchor is only spelled out at the call site there.
+    // Three spellings, because an anchor is not always a literal attribute:
+    //   data-demo="x"          the plain case
+    //   demoId="x"             passed to a component that renders the attribute (the workflow menu
+    //                          entries, the pipeline footer's buttons) — spelled out only at the call site
+    //   data-demo={… 'x' …}    conditional, where the element carries the anchor only in some states
+    //                          (SourceProductCard tags Select but not the spent Selected)
     const rendered =
-      appSource.includes(`data-demo="${id}"`) || appSource.includes(`demoId="${id}"`);
+      appSource.includes(`data-demo="${id}"`) ||
+      appSource.includes(`demoId="${id}"`) ||
+      conditionalAnchors.has(id);
     if (!rendered) failures.push(`${path}: no element renders data-demo="${id}"`);
   }
 }
 
 // A scenario whose selectors all resolve but which reaches for a data attribute the app stopped
 // setting fails the same way, so the two attributes the runner depends on are checked by name.
-for (const attribute of ['data-bin-id', 'data-bin-available']) {
+for (const attribute of ['data-bin-id', 'data-bin-available', 'data-bin-product-count', 'data-door-free-bins']) {
   checked += 1;
   if (!appSource.includes(attribute)) failures.push(`no element renders ${attribute}`);
 }

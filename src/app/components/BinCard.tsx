@@ -375,6 +375,13 @@ export default function BinCard({
         // scenario needs the bin's NAME to type into the search box. Reading it out of the header
         // text would mean stripping the size suffix, which is presentation the demo should not know.
         data-bin-name={bin.name}
+        // How many product rows the bin holds — what Review will offer for it. A Move from Bin
+        // walkthrough needs a source with
+        // more than one, because choosing which of a bin's products actually leave is the thing that
+        // makes it a Bin move at all — with a single-product bin that choice is invisible and the
+        // demo shows a Product move wearing a different name. `available="false"` only says the bin
+        // is not empty, which is not the same question.
+        data-bin-product-count={(bin.products || []).length}
         className={`relative rounded-[4px] transition-all ${
           // The bin itself does nothing in a Product move — only its rows do — so it must not offer a
           // pointer or a hover lift it cannot honour (UX-AUDIT H9-1: a control that looks live and

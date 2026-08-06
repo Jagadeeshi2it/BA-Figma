@@ -95,7 +95,7 @@ export default function AllocationBottomBar({
       />
 
       <FooterActions>
-        <FooterButton label="Cancel" variant="secondary" onClick={onCancel} />
+        <FooterButton label="Cancel" variant="secondary" onClick={onCancel} demoId="pipeline-cancel" />
         {step === 2 && (
           // Just "Back", in both kinds of move. It used to be named for the step it returns to
           // (sourceEndLabel — "Move From" in a Bin move, "Move" in a Product one), which put the same
@@ -108,6 +108,7 @@ export default function AllocationBottomBar({
             variant="secondary"
             onClick={onBackToSource}
             leadingIcon={<ArrowLeft className="w-4 h-4" />}
+            demoId="pipeline-back"
           />
         )}
         {step === 1 ? (
@@ -130,6 +131,7 @@ export default function AllocationBottomBar({
             enabled={sourceBinCount > 0}
             onClick={onNext}
             trailingIcon={sourceBinCount > 0 ? <ArrowRight className="w-4 h-4" /> : undefined}
+            demoId="pipeline-primary"
           />
         ) : (
           <FooterButton
@@ -147,6 +149,7 @@ export default function AllocationBottomBar({
             // advancing — but that was the misleading part: it does advance, and the commit is two
             // screens further on.
             trailingIcon={targetBinCount > 0 ? <ArrowRight className="w-4 h-4" /> : undefined}
+            demoId="pipeline-primary"
           />
         )}
       </FooterActions>

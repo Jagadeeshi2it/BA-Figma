@@ -271,9 +271,30 @@ Targets are `data-demo` attributes. Never text, never structure.
 | `unallocated-cancel` | The tray's Cancel button |
 | `history-trigger` | The header's History button |
 | `history-back` | The History page's back arrow |
+| `pipeline-primary` | The move footer's primary — **on every one of the four stages** |
+| `pipeline-back` | The move footer's Back |
+| `pipeline-cancel` | The move footer's Cancel |
+| `review-select-product` | A Review card's `Select`, on the rows not yet taken |
+| `step4-quantity` | The take half of step ④ |
+| `step4-placement` | The place half of step ④ |
 
-Plus two data attributes the scenario resolves against rather than naming a specific element:
-`data-bin-id` and `data-bin-available` on `BinCard`.
+Plus the data attributes a scenario resolves against rather than naming a specific element:
+`data-bin-id`, `data-bin-available` and `data-bin-product-count` on `BinCard`, and
+`data-door-free-bins` on each door button.
+
+**One anchor for four primaries.** `pipeline-primary` is on every stage's forward button rather than
+one per stage, because the footer's whole design is that the operator looks at one place for what
+happens next — a walkthrough reaching for the same place is demonstrating that rather than working
+around it. It is also the only handle that survives the labels: `Move To`, `Select bins to move`,
+`Build Move List`, `Start Qty Move` and `Proceed to Move To` are all this one control.
+
+**`review-select-product` is conditional**, present on `Select` and absent on the spent `Selected`. So
+"the first match" is always a product still available to pick, and a walk can select several by
+repeating one step rather than counting rows.
+
+**`data-bin-product-count` answers a question `available` cannot.** `available="false"` says a bin is
+not empty; the Move from Bin walk needs a source holding *more than one* product, because choosing
+which of them leave is the thing that makes it a Bin move.
 
 **Why not match on text.** This app renames its labels constantly — CLAUDE.md §2 is largely a record
 of it, and the workflow menu alone is on its third naming. A broken selector presents to a viewer as
@@ -382,20 +403,23 @@ over whatever is still unallocated, so they renumber after every round of this v
 naming one would be wrong by round two. Six of the eight reserved products are used; two are left so the
 tray still has something in it at the end rather than bottoming out into its empty state.
 
-**Only round 2 finds its bin by name.** Typing the bin's name into the main search — which stays visible
-while the tray is open — and pressing Highlight Bin puts an amber ring on the destination a beat before
-the cursor lands there, so the viewer sees the bin being *chosen*. Worth showing once; four times is
-padding.
-
-**The first bin row in that dropdown is the right one, and not by luck.** Bin names are unique only
-within a door, so the query matches one bin per door; `searchBinsByName` sorts free bins first and keeps
-door order within that group, and the destination is by definition a free bin on Door 1.
+**Round 2 used to find its bin by name** — typing it into the main search and pressing Highlight Bin, so
+the destination lit up a beat before the cursor arrived. Removed, and not because the idea was wrong:
+the dropdown did not reliably open for a synthetic click on the search box, so the step stalled the walk
+in front of the viewer. See §12; the runner-level cause is fixed now and the beat could come back.
 
 **Round 4 assigns the cross product**, not a pairing: every ticked product goes into every tapped bin,
-which is why two ticks and two taps produce four rows.
+which is why two ticks and two taps produce four rows. It also picks its two products straight off the
+unfiltered list rather than searching for each — an operator setting up a cabinet works down what still
+needs a home rather than recalling names to type, and it is what makes the remaining tray visible as a
+list at all.
 
-**The walk needs six free bins on Door 1**, which holds nine in the current seed. If that stops being
-true, `nthFreeBin` returns null and the runner stops with a stated reason rather than clicking nothing.
+**The walk is door-aware, because it has to be.** It needs six free bins and no single door has them:
+the seed spreads fifteen across the cabinet, one behind Door 1 and two behind each of Doors 2–8. Only
+the OPEN door's bins are in the DOM, so a scenario cannot count another door's free bins by looking —
+which is what `data-door-free-bins` on each door button is for. `openDoorWithRoom(n)` runs before every
+round and re-resolves, so the walk moves along the shelves as doors fill up. Assuming nine free bins
+behind Door 1 is exactly how this scenario used to die mid-run.
 
 **Closing the tray and opening History are two steps in that order because they have to be.** History
 hides while any workflow is open.
@@ -407,6 +431,44 @@ nothing having happened; four entries under Today are the proof that four transa
 stamped today at 08:40, which rendered as the only rows in Today's list — so a walkthrough's own
 transactions landed among strangers and the viewer had to hunt for the ones they had just watched being
 created. Every record type the History page can render is still covered by the older entries.
+
+---
+
+## 10b. Scenario: Move from Bin
+
+Workflow B with `moveMode = 'bin'`, all four steps, ending at the ledger:
+
+| Step | What the walk does |
+|---|---|
+| ① Bin | open a door with a free bin, tap a **stocked** bin as Move From |
+| ② Target | tap a **free** bin as Move To |
+| ③ Review | `Select` one of that bin's products — the rest stay |
+| ④ Move | accept the full quantity at the source, then place it at the target |
+
+Then: the emptied bin raises the zero-inventory banner, and History records the move.
+
+**The source bin must hold more than one product.** Picking a bin does not commit its contents —
+Review still asks which of them are leaving — and with a single-product bin that question answers
+itself, so the walk would be a Move from Product wearing a different name. `stockedBinWithChoice`
+resolves on `data-bin-product-count >= 2`, not on `available="false"`, which only says "not empty".
+
+**It moves the full quantity, and nothing types a number.** The quantity page opens at the source bin's
+whole amount (`transfer.quantity || productInfo.quantity`, and transfers are staged at 0), so accepting
+it is the happy path. That is not only the shortest route: a partial move switches serial scanning on,
+and how many serials there are to scan is then whatever the seed happens to hold — which a scenario
+cannot know without reading quantities out of the DOM and generating steps from them. **A partial move
+with scanning deserves its own walkthrough**; it is not this one.
+
+**Emptying the bin is the closing beat, not an accident.** A full move leaves the source at 0, so the
+cabinet comes back with the zero-inventory banner raised. The walk does not dismiss it: the banner is
+the app asking whether the product should keep its now-empty bin, a question with no deadline, and
+watching it wait is the point (CLAUDE.md §2 C).
+
+**Step ④ has no reverse, and cannot.** There is no Back on either half — Cancel is the only exit and it
+discards the move rather than stepping through it. Previous falls back to the rebuild.
+
+**The target cannot collide with the source.** Step ② refuses a bin already serving as a source, and
+the walk's target resolver asks for a *free* bin, which by definition never is one.
 
 ---
 

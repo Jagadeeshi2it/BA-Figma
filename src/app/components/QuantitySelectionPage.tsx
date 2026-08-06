@@ -665,7 +665,9 @@ export default function QuantitySelectionPage({
   };
 
   return (
-    <div className="flex flex-col h-full bg-white">
+    // Anchored for Demo Mode: the take half of step ④ — the operator is at the SOURCE bin, pulling stock out.
+    // Both halves report Step 4/4, so the footer cannot tell a walkthrough which of them is on screen.
+    <div className="flex flex-col h-full bg-white" data-demo="step4-quantity">
       <div className="flex-1 flex min-h-0">
       <div className="flex-1 min-w-0 flex flex-col min-h-0">
       {/* Product Header */}
@@ -962,6 +964,7 @@ export default function QuantitySelectionPage({
               enabled={!isSaving}
               onClick={handleSave}
               trailingIcon={!isSaving ? <ArrowRight className="w-4 h-4" /> : undefined}
+              demoId="pipeline-primary"
             />
           </FooterActions>
         </PipelineFooterShell>

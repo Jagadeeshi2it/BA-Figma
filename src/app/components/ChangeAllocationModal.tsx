@@ -1446,13 +1446,14 @@ export default function ChangeAllocationModal({
           />
 
           <FooterActions>
-            {onCancel && <FooterButton label="Cancel" variant="secondary" onClick={onCancel} />}
+            {onCancel && <FooterButton label="Cancel" variant="secondary" onClick={onCancel} demoId="pipeline-cancel" />}
             {/* One step back to the Target selection — mode stays active, selection is kept. */}
             <FooterButton
               label="Back"
               variant="secondary"
               onClick={handleCancel}
               leadingIcon={<ArrowLeft className="w-4 h-4" />}
+              demoId="pipeline-back"
             />
             <FooterButton
               label={confirmActionLabel}
@@ -1460,6 +1461,7 @@ export default function ChangeAllocationModal({
               enabled={validateTransfers()}
               onClick={handleConfirm}
               trailingIcon={validateTransfers() ? <ArrowRight className="w-4 h-4" /> : undefined}
+              demoId="pipeline-primary"
             />
           </FooterActions>
         </PipelineFooterShell>

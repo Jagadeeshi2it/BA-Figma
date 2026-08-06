@@ -884,7 +884,9 @@ export default function TargetBinSerialScanPage({
   };
 
   return (
-    <div className="flex flex-col h-full bg-white">
+    // Anchored for Demo Mode: the place half of step ④ — the operator is at the TARGET bin, putting stock in.
+    // Both halves report Step 4/4, so the footer cannot tell a walkthrough which of them is on screen.
+    <div className="flex flex-col h-full bg-white" data-demo="step4-placement">
       <div className="flex-1 flex min-h-0">
       <div className="flex-1 min-w-0 flex flex-col min-h-0">
       {/* Product Header */}
@@ -1167,6 +1169,7 @@ export default function TargetBinSerialScanPage({
               enabled={canSave}
               onClick={handleSave}
               trailingIcon={canSave ? <ArrowRight className="w-4 h-4" /> : undefined}
+              demoId="pipeline-primary"
             />
           </FooterActions>
         </PipelineFooterShell>

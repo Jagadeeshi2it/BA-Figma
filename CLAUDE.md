@@ -1069,9 +1069,13 @@ the anchors, and the decisions that were tried and reversed. This section is ori
 
 `src/app/demo/` — a guided walkthrough that drives the app by moving a virtual cursor to real
 controls and clicking them. Pressing **`/`** anywhere outside a text field opens the Demo Scenarios
-palette; picking one runs it. One scenario exists — **Allocate Product**, which walks all four
-allocation patterns (one/many products into one/many bins) without closing the tray between them, then
-ends on the History page showing the four transactions.
+palette; picking one runs it. Two scenarios exist:
+
+- **Allocate Product** — all four allocation patterns (one/many products into one/many bins) without
+  closing the tray between them, ending on the History page showing the four transactions.
+- **Move from Bin** — workflow B's four steps end to end: a stocked bin as Move From, a free bin as
+  Move To, one of the source bin's products selected in Review, then the full quantity taken and
+  placed. It ends with the emptied bin's zero-inventory banner and the move in the ledger.
 
 Nothing in `App` or `useInventoryState` knows Demo Mode exists. It is mounted in `main.tsx` as a
 provider wrapping `<App />` plus a `<DemoLayer />` that portals to `document.body`, and the only

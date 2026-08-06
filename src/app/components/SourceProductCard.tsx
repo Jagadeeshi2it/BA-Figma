@@ -146,6 +146,10 @@ export default function SourceProductCard({
 
             {canOfferSelect && (
               <button
+                // Demo Mode's handle on "choose this product to leave this bin" — the act that makes a
+                // Bin move a Bin move. Only the un-spent ones answer to it, so a walkthrough asking for
+                // the first match gets a product it can still select rather than one already taken.
+                data-demo={alreadySelected ? undefined : 'review-select-product'}
                 onClick={alreadySelected ? undefined : () => onMoveProduct(enhancedProduct.id)}
                 disabled={alreadySelected}
                 // Secondary, not primary. There is one of these per product row, so as filled blue

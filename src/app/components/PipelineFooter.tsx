@@ -165,12 +165,23 @@ export function FooterButton({
   onClick,
   onBlockedClick,
   leadingIcon,
-  trailingIcon
+  trailingIcon,
+  demoId
 }: {
   label: string;
   variant: 'primary' | 'secondary';
   enabled?: boolean;
   onClick: () => void;
+  /**
+   * Stable handle for Demo Mode, in place of matching on the label. Every stage's primary answers to
+   * the same `pipeline-primary`, which is not laziness: the bar's whole design is that the operator
+   * looks at one place for what happens next, and a walkthrough that reaches for the same place is
+   * demonstrating that rather than working around it. It is also the only handle that survives this
+   * button's labels, which change with the step, the mode, and whether the requirement is met —
+   * `Move To` / `Select bins to move` / `Build Move List` / `Start Qty Move` / `Proceed to Move To`
+   * are all this one control.
+   */
+  demoId?: string;
   /**
    * What to do when the button is tapped while unavailable. Given one, the button keeps its normal label
    * and stays tappable — it just answers with an explanation instead of acting.
@@ -201,6 +212,7 @@ export function FooterButton({
   return (
     <button
       type="button"
+      data-demo={demoId}
       onClick={enabled ? onClick : onBlockedClick}
       disabled={!enabled && !explains}
       aria-disabled={!enabled}
