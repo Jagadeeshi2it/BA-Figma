@@ -3,7 +3,6 @@ import { SourcePick } from '../utils/sourcePicks';
 import { Button } from './ui/button';
 import { Clock, X, ChevronDown } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
-import { Checkbox } from './ui/checkbox';
 import SearchDropdown, { getResultKey } from './SearchDropdown';
 import { searchProducts, searchBinsByName, getBinIdsForProduct } from '../utils/productSearchUtils';
 import { DoorShelfConfig } from '../types';
@@ -250,28 +249,16 @@ const HeaderSection = memo(function HeaderSection({
           seam into the gray, scrollable page below. It needs its own horizontal padding now — it no
           longer sits inside the content column's p-6, so px-6 reproduces that inset to keep the
           title and search aligned with the shelf cards underneath. */}
-      <div className="bg-white px-6 py-3 border-b border-gray-200 flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <h1 className="text-2xl font-normal text-[24px]">Allocation</h1>
+      {/* Three columns rather than a flex row with justify-between: the search has to sit in the
+          middle of the ROW, not in the middle of what is left over after the two side groups. With
+          `1fr auto 1fr` the two outer columns are equal by construction, so the box stays centred as
+          the right-hand group changes width — which it does, since all three controls there disappear
+          inside a workflow. */}
+      <div className="bg-white px-6 py-3 border-b border-gray-200 grid grid-cols-[1fr_auto_1fr] items-center gap-4">
+        <h1 className="text-2xl font-normal text-[24px] justify-self-start">Allocation</h1>
 
-          {/* A filter on the view, not an action — it tints the empty bins and stays on until turned
-              off. A checkbox says "this is a state you're holding"; the outlined button it replaced
-              looked like the workflow entries beside it and read as something that would navigate.
-              Beside the title because it describes what the page is showing. */}
-          <label className="flex items-center gap-2 cursor-pointer select-none">
-            <Checkbox
-              checked={highlightAvailableBins}
-              onCheckedChange={handleAvailableBinsClick}
-              className="border-[#095192] data-[state=checked]:bg-[#095192] data-[state=checked]:border-[#095192] data-[state=checked]:text-white"
-            />
-            <span className="text-[14px] leading-[20px] text-[#095192] whitespace-nowrap">
-              Bins Available({allAvailableBins})
-            </span>
-          </label>
-        </div>
-        <div className="flex items-center gap-2 h-full">
-          {/* Always visible search bar with dropdown */}
-          <div className="relative flex items-center" ref={searchContainerRef}>
+        {/* Always visible search bar with dropdown */}
+        <div className="relative flex items-center justify-self-center" ref={searchContainerRef}>
             {/* The dropdown below is pinned to this box's edges, so its width comes from here —
                 widening the box widens the result rows and gives long product names a line to
                 themselves instead of wrapping onto three. */}
@@ -331,29 +318,64 @@ const HeaderSection = memo(function HeaderSection({
               onDismissList={dismissSearchList}
               onClose={() => setShowSearchDropdown(false)}
             />
-          </div>
+        </div>
+
+        <div className="flex items-center gap-2 h-full justify-self-end">
           {/* Hidden inside any workflow — the unallocated tray, a move, or an allocate. While one is
               open its own controls own the screen, and offering a second entry point invites
               abandoning a half-built selection. */}
           {!showUnallocatedProducts && !changeAllocationMode && !showAllocateProducts && (
             <>
+              {/* A filter on the view, not an action — it tints the empty bins and stays on until
+                  turned off. It was a checkbox beside the title, which said "a state you are holding"
+                  more plainly than a button can; as a button next to the workflow trigger the risk is
+                  that it reads as a fourth action, which is what moved it away from here the first
+                  time. What has to carry the difference now is that it goes GREEN when on — the same
+                  green the bins it turns on are outlined in, so the control and its effect are
+                  obviously one thing, and neither can be mistaken for the blue primary beside it.
+                  Filled was tried first and read as a pressed button rather than a live filter.
+                  aria-pressed carries the state for anyone not reading the colour.
+
+                  The stroke is border-green-500 exactly, matching BinCard's available outline. The
+                  label is one step deeper: #22C55E manages 2.3:1 as 14px text on white, well under the
+                  ~4.5:1 this app holds text to (see textHighlight.tsx), while #15803D is the same green
+                  at 5.02:1 — the codebase already solved this for the target-bin text. */}
+              <button
+                type="button"
+                aria-pressed={highlightAvailableBins}
+                onClick={handleAvailableBinsClick}
+                className={`h-9 px-3 rounded-[4px] border bg-white text-[14px] leading-[20px] whitespace-nowrap cursor-pointer transition-colors ${
+                  highlightAvailableBins
+                    ? 'border-green-500 text-[#15803D] hover:bg-[#F0FDF4]'
+                    : 'border-[#095192] text-[#095192] hover:bg-[#F1F6FA]'
+                }`}
+              >
+                Bins Available({allAvailableBins})
+              </button>
+
               {/* One entry point for all three jobs. They were a plain Allocate button beside a Move
                   picker, which put two of the three choices at different depths — you could start an
                   allocate in one tap but had to open a menu to move. Behind one trigger the first
                   decision is always the same: which of the three am I doing. */}
               <Popover open={workflowMenuOpen} onOpenChange={setWorkflowMenuOpen}>
+                {/* Primary, filled — this is the page's action. It was a white outlined trigger, which
+                    made it one of three controls in the row wearing the same weight while being the
+                    only one that starts any work. A real <button> now rather than nested divs, so it
+                    is focusable and announces itself; h-9 matches the filter beside it. */}
                 <PopoverTrigger asChild>
-                  <div className="bg-white relative rounded-[4px] cursor-pointer">
-                    <div aria-hidden="true" className="absolute border border-[#095192] border-solid inset-0 pointer-events-none rounded-[4px]" />
-                    <div className="flex flex-row items-center justify-end relative size-full">
-                      <div className="box-border content-stretch flex gap-2 items-center justify-end px-3 py-2 relative size-full">
-                        <div className="font-['Inter:Regular',_sans-serif] font-normal leading-[0] not-italic relative shrink-0 text-[#095192] text-[14px] text-nowrap">
-                          <p className="leading-[20px] whitespace-pre text-[14px]">Allocate/Move</p>
-                        </div>
-                        <ChevronDown className="w-4 h-4 text-[#095192] shrink-0" />
-                      </div>
-                    </div>
-                  </div>
+                  <button
+                    type="button"
+                    className="flex items-center gap-2 h-9 px-3 rounded-[4px] bg-[#095192] text-white text-[14px] leading-[20px] whitespace-nowrap cursor-pointer transition-colors hover:bg-[#074080]"
+                  >
+                    Allocate/Move
+                    {/* Points up while the menu is open — the chevron says which way the panel will
+                        go, so leaving it down while the panel is already down states the one thing
+                        that is no longer true. Read from workflowMenuOpen, which is what the Popover
+                        itself is controlled by, so the arrow cannot fall out of step with the panel. */}
+                    <ChevronDown
+                      className={`w-4 h-4 shrink-0 transition-transform ${workflowMenuOpen ? 'rotate-180' : ''}`}
+                    />
+                  </button>
                 </PopoverTrigger>
 
                 {/* collisionPadding: the trigger sits near the right of the header, so Radix shifts

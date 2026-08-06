@@ -105,8 +105,26 @@ doing. The Move entries exist because **the operator has to declare the unit up 
 While any workflow is open, `Allocate/Move` and `History` are hidden: their own controls own the
 screen, and a second entry point invites abandoning a half-built selection.
 
-Beside the `Allocation` title is a **`Bins Available(n)`** checkbox — a view filter, not a workflow.
-It was a button until it started reading as a fourth action.
+#### The header row
+
+Three grid columns — `1fr auto 1fr` — with the title left, the search box **centred**, and
+`Bins Available(n)` / `Allocate/Move` / `History` right. Grid rather than a flex row with
+`justify-between`, because flex would centre the search in whatever space the two side groups leave
+rather than on the row, and it would drift every time the right group changed width — which it does,
+since all three of those controls hide inside a workflow.
+
+`Allocate/Move` is the **filled primary**; it is the only control in the row that starts any work, and
+it was a white outlined trigger wearing the same weight as the two beside it. Its chevron flips on
+`workflowMenuOpen` — the same state the Popover is controlled by, so the arrow cannot disagree with the
+panel.
+
+**`Bins Available(n)` is a view filter, not a workflow**, and its history is a warning. It was a button,
+became a checkbox beside the title when it started reading as a fourth action, and is now a button again
+next to the workflow trigger. What keeps it from re-reading as an action is that it turns **green** when
+on — `border-green-500`, the exact stroke `BinCard` puts on an available bin, so the control and its
+effect are visibly one thing and neither can be mistaken for the blue primary. Filled-blue was tried and
+read as a pressed button rather than a live filter. Its label is `#15803D` rather than the stroke's
+green: `#22C55E` is 2.3:1 as 14px text on white, under the ~4.5:1 this app holds text to (`textHighlight.tsx`).
 
 ### A. Multi Bin Assignment — give an allocated product another bin
 
