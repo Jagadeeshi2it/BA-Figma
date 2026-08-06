@@ -77,6 +77,31 @@ const findBinById = (binId: string, config: DoorShelfConfig): Bin | undefined =>
   return undefined;
 };
 
+// A bin in the structured shape a history entry wants. handleConfirmAssignment gets the same fields
+// by splitting getBinLocationDetails' display string back apart on " - " and ", " — which only works
+// while nothing in a bin, shelf or door name contains either separator. Walking the config is the
+// same lookup without the round trip through prose.
+const binLocationForHistory = (binId: string, config: DoorShelfConfig) => {
+  for (const [doorKey, shelves] of Object.entries(config || {})) {
+    for (const shelf of shelves || []) {
+      const bin = (shelf.bins || []).find(candidate => candidate.id === binId);
+      if (!bin) continue;
+      const doorNumber = doorKey.split(' ')[1] || doorKey.replace('door-', '');
+      const doorNum = parseInt(doorNumber, 10);
+      // Same banding getBinLocationDetails uses: 1–4 Cabinet 1, 5–8 Cabinet 2, the fridges Cabinet 3.
+      const cabinetNumber = doorNum >= 1 && doorNum <= 4 ? 1 : doorNum >= 5 && doorNum <= 8 ? 2 : 3;
+      return {
+        binId,
+        binName: bin.name,
+        shelfName: shelf.name,
+        doorNumber: String(doorNumber),
+        cabinetNumber: String(cabinetNumber)
+      };
+    }
+  }
+  return null;
+};
+
 // removeQueryGroup's counterpart in the other direction: drop OR-groups a specific set of bins no
 // longer backs, rather than dropping one named group. Removing a BIN can just as easily orphan a
 // group as removing a PRODUCT does — a bin that was the only one holding some product takes that
@@ -1066,49 +1091,125 @@ export const useInventoryState = () => {
       return null;
     };
 
-    let assigned = 0;
+    // What will actually land, worked out ONCE against the current config and then used for both
+    // halves — the state update and the history entry. It used to be computed inside the
+    // setDoorShelfConfig updater, which made the history impossible to write honestly: the only thing
+    // that escaped was a counter, so nothing outside knew *which* pairs had been skipped. Deriving it
+    // twice would be worse, since the two derivations could disagree about what happened.
+    //
+    // It also takes a `let` counter out of a state updater. React invokes updaters twice in
+    // StrictMode, so `assigned += …` was double-counting in dev; harmless only because the number was
+    // never read for anything but a zero test.
+    const additionsByBin = new Map<string, any[]>();
+    // Per product, the bins it actually reached — the history's target list. Keyed on the identity
+    // triple, the app's product identity everywhere else (§3), so two inventory types of one drug
+    // stay two rows rather than folding into one.
+    const landedByProduct = new Map<string, { product: typeof products[number]; rowId: string; binIds: string[] }>();
+    const stamp = Date.now();
 
-    setDoorShelfConfig(prev => {
-      const next = { ...prev };
+    binIds.forEach(binId => {
+      const bin = findBinById(binId, doorShelfConfig);
+      if (!bin) return;
 
-      Object.keys(next).forEach(doorKey => {
-        next[doorKey] = next[doorKey].map(shelf => ({
-          ...shelf,
-          bins: shelf.bins.map(bin => {
-            if (!binIds.includes(bin.id)) return bin;
+      products.forEach(product => {
+        // Already in this bin? Adding it again would split one product across two rows in the
+        // same bin, and every count in the app would then report it twice.
+        const alreadyHere = bin.products.some(
+          (existing: any) =>
+            existing.ndc === product.ndc && existing.inventoryType === product.inventoryType
+        );
+        if (alreadyHere) return;
 
-            const additions = products
-              // Already in this bin? Adding it again would split one product across two rows in the
-              // same bin, and every count in the app would then report it twice.
-              .filter(product => !bin.products.some(
-                (existing: any) =>
-                  existing.ndc === product.ndc && existing.inventoryType === product.inventoryType
-              ))
-              .map(product => {
-                const template = templateFor(product.ndc, product.inventoryType);
-                const masterId = template ? String(template.id).split('_')[0] : product.ndc;
-                return {
-                  ...(template || {}),
-                  id: `${masterId}_${Date.now()}_${bin.id}`,
-                  name: product.name,
-                  ndc: product.ndc,
-                  inventoryType: product.inventoryType,
-                  quantity: 0
-                };
-              });
+        const template = templateFor(product.ndc, product.inventoryType);
+        const masterId = template ? String(template.id).split('_')[0] : product.ndc;
+        const row = {
+          ...(template || {}),
+          id: `${masterId}_${stamp}_${binId}`,
+          name: product.name,
+          ndc: product.ndc,
+          inventoryType: product.inventoryType,
+          quantity: 0
+        };
 
-            if (additions.length === 0) return bin;
-            assigned += additions.length;
-            // New rows go first, not last: consolidateBinProducts groups by each identity's FIRST
-            // occurrence, so a product appended to the end of a bin already at its display cap
-            // landed behind "+N more" with no way to tell it had actually been allocated.
-            return { ...bin, products: [...additions, ...bin.products], available: false };
-          })
-        }));
+        additionsByBin.set(binId, [...(additionsByBin.get(binId) || []), row]);
+
+        const key = `${product.name}|${product.ndc}|${product.inventoryType}`;
+        const landed = landedByProduct.get(key);
+        if (landed) landed.binIds.push(binId);
+        // The history row carries a real bin-row id rather than a synthetic one, so the ledger and
+        // the cabinet name the same record and ProductDataService can resolve it back for the
+        // generic name and vial badge.
+        else landedByProduct.set(key, { product, rowId: row.id, binIds: [binId] });
+      });
+    });
+
+    const assigned = Array.from(additionsByBin.values()).reduce((total, rows) => total + rows.length, 0);
+
+    if (assigned > 0) {
+      setDoorShelfConfig(prev => {
+        const next = { ...prev };
+
+        Object.keys(next).forEach(doorKey => {
+          next[doorKey] = next[doorKey].map(shelf => ({
+            ...shelf,
+            bins: shelf.bins.map(bin => {
+              const additions = additionsByBin.get(bin.id);
+              if (!additions || additions.length === 0) return bin;
+              // New rows go first, not last: consolidateBinProducts groups by each identity's FIRST
+              // occurrence, so a product appended to the end of a bin already at its display cap
+              // landed behind "+N more" with no way to tell it had actually been allocated.
+              return { ...bin, products: [...additions, ...bin.products], available: false };
+            })
+          }));
+        });
+
+        return next;
       });
 
-      return next;
-    });
+      // Multi Bin Assignment used to write nothing at all, so a product would appear in its new bin
+      // with no trace of how it got there — the one workflow whose whole output is an allocation was
+      // the one missing from the allocation ledger.
+      //
+      // It is filed exactly as the tray's allocations are ('New Bin Allocation'), because that is what
+      // it is: a product gaining a location. What it must NOT copy from handleConfirmAssignment is the
+      // invented opening quantity — that path makes up a plausible starting stock for a product
+      // arriving from outside the cabinet, whereas this one gives an existing product another bin that
+      // opens at zero. History renders no quantity line for an allocation, so a fabricated figure
+      // would not even be visible; it would just be wrong in the record.
+      //
+      // Per-product target bins rather than one shared `bins` list: a bin that already stocked one of
+      // the selected products is skipped for that product alone, so a single list would credit every
+      // product with every bin and report allocations that never happened.
+      const historyEntry: AllocationHistoryEntry = {
+        id: `multi-bin-${stamp}-${Math.random().toString(36).slice(2, 11)}`,
+        timestamp: new Date(),
+        products: Array.from(landedByProduct.values()).map(({ product, rowId, binIds: landedBinIds }) => {
+          const template = templateFor(product.ndc, product.inventoryType);
+          return {
+            id: rowId,
+            name: product.name,
+            description: template?.description || '',
+            ndc: product.ndc,
+            badge: template?.vialType || template?.badge || '',
+            inventoryType: product.inventoryType,
+            quantity: 0,
+            unit: template?.unit || 'vial',
+            targetBins: landedBinIds
+              .map(binId => binLocationForHistory(binId, doorShelfConfig))
+              .filter(Boolean) as NonNullable<AllocationHistoryEntry['products'][number]['targetBins']>
+          };
+        }),
+        // Every bin touched, for the legacy readers that fall back to this when a product carries no
+        // targetBins of its own.
+        bins: Array.from(additionsByBin.keys())
+          .map(binId => binLocationForHistory(binId, doorShelfConfig))
+          .filter(Boolean) as any[],
+        action: 'allocation',
+        transactionType: 'New Bin Allocation'
+      };
+
+      setAllocationHistory(prev => [historyEntry, ...prev]);
+    }
 
     setSelectedBinsForAssignment([]);
 

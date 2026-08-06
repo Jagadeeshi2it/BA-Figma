@@ -79,6 +79,18 @@ export interface AllocationHistoryEntry {
     // drug the bins do.
     description?: string;
     inventoryType?: string;
+    // The bins THIS product reached, when they are not the entry's whole `bins` list. Multi Bin
+    // Assignment skips a bin that already stocks a given product, so one confirm can put product A in
+    // two bins and product B in one; the shared list would credit B with a bin it never reached.
+    // History has always preferred this over `bins` when present — nothing wrote it until now.
+    targetBins?: {
+      binId: string;
+      binName: string;
+      shelfName: string;
+      doorNumber: string;
+      cabinetNumber: string;
+      quantity?: number;
+    }[];
   }[];
   bins: {
     binId: string;

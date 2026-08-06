@@ -151,7 +151,25 @@ what stops you picking a bin it is already in.
   count, because the footer already does and two figures for one number invite checking whether they
   agree. `ProductRow` is at module scope and shared by both lists, so the selected list cannot drift
   into looking like a different kind of thing from the results it came from.
-- **No history entry is written.** Known gap — see §8.
+- **It writes a `New Bin Allocation` history entry**, filed the same way the tray's allocations are,
+  because it is the same event: a product gaining a location. It writes it itself rather than reusing
+  `handleConfirmAssignment`'s, whose shape invents a plausible opening quantity for stock arriving from
+  outside the cabinet — wrong here, where the new location opens at zero by design. History renders no
+  quantity line for an allocation, so an invented figure would not even show; it would just be false in
+  the record. It wrote nothing at all until 2026-08-07, so the one workflow whose entire output *is* an
+  allocation was the one missing from the allocation ledger.
+- **The plan is computed once, before the state update, and both halves read it.** `additionsByBin`
+  and `landedByProduct` are built against the current config; the `setDoorShelfConfig` updater then
+  applies that plan rather than recomputing. It used to decide what to add *inside* the updater, which
+  made an honest history impossible — the only thing that escaped was a count, so nothing outside knew
+  which (product, bin) pairs had been skipped. It also took a `let` counter out of a state updater,
+  where StrictMode's double invocation was doubling it.
+- **Each product carries its own `targetBins`.** A bin already stocking one of the selected products is
+  skipped for that product alone, so a single shared bin list would credit every product with every bin
+  and report allocations that never happened. `HistoryPage` has always preferred `product.targetBins`
+  over `entry.bins`; nothing wrote it until now. Both guards in the panel — the bin tap and the product
+  tick — currently refuse a conflicting pair up front, so the divergence is usually empty; the entry is
+  built per product anyway rather than resting on two UI checks staying exhaustive.
 
 ### B. Move Quantity — move stock between bins a product already occupies
 
@@ -1097,8 +1115,13 @@ one**: there are no domain constraints at all beyond the E-Kit rule, so the app 
 physically impossible allocation without objection (§5).
 
 
-- **Workflow A writes no history entry.** `handleConfirmAssignment` does, but its shape invents
-  opening quantities that do not apply to an existing product gaining a location.
+- **History's SDV/MDV badge can disagree with the bin card's.** `HistoryPage` prefers
+  `enhanceProduct`'s `vialType`, which comes from the catalogue master, and only falls back to the
+  shared `getVialType` derivation when that is absent — so a resolvable product id defeats the very
+  fallback whose comment says a history row "has to reach the same badge" as the bins. ALIMTA 500 reads
+  MDV on its bin card and SDV in the ledger. Pre-existing and general: it applies to every entry, not
+  just allocations. `CLIMATE` and `CIV` beside it are hardcoded in `HistoryPage`'s own `ProductBadges`
+  and are decoration, which is part of why this went unnoticed.
 - **Unreachable code in `App.handleChangeAllocationConfirm`**: the allocate-only routing branch and
   the `window.allocateOnlyTransfers` handoff. Nothing can produce an allocate-only transfer now.
   Left alone because unpicking it touches the quantity/serial handoff.
