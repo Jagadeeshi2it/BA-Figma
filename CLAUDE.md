@@ -328,9 +328,15 @@ A 320px panel on Review and both halves of step ④, answering "what is moving f
 while the operator is mid-move. `MoveSummaryPanel.tsx` is purely presentational; each screen derives
 its own `MoveSummaryRow[]` from state it already holds (§3).
 
-- **Nested, not paired.** A source bin states itself once with its target bins indented beneath. Flat
-  `from → to` rows repeated the source bin and its quantity once per destination, so a bin split three
-  ways read as three separate departures of the same stock.
+- **Sources listed, then targets — each stated once.** Not nested: a target line's figure is what lands in
+  *that bin*, not what came from one source, so printing it under each source showed one arrival three
+  times over with the full amount each time. The pairing it implied is not real either — the quantity taken
+  from a source is deliberately not divided between its targets (below), since the operator decides the
+  split by scanning. "These bins, into these bins" is the whole truth the panel has. Flat `from → to` rows
+  were worse still: they repeated the source bin *and* its quantity once per destination.
+- **The card states the collected total beside the product name.** Sources reading 25, 10 and 5 never said
+  40 anywhere, leaving the operator to add up what they are carrying — and 40 is the figure they need at the
+  target bin. Summed over distinct source bins, since `sourceQuantity` repeats across the rows sharing one.
 - **One badge per act, on the line it belongs to.** `Taken` beside the source line's quantity, `Moved`
   on a target line once stock is actually placed there. A source's `Taken` persists onto the placement
   half — every quantity is taken before any is carried, so by then it is genuinely done.

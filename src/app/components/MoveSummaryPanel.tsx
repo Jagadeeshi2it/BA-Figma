@@ -24,7 +24,7 @@ export interface MoveSummaryRow {
   // A row is one source→target pairing. The panel doesn't render them as flat pairs, though: it
   // nests them, grouping a product's rows under their shared source bin, so a bin feeding three
   // targets states itself once with its destinations beneath it. Bin and door are kept apart only so
-  // the panel can join them itself ("Bin 1B - Door 1") — nesting freed the width that forced them
+  // the panel can join them itself ("Door 1 - Bin 1B") — nesting freed the width that forced them
   // onto two lines, since each label now gets a row of its own rather than sharing one.
   fromLabel: string;
   fromDoor?: string;
@@ -315,9 +315,14 @@ export default function MoveSummaryPanel({
     return bins;
   };
 
-  // "Bin 1B - Door 1". Joined here rather than by each caller so every row reads the same way, and so
-  // a label with no door to name (a summarised end) simply drops the suffix.
-  const binLabel = (label: string, door?: string) => (door ? `${label} - ${door}` : label);
+  // "Door 1 - Bin 1B". Joined here rather than by each caller so every row reads the same way, and so
+  // a label with no door to name (a summarised end) simply drops the prefix.
+  //
+  // Door first, bin second — the order every other surface uses (the search dropdown, the review
+  // cards' source list, the product-centric card, History). This panel read "Bin 1B - Door 1" until
+  // 2026-08-07, which was the same fact in the opposite order on the one surface the operator reads
+  // while walking to the bin, and it is also the order they walk in: find the door, then the bin.
+  const binLabel = (label: string, door?: string) => (door ? `${door} - ${label}` : label);
 
   // Just the amount being moved. This carried the History page's "-20 → 180" shape for a while, but
   // what the bin held before and what it ends up holding aren't the operator's business on this
@@ -532,22 +537,57 @@ export default function MoveSummaryPanel({
             const isCurrentCard = group.rows.some(row => row.status === 'current');
             // A skipped product's rows are all skipped — it is skipped as a product, not per bin.
             const isSkippedCard = group.rows.length > 0 && group.rows.every(row => row.isSkipped);
-            // Every source of this product feeding one and the same bin. Keyed on bin AND door, as
-            // everywhere else — the same bin name exists behind every door. The row is kept, not just
-            // the label: the destination's own quantity, badge and "you are here" bold all come off
-            // it, and they're identical across the sources that share it.
-            const distinctTargets = new Map(
-              group.rows.map(row => [`${row.toLabel}|${row.toDoor ?? ''}`, row])
+            /**
+             * This product's destinations, each stated once. Keyed on bin AND door, as everywhere else —
+             * the same bin name exists behind every door.
+             *
+             * They are collected for the card, not nested under individual source bins, because the
+             * figure on a target line is what lands in THAT BIN — not what came from one source. Nested,
+             * a bin fed by three sources printed itself three times, each with the full arriving amount,
+             * reading as three times the stock. And the pairing it implied is not real: the quantity
+             * taken from a source is deliberately NOT divided between its targets (§ Transfers) — the
+             * operator decides the split by scanning into each bin on the placement screen. So "these
+             * sources, into these bins" is the whole truth the panel has.
+             *
+             * A target's own state is ORed across the rows that share it: it is the bin in hand if any
+             * of them says so, and placed once any of them is done.
+             */
+            const distinctTargets = Array.from(
+              group.rows
+                .reduce((map, row) => {
+                  const key = `${row.toLabel}|${row.toDoor ?? ''}`;
+                  const seen = map.get(key);
+                  map.set(
+                    key,
+                    seen
+                      ? {
+                          ...seen,
+                          isCurrentTarget: seen.isCurrentTarget || row.isCurrentTarget,
+                          status: seen.status === 'done' || row.status === 'done' ? 'done' : seen.status
+                        }
+                      : row
+                  );
+                  return map;
+                }, new Map<string, MoveSummaryRow>())
+                .values()
             );
-            // Only worth collecting when there is more than one source to collect: a lone source with
-            // a lone target has nothing repeated, and pulling its destination out from under it would
-            // add a separator between two lines that belong together.
-            const sourceBinCount = new Set(
-              group.rows.map(row => `${row.fromLabel}|${row.fromDoor ?? ''}`)
-            ).size;
-            const singleTarget = distinctTargets.size === 1 && sourceBinCount > 1
-              ? Array.from(distinctTargets.values())[0]
-              : null;
+
+            // What the operator ends up holding for this product: every source bin's amount added up,
+            // once per bin. Repeated across the rows that share a source, so it is summed over the
+            // distinct bins rather than over the rows.
+            const collectedTotal = Array.from(
+              group.rows
+                .reduce((map, row) => {
+                  const key = `${row.fromLabel}|${row.fromDoor ?? ''}`;
+                  if (!map.has(key)) map.set(key, row.sourceQuantity ?? null);
+                  return map;
+                }, new Map<string, number | null>())
+                .values()
+            ).reduce<number | null>(
+              (sum, qty) => (qty == null ? sum : (sum ?? 0) + qty),
+              null
+            );
+            const collectedText = quantityText(collectedTotal, group.rows[0]?.unit);
             return (
               <div
                 key={`${group.productName}-${groupIndex}`}
@@ -575,6 +615,15 @@ export default function MoveSummaryPanel({
                       not about one of its bins, and the bins are exactly what a skipped card has
                       nothing to say about. */}
                   {isSkippedCard && skippedBadge}
+                  {/* Everything collected for this product, across all its source bins. A card whose
+                      sources read 25, 10 and 5 never said 40 anywhere, leaving the operator to add up
+                      what they are carrying — and 40 is the figure they need at the target bin. Not
+                      shown on a skipped card, which is carrying nothing. */}
+                  {!isSkippedCard && collectedText && (
+                    <span className="shrink-0 text-[12px] font-semibold text-[#020817] whitespace-nowrap">
+                      {collectedText}
+                    </span>
+                  )}
                 </div>
                 {group.productDescription && (
                   <p className="italic text-gray-500 leading-snug text-[14px] truncate">
@@ -630,30 +679,20 @@ export default function MoveSummaryPanel({
                           </span>
                         </div>
 
-                        {/* No destinations while taking. On this half the operator's whole job is the
-                            source bin in front of them, and how the amount divides between the target
-                            bins isn't decided until the placement screen — so the indented target
-                            lines named bins that carried no figure and no act, competing with the one
-                            line that mattered. They appear on the placement half, where they are the
-                            work.
-
-                            Nor when every source feeds the same single target: it is stated once at
-                            the foot of the card instead (below). */}
-                        {stage !== 'source' &&
-                          !singleTarget &&
-                          sourceBin.rows.map(row => renderTargetLine(row, row.key))}
                       </div>
                     );
                   })}
 
-                  {/* Three sources emptying into one bin is one arrival, not three. Repeated under
-                      each source it printed the same destination three times — and, because the
-                      figure on a target line is what lands in THAT BIN rather than what came from
-                      one source, the same "40 vials" three times over, reading as 120. Stated once,
-                      below the sources it collects, the arrow points from all of them at once. */}
-                  {stage !== 'source' && singleTarget && (
+                  {/* The destinations, once each, beneath the sources they collect — so the arrows point
+                      from all of those bins at once, which is what actually happens.
+
+                      Not shown while taking: on that half the operator's whole job is the source bin in
+                      front of them, and how the amount divides between the targets is not decided until
+                      the placement screen, so the target lines would name bins carrying no figure and no
+                      act, competing with the one line that mattered. */}
+                  {stage !== 'source' && distinctTargets.length > 0 && (
                     <div className="pt-1 border-t border-dashed border-gray-200">
-                      {renderTargetLine(singleTarget, `single-${singleTarget.key}`)}
+                      {distinctTargets.map(row => renderTargetLine(row, `target-${row.key}`))}
                     </div>
                   )}
                 </div>
