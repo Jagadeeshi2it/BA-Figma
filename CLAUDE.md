@@ -1028,13 +1028,17 @@ Established over a session that hit this repeatedly:
 
 ## 7. Demo Mode
 
+**See [DEMO.md](DEMO.md)** — the full reference: every behaviour, every control, the step vocabulary,
+the anchors, and the decisions that were tried and reversed. This section is orientation only.
+
 `src/app/demo/` — a guided walkthrough that drives the app by moving a virtual cursor to real
 controls and clicking them. Pressing **`/`** anywhere outside a text field opens the Demo Scenarios
-palette; picking one runs it.
+palette; picking one runs it. One scenario exists: allocating an unallocated product to an empty bin,
+ending on the History page.
 
 Nothing in `App` or `useInventoryState` knows Demo Mode exists. It is mounted in `main.tsx` as a
 provider wrapping `<App />` plus a `<DemoLayer />` that portals to `document.body`, and the only
-edits it needed inside the app were five `data-demo` attributes.
+edits it needed inside the app were eleven `data-demo` attributes and one `data-bin-available`.
 
 | File | What |
 |---|---|
@@ -1043,197 +1047,24 @@ edits it needed inside the app were five `data-demo` attributes.
 | `demo/pace.ts` | Every duration in one place — cursor travel, the pause before a press, settles. |
 | `demo/DemoContext.tsx` | The state machine and the loop that walks a scenario. |
 | `demo/DemoCursor.tsx` | The cursor. |
-| `demo/DemoControlPanel.tsx` | The icon-only control panel and its transport. |
+| `demo/DemoControlPanel.tsx` | The control panel and its transport. |
 | `demo/DemoPalette.tsx` | The `/` palette. |
 | `demo/scenarios/` | The scenarios themselves, plus the registry the palette reads. |
 
-### It drives the UI, never the state
+Four things to know before touching any of it, each of which cost a debugging round and all of which
+are explained in [DEMO.md](DEMO.md):
 
-A step finds a real DOM node and dispatches a real event. It never calls
-`inventoryState.handleUnallocatedProductsClick()`, and the temptation to "just call the handler" is
-the one thing that would ruin this: a demo that drives state is a second implementation of the
-workflow, and it keeps passing while the UI it claims to demonstrate is broken. Real clicks mean the
-demo fails loudly when the flow changes — which is what makes it usable as documentation.
+- **It drives the real UI, never the state.** A demo that calls the app's handlers is a second
+  implementation of the workflow — it keeps passing while the UI it demonstrates is broken.
+- **`el.click()` is not enough** (Radix opens on `pointerdown`), and **React ignores a directly
+  assigned input value** (its tracker suppresses the event).
+- **Every wait polls; no wait is a fixed delay**, and `sleep` uses `setTimeout` rather than
+  `requestAnimationFrame`, which does not fire in a backgrounded tab.
+- **Nothing is drawn over the app but the cursor.** Captions and a highlight ring were both built and
+  removed; DEMO.md §4 says why, because both will be tempting to add back.
 
-Four consequences, each of which cost a debugging round:
-
-- **`el.click()` is not enough.** Radix opens its Popover on `pointerdown`, so a bare click leaves
-  the `Allocate/Move` menu shut and the walk stalls waiting for a menu entry that never appears.
-  `dispatchRealClick` sends the whole pointer/mouse sequence.
-- **React ignores `input.value = x`.** Its `onChange` rides a native `input` event, and React's value
-  tracker suppresses the event when it thinks nothing changed. `setInputValue` goes through the
-  prototype's setter so the tracker updates too.
-- **Every wait is a poll, never a fixed delay.** State updates are async (§4), and a delay tuned on
-  one machine is a flaky demo on a slower one. `waitForTarget` polls for the node *and* a non-zero
-  box; `scrollTargetIntoView` watches the rect until it stops moving rather than guessing how long a
-  smooth scroll takes.
-- **`sleep` uses `setTimeout`, not `requestAnimationFrame`.** rAF does not fire at all in a
-  backgrounded tab, so a rAF-based sleep never resolves there — the walk stops dead mid-step with no
-  error, which looks exactly like a broken app. The cursor *animation* still uses rAF, with a
-  watchdog that jumps it to the destination if no frame arrives.
-
-### Nothing is drawn over the app but the cursor
-
-Two things used to accompany it and both were removed at the operator's request, in this order. The
-reasoning is worth keeping because both will be tempting to add back.
-
-**Captions**, one per step, pinned beside the cursor. A walkthrough that explains every click in a
-black box over the screen stops demonstrating the app and starts talking about it — and it covers
-the interface it exists to show off.
-
-**The ring** that marked each target just before the click. The cursor is already travelling to the
-control and pausing on it, so the ring said a second time what the movement had just said, in a
-heavier voice.
-
-What is left is a pointer that behaves like a hand, and an app that explains itself through its own
-state changes, highlights and transitions. So the pacing carries the explanation: `settleMs` after a
-click is not padding, it is the time the viewer has to notice what the click changed, and the two
-`note` steps exist only to buy that time (one before anything moves, one on the result). The press
-ripple stays — with the ring gone it is the only thing marking the moment of contact.
-
-A step's `label` survives as a name rather than a sentence. It is read in the control panel's
-tooltip and in the message shown when a step cannot find its target, and nowhere else.
-
-### The control panel sits over the logo, and opens on hover
-
-Top-left, over the app's logo — chrome belongs where chrome lives, and the logo is the one thing on
-the page carrying no state and answering no question mid-demo. It was top-centre, which put a
-floating black bar in the middle of the header the viewer was trying to read.
-
-**90px at rest: a status dot, Restart, Exit demo.** Those are the two anybody reaches for without
-having planned to. Hover, focus or a tap expands to 285px and adds Previous, Play/Pause, Next and
-the name of the step being performed.
-
-- **The two persistent icons come first, before the collapsing group**, so the panel grows rightward
-  and they never move. At the far end, expanding would slide them out from under the pointer that
-  triggered it — mis-aiming a click at best, and at worst oscillating, since leaving the panel
-  collapses it again. A 260ms grace period on the way out guards the same thing.
-- **Collapsing animates `grid-template-columns: 0fr → 1fr`**, not a max-width. The content decides
-  its own width, so a longer step name cannot be clipped by a number somebody picked once.
-- **Every button carries `aria-label` and `title`**, so an icon-only panel is not a row of unnamed
-  controls, and the dot's tooltip carries the scenario or the reason it stopped.
-- **It opens itself when the walk ends, and stays open.** A demo that finishes while the panel is a
-  dot and two icons finishes silently — the cursor stops, the app sits there, and nothing says
-  whether that was the end or a stall. The panel expands to `Demo completed` with Restart, Previous
-  and Exit in front of the viewer, and `close()` is a no-op from then on: a message that vanishes
-  when the pointer drifts off has not been delivered.
-
-### The real pointer hides, and comes back the instant it moves
-
-Two cursors at once is the worst of both worlds — the viewer cannot tell which one is theirs — so the
-shield carries `cursor: none` while the demo drives. But hiding it unconditionally makes the panel
-feel unreachable: you move the mouse, nothing appears, and the walkthrough reads as something you are
-locked inside.
-
-So a genuine `pointermove` brings it straight back, and **`isTrusted` is the whole trick**: the
-demo's own synthetic pointer events report `false`, so the demo cannot mistake itself for the user.
-It hides again after 2s of real stillness, and only while the walk is actually *running* — the moment
-it is paused the user is in charge and the pointer stays.
-
-The `cursor` rule lives on the shield rather than on `body` because the shield is exactly the area
-the demo owns. Over the control panel the real pointer is always visible, which is what makes "move
-the mouse and take over" work mid-step.
-
-### Previous steps back; it does not replay
-
-**Each step declares how to undo itself** (`DemoStep.reverse`), and the reverse is performed like any
-other step — cursor, click, settle — so going back looks like the operator changing their mind
-rather than the screen jumping. `position` moves back by one and the walk stays paused, so Next
-re-runs the step just undone.
-
-This works because almost everything a demo does is a toggle: ticking un-ticks, tapping a bin
-un-taps, a typed query clears. Some steps need two acts to undo one — choosing *Allocate Product*
-both closes the menu and opens the tray, so its reverse closes the tray and reopens the menu — which
-is why `reverse` is a list. `note` and `await` change nothing and reverse for free without saying so.
-
-**A step with no `reverse` cannot be undone through the UI**, and falls back to reloading with
-`?demo=<id>&step=<n>`, which replays the earlier steps with no animation and no settles. Allocating
-is the only one in this scenario: nothing in the tray un-allocates — that path exists only behind the
-zero-inventory banner after a move (§2 C). The fallback is correct but visibly a rebuild, so **every
-step that can declare a reverse should**.
-
-Two structural consequences:
-
-- **The walk is a position, not a for-loop.** `positionRef` counts completed steps and the loop reads
-  it fresh each pass, which is what lets Previous move it backwards. A for-loop over indices can only
-  go forward.
-- **The loop does not exit when the walk finishes.** It parks in the gate with `status: 'finished'`,
-  so Previous still works from the final state instead of dead-ending the viewer with only Restart.
-- **Next runs exactly one step, then pauses again.** The gate releases on `stepOnceRef`, which the
-  loop clears as it passes.
-
-### Pace lives in one file
-
-`demo/pace.ts`. Cursor travel scales with distance (550–1500ms), there is a 280ms pause between
-arriving at a control and pressing it, and a click settles for 1100ms before the next step starts.
-
-The bias is deliberately slow, and the reasoning is worth keeping because "it drags" is the easy
-note to act on: a demo that keeps up with someone who already knows the app is useless to the person
-it is for. They are reading an interface they have never seen, and every click changes something they
-then have to find. Too slow costs boredom; too fast teaches nothing. The approach pause is most of
-what makes the cursor read as a hand rather than a script.
-
-### Anchors are `data-demo`, never text or structure
-
-`workflow-trigger`, `workflow-allocate-product` (and one per menu entry, via `WorkflowOption`'s
-`demoId` prop), `unallocated-search`, `unallocated-product`, `unallocated-allocate`. Plus
-`data-bin-available` on `BinCard`, so a scenario can ask for "a bin with room" without naming one —
-bin ids belong to the seed, and the seed is expected to be replaced.
-
-Matching on visible text would be worse than fragile here: this app renames its labels constantly
-(§2 is largely a record of it), and a broken selector presents to a viewer as a broken app.
 `node scripts/verify-demo-anchors.mjs` asserts every anchor a scenario reaches for still renders, so
-a rename fails in the terminal instead.
-
-### Entering reloads, exiting does not
-
-`start()` sets `?demo=<id>` and reloads. Inventory is in-memory from a seed, so a reload is the only
-thing that guarantees a scenario's preconditions — this one needs SOLU-CORTEF still unallocated and a
-bin still empty, and both stop being true as soon as anyone runs it once. The palette says so before
-you choose.
-
-**Take over** is the opposite: it cancels the walk, drops the overlay and strips the URL parameter,
-leaving the app exactly as the demo left it. The viewer has just watched something happen and the
-obvious next move is to poke at the result, so exiting must not undo it.
-
-### The rest of the rules
-
-- **The overlay is portalled to `document.body`.** The tablet simulator's frame is a CSS-scaled
-  `fixed inset-0 z-[9999]` element — a Radix overlay must portal *into* it to be visible (§4), and
-  the cursor is the exact opposite case. `getBoundingClientRect` already returns post-transform
-  viewport coordinates, so one set of numbers is right in both modes.
-- **An input shield swallows real clicks while the walk runs.** One stray click desynchronises the
-  script, and the failure reads as a broken app rather than a race. Synthetic events are dispatched
-  straight onto their target and are not hit-tested, so the shield does not block the demo's own
-  clicks; the indicator sits above it, so its controls stay live.
-- **Pausing takes effect between steps, not during one.** The loop gates on `pausedRef` before each
-  step, so a pause never leaves half an interaction done — and resuming cannot re-run a click that
-  already landed.
-- **A hidden tab auto-pauses and resumes on return.** Playing on while nobody is watching means
-  coming back to a finished screen and no idea what happened. The `autoPausedRef` flag keeps this
-  from overriding a deliberate pause.
-- **The cursor is written imperatively.** `cursorRef.current.style.transform`, never React state — it
-  moves at frame rate. Nothing else re-renders either: `<App />` is created once in `main.tsx` and
-  never consumes the demo context, so React skips it entirely when a step advances.
-
-### The scenario ends in History, and Today starts empty
-
-The walkthrough closes the tray and opens History as its last two acts. An allocation that shows only
-as a 0-vial row in a bin reads as nothing having happened; the entry under Today is the proof that a
-transaction was recorded. The order matters and is not arbitrary — History hides while any workflow
-is open (§2), so closing the tray is what puts the button back on screen.
-
-`data/seedHistory.ts` **seeds nothing into today**. It used to carry a multi-product unallocation
-stamped today at 08:40, which rendered as the only two rows in Today's list; a demo's own transaction
-then landed among strangers, and the viewer had to hunt for the row they had just watched being
-created. Every record type the History page can render is still covered by the older entries.
-
-### Adding a scenario
-
-A file in `demo/scenarios/` and a line in its `index.ts`. Nothing in the runner, cursor or palette
-should need to change; if it does, the step vocabulary is missing something and *that* is what to
-add. A target may be a selector string or a function returning an element, which is the escape hatch
-for anything only the scenario can identify — see `firstEmptyBin` in `allocateUnallocatedProduct.ts`.
+a rename fails in the terminal rather than in front of a viewer.
 
 ---
 
