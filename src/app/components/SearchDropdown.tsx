@@ -46,6 +46,8 @@ interface SearchDropdownProps {
   onSelectAllBins: (binIds: string[], productName: string) => void;
   onSelectSourceBins?: (binIds: string[], productName: string, highlightQuery?: string) => void;
   onSelectTargetBins?: (binIds: string[], productName: string, highlightQuery?: string) => void;
+  /** Take a product out of the move entirely — every bin. The row's Remove, once all its bins are picked. */
+  onRemoveSourceProduct?: (product: { name?: string; ndc?: string; inventoryType?: string }) => void;
   onProductClick?: (productName: string, ndc: string, inventoryType: string) => void;
   onProductsViewed?: (keys: string[]) => void;
   // Jump the main view to wherever the just-picked product actually lives.
@@ -130,6 +132,7 @@ const SearchDropdown = memo(function SearchDropdown({
   onSelectAllBins,
   onSelectSourceBins,
   onSelectTargetBins,
+  onRemoveSourceProduct,
   onProductClick,
   onProductsViewed,
   onDoorClick,
@@ -166,13 +169,16 @@ const SearchDropdown = memo(function SearchDropdown({
     return binIds.filter(binId => !hasSourcePick(sourceProductPicks, binId, productKey));
   };
 
-  // In change allocation mode a result is "done" once it has no bin left this step could take —
-  // drop it, since there's nothing to select. View mode keeps every result listed and marks the
-  // picked one instead: making a card vanish the moment you click it hides the thing you just asked
-  // for and makes the list feel like it's fighting you.
-  const visibleResults = changeAllocationMode
-    ? searchResults.filter(result => selectableBinIds(result).length > 0)
-    : searchResults;
+  /**
+   * Every match stays listed, always — the same rule the bin section already follows.
+   *
+   * A spent result used to be dropped, on the grounds that there was nothing left to select. But the
+   * operator searched for that product by name; it disappearing from its own search reads as "not
+   * stocked" rather than "already chosen", and it takes away the only place they could undo the pick
+   * they just made. The row reports its state in its button instead — which is exactly what makes the
+   * Bin move's list better to use, as the bin rows there keep offering Remove from Move From.
+   */
+  const visibleResults = searchResults;
 
   // Both modes mark what you picked. Picks made in one mode must not leak into the other — the keys
   // outlive a mode switch, since they only reset when the typed query changes and switching modes
@@ -186,14 +192,6 @@ const SearchDropdown = memo(function SearchDropdown({
     (a, b) => Number(isPicked(b)) - Number(isPicked(a))
   );
 
-  // Nothing left for "Select All" to do once every card is ticked — or when there's only one card,
-  // which the row itself already covers. Allocation mode is exempt from the ticked test: there a
-  // pick is only a preview, and having previewed every match says nothing about whether those bins
-  // are in the selection. What's already committed drops out of visibleResults above instead, so an
-  // exhausted list empties itself and the button goes with it.
-  const showSelectAll =
-    visibleResults.length > 1 && (changeAllocationMode || !visibleResults.every(isPicked));
-
   /**
    * Whether the product rows are offering selection — the same condition their own button uses below.
    *
@@ -204,6 +202,62 @@ const SearchDropdown = memo(function SearchDropdown({
    */
   const productsAreSelectable =
     changeAllocationMode && !(moveMode === 'bin' && changeAllocationStep === 1);
+
+  /**
+   * What acting on a product hit means — the counterpart of binActionFor, and for the same reason:
+   * the row has to be able to say what it is rather than vanish once it is spent.
+   *
+   * Step ① of a Product move deliberately carries no bin count. Picking a product there means "this
+   * drug, wherever it is", so the number of bins is a consequence of the choice rather than part of
+   * it — and the operator picked a product, so the button should name a product back.
+   *
+   * Step ② keeps its count, because there the click really is committing that many bins as targets
+   * and they may be a subset: a bin already taken as a source can't also receive.
+   */
+  const productActionFor = (result: ProductSearchResult): BinAction => {
+    if (!productsAreSelectable) return { kind: 'locate' };
+
+    const allBins = [...new Set(getBinIdsForProduct(result))];
+
+    if (changeAllocationStep === 1) {
+      const productKey = sourcePickKey(result);
+      const fullyPicked =
+        allBins.length > 0 && allBins.every(binId => hasSourcePick(sourceProductPicks, binId, productKey));
+      // "Remove from Move From" named an end this kind of move doesn't have — the operator picked a
+      // product, not a place to take it from (see sourceEndLabel). "Remove Selection" says what it
+      // undoes without naming a place, and it is honest about the breadth: the row only reads Remove
+      // once the product is picked in every bin, so this takes the whole pick back.
+      return fullyPicked
+        ? { kind: 'select', label: 'Remove Selection' }
+        : { kind: 'select', label: 'Select Product' };
+    }
+
+    const selectable = selectableBinIds(result);
+    if (selectable.length > 0) {
+      return { kind: 'select', label: `Select (${selectable.length} bin${selectable.length !== 1 ? 's' : ''})` };
+    }
+    // Two different reasons to have nothing left, and saying the wrong one is worse than saying
+    // nothing: the product's bins are already targets, or — step ② only — it lives solely in bins this
+    // move is taking FROM, which were never chosen as targets at all.
+    return allBins.every(binId => sourceBinIds.includes(binId))
+      ? { kind: 'blocked', label: 'Only stocked in the bins you are moving from' }
+      : { kind: 'blocked', label: 'Already in Move To' };
+  };
+
+  // Only the rows a bulk take would actually add — same rule as the bins': never rows that are spent,
+  // and never ones whose button reads Remove, or Select All would become a toggle-all.
+  const bulkSelectableProducts = visibleResults.filter(result => {
+    const action = productActionFor(result);
+    return action.kind === 'select' && action.label.startsWith('Select');
+  });
+
+  // Only worth offering with more than one row to act on, since a single row's own button covers that
+  // case. Selecting counts the rows a take would ADD — rows now stay listed once spent, so counting
+  // the whole list would leave Select All offering to select nothing. Highlighting counts the whole
+  // list minus what is already marked.
+  const showSelectAll = productsAreSelectable
+    ? bulkSelectableProducts.length > 1
+    : visibleResults.length > 1 && !visibleResults.every(isPicked);
 
   const buildHighlightQuery = (products: ProductSearchResult[]) =>
     products
@@ -243,13 +297,17 @@ const SearchDropdown = memo(function SearchDropdown({
     if (visibleResults.length === 0) return;
 
     if (productsAreSelectable) {
+      // Only the rows a take would actually add. Rows stay listed once spent now, so running this over
+      // the whole list would re-commit products already picked and, worse, re-append their identity
+      // groups to the highlight.
+      if (bulkSelectableProducts.length === 0) return;
       // Actually select every matching bin as source/target, not just preview-highlight it. Only the
       // bins this step can take — on step 2 that skips the source bins these products also live in.
-      const allBinIds = Array.from(new Set(visibleResults.flatMap(selectableBinIds)));
-      const productNames = visibleResults.map(result => result.name).join(', ');
+      const allBinIds = Array.from(new Set(bulkSelectableProducts.flatMap(selectableBinIds)));
+      const productNames = bulkSelectableProducts.map(result => result.name).join(', ');
       // Same OR-group query shape as the view-mode branch further down, so every selected
       // product's row (not just its bin) gets highlighted.
-      const highlightQuery = buildHighlightQuery(visibleResults);
+      const highlightQuery = buildHighlightQuery(bulkSelectableProducts);
       if (changeAllocationStep === 1) {
         onSelectSourceBins?.(allBinIds, productNames, highlightQuery);
       } else {
@@ -257,7 +315,7 @@ const SearchDropdown = memo(function SearchDropdown({
       }
       // Several products just got selected across who knows how many doors — land on the first
       // one's bin so the selection isn't left off-screen.
-      jumpToProduct(visibleResults[0]);
+      jumpToProduct(bulkSelectableProducts[0]);
       // Everything visible just got added — nothing left to show. Dismiss rather than merely close:
       // this also drops focus, so clicking the box brings the list back instead of staying dead.
       onDismissList?.();
@@ -281,23 +339,11 @@ const SearchDropdown = memo(function SearchDropdown({
     return quantity === 1 ? 'vial' : 'vials';
   };
 
-  // Nothing left to offer — name the matches anyway, so the user can see the product was found
-  // rather than reading the empty list as "not stocked". Two different reasons land here, and saying
-  // the wrong one is worse than saying nothing: a product can be spent because its bins are already
-  // in this step's selection, or — on step 2 only — because it lives solely in source bins, which
-  // were never "selected" as targets at all. A product split across both reasons falls under the
-  // "already selected" wording, since part of it genuinely was.
-  const names = [...new Set(searchResults.map(result => result.name))];
-  const onlyInSourceBins =
-    changeAllocationMode &&
-    changeAllocationStep === 2 &&
-    searchResults.every(result =>
-      getBinIdsForProduct(result).every(binId => sourceBinIds.includes(binId))
-    );
-  const unavailablePrefix = onlyInSourceBins ? 'Only stocked in the bins you are moving from' : 'Already selected';
-  const alreadySelectedMessage = names.length <= 3
-    ? `${unavailablePrefix}: ${names.join(', ')}`
-    : `${unavailablePrefix}: ${names.slice(0, 3).join(', ')} and ${names.length - 3} more`;
+  // A footer sentence used to stand here naming the matches that had nothing left to offer ("Already
+  // selected: X, Y"), because the rows themselves had been filtered out and the empty list would
+  // otherwise have read as "not stocked". The rows stay now and each states its own reason in its own
+  // button, which is both more precise — the two reasons can differ per product, and the sentence had
+  // to pick one for the whole list — and actionable, since the row is also where you undo it.
 
   /**
    * Available bins first, then the door order searchBinsByName produced.
@@ -513,15 +559,10 @@ const SearchDropdown = memo(function SearchDropdown({
           </div>
         )}
 
-        {/* Only change allocation mode can empty this list — view mode keeps every match listed. The
-            outer guard is what a bins-only query needs: the component no longer returns null when the
-            product search finds nothing, so without it a query that matched only bin names would print
-            "Already selected:" over an empty name list. */}
-        {searchResults.length > 0 && (visibleResults.length === 0 ? (
-          <div className="text-[13px] text-[#64748b] text-center px-4 pb-3">
-            {alreadySelectedMessage}
-          </div>
-        ) : (
+        {/* The guard is what a bins-only query needs: the component no longer returns null when the
+            product search finds nothing, so a query matching only bin names must not draw an empty
+            product list under the bin section. */}
+        {searchResults.length > 0 && (
         // Divider-separated rows, same as the unallocated list: a list of matches reads as one list,
         // where a stack of bordered cards reads as several unrelated things.
         <div className="divide-y divide-gray-200 border-t border-gray-200">
@@ -595,47 +636,64 @@ const SearchDropdown = memo(function SearchDropdown({
               </div>
             </div>
             
-            {/* Action Button — the source/target selector. Hidden in a Bin move's source step:
-                there, products can't be selected, so search only locates the bin (button below). */}
-            {changeAllocationMode && !(moveMode === 'bin' && changeAllocationStep === 1) && (
-              <Button 
-                size="sm"
-                onClick={(e) => {
-                  // The row itself is inert in this mode, so nothing to stop — kept so the button
-                  // stays self-contained if the row ever becomes clickable again.
-                  e.stopPropagation();
-                  // Only the bins this step can still take — on step 2 the product's source bins
-                  // are excluded, so committing a target can't quietly re-use one of them.
-                  const binIds = selectableBinIds(result);
-                  // Nothing highlights this product until it's committed, so the query the bins will
-                  // be highlighted by is built here, precise to this one product variant.
-                  const highlightQuery = [result.name, result.ndc, result.inventoryType].filter(Boolean).join(', ');
-                  if (changeAllocationStep === 1) {
-                    onSelectSourceBins?.(binIds, result.name, highlightQuery);
-                  } else {
-                    onSelectTargetBins?.(binIds, result.name, highlightQuery);
-                  }
-                  // Land on the bin that was just selected — the product may well live on a door
-                  // the user isn't looking at, and a selection they can't see is easy to lose track of.
-                  jumpToProduct(result);
-                  // The selection is made, so the list has done its job — get it out of the way
-                  // rather than leaving the user to dismiss it. Dismissing (not just closing) drops
-                  // focus too, so clicking the box brings it back.
-                  onDismissList?.();
-                }}
-                variant="outline"
-                className="w-full bg-white border-[#095192] text-[#095192] hover:bg-[#F1F6FA] hover:text-[#095192] text-[14px] h-10 rounded-[4px]"
-              >
-                {/* The count is what this click will actually take, not how many bins the product
-                    lives in — on step 2 those differ wherever a source bin holds the same product. */}
-                Select ({selectableBinIds(result).length} bin{selectableBinIds(result).length !== 1 ? 's' : ''})
-              </Button>
-            )}
+            {/* Action Button — the source/target selector, and the row's own Remove once it is spent.
+                Hidden in a Bin move's source step: there, products can't be selected, so search only
+                locates the bin (button below). What it says comes from productActionFor, so the label,
+                the dimming and what the click does cannot disagree. */}
+            {productsAreSelectable && (() => {
+              const action = productActionFor(result);
+              const isRemove = action.kind === 'select' && action.label.startsWith('Remove');
+              return (
+                <Button
+                  size="sm"
+                  aria-disabled={action.kind === 'blocked'}
+                  onClick={(e) => {
+                    // The row itself is inert in this mode, so nothing to stop — kept so the button
+                    // stays self-contained if the row ever becomes clickable again.
+                    e.stopPropagation();
+                    if (action.kind === 'blocked') return;
+
+                    if (isRemove) {
+                      // Takes the product out of EVERY bin, which is what the row is reporting: it only
+                      // reads Remove once all of its bins are picked. Same handler the review panel's
+                      // per-product Remove uses, so the two cannot drift.
+                      onRemoveSourceProduct?.(result);
+                      return;
+                    }
+
+                    // Only the bins this step can still take — on step 2 the product's source bins
+                    // are excluded, so committing a target can't quietly re-use one of them.
+                    const binIds = selectableBinIds(result);
+                    // Nothing highlights this product until it's committed, so the query the bins will
+                    // be highlighted by is built here, precise to this one product variant.
+                    const highlightQuery = [result.name, result.ndc, result.inventoryType].filter(Boolean).join(', ');
+                    if (changeAllocationStep === 1) {
+                      onSelectSourceBins?.(binIds, result.name, highlightQuery);
+                    } else {
+                      onSelectTargetBins?.(binIds, result.name, highlightQuery);
+                    }
+                    // Land on the bin that was just selected — the product may well live on a door
+                    // the user isn't looking at, and a selection they can't see is easy to lose track of.
+                    jumpToProduct(result);
+                    // The selection is made, so the list has done its job — get it out of the way
+                    // rather than leaving the user to dismiss it. Dismissing (not just closing) drops
+                    // focus too, so clicking the box brings it back.
+                    onDismissList?.();
+                  }}
+                  variant="outline"
+                  className={`w-full bg-white border-[#095192] text-[#095192] hover:bg-[#F1F6FA] hover:text-[#095192] text-[14px] h-10 rounded-[4px] ${
+                    action.kind === 'blocked' ? 'opacity-50 cursor-not-allowed hover:bg-white' : ''
+                  }`}
+                >
+                  {action.label}
+                </Button>
+              );
+            })()}
 
             {/* Locate-only button — highlight the product's bins and jump to one, without selecting
                 anything. Used in plain view mode, and in a Bin move's source step where the user
                 finds a bin by its product but then taps the bin itself to select it. */}
-            {(!changeAllocationMode || (moveMode === 'bin' && changeAllocationStep === 1)) && (
+            {!productsAreSelectable && (
               <Button
                 size="sm"
                 onClick={() => handleProductClick(result)}
@@ -648,7 +706,7 @@ const SearchDropdown = memo(function SearchDropdown({
           </div>
         ))}
         </div>
-        ))}
+        )}
       </div>
     </div>
   );

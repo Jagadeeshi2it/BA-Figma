@@ -1437,7 +1437,7 @@ export default function ChangeAllocationModal({
               since the panel starts closed and there'd be no other control to shut it again. */}
           <SummaryCell
             icon={<ListChecks className="w-4 h-4" />}
-            label="Move Summary"
+            label="Move List"
             value={`${summaryProductCount} ${summaryProductCount === 1 ? 'product' : 'products'}`}
             active={summaryOpen}
             enabled

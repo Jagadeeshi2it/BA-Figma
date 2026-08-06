@@ -24,6 +24,31 @@ type MoveMode = 'bin' | 'product' | null | undefined;
  * silently dead control H9-1 describes.
  */
 /**
+ * The workflow the operator is inside, worded exactly as the menu entry they chose — so the footer says
+ * their own decision back to them rather than paraphrasing it.
+ *
+ * Worth having because the two kinds diverge in what a tap means (`handleBinClick` is inert in one and
+ * not the other), and "Step 1/4" alone can't tell you which set of rules you are under. It is also the
+ * only place in a move where the kind is named after the menu closes.
+ */
+export const workflowLabel = (moveMode: MoveMode): string =>
+  moveMode === 'product' ? 'Move from Product' : 'Move from Bin';
+
+/**
+ * What the FROM end of a move is called.
+ *
+ * `Move From` names a place, which is right when the operator picked bins — the label usually sits on a
+ * shelf they are about to reach into. In a Product move they picked products, and nothing was chosen
+ * *from* anywhere: the bins joined the selection as a consequence. So it is just `Move` there, which
+ * reads with its own value — "Move · 1 Product" rather than "Move From · 1 Product", which asked from
+ * where and then didn't answer.
+ *
+ * The TO end is `Move To` in both kinds, because the target is always a bin.
+ */
+export const sourceEndLabel = (moveMode: MoveMode): string =>
+  moveMode === 'product' ? 'Move' : 'Move From';
+
+/**
  * What to say when a tap lands on the wrong kind of thing.
  *
  * Both halves of a move step have exactly one unit — the bin in a Bin move, the product in a Product

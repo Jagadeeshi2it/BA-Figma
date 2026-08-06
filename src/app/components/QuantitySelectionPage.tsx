@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { toast } from "sonner@2.0.3";
 import { Button } from "./ui/button";
-import { ChevronRight, Pencil, X, Unlock, Package, LogOut, ListChecks, ArrowRight } from "lucide-react";
+import { ChevronRight, Pencil, X, Package, LogOut, ListChecks, ArrowRight } from "lucide-react";
 import { DoorUnlockedToast, ValidationToast } from "./ui/sonner-1";
 import CabinetPipView from "./CabinetPipView";
 import SideSheet from "./SideSheet";
 import MoveSummaryPanel, { MoveSummaryRow } from "./MoveSummaryPanel";
+import UnlockDoorButton from "./UnlockDoorButton";
 import {
   PipelineFooterShell,
   FooterDivider,
@@ -96,8 +97,11 @@ interface GroupedTransfer {
  * Why cancelling is refused once stock has moved. Shared with the placement screen so the two cannot give
  * different reasons for the same rule.
  */
+// Just the reason. The second sentence used to add "Finish it to record where everything went", which
+// instructed rather than explained — the footer's primary already says what to do next, and a toast that
+// answers a refused tap should stop once it has answered it.
 export const CANNOT_CANCEL_REASON =
-  'Quantity has already been taken out of a bin, so this move can no longer be cancelled. Finish it to record where everything went.';
+  'Quantity has already been taken out of a bin, so this move can no longer be cancelled.';
 
 const productKeyOf = (group: GroupedTransfer) =>
   `${group.productName}-${group.ndc}-${group.inventoryType}`;
@@ -694,6 +698,12 @@ export default function QuantitySelectionPage({
               <p className="text-[14px] text-[#4a5565]">{currentGroup.productDescription}</p>
             )}
           </div>
+
+          {/* The header's right slot, which justify-between above already leaves empty. A recovery
+              control belongs where the operator's eye lands when the door in front of them has not
+              opened — on the same line as the product they are stuck on, not buried with the door
+              details further down the page. Absent for a fridge, which has no lock. */}
+          <UnlockDoorButton doorName={currentGroup.sourceDoorName} cabinetAccess={cabinetAccess} />
         </div>
       </div>
 
@@ -728,15 +738,10 @@ export default function QuantitySelectionPage({
                 <div className="flex gap-2 items-center">
                   <span className="text-[14px] text-[#4a5565]">Door:</span>
                   <span className="text-[14px] text-[#020817]">{currentGroup.sourceDoorName}</span>
-                  {/* Stated only when this door really is the open one. It used to be unconditional,
-                      which meant every door the operator ever looked at claimed to be unlocked — and
-                      under a one-door-at-a-time station that is a claim about the hardware, not a label.
-                      A fridge shows nothing: it has no lock to report (STEP4-GUIDANCE.md §1). */}
-                  {cabinetAccess.isOpen(currentGroup.sourceDoorName) && (
-                    <span className="text-[14px] text-[#12805C] ml-2 inline-flex items-center gap-1">
-                      <Unlock className="w-3.5 h-3.5" /> Unlocked
-                    </span>
-                  )}
+                  {/* An "Unlocked" badge stood here. It reported a state the operator cannot verify from
+                      the screen — the whole reason the Unlock Door button in the header exists is that the
+                      app's belief and the hardware can disagree — so a green badge saying the door is open
+                      was at best redundant with the door being open and at worst a contradiction of it. */}
                 </div>
                 <div className="flex gap-2">
                   <span className="text-[14px] text-[#4a5565]">Bin:</span>
@@ -932,7 +937,7 @@ export default function QuantitySelectionPage({
               this is the only way to reopen it once someone's closed it. */}
           <SummaryCell
             icon={<ListChecks className="w-4 h-4" />}
-            label="Move Summary"
+            label="Move List"
             value={`${summaryProductCount} ${summaryProductCount === 1 ? 'product' : 'products'}`}
             active={summaryOpen}
             enabled

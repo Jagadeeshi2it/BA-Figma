@@ -262,7 +262,7 @@ export default function MoveSummaryPanel({
   rows,
   isOpen,
   onToggle,
-  title = 'Move Summary',
+  title = 'Move List',
   stage = 'review',
   route
 }: MoveSummaryPanelProps) {

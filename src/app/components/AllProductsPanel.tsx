@@ -2,7 +2,8 @@ import React from 'react';
 import { X, Search } from 'lucide-react';
 import { Input } from './ui/input';
 import { Bin } from '../types';
-import { highlightText, highlightNDC, SEARCH_HIGHLIGHT_COLOR } from '../utils/textHighlight';
+import { highlightText, highlightNDC, SEARCH_HIGHLIGHT_COLOR, SOURCE_HIGHLIGHT_COLOR } from '../utils/textHighlight';
+import { sourcePickKey } from '../utils/sourcePicks';
 import { consolidateBinProducts, getVialType, hasClimateBadge, hasCivBadge } from '../utils/binProducts';
 import { toast } from 'sonner@2.0.3';
 import { ValidationToast } from './ui/sonner-1';
@@ -19,6 +20,12 @@ interface AllProductsPanelProps {
   // user on the product detail page instead — the one route out of the flow, from inside the flow.
   canPickSourceProduct?: boolean;
   onSelectSourceProduct?: (product: any) => void;
+  /**
+   * The product identities picked in THIS bin. Without them a product picked from this panel showed
+   * nothing on its row — the shelf card behind it turned the same product blue, so the two views of one
+   * bin disagreed about what had been chosen.
+   */
+  pickedProductKeys?: string[];
   /**
    * What to say if a row is tapped when it cannot be picked, or null when the tap is legitimate.
    *
@@ -50,12 +57,18 @@ export default function AllProductsPanel({
   onProductClick,
   canPickSourceProduct = false,
   onSelectSourceProduct,
+  pickedProductKeys,
   tapRefusal = null,
   onClose
 }: AllProductsPanelProps) {
   // Selecting wins over navigating, same precedence as BinCard: mid-selection, a tap on a product is
   // the operator naming it, not asking to read about it.
   const picksSourceProduct = canPickSourceProduct && !!onSelectSourceProduct;
+
+  // Same rule as the bin card's rows: amber means the search found it, blue means the operator picked
+  // it. Decided per row from the picks, never from the bin.
+  const highlightColorFor = (product: any): string =>
+    pickedProductKeys?.includes(sourcePickKey(product)) ? SOURCE_HIGHLIGHT_COLOR : SEARCH_HIGHLIGHT_COLOR;
 
   // Answered, but not advertised: the row keeps its inert look (no cursor, no hover) because tapping
   // it still achieves nothing — it just explains itself now. Same reasoning as FooterButton's
@@ -154,7 +167,7 @@ export default function AllProductsPanel({
                       describes rather than float halfway between the two. */}
                   <div>
                     <h3 className="font-normal text-[#020817] leading-[20px] text-[14px]">
-                      {highlightText(product.name, searchQuery, SEARCH_HIGHLIGHT_COLOR, product)}
+                      {highlightText(product.name, searchQuery, highlightColorFor(product), product)}
                     </h3>
 
                     <p className="italic text-gray-500 leading-snug text-[14px]">
@@ -176,7 +189,7 @@ export default function AllProductsPanel({
                   </div>
 
                   <div className="text-gray-500 text-[14px] break-words">
-                    {highlightNDC(`${product.ndc} - ${product.inventoryType}`, searchQuery, SEARCH_HIGHLIGHT_COLOR, product)}
+                    {highlightNDC(`${product.ndc} - ${product.inventoryType}`, searchQuery, highlightColorFor(product), product)}
                   </div>
                 </div>
 

@@ -9,6 +9,7 @@ import {
   FooterButton,
   plural
 } from './PipelineFooter';
+import { sourceEndLabel } from './PipelineSteps';
 
 interface AllocationBottomBarProps {
   step: 1 | 2;
@@ -66,6 +67,10 @@ export default function AllocationBottomBar({
   const sourceValue =
     moveMode === 'product' ? plural(sourceProductCount, 'Product') : plural(sourceBinCount, 'Bin');
 
+  // "Move From" names a place, which a Product move never picked — see sourceEndLabel. One constant for
+  // the cell and the Back button below, so the button naming the step cannot drift from the step's cell.
+  const sourceLabel = sourceEndLabel(moveMode);
+
   return (
     <PipelineFooterShell>
       <StepCell step={step} moveMode={moveMode} />
@@ -73,7 +78,7 @@ export default function AllocationBottomBar({
 
       <SummaryCell
         icon={<LogOut className="w-4 h-4" />}
-        label="Move From"
+        label={sourceLabel}
         value={sourceValue}
         active={openPanel === 'source'}
         enabled={sourceBinCount > 0}
@@ -94,7 +99,7 @@ export default function AllocationBottomBar({
         {step === 2 && (
           // Named for the step it returns to, as the forward button is named for the step it advances to.
           <FooterButton
-            label="Move From"
+            label={sourceLabel}
             variant="secondary"
             onClick={onBackToSource}
             leadingIcon={<ArrowLeft className="w-4 h-4" />}
@@ -125,7 +130,10 @@ export default function AllocationBottomBar({
           <FooterButton
             // Step ② is always about bins, whichever unit the source was gathered in, so "Bin" is safe
             // here in a way it would not be on step ①'s label — a Product move gathers products there.
-            label={targetBinCount > 0 ? 'Review Selection' : 'Select Bin to move'}
+            // Named for what the next step DOES, not for looking at what you just did: step ③ is
+            // where the operator says which products leave each bin, so the list is still being built
+            // there. "Review Selection" promised a read-only confirmation of work already finished.
+            label={targetBinCount > 0 ? 'Build Move List' : 'Select Bin to move'}
             variant="primary"
             enabled={targetBinCount > 0}
             onClick={onConfirm}

@@ -1,6 +1,6 @@
 import React from 'react';
 import { ChevronRight } from 'lucide-react';
-import { instructionFor, TOTAL_PIPELINE_STEPS, PipelineStep } from './PipelineSteps';
+import { instructionFor, workflowLabel, TOTAL_PIPELINE_STEPS, PipelineStep } from './PipelineSteps';
 
 /**
  * The parts every stage of the move flow builds its footer from.
@@ -75,12 +75,30 @@ export function StepCell({
 }) {
   return (
     <div className="shrink-0 w-[240px]">
-      <span className="block text-[12px] leading-[16px] font-semibold text-[#020817]">
-        Step {step}/{TOTAL_PIPELINE_STEPS}
-      </span>
-      <span className="block text-[12px] leading-[16px] text-[#676b74]">
-        {instructionFor(step, moveMode)}
-      </span>
+      {/* Keyed on the step so React remounts this block on every advance and the entry animation plays
+          again. That covers both halves of what it is for: it runs when the move opens (step ① mounts
+          with it), and again each time the guidance changes, which is the moment the operator most needs
+          pulling back to a bar they have stopped reading.
+
+          A 4px rise and a fade over 300ms — enough to catch the eye at the bottom of the screen, not
+          enough to be read as something arriving. motion-safe: so anyone who has asked their OS for
+          less movement simply gets the new text. */}
+      <div
+        key={step}
+        className="motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-1 motion-safe:duration-300"
+      >
+        {/* The workflow first, then the position in it — but only for as long as the kind still
+            changes what the operator is looking at. Steps ① and ② differ by kind: one gathers bins and
+            the other products, and a tap on the canvas means different things in each, so the prefix
+            answers a live question. By ③ the two kinds have converged onto the same screens with the
+            same rules, and repeating how the selection was gathered is history rather than guidance. */}
+        <span className="block text-[12px] leading-[16px] font-semibold text-[#020817]">
+          {step <= 2 ? `${workflowLabel(moveMode)} · ` : ''}Step {step}/{TOTAL_PIPELINE_STEPS}
+        </span>
+        <span className="block text-[12px] leading-[16px] text-[#676b74]">
+          {instructionFor(step, moveMode)}
+        </span>
+      </div>
     </div>
   );
 }

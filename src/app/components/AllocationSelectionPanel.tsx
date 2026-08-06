@@ -5,9 +5,13 @@ import { Input } from './ui/input';
 import { Separator } from './ui/separator';
 import { doesProductMatchSearch } from '../utils/textHighlight';
 import { consolidateBinProducts, getVialType, hasClimateBadge, hasCivBadge } from '../utils/binProducts';
+import { sourceEndLabel } from './PipelineSteps';
 
 interface AllocationSelectionPanelProps {
   role: 'source' | 'target';
+  // Which kind of move, so the source header can use the same word the footer cell that opened this
+  // panel uses — "Move" in a Product move, "Move From" in a Bin move (sourceEndLabel).
+  moveMode?: 'bin' | 'product' | null;
   // Bins already resolved to objects (name, size, products, shelfName, location) by App.
   bins: any[];
   // The `|`-joined query behind a search-driven source selection. Where it exists it says which
@@ -136,6 +140,7 @@ function RemoveButton({ label, onClick }: { label: string; onClick: () => void }
 
 export default function AllocationSelectionPanel({
   role,
+  moveMode = null,
   bins,
   sourceQuery,
   sourceProductPicks = [],
@@ -270,7 +275,7 @@ export default function AllocationSelectionPanel({
           <div className="min-w-0">
             {/* The same words the footer cell that opened this panel uses, so the two name one thing. */}
             <h2 className="font-semibold text-[16px] leading-[24px]">
-              {isSource ? 'Move From' : 'Move To'}
+              {isSource ? sourceEndLabel(moveMode) : 'Move To'}
             </h2>
             <p className="text-sm text-gray-500">
               {bins.length} bin{bins.length !== 1 ? 's' : ''}

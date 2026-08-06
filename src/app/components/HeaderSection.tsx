@@ -44,6 +44,8 @@ interface HeaderSectionProps {
   handleSelectBinsForAssignment?: (binIds: string[]) => void;
   handleSelectSourceBinsFromSearch?: (binIds: string[], productName: string, highlightQuery?: string) => void;
   handleSelectTargetBinsFromSearch?: (binIds: string[], productName: string, highlightQuery?: string) => void;
+  // Drops a product from every bin it was picked in — the search row's Remove.
+  handleRemoveSourceProduct?: (product: { name?: string; ndc?: string; inventoryType?: string }) => void;
   // A bin found by NAME, rather than by the product it holds — see searchBinsByName.
   handleSelectBinFromSearch?: (binId: string) => void;
   handleHighlightBins?: (binIds: string[], query: string) => void;
@@ -101,6 +103,7 @@ const HeaderSection = memo(function HeaderSection({
   handleSelectBinsForAssignment,
   handleSelectSourceBinsFromSearch,
   handleSelectTargetBinsFromSearch,
+  handleRemoveSourceProduct,
   handleSelectBinFromSearch,
   handleHighlightBins,
   handleSearchProductClick,
@@ -249,20 +252,22 @@ const HeaderSection = memo(function HeaderSection({
           seam into the gray, scrollable page below. It needs its own horizontal padding now — it no
           longer sits inside the content column's p-6, so px-6 reproduces that inset to keep the
           title and search aligned with the shelf cards underneath. */}
-      {/* Three columns rather than a flex row with justify-between: the search has to sit in the
-          middle of the ROW, not in the middle of what is left over after the two side groups. With
-          `1fr auto 1fr` the two outer columns are equal by construction, so the box stays centred as
-          the right-hand group changes width — which it does, since all three controls there disappear
-          inside a workflow. */}
-      <div className="bg-white px-6 py-3 border-b border-gray-200 grid grid-cols-[1fr_auto_1fr] items-center gap-4">
-        <h1 className="text-2xl font-normal text-[24px] justify-self-start">Allocation</h1>
+      {/* Title left, everything else in one right-aligned group. It was a three-column grid centring
+          the search, which is fine on the browse screen and wrong inside a workflow: the three controls
+          to its right all hide there, so the search stayed pinned mid-row with a wide empty gap after
+          it. Grouping it with them means the row's right edge is where the controls are, whichever of
+          them are on screen. */}
+      <div className="bg-white px-6 py-3 border-b border-gray-200 flex items-center justify-between gap-4">
+        <h1 className="text-2xl font-normal text-[24px]">Allocation</h1>
 
-        {/* Always visible search bar with dropdown */}
-        <div className="relative flex items-center justify-self-center" ref={searchContainerRef}>
+        <div className="flex items-center gap-2 h-full">
+        {/* Always visible search bar with dropdown. First in the group: it is the one control that is
+            never hidden, so it anchors the row while the others come and go. */}
+        <div className="relative flex items-center" ref={searchContainerRef}>
             {/* The dropdown below is pinned to this box's edges, so its width comes from here —
                 widening the box widens the result rows and gives long product names a line to
                 themselves instead of wrapping onto three. */}
-            <div className="bg-white relative rounded-[4px] w-[350px] h-[36px] border border-[#bcc3cd] focus-within:border-[#666666] focus-within:ring-[3px] focus-within:ring-[#666666]/50">
+            <div className="bg-white relative rounded-[4px] w-[400px] h-[36px] border border-[#bcc3cd] focus-within:border-[#666666] focus-within:ring-[3px] focus-within:ring-[#666666]/50">
               <input
                 ref={searchInputRef}
                 type="text"
@@ -309,6 +314,7 @@ const HeaderSection = memo(function HeaderSection({
               onSelectAllBins={handleSelectAllBins}
               onSelectSourceBins={handleSelectSourceBinsFromSearch}
               onSelectTargetBins={handleSelectTargetBinsFromSearch}
+              onRemoveSourceProduct={handleRemoveSourceProduct}
               onProductClick={handleSearchProductClick}
               onProductsViewed={handleProductsViewed}
               onDoorClick={handleDoorClick}
@@ -320,7 +326,6 @@ const HeaderSection = memo(function HeaderSection({
             />
         </div>
 
-        <div className="flex items-center gap-2 h-full justify-self-end">
           {/* Hidden inside any workflow — the unallocated tray, a move, or an allocate. While one is
               open its own controls own the screen, and offering a second entry point invites
               abandoning a half-built selection. */}

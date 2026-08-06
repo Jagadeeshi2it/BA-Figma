@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { toast } from "sonner@2.0.3";
 import { Button } from "./ui/button";
-import { ChevronRight, Search, Trash2, Unlock, Package, LogIn, ListChecks, ArrowRight } from "lucide-react";
+import { ChevronRight, Search, Trash2, Package, LogIn, ListChecks, ArrowRight } from "lucide-react";
 import { DoorUnlockedToast, ValidationToast } from "./ui/sonner-1";
 import CabinetPipView from "./CabinetPipView";
 import SideSheet from "./SideSheet";
 import MoveSummaryPanel, { MoveSummaryRow } from "./MoveSummaryPanel";
+import UnlockDoorButton from "./UnlockDoorButton";
 import {
   PipelineFooterShell,
   FooterDivider,
@@ -910,6 +911,12 @@ export default function TargetBinSerialScanPage({
               <p className="text-[14px] text-[#4a5565]">{currentProduct.productDescription}</p>
             )}
           </div>
+
+          {/* The header's right slot, which justify-between above already leaves empty. A recovery
+              control belongs where the operator's eye lands when the door in front of them has not
+              opened — on the same line as the product they are stuck on, not buried with the door
+              details further down the page. Absent for a fridge, which has no lock. */}
+          <UnlockDoorButton doorName={currentTargetBin?.targetDoorName} cabinetAccess={cabinetAccess} />
         </div>
       </div>
 
@@ -944,15 +951,10 @@ export default function TargetBinSerialScanPage({
                 <div className="flex gap-2 items-center">
                   <span className="text-[14px] text-[#4a5565]">Door:</span>
                   <span className="text-[14px] text-[#020817]">{currentTargetBin.targetDoorName}</span>
-                  {/* Stated only when this door really is the open one. It used to be unconditional,
-                      which meant every door the operator ever looked at claimed to be unlocked — and
-                      under a one-door-at-a-time station that is a claim about the hardware, not a label.
-                      A fridge shows nothing: it has no lock to report (STEP4-GUIDANCE.md §1). */}
-                  {cabinetAccess.isOpen(currentTargetBin.targetDoorName) && (
-                    <span className="text-[14px] text-[#12805C] ml-2 inline-flex items-center gap-1">
-                      <Unlock className="w-3.5 h-3.5" /> Unlocked
-                    </span>
-                  )}
+                  {/* An "Unlocked" badge stood here. It reported a state the operator cannot verify from
+                      the screen — the whole reason the Unlock Door button in the header exists is that the
+                      app's belief and the hardware can disagree — so a green badge saying the door is open
+                      was at best redundant with the door being open and at worst a contradiction of it. */}
                 </div>
                 <div className="flex gap-2">
                   <span className="text-[14px] text-[#4a5565]">Bin:</span>
@@ -1146,7 +1148,7 @@ export default function TargetBinSerialScanPage({
           {/* Same Move Summary counter the other two stages use, always enabled for the same reason. */}
           <SummaryCell
             icon={<ListChecks className="w-4 h-4" />}
-            label="Move Summary"
+            label="Move List"
             value={`${summaryProductCount} ${summaryProductCount === 1 ? 'product' : 'products'}`}
             active={summaryOpen}
             enabled

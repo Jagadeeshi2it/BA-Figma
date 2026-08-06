@@ -107,11 +107,14 @@ screen, and a second entry point invites abandoning a half-built selection.
 
 #### The header row
 
-Three grid columns — `1fr auto 1fr` — with the title left, the search box **centred**, and
-`Bins Available(n)` / `Allocate/Move` / `History` right. Grid rather than a flex row with
-`justify-between`, because flex would centre the search in whatever space the two side groups leave
-rather than on the row, and it would drift every time the right group changed width — which it does,
-since all three of those controls hide inside a workflow.
+The title on the left, and **everything else in one right-aligned group**: search, then
+`Bins Available(n)`, `Allocate/Move`, `History`. The search is first in that group because it is the one
+control never hidden, so it anchors the row while the others come and go.
+
+It was briefly a three-column grid centring the search. That reads fine on the browse screen and wrong
+inside a workflow: the three controls to the search's right all hide there, leaving it pinned mid-row
+with a wide empty gap after it. Grouped, the row's right edge is wherever the controls are, whichever of
+them are on screen.
 
 `Allocate/Move` is the **filled primary**; it is the only control in the row that starts any work, and
 it was a white outlined trigger wearing the same weight as the two beside it. Its chevron flips on
@@ -194,6 +197,13 @@ label usually sits on a shelf they are about to reach into. It applies to the bi
 summary cells and its step buttons, the side panels those cells open, and both step-④ screens. The History
 page uses the past tense (`Moved From` / `Moved To`) because it is a ledger of moves that happened.
 
+**Except that a Product move's from-end is just `Move`** — `sourceEndLabel` in `PipelineSteps.tsx`, used
+by the footer cell, the step-② Back button and the side panel header so the three cannot drift.
+`Move From` names a *place*, and in this kind nothing was chosen from anywhere: the operator picked
+products and the bins joined as a consequence. `Move From · 1 Product` asked from where and then didn't
+answer. Its search row's undo is `Remove Selection` for the same reason — no end to name. The to-end
+stays `Move To` in both kinds, because the target is always a bin.
+
 **A Product move's source badge says `2 Selected` instead**, counting *that bin's* products in the move.
 They picked products, not bins — the bin joined the selection as a consequence — so the badge reports what
 they chose. Per bin, not per move: the label is on one card, and a figure identical on every source bin
@@ -214,6 +224,16 @@ trips over the same two doors.
 route once (`planMoveRoute` + `twoPhaseWalkOrder`) and hands the take order to one screen and the place
 order to the other. This is what stops a move whose sources sit behind two doors sending the operator
 back to a door they had finished with. See [STEP4-GUIDANCE.md](STEP4-GUIDANCE.md).
+
+**Each step-④ screen carries an `Unlock Door` button** beside the product name — `UnlockDoorButton`,
+one component so the take half and the place half cannot drift on a control the operator reaches for
+when the cabinet is already misbehaving. Both screens already unlock on arrival from an effect; this is
+the recovery path that effect cannot cover, where the app believes it sent the unlock and the hardware
+did not open. It **announces the unlock even when `requestDoor` reports no transition** — `requestDoor`
+is idempotent, so asking for the door already open returns `unlocked: null`, which is exactly the case
+the button exists for; staying silent there would make it look broken. Absent on a fridge, which has no
+lock. A green `Unlocked` badge used to sit in the door details and was removed with this: it reported a
+state the operator cannot verify from the screen, which is the whole reason the button is needed.
 
 **Cancelling is offered only before the first quantity leaves a source bin.** Past that the move must be
 finished: cancelling would rest entirely on the operator returning stock to the right bins, and nothing in
@@ -244,9 +264,26 @@ Every stage renders `PipelineFooterShell` from `PipelineFooter.tsx`, left to rig
 - The instruction sentence comes from `instructionFor(step, moveMode)`. Knowing you are on step 1 of
   4 does not tell you what to do on step 1, and the canvas cannot say it — in a move,
   `changeAllocationMode` reaches `BinCard` only to *disable* things, so the shelves go quiet.
+- **Steps ① and ② prefix the workflow** — `Move from Bin · Step 1/4`, from `workflowLabel`, worded
+  identically to the menu entry that started it. Those two steps differ by kind: one gathers bins and
+  the other products, and a canvas tap means different things in each, so the prefix answers a live
+  question — and it is the only place the kind is named once the menu closes. **Steps ③ and ④ drop it**,
+  because by then the two kinds have converged onto the same screens with the same rules and how the
+  selection was gathered is history rather than guidance.
+- **The cell animates on every step change** — a 4px rise and a fade over 300ms, from a `key={step}`
+  that makes React remount the block so the CSS entry animation replays. One mechanism covers both
+  jobs: it runs when the move opens (step ① mounts with it) and again whenever the guidance changes,
+  which is when the operator most needs pulling back to a bar they have stopped reading. Every class is
+  `motion-safe:`, so an OS reduced-motion preference just gets the new text. Verify the utilities
+  actually generated after touching them — `tw-animate-css` is on-demand under
+  `@import 'tailwindcss' source(none)`, so a typo'd class is silently no animation at all.
 - `SummaryCell` values go **blue with a chevron** the moment the cell holds something and stay grey
   on a zero. A zero is keyed to the mode's own unit — `0 Products` in a Product move, `0 Bins` in a
   Bin move. Steps ①–② report Source/Target; step ④ reports Product and Source/Target Bin as `n of N`.
+- **Step ②'s primary is `Build Move List`, not "Review Selection".** Step ③ is where the operator says
+  which products leave each bin, so the list is still being assembled there; "review" promised a
+  read-only confirmation of work already finished. The panel it opens and the footer cell that toggles
+  it are `Move List` for the same reason.
 - **A disabled primary states its requirement** rather than greying silently:
   `Select a source bin` → `Target Selection →` once satisfied. The arrow is dropped while blocked.
 - The shell is `min-h-[60px]`, not a fixed height: the instruction wraps to two lines on some steps.
@@ -263,7 +300,7 @@ halves. Hidden at the operator's request while the Move Summary panel beside the
 the cells and the side sheets they open stay wired. **If the decision lands on keeping them off, delete
 them rather than leaving the flag** — the stepper band above is the warning, not the precedent.
 
-#### The Move Summary panel
+#### The Move List panel
 
 A 320px panel on Review and both halves of step ④, answering "what is moving from where to where"
 while the operator is mid-move. `MoveSummaryPanel.tsx` is purely presentational; each screen derives
@@ -487,10 +524,14 @@ unreachable. `searchBins`, a third matcher, was exported and called by nothing; 
 
 Four things about the section are load-bearing:
 
-- **A bin hit is never dropped for being spent**, unlike a product hit. A bin is the singular thing the
-  operator just named, and a named thing vanishing from a search reads as "no such bin" — the exact
-  failure this closes. It reports its state in its button instead (`Remove from Move To`,
-  `Already in Move From`, `Empty — nothing to move from`).
+- **No hit is ever dropped for being spent** — neither a bin nor a product. Something the operator
+  searched for by name vanishing from its own search reads as "not stocked" rather than "already
+  chosen", and it takes away the only place they could undo the pick they just made. Every row reports
+  its state in its button instead: `Remove from Move From`, `Already in Move To`,
+  `Empty — nothing to move from`. `binActionFor` and `productActionFor` decide it, one per list, so a
+  row's label, its dimming and what its click does cannot disagree. Products used to be filtered out
+  with a footer sentence naming them ("Already selected: X, Y"), which could only pick one reason for
+  the whole list and left nothing to act on.
 - **What acting on it means comes from `binActionFor`**, which restates the shelf tap's rules so the
   button can name them: select in a Bin move's step ① and in step ② either kind, locate everywhere else.
   A Product move's step ① locates because the bin is not the unit there, the same reason its shelves are
@@ -525,9 +566,24 @@ Three separate things, and every bug in this area has been two of them sharing a
 
 | State | Held in | Means | Shows as |
 |---|---|---|---|
-| **Highlight** | `binHighlight.binIds` | "this is the bin you went looking for" | amber stroke, amber bin name |
+| **Highlight** | `binHighlight.binIds` | "this is the bin you went looking for" | amber stroke; amber over the matched part of the bin name |
 | **Highlight All** | the same, with every match's id | the same, asked for deliberately across the cabinet | amber on each |
-| **Selection** | `changeAllocationSourceBins` / `changeAllocationTargetBins` | "this bin is committed to the move" | blue / green stroke, `Move From` / `Move To` badge |
+| **Selection** | `changeAllocationSourceBins` / `changeAllocationTargetBins` | "this bin is committed to the move" | blue / green stroke, `Move From` / `Move To` badge, and the **bin name** in the same colour |
+
+**A matched product row is coloured per row, from the picks** — never from the bin around it
+(`productHighlightColorFor` in `BinCard`, mirrored in `AllProductsPanel`). Amber means the search found
+it; blue means the operator picked it, which in a Product move is a thing that happens to a *product*.
+Both wrong answers have shipped. Keying it on `isChangeAllocationSource` turned a merely **located**
+product blue the moment its bin was tapped in a Bin move — a selection rewriting a highlight. Flattening
+it to always-amber then left a product the operator had explicitly picked reading as merely found, with
+`1 Selected` on the badge above it and nothing on the row saying which product that was. The bin is the
+wrong thing to ask either way.
+
+**Selection outranks the highlight on the bin name**, exactly as it does on the card's stroke. The name
+is black when the bin is nothing, blue as a Move From, green as a Move To; the amber only paints while
+the bin is *nothing more than* a search hit (`nameMatchQuery` in `BinCard`). Layering the two was tried
+and fails for a mechanical reason: a bin found by name matches along its whole label, so the amber
+covered the blue completely and a bin already committed still read as merely "found".
 
 **A selection writes to no query channel.** `handleSelectBinFromSearch` used to append the bin's *name*
 to `selectedSearchQuery` so the card would light up — and since `binMatchesSearch` tests `bin.name`,
@@ -603,7 +659,7 @@ real shares. Anything reading `transfer.quantity` as "the amount for this one ta
 reading is also what broke `remainingQtyToMove`, which de-duplicates transfers by source bin and so saw
 only the first share as the whole amount available.
 
-### The Move Summary's row model
+### The Move List's row model
 
 `MoveSummaryRow` is one source→target pairing; the panel groups them (by product, then by source bin) to
 get the nesting. Three things about it are load-bearing:

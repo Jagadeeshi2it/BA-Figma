@@ -205,14 +205,46 @@ export default function BinCard({
     return () => observer.disconnect();
   }, [shouldLimit, consolidatedProducts.length, isStackedProductList]);
 
-  // What a match inside this bin means depends on what the bin has become: still just a search hit,
-  // or already committed as a source or a target. Each state colours its own matched text, so the
-  // shelf can be read at a glance without checking every card's label.
-  const productHighlightColor = isChangeAllocationSource
+  /**
+   * What colour a matched product row is — decided **per row**, on whether THAT PRODUCT is picked.
+   *
+   * This is the same amber-means-found / blue-means-chosen rule the bin name follows, applied at the
+   * level the choice was actually made. In a Product move the product *is* the unit, so a picked row is
+   * a selection and takes the source blue. Everywhere else a matched row is only a search hit and stays
+   * amber, however the bin around it is committed.
+   *
+   * Both wrong answers have been shipped. Keying it on `isChangeAllocationSource` turned a merely
+   * *located* product blue the moment its bin was tapped in a Bin move — a selection rewriting a
+   * highlight. Then flattening it to always-amber left a product the operator had explicitly picked
+   * reading as though it had merely been found, with `1 Selected` on the badge above it and nothing on
+   * the row saying which product that was. The bin is the wrong thing to ask either way; the picks are
+   * the right one.
+   */
+  const productHighlightColorFor = (product: any): string =>
+    moveMode === 'product' && pickedProductKeys?.includes(sourcePickKey(product))
+      ? SOURCE_HIGHLIGHT_COLOR
+      : SEARCH_HIGHLIGHT_COLOR;
+
+  /**
+   * The bin NAME carries the selection — black when the bin is nothing yet, blue as a Move From,
+   * green as a Move To.
+   */
+  const binNameColor = isChangeAllocationSource
     ? SOURCE_HIGHLIGHT_COLOR
     : isChangeAllocationTarget
       ? TARGET_HIGHLIGHT_COLOR
-      : SEARCH_HIGHLIGHT_COLOR;
+      : '#020817';
+
+  /**
+   * Selection wins the name outright, exactly as it wins the card's stroke below.
+   *
+   * The amber marks a bin the operator went looking for and has *not* committed yet. Once it is a
+   * source or a target, that is the stronger and more recent claim, and the two must not be layered:
+   * a bin found by name is matched along its whole label, so the amber covered the blue completely and
+   * a selected bin still read as merely "found".
+   */
+  const nameMatchQuery =
+    isChangeAllocationSource || isChangeAllocationTarget ? '' : binNameHighlightQuery;
 
 
   // Any state that draws its own coloured stroke on this card — see the resting outline below.
@@ -294,7 +326,7 @@ export default function BinCard({
       >
         <div className="flex-1 box-border content-stretch flex flex-col gap-0.5 items-start justify-start min-w-0 p-0 relative">
           <div className="w-full flex flex-col font-normal justify-center leading-[0] not-italic relative text-[#020817] text-xs text-left">
-            <p className="block leading-[16px] text-[14px] text-[11px]">{highlightText(product.name, highlightQueryFor(product), productHighlightColor, product)}</p>
+            <p className="block leading-[16px] text-[14px] text-[11px]">{highlightText(product.name, highlightQueryFor(product), productHighlightColorFor(product), product)}</p>
           </div>
           <div className="flex items-center gap-1 my-1">
             <span className="bg-[#D1D5DB] text-[#111827] text-[9px] font-medium px-1.5 py-0.5 rounded">{getVialType(product)}</span>
@@ -306,7 +338,7 @@ export default function BinCard({
             )}
           </div>
           <div className="flex flex-col font-normal justify-center leading-[0] not-italic relative shrink-0 text-[#676b74] text-xs text-left w-full">
-            <p className="block leading-[16px] break-words overflow-hidden text-[14px]">{highlightNDC(`${product.ndc} - ${product.inventoryType}`, highlightQueryFor(product), productHighlightColor, product)}</p>
+            <p className="block leading-[16px] break-words overflow-hidden text-[14px]">{highlightNDC(`${product.ndc} - ${product.inventoryType}`, highlightQueryFor(product), productHighlightColorFor(product), product)}</p>
           </div>
         </div>
         <div className="bg-[#f7f7f7] box-border content-stretch flex flex-col items-center justify-center p-[4px] relative rounded shrink-0 w-12">
@@ -398,24 +430,17 @@ export default function BinCard({
                 apart, so the header stays there. */}
             {!isFridgeBin && (
               <div className="box-border content-stretch flex flex-row items-center justify-start p-0 relative shrink-0 w-full mb-2">
-                <div className="basis-0 flex flex-col font-bold grow justify-center leading-[0] min-h-px min-w-px not-italic relative shrink-0 text-[#020817] text-xs text-left">
+                <div
+                  className="basis-0 flex flex-col font-bold grow justify-center leading-[0] min-h-px min-w-px not-italic relative shrink-0 text-xs text-left"
+                  style={{ color: binNameColor }}
+                >
                   <p className="block leading-[12px] text-[14px]">
-                    {/* The name carries the match when the search was FOR this bin. The card's amber
-                        stroke says a match landed here but not what matched — with a product query
-                        the highlighted row inside answers that, and with a bin-name query nothing
-                        did, so the one bin the operator named looked the same as a bin that merely
-                        holds a hit. Scoped to the group naming this bin (binNameQueryGroup) rather
-                        than the whole query, so a product term that happens to appear in a bin's
-                        label can't tint it. Same colour as the products below: amber for a hit,
-                        blue once it's a source, green once it's a target. */}
-                    {/* Always the search amber, never the source blue or target green the products
-                        below take. Those colours mean "this bin is committed to the move"; this one
-                        means "this is the bin you went looking for", and the two are independent
-                        facts that can both be true at once. Recolouring the name with the selection
-                        would make the highlight look like part of the selection, which is the exact
-                        conflation that had choosing one Bin 1A light all eight. */}
-                    {binNameHighlightQuery
-                      ? highlightText(bin.name, binNameHighlightQuery, SEARCH_HIGHLIGHT_COLOR)
+                    {/* Amber over the part of the label the query accounts for (binNameQueryGroup, so
+                        a product term appearing in a bin's label can't tint it) — but only while the
+                        bin is nothing more than a search hit. Once selected, nameMatchQuery is empty
+                        and the name shows the selection colour set above. */}
+                    {nameMatchQuery
+                      ? highlightText(bin.name, nameMatchQuery, SEARCH_HIGHLIGHT_COLOR)
                       : bin.name}{' '}
                     <span className="text-[#7A7D85]">({getBinSizeDisplay(bin.size)})</span>
                   </p>

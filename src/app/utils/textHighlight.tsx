@@ -67,10 +67,14 @@ export const doesProductMatchSearch = (
 // (text-[#A16207]). Change those with this one or the highlight will disagree with itself.
 export const SEARCH_HIGHLIGHT_COLOR = '#A16207';
 
-// Once a bin is committed to an allocation, its matched products stop being "found" and start being
-// "going somewhere" — so they take the colour of that commitment instead of the search amber. Both
-// are the bin's own stroke colour, which is the whole point: the text and the outline around it say
-// the same thing. Amber means the search found this; blue means it's a source; green means a target.
+// The colour a COMMITTED bin says so in — its own stroke colour, and the colour of its name on the
+// card. Blue means Move From, green means Move To.
+//
+// These deliberately do NOT reach the matched product text inside the bin, which stays amber whatever
+// the bin becomes. They did once, on the theory that a matched product stops being "found" and starts
+// being "going somewhere" — but the amber means "this is what you searched for", and that stays true
+// after the bin is selected. In practice it meant searching a product in a Bin move lit it amber and
+// then tapping the bin turned the same text blue: a selection rewriting a highlight.
 //
 // Blue is border-blue-600 exactly (3.87:1 against body text, 5.17:1 on white). Green is one step
 // deeper than its border-green-600 stroke: #16A34A reads fine as a 1px outline (non-text only needs

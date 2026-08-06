@@ -16,6 +16,8 @@ interface MainLayoutProps {
   // Move by Product, source step: a row in the "+N more" panel selects the product instead of opening
   // its detail page. Same pair BinCard takes; App decides when it applies.
   allProductsCanPickSourceProduct?: boolean;
+  // Which of the open bin's products are already picked, so the panel marks them as the shelf card does.
+  allProductsPickedProductKeys?: string[];
   // What to say when a product row in that panel can't be tapped — resolved in App, which holds the
   // move's mode and step. Null when the tap is legitimate.
   allProductsTapRefusal?: string | null;
@@ -62,6 +64,7 @@ export default function MainLayout({
   searchQuery,
   onAllProductsProductClick,
   allProductsCanPickSourceProduct,
+  allProductsPickedProductKeys,
   allProductsTapRefusal = null,
   onAllProductsSelectSourceProduct,
   closeAllProducts,
@@ -147,6 +150,7 @@ export default function MainLayout({
           searchQuery={searchQuery ?? ''}
           onProductClick={onAllProductsProductClick}
           canPickSourceProduct={allProductsCanPickSourceProduct}
+          pickedProductKeys={allProductsPickedProductKeys}
           tapRefusal={allProductsTapRefusal}
           onSelectSourceProduct={onAllProductsSelectSourceProduct}
           onClose={closeAllProducts ?? (() => {})}

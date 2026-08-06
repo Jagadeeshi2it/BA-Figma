@@ -28,6 +28,7 @@ import { doesProductMatchSearch } from "./utils/textHighlight";
 import { ProductTransfer } from "./types";
 import { planMoveRoute, twoPhaseWalkOrder, RouteBin } from "./utils/moveRoute";
 import { isFridgeDoor } from "./utils/doorUtils";
+import { productKeysForBin } from "./utils/sourcePicks";
 import { productTapRefusal } from "./components/PipelineSteps";
 import {
   getCurrentShelves,
@@ -706,6 +707,13 @@ export default function App() {
             inventoryState.moveMode === 'product' &&
             inventoryState.changeAllocationStep === 1
           }
+          // Scoped to the bin this panel was opened from, exactly as the bin card scopes its own rows —
+          // a product picked in some other bin must not read as picked here.
+          allProductsPickedProductKeys={
+            allProductsBinId
+              ? productKeysForBin(inventoryState.sourceProductPicks, allProductsBinId)
+              : []
+          }
           onAllProductsSelectSourceProduct={product => {
             if (!allProductsBinId) return;
             inventoryState.handleSelectSourceProductFromBin(allProductsBinId, product);
@@ -765,6 +773,7 @@ export default function App() {
               handleSelectBinsForAssignment={inventoryState.handleSelectBinsForAssignment}
               handleSelectSourceBinsFromSearch={inventoryState.handleSelectSourceBinsFromSearch}
               handleSelectTargetBinsFromSearch={inventoryState.handleSelectTargetBinsFromSearch}
+              handleRemoveSourceProduct={inventoryState.handleRemoveSourceProduct}
               handleSelectBinFromSearch={inventoryState.handleSelectBinFromSearch}
               handleHighlightBins={inventoryState.handleHighlightBins}
               handleSearchProductClick={inventoryState.handleSearchProductClick}
@@ -803,6 +812,7 @@ export default function App() {
             ) : allocationPanel ? (
               <AllocationSelectionPanel
                 role={allocationPanel}
+                moveMode={inventoryState.moveMode}
                 bins={allocationPanel === 'source' ? getSourceBins : getTargetBins}
                 sourceQuery={inventoryState.changeAllocationSourceQuery ?? ''}
             sourceProductPicks={inventoryState.sourceProductPicks}
