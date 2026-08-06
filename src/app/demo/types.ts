@@ -22,17 +22,22 @@ export type DemoStepKind =
   // Wait for the target to appear without touching it. Used where the app needs a beat and the
   // next step's target is not the thing being waited on.
   | 'await'
-  // Caption only. No cursor movement, no interaction — the opening and closing beats.
+  // A pause. No cursor movement, no interaction — the opening and closing beats, which give the
+  // viewer a moment to take in the screen before anything moves and to see the result afterwards.
   | 'note';
 
 export interface DemoStep {
   kind: DemoStepKind;
   /**
-   * Shown beside the cursor while the step runs. This is what makes the demo a demonstration
-   * rather than a ghost clicking things, so every step has one — including notes, which are
-   * nothing but their caption.
+   * What this step is, in a few words. Named, not narrated: it appears only inside the demo control
+   * panel and only while that panel is expanded — nothing is ever drawn over the app itself.
+   *
+   * This started out as a caption pinned beside the cursor and was removed. A walkthrough that
+   * explains every click in a black box floating over the screen stops being a demonstration of the
+   * app and becomes a slideshow about it — and it hides the very interface it is meant to be
+   * showing off. The cursor, the ring and the app's own state changes carry the meaning now.
    */
-  caption: string;
+  label: string;
   target?: DemoTarget;
   /** `type` only. */
   text?: string;

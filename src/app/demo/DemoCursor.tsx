@@ -2,53 +2,35 @@ import React from 'react';
 import { useDemo } from './DemoContext';
 
 /**
- * The virtual cursor, the ring that precedes it, and the caption that explains what it is about to
- * do.
+ * The virtual cursor and the ring that precedes it. Nothing else.
  *
- * All three are `pointer-events-none` and all three live at document level rather than inside the
- * app — including inside the tablet simulator's frame, which is a CSS-scaled `fixed inset-0`
- * element (CLAUDE.md §4). Radix overlays have to portal INTO that frame to be visible; the cursor
- * is the opposite case and must sit above it, and `getBoundingClientRect` already returns
- * post-transform viewport coordinates, so the same numbers are right in both modes.
+ * A caption used to ride alongside, naming each act as it happened. It was removed deliberately: a
+ * walkthrough that explains every click in a black box over the screen stops demonstrating the app
+ * and starts talking about it — and it covers the interface it exists to show. What is left is a
+ * ring that says *where* and an app that says *what*, through its own state changes, highlights and
+ * transitions. The step's name is still available, in the control panel, for anyone who wants it.
+ *
+ * Both live at document level rather than inside the app — including inside the tablet simulator's
+ * frame, which is a CSS-scaled `fixed inset-0` element (CLAUDE.md §4). Radix overlays have to portal
+ * INTO that frame to be visible; the cursor is the opposite case and must sit above it, and
+ * `getBoundingClientRect` already returns post-transform viewport coordinates, so the same numbers
+ * are right in both modes.
  *
  * The transform is written imperatively by the runner through `cursorRef` — never through React
  * state. It moves at frame rate, and re-rendering anything 60 times a second to drag an arrow
  * across the screen would make the demo stutter on exactly the machines that need it most.
  */
 export default function DemoCursor() {
-  const { cursorRef, pressed, highlight, caption, status } = useDemo();
+  const { cursorRef, pressed, highlight, status } = useDemo();
 
-  const walking = status === 'running' || status === 'paused';
-  // The closing caption outlives the walk. It is the line that says what just happened, and hiding
-  // it the instant the last step ends takes the explanation away at the moment it is being read.
-  // The cursor and ring do go — there is nothing left to point at.
-  if (!walking && status !== 'finished') return null;
-
-  // The caption sits with the thing being pointed at, not in a bar at the edge of the screen — the
-  // two are one message, and separating them makes the reader look in two places. It goes below the
-  // ring, or above when the ring is near the bottom. Steps with no target (the opening and closing
-  // beats) have nothing to sit beside, so they take the centre.
-  const captionBelow = highlight ? highlight.top + highlight.height + 12 : 0;
-  const captionAbove = highlight ? highlight.top - 12 : 0;
-  const roomBelow = typeof window !== 'undefined' && captionBelow < window.innerHeight - 90;
-  const captionStyle: React.CSSProperties = highlight
-    ? {
-        top: roomBelow ? captionBelow : undefined,
-        bottom: roomBelow ? undefined : Math.max(16, window.innerHeight - captionAbove),
-        left: Math.min(
-          Math.max(16, highlight.left + highlight.width / 2),
-          (typeof window !== 'undefined' ? window.innerWidth : 1920) - 16
-        ),
-        transform: 'translateX(-50%)',
-      }
-    : { bottom: 96, left: '50%', transform: 'translateX(-50%)' };
+  if (status !== 'running' && status !== 'paused') return null;
 
   return (
     <>
       {/* The ring. Drawn as an outline offset outward so it never covers the control it is calling
           attention to — a filled or inset highlight hides the label the viewer is being asked to
           read. */}
-      {walking && highlight && (
+      {highlight && (
         <div
           className="pointer-events-none fixed z-[10035] rounded-[6px]"
           style={{
@@ -62,16 +44,6 @@ export default function DemoCursor() {
         />
       )}
 
-      {caption && (
-        <div
-          className="pointer-events-none fixed z-[10040] max-w-[420px] rounded-[6px] bg-[#020817] px-3 py-2 text-[13px] leading-[18px] text-white shadow-[0_6px_20px_rgba(0,0,0,0.28)]"
-          style={captionStyle}
-        >
-          {caption}
-        </div>
-      )}
-
-      {walking && (
       <div
         ref={cursorRef}
         className="pointer-events-none fixed top-0 left-0 z-[10045]"
@@ -110,7 +82,6 @@ export default function DemoCursor() {
           <path d="M5 2.5 L5 19.5 L9.4 15.4 L12.1 21.5 L15.2 20.1 L12.5 14.2 L18.5 14.0 Z" fill="#095192" stroke="#ffffff" strokeWidth="1.4" strokeLinejoin="round" />
         </svg>
       </div>
-      )}
     </>
   );
 }

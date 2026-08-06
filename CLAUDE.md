@@ -881,6 +881,15 @@ been missed, which is why `Allocate/Move` did nothing in tablet mode. **Any new 
 pass `container={portalContainer ?? undefined}` to its `Portal`.** Symptom to recognise: works in
 desktop, dead in tablet, no console error.
 
+### A `fixed` element at `left-1/2` is capped at half the viewport
+
+`fixed top-3 left-1/2 -translate-x-1/2` with no width is the standard centring recipe, and the
+transform makes it *look* right — but the element's available width is only what remains to the
+right of `left: 50%`. A flex row inside then squeezes its children to fit that half, silently: the
+demo control panel lost its `Next` button entirely and truncated a label to two characters, which
+reads as a rendering bug rather than a sizing one. `w-max` (plus a `max-w-[calc(100vw-…)]`) makes it
+size to content instead.
+
 ### Flex children stretch by default
 
 A figure/quantity box in a row without `items-start` grows to the row's full height. Two panels had
@@ -1032,8 +1041,8 @@ edits it needed inside the app were five `data-demo` attributes.
 | `demo/types.ts` | `DemoScenario` / `DemoStep`. Four step kinds: `click`, `type`, `await`, `note`. |
 | `demo/dom.ts` | Finding a target, waiting for it, real event sequences, typing into a controlled input. |
 | `demo/DemoContext.tsx` | The state machine and the loop that walks a scenario. |
-| `demo/DemoCursor.tsx` | The cursor, the ring, the caption. |
-| `demo/DemoIndicator.tsx` | The "Demo Mode" bar and its Pause / Restart / Take over controls. |
+| `demo/DemoCursor.tsx` | The cursor and the ring. |
+| `demo/DemoControlPanel.tsx` | The minimised control panel and its transport. |
 | `demo/DemoPalette.tsx` | The `/` palette. |
 | `demo/scenarios/` | The scenarios themselves, plus the registry the palette reads. |
 
@@ -1061,6 +1070,44 @@ Four consequences, each of which cost a debugging round:
   backgrounded tab, so a rAF-based sleep never resolves there — the walk stops dead mid-step with no
   error, which looks exactly like a broken app. The cursor *animation* still uses rAF, with a
   watchdog that jumps it to the destination if no frame arrives.
+
+### Nothing is drawn over the app but a ring
+
+There are no captions and no callouts. A caption used to ride beside the cursor naming each act;
+it was removed at the operator's request and the reasoning is worth keeping, because it will be
+tempting to add back. A walkthrough that explains every click in a black box over the screen stops
+demonstrating the app and starts talking about it — and it covers the interface it exists to show
+off. What is left is a ring that says **where**, and an app that says **what**, through its own
+state changes, highlights and transitions.
+
+So the pacing carries the explanation. `settleMs` after a click is not padding: it is the time the
+viewer has to notice what the click changed, and the two `note` steps exist only to buy that time
+(one before anything moves, one on the result). A step's `label` still exists, but it is a name
+rather than a sentence and it renders only inside the control panel, only while expanded.
+
+### The control panel is minimised by default
+
+At rest: a status dot and two icons, **Restart** and **Take over** — the two a viewer reaches for
+without having planned to. Hover, focus, or a tap on the dot expands it to the step name, the
+counter, and the transport: **Previous · Play/Pause · Next**. A control bar parked over the app for
+the whole walkthrough is the same clutter the captions were, so it earns its space only when
+reached for.
+
+- **Collapsing animates `grid-template-columns: 0fr → 1fr`**, not a max-width. The content decides
+  its own width, so a longer scenario title or a translated label cannot be clipped by a number
+  somebody picked once.
+- **A grace period on the way out** (260ms) — the panel shrinks as the pointer leaves, which can
+  pull an edge out from under a cursor heading for a button.
+- **Next runs exactly one step, then pauses again.** The gate releases on `stepOnceRef`, which the
+  loop clears as it passes.
+- **Previous reloads and replays.** App state cannot be rewound — nothing un-ticks a product or
+  un-allocates a bin — so the only honest way back to step n is to rebuild the state step n was
+  reached with: `?demo=<id>&step=<n>` runs steps 0…n-1 with no cursor animation and no settles, then
+  pauses. Re-running a click without rewinding the state behind it would toggle the very thing the
+  step did, so "back" would mean "undo something else".
+- **`arriveAt` counts steps to replay, and the panel shows `stepIndex + 1`.** So Previous passes
+  `stepIndex`, not `stepIndex - 1`. Getting that wrong steps back two at a time, which reads as the
+  button being broken rather than off by one.
 
 ### Anchors are `data-demo`, never text or structure
 
@@ -1104,9 +1151,6 @@ obvious next move is to poke at the result, so exiting must not undo it.
 - **The cursor is written imperatively.** `cursorRef.current.style.transform`, never React state — it
   moves at frame rate. Nothing else re-renders either: `<App />` is created once in `main.tsx` and
   never consumes the demo context, so React skips it entirely when a step advances.
-- **The caption sits with the ring, not in a bar at the screen edge** — the two are one message. It
-  survives into the `finished` state after the cursor and ring have gone, because the closing line
-  is the one being read at that moment.
 
 ### Adding a scenario
 

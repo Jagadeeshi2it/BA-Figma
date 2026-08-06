@@ -24,8 +24,8 @@ import {
  *
  * The provider wraps App but App is not a consumer of it, and the `children` element is created
  * once in main.tsx — so React bails out of re-rendering the app when this state changes. That is
- * what makes it safe for the runner to update a caption between every step; nothing but the
- * overlay re-renders.
+ * what makes it safe for the runner to update the step between every act; nothing but the overlay
+ * re-renders.
  *
  * The cursor is the exception and is deliberately NOT React state: it moves at frame rate, so the
  * runner writes its transform straight to the DOM node through `cursorRef`.
@@ -46,7 +46,7 @@ interface DemoContextValue {
   scenarios: DemoScenario[];
   stepIndex: number;
   stepCount: number;
-  caption: string;
+  stepLabel: string;
   failure: string | null;
   highlight: HighlightRect | null;
   pressed: boolean;
@@ -55,8 +55,12 @@ interface DemoContextValue {
   openPalette: () => void;
   closePalette: () => void;
   start: (scenarioId: string) => void;
+  play: () => void;
   pause: () => void;
-  resume: () => void;
+  nextStep: () => void;
+  previousStep: () => void;
+  canStepBack: boolean;
+  canStepForward: boolean;
   restart: () => void;
   exit: () => void;
 }
@@ -71,6 +75,8 @@ export function useDemo() {
 
 /** The scenario to auto-run on load. See `start` for why entering Demo Mode goes through the URL. */
 const DEMO_PARAM = 'demo';
+/** Which step to arrive at. See `previousStep` for why stepping back is a URL round trip. */
+const STEP_PARAM = 'step';
 
 const easeInOutCubic = (t: number) =>
   t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
@@ -82,7 +88,7 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
   const [status, setStatus] = useState<DemoStatus>('idle');
   const [scenario, setScenario] = useState<DemoScenario | null>(null);
   const [stepIndex, setStepIndex] = useState(0);
-  const [caption, setCaption] = useState('');
+  const [stepLabel, setStepLabel] = useState('');
   const [failure, setFailure] = useState<string | null>(null);
   const [highlight, setHighlight] = useState<HighlightRect | null>(null);
   const [pressed, setPressed] = useState(false);
@@ -94,6 +100,8 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
   // Read by the inter-step gate. A ref rather than the status state because the loop is a plain
   // async function — it cannot see a re-render, only what the ref holds when it next looks.
   const pausedRef = useRef(false);
+  // Set by Next Step: releases the gate for exactly one step, then the walk pauses again.
+  const stepOnceRef = useRef(false);
   // Set only when the tab going into the background paused the walk, so returning to the tab does
   // not resume a demo the viewer paused deliberately.
   const autoPausedRef = useRef(false);
@@ -108,14 +116,17 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
    * Glide, don't teleport. Duration scales with distance so a short hop across a panel does not
    * take as long as a trip across the cabinet, and the easing is the point of the whole thing —
    * a linear cursor reads as a machine, an eased one reads as a hand.
+   *
+   * `fast` skips it entirely: that is the replay pass rebuilding state before a Previous Step, and
+   * nobody is meant to watch it.
    */
   const moveCursorTo = useCallback(
-    (x: number, y: number, token: DemoRunToken) =>
+    (x: number, y: number, token: DemoRunToken, fast: boolean) =>
       new Promise<void>(resolve => {
         const from = cursorPos.current;
         const distance = Math.hypot(x - from.x, y - from.y);
         // Nothing to animate in a tab nobody is looking at, and rAF would not run there anyway.
-        if (distance < 1 || document.hidden) {
+        if (fast || distance < 1 || document.hidden) {
           writeCursor(x, y);
           resolve();
           return;
@@ -156,26 +167,36 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
    * Ring the target before touching it, so the eye is already there when the click lands. Drawn
    * from the live rect rather than a stored one: the shelves scroll, panels animate in, and a ring
    * pinned to a stale box is worse than none.
+   *
+   * This is the only thing Demo Mode draws over the app, and it is a pointer rather than a caption —
+   * it says where, and lets the app say what.
    */
   const ringTarget = useCallback((el: HTMLElement) => {
     const rect = el.getBoundingClientRect();
     setHighlight({ top: rect.top, left: rect.left, width: rect.width, height: rect.height });
   }, []);
 
-  /** Hold between steps while paused. This is why pausing never interrupts a half-finished click. */
-  const awaitResume = useCallback(async (token: DemoRunToken) => {
-    while (pausedRef.current && !token.cancelled) {
+  /**
+   * Hold between steps while paused, and release for exactly one step when Next Step asks.
+   *
+   * Gating between steps rather than inside one is what makes pausing safe: a pause never leaves
+   * half an interaction done, and resuming can never re-run a click that already landed.
+   */
+  const awaitGate = useCallback(async (token: DemoRunToken) => {
+    while (pausedRef.current && !stepOnceRef.current && !token.cancelled) {
       await sleep(80, token);
     }
+    if (stepOnceRef.current) stepOnceRef.current = false;
   }, []);
 
   const runStep = useCallback(
-    async (step: DemoStep, token: DemoRunToken): Promise<boolean> => {
-      setCaption(step.caption);
+    async (step: DemoStep, token: DemoRunToken, fast: boolean): Promise<boolean> => {
+      setStepLabel(step.label);
+      const settle = fast ? 0 : step.settleMs;
 
       if (step.kind === 'note') {
         setHighlight(null);
-        await sleep(step.settleMs ?? 1200, token);
+        await sleep(settle ?? 1200, token);
         return true;
       }
 
@@ -184,7 +205,7 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
       const el = await waitForTarget(step.target, token, 8000);
       if (token.cancelled) return false;
       if (!el) {
-        setFailure(`Could not find what this step needed: "${step.caption}"`);
+        setFailure(`Step ${step.label} could not find what it needed.`);
         setStatus('failed');
         return false;
       }
@@ -196,12 +217,12 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
       // clicking a detached element is a click that silently does nothing.
       const live = resolveTarget(step.target) ?? el;
       const { x, y } = centreOf(live);
-      ringTarget(live);
-      await moveCursorTo(x, y, token);
+      if (!fast) ringTarget(live);
+      await moveCursorTo(x, y, token, fast);
       if (token.cancelled) return false;
 
       if (step.kind === 'await') {
-        await sleep(step.settleMs ?? 600, token);
+        await sleep(settle ?? 600, token);
         return true;
       }
 
@@ -209,33 +230,42 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
         const input = live as HTMLInputElement;
         setPressed(true);
         dispatchRealClick(input, x, y);
-        await sleep(120, token);
+        await sleep(fast ? 0 : 120, token);
         setPressed(false);
-        await typeInto(input, step.text ?? '', token);
-        await sleep(step.settleMs ?? 700, token);
+        await typeInto(input, step.text ?? '', token, fast ? 0 : 55);
+        await sleep(settle ?? 700, token);
         return true;
       }
 
       // click
       setPressed(true);
-      await sleep(110, token);
+      await sleep(fast ? 0 : 110, token);
       dispatchRealClick(live, x, y);
-      await sleep(110, token);
+      await sleep(fast ? 0 : 110, token);
       setPressed(false);
-      await sleep(step.settleMs ?? 700, token);
+      await sleep(settle ?? 700, token);
       return true;
     },
     [moveCursorTo, ringTarget]
   );
 
+  /**
+   * Walk the scenario, optionally replaying the first `arriveAt` steps at speed and stopping there.
+   *
+   * The replay is how Previous Step works. App state cannot be rewound — nothing can un-tick a
+   * product or un-allocate a bin — so the only honest way back to step n is to rebuild the state
+   * step n was reached with. It runs with no cursor animation and no settles, which makes it a
+   * flicker rather than a second viewing.
+   */
   const runScenario = useCallback(
-    async (toRun: DemoScenario) => {
+    async (toRun: DemoScenario, arriveAt = 0) => {
       // Cancel anything already walking before taking over, or two loops drive one cursor.
       if (tokenRef.current) tokenRef.current.cancelled = true;
       const token: DemoRunToken = { cancelled: false };
       tokenRef.current = token;
 
       pausedRef.current = false;
+      stepOnceRef.current = false;
       setScenario(toRun);
       setFailure(null);
       setHighlight(null);
@@ -244,17 +274,26 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
       writeCursor(parkingSpot().x, parkingSpot().y);
 
       for (let i = 0; i < toRun.steps.length; i++) {
-        await awaitResume(token);
-        if (token.cancelled) return;
+        const fast = i < arriveAt;
+        if (!fast) {
+          // Arriving at a step the viewer asked to be positioned on: stop here and wait for Play or
+          // Next, rather than running on past the step they were trying to look at.
+          if (i === arriveAt && arriveAt > 0) {
+            pausedRef.current = true;
+            setStatus('paused');
+          }
+          await awaitGate(token);
+          if (token.cancelled) return;
+        }
         setStepIndex(i);
-        const ok = await runStep(toRun.steps[i], token);
+        const ok = await runStep(toRun.steps[i], token, fast);
         if (!ok || token.cancelled) return;
       }
 
       setHighlight(null);
       setStatus('finished');
     },
-    [awaitResume, runStep, writeCursor]
+    [awaitGate, runStep, writeCursor]
   );
 
   /**
@@ -266,10 +305,18 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
    * both stop being true the moment anyone (including a previous run of this same demo) does the
    * thing it demonstrates. The palette says the current session will be discarded.
    */
-  const start = useCallback((scenarioId: string) => {
+  const start = useCallback((scenarioId: string, arriveAt?: number) => {
     const url = new URL(window.location.href);
     url.searchParams.set(DEMO_PARAM, scenarioId);
+    if (arriveAt && arriveAt > 0) url.searchParams.set(STEP_PARAM, String(arriveAt));
+    else url.searchParams.delete(STEP_PARAM);
     window.location.replace(url.toString());
+  }, []);
+
+  const play = useCallback(() => {
+    autoPausedRef.current = false;
+    pausedRef.current = false;
+    setStatus('running');
   }, []);
 
   const pause = useCallback(() => {
@@ -277,10 +324,26 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
     setStatus('paused');
   }, []);
 
-  const resume = useCallback(() => {
-    pausedRef.current = false;
-    setStatus('running');
+  /** One step, then stop again. Pauses first, so it also works as "pause and advance" while playing. */
+  const nextStep = useCallback(() => {
+    pausedRef.current = true;
+    stepOnceRef.current = true;
+    setStatus('paused');
   }, []);
+
+  /**
+   * Back one step — a reload and a fast replay, for the reason given on `runScenario`. Costly, and
+   * the alternative is worse: re-running a click without rewinding the state behind it would toggle
+   * the very thing the step did, so "back" would mean "undo something else".
+   */
+  const previousStep = useCallback(() => {
+    if (!scenario || stepIndex <= 0) return;
+    // `stepIndex`, not `stepIndex - 1`. `arriveAt` counts the steps to REPLAY, and the panel shows
+    // `stepIndex + 1` — the step just completed. So replaying `stepIndex` steps (0 … stepIndex-1)
+    // lands on the one before it, which is what Previous means. Handing it `stepIndex - 1` skipped
+    // back two.
+    start(scenario.id, stepIndex);
+  }, [scenario, stepIndex, start]);
 
   const restart = useCallback(() => {
     if (scenario) start(scenario.id);
@@ -289,19 +352,21 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
   /**
    * Stop the walk and hand the app back, in the state the demo left it in. Deliberately not a
    * reload: the operator has just watched something happen and the obvious next move is to poke at
-   * the result. The URL parameter goes, though, or a refresh would silently restart the demo.
+   * the result. The URL parameters go, though, or a refresh would silently restart the demo.
    */
   const exit = useCallback(() => {
     if (tokenRef.current) tokenRef.current.cancelled = true;
     pausedRef.current = false;
+    stepOnceRef.current = false;
     setStatus('idle');
     setScenario(null);
     setHighlight(null);
-    setCaption('');
+    setStepLabel('');
     setFailure(null);
     const url = new URL(window.location.href);
-    if (url.searchParams.has(DEMO_PARAM)) {
+    if (url.searchParams.has(DEMO_PARAM) || url.searchParams.has(STEP_PARAM)) {
       url.searchParams.delete(DEMO_PARAM);
+      url.searchParams.delete(STEP_PARAM);
       window.history.replaceState({}, '', url.toString());
     }
   }, []);
@@ -322,20 +387,24 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
         }
       } else if (autoPausedRef.current) {
         autoPausedRef.current = false;
-        resume();
+        play();
       }
     };
     document.addEventListener('visibilitychange', onVisibilityChange);
     return () => document.removeEventListener('visibilitychange', onVisibilityChange);
-  }, [status, pause, resume]);
+  }, [status, pause, play]);
 
   // Pick up ?demo=<id> on load. Waits for the app's own chrome to exist first: on a cold load the
   // first step's target is not mounted yet, and a scenario that begins by failing to find the
   // header would be indistinguishable from a broken anchor.
   useEffect(() => {
-    const id = new URL(window.location.href).searchParams.get(DEMO_PARAM);
-    const toRun = findScenario(id);
+    const params = new URL(window.location.href).searchParams;
+    const toRun = findScenario(params.get(DEMO_PARAM));
     if (!toRun) return;
+    const arriveAt = Math.max(
+      0,
+      Math.min(toRun.steps.length - 1, Number(params.get(STEP_PARAM) ?? 0) || 0)
+    );
     let cancelledByUnmount = false;
     const token: DemoRunToken = { cancelled: false };
     (async () => {
@@ -349,7 +418,7 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
       }
       await sleep(400, token);
       if (cancelledByUnmount) return;
-      runScenario(toRun);
+      runScenario(toRun, arriveAt);
     })();
     return () => {
       cancelledByUnmount = true;
@@ -401,6 +470,8 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
     };
   }, [highlight, scenario, status, stepIndex]);
 
+  const walking = status === 'running' || status === 'paused';
+
   const value = useMemo<DemoContextValue>(
     () => ({
       status,
@@ -408,7 +479,7 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
       scenarios: demoScenarios,
       stepIndex,
       stepCount: scenario?.steps.length ?? 0,
-      caption,
+      stepLabel,
       failure,
       highlight,
       pressed,
@@ -417,23 +488,30 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
       openPalette: () => setPaletteOpen(true),
       closePalette: () => setPaletteOpen(false),
       start,
+      play,
       pause,
-      resume,
+      nextStep,
+      previousStep,
+      canStepBack: walking && stepIndex > 0,
+      canStepForward: walking && stepIndex < (scenario?.steps.length ?? 0) - 1,
       restart,
       exit,
     }),
     [
       status,
+      walking,
       scenario,
       stepIndex,
-      caption,
+      stepLabel,
       failure,
       highlight,
       pressed,
       paletteOpen,
       start,
+      play,
       pause,
-      resume,
+      nextStep,
+      previousStep,
       restart,
       exit,
     ]

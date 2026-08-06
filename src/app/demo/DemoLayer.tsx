@@ -2,7 +2,7 @@ import React from 'react';
 import { createPortal } from 'react-dom';
 import { useDemo } from './DemoContext';
 import DemoCursor from './DemoCursor';
-import DemoIndicator from './DemoIndicator';
+import DemoControlPanel from './DemoControlPanel';
 import DemoPalette from './DemoPalette';
 
 /**
@@ -24,7 +24,7 @@ export default function DemoLayer() {
           about to tick, closing the panel it is about to type into — desynchronises the whole walk,
           and the failure looks like a broken app rather than a race. Synthetic events are
           dispatched straight onto their target and are not hit-tested, so the shield does not block
-          the demo's own clicks; the indicator sits above it, so its controls stay live.
+          the demo's own clicks; the control panel sits above it, so its controls stay live.
 
           Not shown once the walk is finished: at that point the app is the point. */}
       {walking && (
@@ -39,7 +39,7 @@ export default function DemoLayer() {
         />
       )}
       <DemoCursor />
-      <DemoIndicator />
+      <DemoControlPanel />
       <DemoPalette />
     </>,
     document.body

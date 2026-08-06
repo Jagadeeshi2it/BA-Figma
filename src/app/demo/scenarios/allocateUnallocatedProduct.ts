@@ -19,7 +19,7 @@ const PRODUCT_SEARCH = 'SOLU-CORTEF';
  * The first bin on the open door that has room, resolved when the step runs rather than written as
  * a fixed bin id: which bins are empty is a property of the seed, and the seed is expected to be
  * replaced by real cabinet data. `data-bin-available` is set by BinCard from the same `bin.available`
- * that draws the green stroke, so the demo taps a bin the operator can see is free.
+ * that draws the green stroke, so the demo taps a bin the viewer can see is free.
  *
  * Door 1 is the door the app opens on and holds nine available bins in the current seed, so no
  * door-switching step is needed. If that stops being true this returns null and the runner stops
@@ -27,68 +27,60 @@ const PRODUCT_SEARCH = 'SOLU-CORTEF';
  */
 const firstEmptyBin = () => document.querySelector('[data-bin-id][data-bin-available="true"]');
 
+/**
+ * Labels name the step; they never narrate it. They are read in the control panel, not over the
+ * app — see `DemoStep.label`. The pacing is what does the explaining: the settle after a click is
+ * long enough for the viewer to see what the click changed.
+ */
 export const allocateUnallocatedProduct: DemoScenario = {
   id: 'allocate-unallocated-product',
   title: 'Allocate an Unallocated Product',
   description: 'Assign a product that has no bin at all to an empty bin.',
   steps: [
-    {
-      kind: 'note',
-      caption: 'Some products in the catalogue have no bin yet. This is how one gets a home.',
-      settleMs: 1600,
-    },
+    // A beat before anything moves, so the cursor does not appear to be mid-gesture already.
+    { kind: 'note', label: 'The cabinet, as it stands', settleMs: 900 },
+    { kind: 'click', label: 'Open the Allocate/Move menu', target: '[data-demo="workflow-trigger"]' },
     {
       kind: 'click',
-      caption: 'Every allocation and move starts here.',
-      target: '[data-demo="workflow-trigger"]',
-    },
-    {
-      kind: 'click',
-      caption: 'Allocate Product — the tray of products with no bin at all.',
+      label: 'Choose Allocate Product',
       target: '[data-demo="workflow-allocate-product"]',
       settleMs: 900,
     },
     {
       kind: 'await',
-      caption: 'The tray lists everything waiting for a bin.',
+      label: 'The unallocated tray opens',
       target: '[data-demo="unallocated-search"]',
-      settleMs: 1200,
+      settleMs: 1000,
     },
     {
       kind: 'type',
-      caption: 'Search by name, NDC or inventory type.',
+      label: 'Search the tray',
       target: '[data-demo="unallocated-search"]',
       text: PRODUCT_SEARCH,
       settleMs: 900,
     },
     {
       kind: 'click',
-      caption: 'Tick the product to allocate.',
+      label: 'Tick the product',
       target: '[data-demo="unallocated-product"]',
       settleMs: 1100,
     },
-    {
-      kind: 'note',
-      caption: 'Now the bin. Green means the bin has room.',
-      settleMs: 1400,
-    },
+    // The tick reveals the "Select bin(s) to allocate" line in the footer. Long enough to notice it.
+    { kind: 'note', label: 'The panel now asks for a bin', settleMs: 1300 },
     {
       kind: 'click',
-      caption: 'Tap an empty bin on the shelves — that is the allocation.',
+      label: 'Tap an empty bin',
       target: firstEmptyBin,
       settleMs: 1400,
     },
     {
       kind: 'click',
-      caption: 'Allocate. The button stays disabled until both a product and a bin are chosen.',
+      label: 'Allocate',
       target: '[data-demo="unallocated-allocate"]',
       settleMs: 1600,
     },
-    {
-      kind: 'note',
-      caption:
-        'Allocated. The bin now stocks the product at zero — stock arrives by moving it in, which is a different workflow.',
-      settleMs: 3000,
-    },
+    // The bin now stocks the product at zero, and the tray is one shorter. Both are on screen; the
+    // pause is what gives the viewer time to find them.
+    { kind: 'note', label: 'Allocated', settleMs: 2600 },
   ],
 };
