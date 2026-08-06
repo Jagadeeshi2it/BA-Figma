@@ -1041,8 +1041,8 @@ edits it needed inside the app were five `data-demo` attributes.
 | `demo/types.ts` | `DemoScenario` / `DemoStep`. Four step kinds: `click`, `type`, `await`, `note`. |
 | `demo/dom.ts` | Finding a target, waiting for it, real event sequences, typing into a controlled input. |
 | `demo/DemoContext.tsx` | The state machine and the loop that walks a scenario. |
-| `demo/DemoCursor.tsx` | The cursor and the ring. |
-| `demo/DemoControlPanel.tsx` | The minimised control panel and its transport. |
+| `demo/DemoCursor.tsx` | The cursor. |
+| `demo/DemoControlPanel.tsx` | The icon-only control panel and its transport. |
 | `demo/DemoPalette.tsx` | The `/` palette. |
 | `demo/scenarios/` | The scenarios themselves, plus the registry the palette reads. |
 
@@ -1071,33 +1071,43 @@ Four consequences, each of which cost a debugging round:
   error, which looks exactly like a broken app. The cursor *animation* still uses rAF, with a
   watchdog that jumps it to the destination if no frame arrives.
 
-### Nothing is drawn over the app but a ring
+### Nothing is drawn over the app but the cursor
 
-There are no captions and no callouts. A caption used to ride beside the cursor naming each act;
-it was removed at the operator's request and the reasoning is worth keeping, because it will be
-tempting to add back. A walkthrough that explains every click in a black box over the screen stops
-demonstrating the app and starts talking about it — and it covers the interface it exists to show
-off. What is left is a ring that says **where**, and an app that says **what**, through its own
-state changes, highlights and transitions.
+Two things used to accompany it and both were removed at the operator's request, in this order. The
+reasoning is worth keeping because both will be tempting to add back.
 
-So the pacing carries the explanation. `settleMs` after a click is not padding: it is the time the
-viewer has to notice what the click changed, and the two `note` steps exist only to buy that time
-(one before anything moves, one on the result). A step's `label` still exists, but it is a name
-rather than a sentence and it renders only inside the control panel, only while expanded.
+**Captions**, one per step, pinned beside the cursor. A walkthrough that explains every click in a
+black box over the screen stops demonstrating the app and starts talking about it — and it covers
+the interface it exists to show off.
 
-### The control panel is minimised by default
+**The ring** that marked each target just before the click. The cursor is already travelling to the
+control and pausing on it, so the ring said a second time what the movement had just said, in a
+heavier voice.
 
-At rest: a status dot and two icons, **Restart** and **Take over** — the two a viewer reaches for
-without having planned to. Hover, focus, or a tap on the dot expands it to the step name, the
-counter, and the transport: **Previous · Play/Pause · Next**. A control bar parked over the app for
-the whole walkthrough is the same clutter the captions were, so it earns its space only when
-reached for.
+What is left is a pointer that behaves like a hand, and an app that explains itself through its own
+state changes, highlights and transitions. So the pacing carries the explanation: `settleMs` after a
+click is not padding, it is the time the viewer has to notice what the click changed, and the two
+`note` steps exist only to buy that time (one before anything moves, one on the result). The press
+ripple stays — with the ring gone it is the only thing marking the moment of contact.
 
-- **Collapsing animates `grid-template-columns: 0fr → 1fr`**, not a max-width. The content decides
-  its own width, so a longer scenario title or a translated label cannot be clipped by a number
-  somebody picked once.
-- **A grace period on the way out** (260ms) — the panel shrinks as the pointer leaves, which can
-  pull an edge out from under a cursor heading for a button.
+A step's `label` survives as a name rather than a sentence. It is read in the control panel's
+tooltip and in the message shown when a step cannot find its target, and nowhere else.
+
+### The control panel is icon-only
+
+A status dot, a `n/N` counter, and six icons: **Previous · Play/Pause · Next │ Restart · Take
+over**. 219px while walking, 88px once it is over — the transport disappears with the walk rather
+than leaving dead buttons behind.
+
+It expanded on hover to reveal labels for a while. That traded one problem for another: compact, but
+three controls were unreachable without discovering that the panel expands, and a control you have
+to find is worse than a wide bar. Every button carries `aria-label` and `title`, so the name is
+there for a screen reader always and for a pointer on hover.
+
+- **The counter is the one thing that cannot be an icon**, and it stays: two characters, and without
+  it the panel is a row of anonymous buttons with no sense of how far through the walk is.
+- **The dot's tooltip is where the words went** — scenario, current step, or the reason it stopped.
+  Available to anyone who wants it, costing no pixels to anyone who doesn't.
 - **Next runs exactly one step, then pauses again.** The gate releases on `stepOnceRef`, which the
   loop clears as it passes.
 - **Previous reloads and replays.** App state cannot be rewound — nothing un-ticks a product or

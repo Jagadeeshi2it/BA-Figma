@@ -29,13 +29,14 @@ export type DemoStepKind =
 export interface DemoStep {
   kind: DemoStepKind;
   /**
-   * What this step is, in a few words. Named, not narrated: it appears only inside the demo control
-   * panel and only while that panel is expanded — nothing is ever drawn over the app itself.
+   * What this step is, in a few words. Named, not narrated: it is read in the control panel's
+   * tooltip and in the message shown if the step cannot find its target. Nothing is ever drawn over
+   * the app itself.
    *
    * This started out as a caption pinned beside the cursor and was removed. A walkthrough that
    * explains every click in a black box floating over the screen stops being a demonstration of the
    * app and becomes a slideshow about it — and it hides the very interface it is meant to be
-   * showing off. The cursor, the ring and the app's own state changes carry the meaning now.
+   * showing off. The cursor and the app's own state changes carry the meaning now.
    */
   label: string;
   target?: DemoTarget;

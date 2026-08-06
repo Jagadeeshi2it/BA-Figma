@@ -33,13 +33,6 @@ import {
 
 export type DemoStatus = 'idle' | 'running' | 'paused' | 'finished' | 'failed';
 
-export interface HighlightRect {
-  top: number;
-  left: number;
-  width: number;
-  height: number;
-}
-
 interface DemoContextValue {
   status: DemoStatus;
   scenario: DemoScenario | null;
@@ -48,7 +41,6 @@ interface DemoContextValue {
   stepCount: number;
   stepLabel: string;
   failure: string | null;
-  highlight: HighlightRect | null;
   pressed: boolean;
   cursorRef: React.MutableRefObject<HTMLDivElement | null>;
   paletteOpen: boolean;
@@ -90,7 +82,6 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
   const [stepIndex, setStepIndex] = useState(0);
   const [stepLabel, setStepLabel] = useState('');
   const [failure, setFailure] = useState<string | null>(null);
-  const [highlight, setHighlight] = useState<HighlightRect | null>(null);
   const [pressed, setPressed] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
 
@@ -164,19 +155,6 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
   );
 
   /**
-   * Ring the target before touching it, so the eye is already there when the click lands. Drawn
-   * from the live rect rather than a stored one: the shelves scroll, panels animate in, and a ring
-   * pinned to a stale box is worse than none.
-   *
-   * This is the only thing Demo Mode draws over the app, and it is a pointer rather than a caption —
-   * it says where, and lets the app say what.
-   */
-  const ringTarget = useCallback((el: HTMLElement) => {
-    const rect = el.getBoundingClientRect();
-    setHighlight({ top: rect.top, left: rect.left, width: rect.width, height: rect.height });
-  }, []);
-
-  /**
    * Hold between steps while paused, and release for exactly one step when Next Step asks.
    *
    * Gating between steps rather than inside one is what makes pausing safe: a pause never leaves
@@ -195,7 +173,6 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
       const settle = fast ? 0 : step.settleMs;
 
       if (step.kind === 'note') {
-        setHighlight(null);
         await sleep(settle ?? 1200, token);
         return true;
       }
@@ -217,7 +194,6 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
       // clicking a detached element is a click that silently does nothing.
       const live = resolveTarget(step.target) ?? el;
       const { x, y } = centreOf(live);
-      if (!fast) ringTarget(live);
       await moveCursorTo(x, y, token, fast);
       if (token.cancelled) return false;
 
@@ -246,7 +222,7 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
       await sleep(settle ?? 700, token);
       return true;
     },
-    [moveCursorTo, ringTarget]
+    [moveCursorTo]
   );
 
   /**
@@ -268,7 +244,6 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
       stepOnceRef.current = false;
       setScenario(toRun);
       setFailure(null);
-      setHighlight(null);
       setStepIndex(0);
       setStatus('running');
       writeCursor(parkingSpot().x, parkingSpot().y);
@@ -290,7 +265,6 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
         if (!ok || token.cancelled) return;
       }
 
-      setHighlight(null);
       setStatus('finished');
     },
     [awaitGate, runStep, writeCursor]
@@ -360,7 +334,6 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
     stepOnceRef.current = false;
     setStatus('idle');
     setScenario(null);
-    setHighlight(null);
     setStepLabel('');
     setFailure(null);
     const url = new URL(window.location.href);
@@ -450,26 +423,6 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
     return () => document.removeEventListener('keydown', onKeyDown);
   }, [paletteOpen]);
 
-  // Keep the ring on the target through scrolls and resizes rather than letting it drift off the
-  // thing it is pointing at. Cheap: it only runs while a ring is up.
-  useEffect(() => {
-    if (!highlight || status !== 'running') return;
-    const reposition = () => {
-      const step = scenario?.steps[stepIndex];
-      if (!step?.target) return;
-      const el = resolveTarget(step.target);
-      if (!el) return;
-      const rect = el.getBoundingClientRect();
-      setHighlight({ top: rect.top, left: rect.left, width: rect.width, height: rect.height });
-    };
-    window.addEventListener('scroll', reposition, true);
-    window.addEventListener('resize', reposition);
-    return () => {
-      window.removeEventListener('scroll', reposition, true);
-      window.removeEventListener('resize', reposition);
-    };
-  }, [highlight, scenario, status, stepIndex]);
-
   const walking = status === 'running' || status === 'paused';
 
   const value = useMemo<DemoContextValue>(
@@ -481,7 +434,6 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
       stepCount: scenario?.steps.length ?? 0,
       stepLabel,
       failure,
-      highlight,
       pressed,
       cursorRef,
       paletteOpen,
@@ -504,7 +456,6 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
       stepIndex,
       stepLabel,
       failure,
-      highlight,
       pressed,
       paletteOpen,
       start,
