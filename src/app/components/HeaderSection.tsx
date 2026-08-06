@@ -59,15 +59,21 @@ interface HeaderSectionProps {
 function WorkflowOption({
   title,
   description,
-  onSelect
+  onSelect,
+  demoId
 }: {
   title: string;
   description: string;
   onSelect: () => void;
+  // Stable handle for Demo Mode. Not the title: these labels have been rewritten repeatedly (this
+  // menu alone is on its third naming), and a walkthrough that matched on visible text would break
+  // on every copy change while looking like a broken app rather than a stale selector.
+  demoId: string;
 }) {
   return (
     <button
       type="button"
+      data-demo={demoId}
       onClick={onSelect}
       className="w-full text-left rounded-[4px] pl-3 pr-4 py-2.5 hover:bg-[#F1F6FA] transition-colors cursor-pointer"
     >
@@ -374,6 +380,7 @@ const HeaderSection = memo(function HeaderSection({
                 <PopoverTrigger asChild>
                   <button
                     type="button"
+                    data-demo="workflow-trigger"
                     className="flex items-center gap-2 h-9 px-3 rounded-[4px] bg-[#095192] text-white text-[14px] leading-[20px] whitespace-nowrap cursor-pointer transition-colors hover:bg-[#074080]"
                   >
                     Allocate/Move
@@ -417,6 +424,7 @@ const HeaderSection = memo(function HeaderSection({
                       pressing "/" to reveal a button, which is nobody's first guess (UX-AUDIT H7-1). */}
                   <WorkflowOption
                     title="Allocate Product"
+                    demoId="workflow-allocate-product"
                     description="Assign bins to unallocated products."
                     onSelect={() => {
                       setWorkflowMenuOpen(false);
@@ -425,6 +433,7 @@ const HeaderSection = memo(function HeaderSection({
                   />
                   <WorkflowOption
                     title="Multi Bin Assignment"
+                    demoId="workflow-multi-bin-assignment"
                     // Deliberately parallel to the entry above: same verb, and the two words that change
                     // are the two things that differ — "additional" bins, for products already "allocated".
                     // It was called "Allocate Product" itself, which put the two jobs behind one name.
@@ -436,6 +445,7 @@ const HeaderSection = memo(function HeaderSection({
                   />
                   <WorkflowOption
                     title="Move from Bin"
+                    demoId="workflow-move-from-bin"
                     // "one or more products" is the correction that matters: picking a bin does not commit
                     // its whole contents — Review still asks which of its products are leaving. The old
                     // "Tap whole bins on the shelves" promised something the flow then walks back.
@@ -447,6 +457,7 @@ const HeaderSection = memo(function HeaderSection({
                   />
                   <WorkflowOption
                     title="Move from Product"
+                    demoId="workflow-move-from-product"
                     // Deliberately the same sentence as the entry above bar its last word. The two flows
                     // reach the same place, so the copy differs by exactly what differs: where you start.
                     description="Move one or more products starting from a product."

@@ -100,6 +100,7 @@ export default function UnallocatedProductsPanel({
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#676b74]" />
           <Input
             type="text"
+            data-demo="unallocated-search"
             placeholder="Search products"
             value={unallocatedSearchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
@@ -167,6 +168,8 @@ export default function UnallocatedProductsPanel({
             {filteredProducts.map((product) => (
               <div
                 key={product.id}
+                data-demo="unallocated-product"
+                data-product-id={product.id}
                 onClick={() => onProductSelect(product.id)}
                 className={`flex gap-3 px-4 py-3 cursor-pointer transition-colors duration-200 ${
                   isSelected(product.id) ? 'bg-[#F1F6FA]' : 'hover:bg-gray-50'
@@ -271,6 +274,7 @@ export default function UnallocatedProductsPanel({
           </button>
 
           <div
+            data-demo="unallocated-allocate"
             className={`relative rounded-[4px] shrink-0 bg-[#095192] ${
               canAllocate ? 'cursor-pointer' : 'opacity-50 cursor-not-allowed'
             }`}

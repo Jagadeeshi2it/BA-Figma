@@ -366,6 +366,11 @@ export default function BinCard({
     <>
       <div
         data-bin-id={bin.id}
+        // Read by Demo Mode to find "a bin with room" without being told which one — the seed is
+        // expected to be replaced by real cabinet data, so a scenario naming a bin id would rot.
+        // The same `bin.available` draws the green stroke, so the demo taps a bin the viewer can
+        // already see is free.
+        data-bin-available={bin.available ? 'true' : 'false'}
         className={`relative rounded-[4px] transition-all ${
           // The bin itself does nothing in a Product move — only its rows do — so it must not offer a
           // pointer or a hover lift it cannot honour (UX-AUDIT H9-1: a control that looks live and

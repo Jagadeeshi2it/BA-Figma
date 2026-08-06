@@ -151,7 +151,7 @@ what stops you picking a bin it is already in.
   count, because the footer already does and two figures for one number invite checking whether they
   agree. `ProductRow` is at module scope and shared by both lists, so the selected list cannot drift
   into looking like a different kind of thing from the results it came from.
-- **No history entry is written.** Known gap — see §7.
+- **No history entry is written.** Known gap — see §8.
 
 ### B. Move Quantity — move stock between bins a product already occupies
 
@@ -683,7 +683,7 @@ silently vanish from the only screen that can commit them.
 
 Staged at `quantity: 0` with `actionType: 'move'`; the real amount is set on the quantity page.
 `actionType: 'allocate'` **can no longer be produced** — that was "Allocate only", now workflow A.
-App still has an unreachable allocate-only routing branch (§7).
+App still has an unreachable allocate-only routing branch (§8).
 
 **The quantity taken at a source is not divided between its target bins.** It used to be split evenly
 up front. The operator decides the split on the placement screen by scanning into each bin, so every
@@ -1017,7 +1017,107 @@ Established over a session that hit this repeatedly:
 
 ---
 
-## 7. Known gaps
+## 7. Demo Mode
+
+`src/app/demo/` — a guided walkthrough that drives the app by moving a virtual cursor to real
+controls and clicking them. Pressing **`/`** anywhere outside a text field opens the Demo Scenarios
+palette; picking one runs it.
+
+Nothing in `App` or `useInventoryState` knows Demo Mode exists. It is mounted in `main.tsx` as a
+provider wrapping `<App />` plus a `<DemoLayer />` that portals to `document.body`, and the only
+edits it needed inside the app were five `data-demo` attributes.
+
+| File | What |
+|---|---|
+| `demo/types.ts` | `DemoScenario` / `DemoStep`. Four step kinds: `click`, `type`, `await`, `note`. |
+| `demo/dom.ts` | Finding a target, waiting for it, real event sequences, typing into a controlled input. |
+| `demo/DemoContext.tsx` | The state machine and the loop that walks a scenario. |
+| `demo/DemoCursor.tsx` | The cursor, the ring, the caption. |
+| `demo/DemoIndicator.tsx` | The "Demo Mode" bar and its Pause / Restart / Take over controls. |
+| `demo/DemoPalette.tsx` | The `/` palette. |
+| `demo/scenarios/` | The scenarios themselves, plus the registry the palette reads. |
+
+### It drives the UI, never the state
+
+A step finds a real DOM node and dispatches a real event. It never calls
+`inventoryState.handleUnallocatedProductsClick()`, and the temptation to "just call the handler" is
+the one thing that would ruin this: a demo that drives state is a second implementation of the
+workflow, and it keeps passing while the UI it claims to demonstrate is broken. Real clicks mean the
+demo fails loudly when the flow changes — which is what makes it usable as documentation.
+
+Four consequences, each of which cost a debugging round:
+
+- **`el.click()` is not enough.** Radix opens its Popover on `pointerdown`, so a bare click leaves
+  the `Allocate/Move` menu shut and the walk stalls waiting for a menu entry that never appears.
+  `dispatchRealClick` sends the whole pointer/mouse sequence.
+- **React ignores `input.value = x`.** Its `onChange` rides a native `input` event, and React's value
+  tracker suppresses the event when it thinks nothing changed. `setInputValue` goes through the
+  prototype's setter so the tracker updates too.
+- **Every wait is a poll, never a fixed delay.** State updates are async (§4), and a delay tuned on
+  one machine is a flaky demo on a slower one. `waitForTarget` polls for the node *and* a non-zero
+  box; `scrollTargetIntoView` watches the rect until it stops moving rather than guessing how long a
+  smooth scroll takes.
+- **`sleep` uses `setTimeout`, not `requestAnimationFrame`.** rAF does not fire at all in a
+  backgrounded tab, so a rAF-based sleep never resolves there — the walk stops dead mid-step with no
+  error, which looks exactly like a broken app. The cursor *animation* still uses rAF, with a
+  watchdog that jumps it to the destination if no frame arrives.
+
+### Anchors are `data-demo`, never text or structure
+
+`workflow-trigger`, `workflow-allocate-product` (and one per menu entry, via `WorkflowOption`'s
+`demoId` prop), `unallocated-search`, `unallocated-product`, `unallocated-allocate`. Plus
+`data-bin-available` on `BinCard`, so a scenario can ask for "a bin with room" without naming one —
+bin ids belong to the seed, and the seed is expected to be replaced.
+
+Matching on visible text would be worse than fragile here: this app renames its labels constantly
+(§2 is largely a record of it), and a broken selector presents to a viewer as a broken app.
+`node scripts/verify-demo-anchors.mjs` asserts every anchor a scenario reaches for still renders, so
+a rename fails in the terminal instead.
+
+### Entering reloads, exiting does not
+
+`start()` sets `?demo=<id>` and reloads. Inventory is in-memory from a seed, so a reload is the only
+thing that guarantees a scenario's preconditions — this one needs SOLU-CORTEF still unallocated and a
+bin still empty, and both stop being true as soon as anyone runs it once. The palette says so before
+you choose.
+
+**Take over** is the opposite: it cancels the walk, drops the overlay and strips the URL parameter,
+leaving the app exactly as the demo left it. The viewer has just watched something happen and the
+obvious next move is to poke at the result, so exiting must not undo it.
+
+### The rest of the rules
+
+- **The overlay is portalled to `document.body`.** The tablet simulator's frame is a CSS-scaled
+  `fixed inset-0 z-[9999]` element — a Radix overlay must portal *into* it to be visible (§4), and
+  the cursor is the exact opposite case. `getBoundingClientRect` already returns post-transform
+  viewport coordinates, so one set of numbers is right in both modes.
+- **An input shield swallows real clicks while the walk runs.** One stray click desynchronises the
+  script, and the failure reads as a broken app rather than a race. Synthetic events are dispatched
+  straight onto their target and are not hit-tested, so the shield does not block the demo's own
+  clicks; the indicator sits above it, so its controls stay live.
+- **Pausing takes effect between steps, not during one.** The loop gates on `pausedRef` before each
+  step, so a pause never leaves half an interaction done — and resuming cannot re-run a click that
+  already landed.
+- **A hidden tab auto-pauses and resumes on return.** Playing on while nobody is watching means
+  coming back to a finished screen and no idea what happened. The `autoPausedRef` flag keeps this
+  from overriding a deliberate pause.
+- **The cursor is written imperatively.** `cursorRef.current.style.transform`, never React state — it
+  moves at frame rate. Nothing else re-renders either: `<App />` is created once in `main.tsx` and
+  never consumes the demo context, so React skips it entirely when a step advances.
+- **The caption sits with the ring, not in a bar at the screen edge** — the two are one message. It
+  survives into the `finished` state after the cursor and ring have gone, because the closing line
+  is the one being read at that moment.
+
+### Adding a scenario
+
+A file in `demo/scenarios/` and a line in its `index.ts`. Nothing in the runner, cursor or palette
+should need to change; if it does, the step vocabulary is missing something and *that* is what to
+add. A target may be a selector string or a function returning an element, which is the escape hatch
+for anything only the scenario can identify — see `firstEmptyBin` in `allocateUnallocatedProduct.ts`.
+
+---
+
+## 8. Known gaps
 
 **See also [UX-AUDIT.md](UX-AUDIT.md)** — a heuristic audit with numbered, tickable findings. `P1` and
 `P3` are built (the footer's step cell, stated requirements, product-level Back), and the Move Summary
