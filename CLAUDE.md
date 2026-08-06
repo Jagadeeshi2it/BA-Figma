@@ -1040,6 +1040,7 @@ edits it needed inside the app were five `data-demo` attributes.
 |---|---|
 | `demo/types.ts` | `DemoScenario` / `DemoStep`. Four step kinds: `click`, `type`, `await`, `note`. |
 | `demo/dom.ts` | Finding a target, waiting for it, real event sequences, typing into a controlled input. |
+| `demo/pace.ts` | Every duration in one place — cursor travel, the pause before a press, settles. |
 | `demo/DemoContext.tsx` | The state machine and the loop that walks a scenario. |
 | `demo/DemoCursor.tsx` | The cursor. |
 | `demo/DemoControlPanel.tsx` | The icon-only control panel and its transport. |
@@ -1093,31 +1094,63 @@ ripple stays — with the ring gone it is the only thing marking the moment of c
 A step's `label` survives as a name rather than a sentence. It is read in the control panel's
 tooltip and in the message shown when a step cannot find its target, and nowhere else.
 
-### The control panel is icon-only
+### The control panel sits over the logo, and opens on hover
 
-A status dot, a `n/N` counter, and six icons: **Previous · Play/Pause · Next │ Restart · Take
-over**. 219px while walking, 88px once it is over — the transport disappears with the walk rather
-than leaving dead buttons behind.
+Top-left, over the app's logo — chrome belongs where chrome lives, and the logo is the one thing on
+the page carrying no state and answering no question mid-demo. It was top-centre, which put a
+floating black bar in the middle of the header the viewer was trying to read.
 
-It expanded on hover to reveal labels for a while. That traded one problem for another: compact, but
-three controls were unreachable without discovering that the panel expands, and a control you have
-to find is worse than a wide bar. Every button carries `aria-label` and `title`, so the name is
-there for a screen reader always and for a pointer on hover.
+**90px at rest: a status dot, Restart, Exit demo.** Those are the two anybody reaches for without
+having planned to. Hover, focus or a tap expands to 285px and adds Previous, Play/Pause, Next and
+the name of the step being performed.
 
-- **The counter is the one thing that cannot be an icon**, and it stays: two characters, and without
-  it the panel is a row of anonymous buttons with no sense of how far through the walk is.
-- **The dot's tooltip is where the words went** — scenario, current step, or the reason it stopped.
-  Available to anyone who wants it, costing no pixels to anyone who doesn't.
+- **The two persistent icons come first, before the collapsing group**, so the panel grows rightward
+  and they never move. At the far end, expanding would slide them out from under the pointer that
+  triggered it — mis-aiming a click at best, and at worst oscillating, since leaving the panel
+  collapses it again. A 260ms grace period on the way out guards the same thing.
+- **Collapsing animates `grid-template-columns: 0fr → 1fr`**, not a max-width. The content decides
+  its own width, so a longer step name cannot be clipped by a number somebody picked once.
+- **Every button carries `aria-label` and `title`**, so an icon-only panel is not a row of unnamed
+  controls, and the dot's tooltip carries the scenario or the reason it stopped.
+
+### Previous steps back; it does not replay
+
+**Each step declares how to undo itself** (`DemoStep.reverse`), and the reverse is performed like any
+other step — cursor, click, settle — so going back looks like the operator changing their mind
+rather than the screen jumping. `position` moves back by one and the walk stays paused, so Next
+re-runs the step just undone.
+
+This works because almost everything a demo does is a toggle: ticking un-ticks, tapping a bin
+un-taps, a typed query clears. Some steps need two acts to undo one — choosing *Allocate Product*
+both closes the menu and opens the tray, so its reverse closes the tray and reopens the menu — which
+is why `reverse` is a list. `note` and `await` change nothing and reverse for free without saying so.
+
+**A step with no `reverse` cannot be undone through the UI**, and falls back to reloading with
+`?demo=<id>&step=<n>`, which replays the earlier steps with no animation and no settles. Allocating
+is the only one in this scenario: nothing in the tray un-allocates — that path exists only behind the
+zero-inventory banner after a move (§2 C). The fallback is correct but visibly a rebuild, so **every
+step that can declare a reverse should**.
+
+Two structural consequences:
+
+- **The walk is a position, not a for-loop.** `positionRef` counts completed steps and the loop reads
+  it fresh each pass, which is what lets Previous move it backwards. A for-loop over indices can only
+  go forward.
+- **The loop does not exit when the walk finishes.** It parks in the gate with `status: 'finished'`,
+  so Previous still works from the final state instead of dead-ending the viewer with only Restart.
 - **Next runs exactly one step, then pauses again.** The gate releases on `stepOnceRef`, which the
   loop clears as it passes.
-- **Previous reloads and replays.** App state cannot be rewound — nothing un-ticks a product or
-  un-allocates a bin — so the only honest way back to step n is to rebuild the state step n was
-  reached with: `?demo=<id>&step=<n>` runs steps 0…n-1 with no cursor animation and no settles, then
-  pauses. Re-running a click without rewinding the state behind it would toggle the very thing the
-  step did, so "back" would mean "undo something else".
-- **`arriveAt` counts steps to replay, and the panel shows `stepIndex + 1`.** So Previous passes
-  `stepIndex`, not `stepIndex - 1`. Getting that wrong steps back two at a time, which reads as the
-  button being broken rather than off by one.
+
+### Pace lives in one file
+
+`demo/pace.ts`. Cursor travel scales with distance (550–1500ms), there is a 280ms pause between
+arriving at a control and pressing it, and a click settles for 1100ms before the next step starts.
+
+The bias is deliberately slow, and the reasoning is worth keeping because "it drags" is the easy
+note to act on: a demo that keeps up with someone who already knows the app is useless to the person
+it is for. They are reading an interface they have never seen, and every click changes something they
+then have to find. Too slow costs boredom; too fast teaches nothing. The approach pause is most of
+what makes the cursor read as a hand rather than a script.
 
 ### Anchors are `data-demo`, never text or structure
 
@@ -1161,6 +1194,18 @@ obvious next move is to poke at the result, so exiting must not undo it.
 - **The cursor is written imperatively.** `cursorRef.current.style.transform`, never React state — it
   moves at frame rate. Nothing else re-renders either: `<App />` is created once in `main.tsx` and
   never consumes the demo context, so React skips it entirely when a step advances.
+
+### The scenario ends in History, and Today starts empty
+
+The walkthrough closes the tray and opens History as its last two acts. An allocation that shows only
+as a 0-vial row in a bin reads as nothing having happened; the entry under Today is the proof that a
+transaction was recorded. The order matters and is not arbitrary — History hides while any workflow
+is open (§2), so closing the tray is what puts the button back on screen.
+
+`data/seedHistory.ts` **seeds nothing into today**. It used to carry a multi-product unallocation
+stamped today at 08:40, which rendered as the only two rows in Today's list; a demo's own transaction
+then landed among strangers, and the viewer had to hunt for the row they had just watched being
+created. Every record type the History page can render is still covered by the older entries.
 
 ### Adding a scenario
 

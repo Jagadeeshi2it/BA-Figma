@@ -1,27 +1,56 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, Pause, Play, RotateCcw, X } from 'lucide-react';
 import { useDemo } from './DemoContext';
 
 /**
  * The demo's controls, and the only thing on screen that says a demo is running.
  *
- * **Icon-only, and every control is always there.** It briefly expanded on hover to reveal labels
- * and the transport; that traded one problem for another — the controls were compact but three of
- * them were unreachable without discovering that the panel expands, and a control you have to find
- * is worse than a wide bar. Icons for all six keeps the panel under 200px and keeps Previous, Play
- * and Next one click away at any moment.
+ * **Top-left, over the app's logo.** Chrome belongs where chrome lives, and the logo is the one
+ * thing on the page that carries no state and answers no question mid-demo. Top-centre — where this
+ * sat — put a floating black bar in the middle of the header the viewer was trying to read.
  *
- * Each button carries `aria-label` and `title`, so the name is available to a screen reader always
- * and to a pointer on hover — a native tooltip on a control the user is already pointing at, which
- * is a different thing from the instructional captions this demo deliberately has none of.
+ * **Minimised to two icons: Restart and Exit demo.** Those are the two anybody reaches for without
+ * having planned to. Hover, focus or a tap reveals the rest — Previous, Play/Pause, Next, and the
+ * name of the step being performed.
  *
- * Top-centre because it is the one strip of the header holding nothing: the title is left, the
- * search and workflow controls are right. Bottom-centre belongs to the move pipeline's footer, and
- * top-right to the toasts.
- *
- * It sits above the input shield, which is what makes every control here live at any moment while
- * the rest of the app is being ignored.
+ * The two persistent icons come FIRST, before the collapsing group, so the panel grows to the right
+ * and they never move. If they sat at the far end, expanding would slide them out from under the
+ * pointer that triggered the expansion — which at best mis-aims a click and at worst oscillates,
+ * because leaving the panel collapses it again.
  */
+
+/**
+ * Collapses to nothing and back, animating the width.
+ *
+ * `grid-template-columns: 0fr → 1fr` rather than a max-width guess: the content decides its own
+ * width, so a longer step name or a translated label cannot be clipped by a number somebody picked
+ * once. The inner `overflow-hidden` is what makes the 0fr track actually hide its content.
+ */
+function Collapse({
+  open,
+  duration,
+  children,
+}: {
+  open: boolean;
+  duration: number;
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      className="grid"
+      style={{
+        gridTemplateColumns: open ? '1fr' : '0fr',
+        transition: `grid-template-columns ${duration}ms ease-out`,
+      }}
+      // Hidden from assistive tech as well as from view when collapsed — a screen reader reading
+      // out controls the eye cannot see is its own kind of clutter.
+      aria-hidden={!open}
+    >
+      <div className="min-w-0 overflow-hidden whitespace-nowrap">{children}</div>
+    </div>
+  );
+}
+
 function ControlButton({
   label,
   onClick,
@@ -37,6 +66,8 @@ function ControlButton({
     <button
       type="button"
       onClick={disabled ? undefined : onClick}
+      // The accessible name is on the button whether or not a label is showing, so an icon-only
+      // panel is not a row of unnamed controls.
       aria-label={label}
       title={label}
       aria-disabled={disabled || undefined}
@@ -53,7 +84,7 @@ export default function DemoControlPanel() {
   const {
     status,
     scenario,
-    stepIndex,
+    position,
     stepCount,
     stepLabel,
     failure,
@@ -67,50 +98,83 @@ export default function DemoControlPanel() {
     exit,
   } = useDemo();
 
+  const [expanded, setExpanded] = useState(false);
+  const [reducedMotion, setReducedMotion] = useState(false);
+  const collapseTimer = useRef<number | null>(null);
+
+  useEffect(() => {
+    const query = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const update = () => setReducedMotion(query.matches);
+    update();
+    query.addEventListener('change', update);
+    return () => query.removeEventListener('change', update);
+  }, []);
+
+  useEffect(
+    () => () => {
+      if (collapseTimer.current) window.clearTimeout(collapseTimer.current);
+    },
+    []
+  );
+
   if (status === 'idle' || !scenario) return null;
 
+  const duration = reducedMotion ? 0 : 220;
   const running = status === 'running';
   const failed = status === 'failed';
-  const walking = running || status === 'paused';
+  const finished = status === 'finished';
+
+  const open = () => {
+    if (collapseTimer.current) window.clearTimeout(collapseTimer.current);
+    setExpanded(true);
+  };
+  // A short grace period on the way out. The panel shrinks as the pointer leaves, which can pull an
+  // edge out from under a cursor that was heading for a button — the delay makes that a non-event
+  // rather than a control that dodges the click.
+  const close = () => {
+    if (collapseTimer.current) window.clearTimeout(collapseTimer.current);
+    collapseTimer.current = window.setTimeout(() => setExpanded(false), 260);
+  };
 
   return (
-    // `w-max` is load-bearing. A `fixed` element placed with `left: 50%` and no `right` gets an
-    // available width of only the half-viewport to its right, so the panel was capped there and the
-    // flex row silently squeezed controls out of existence — which looks like a rendering bug rather
-    // than a sizing one (CLAUDE.md §4).
-    <div className="pointer-events-none fixed top-3 left-1/2 z-[10050] w-max max-w-[calc(100vw-24px)] -translate-x-1/2">
-      <div className="pointer-events-auto flex items-center gap-0.5 rounded-[6px] bg-[#020817] px-1.5 py-1 shadow-[0_8px_28px_rgba(0,0,0,0.35)]">
-        {/* Pulses only while something is actually happening — a live indicator on a finished or
-            stalled demo says the opposite of the truth. Red on a failure, which is the one state
-            with no icon of its own.
+    <div className="pointer-events-none fixed top-2 left-2 z-[10050] w-max max-w-[calc(100vw-16px)]">
+      <div
+        onMouseEnter={open}
+        onMouseLeave={close}
+        // Hover does not exist on the tablet this app targets, so focus opens it for the keyboard
+        // and a tap on the status dot opens it for a finger.
+        onFocusCapture={open}
+        onBlurCapture={close}
+        className="pointer-events-auto flex items-center gap-0.5 rounded-[6px] bg-[#020817] px-1.5 py-1 shadow-[0_8px_28px_rgba(0,0,0,0.35)]"
+      >
+        <button
+          type="button"
+          onClick={() => (expanded ? setExpanded(false) : open())}
+          aria-label={expanded ? 'Collapse demo controls' : 'Expand demo controls'}
+          aria-expanded={expanded}
+          // The dot's tooltip carries the words that are not on screen: which scenario, or why it
+          // stopped. Available to anyone who looks, costing no pixels to anyone who doesn't.
+          title={failed && failure ? failure : `Demo Mode — ${scenario.title}`}
+          className="flex h-7 shrink-0 items-center px-1 cursor-pointer"
+        >
+          {/* Pulses only while something is actually happening — a live indicator on a finished or
+              stalled demo says the opposite of the truth. */}
+          <span
+            className={`h-2 w-2 shrink-0 rounded-full ${
+              failed ? 'bg-[#C6362C]' : running ? 'bg-[#22C55E] motion-safe:animate-pulse' : 'bg-white/50'
+            }`}
+          />
+        </button>
 
-            Its tooltip is where the words went. The scenario, the step being performed, or the
-            reason it stopped — available to anyone who wants it, costing no pixels to anyone who
-            doesn't, and never covering the app. */}
-        <span
-          title={
-            failed && failure
-              ? failure
-              : `Demo Mode — ${scenario.title}${walking && stepLabel ? ` · ${stepLabel}` : ''}`
-          }
-          className={`mx-1 h-2 w-2 shrink-0 rounded-full ${
-            failed ? 'bg-[#C6362C]' : running ? 'bg-[#22C55E] motion-safe:animate-pulse' : 'bg-white/50'
-          }`}
-        />
+        {/* Always there, and always in the same place. */}
+        <ControlButton label="Restart demo" onClick={restart} icon={<RotateCcw className="h-3.5 w-3.5" />} />
+        {/* Exiting hands over an app that is immediately interactive and still shows whatever the
+            demo just did — the result is the thing a viewer wants to poke at. */}
+        <ControlButton label="Exit demo" onClick={exit} icon={<X className="h-4 w-4" />} />
 
-        {/* The one thing that cannot be an icon. Two characters wide and it is the only sense of how
-            far through the walk is — without it the panel is a row of anonymous buttons. Dropped
-            once the walk is over, when it would just be the total staring back. */}
-        {walking && (
-          <span className="shrink-0 px-1 text-[11px] leading-[16px] tabular-nums text-white/60">
-            {Math.min(stepIndex + 1, stepCount)}/{stepCount}
-          </span>
-        )}
-
-        {/* The transport. Gone once the walk is over — there is nothing left to step through, and a
-            row of dead buttons is worse than a shorter panel. */}
-        {walking && (
-          <>
+        <Collapse open={expanded} duration={duration}>
+          <div className="flex items-center pl-1">
+            <span className="mr-1 h-4 w-px shrink-0 bg-white/20" />
             <ControlButton
               label="Previous step"
               onClick={previousStep}
@@ -120,6 +184,7 @@ export default function DemoControlPanel() {
             <ControlButton
               label={running ? 'Pause' : 'Play'}
               onClick={running ? pause : play}
+              disabled={!canStepForward}
               icon={running ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
             />
             <ControlButton
@@ -128,14 +193,19 @@ export default function DemoControlPanel() {
               disabled={!canStepForward}
               icon={<ChevronRight className="h-4 w-4" />}
             />
-            <span className="mx-0.5 h-4 w-px shrink-0 bg-white/20" />
-          </>
-        )}
 
-        <ControlButton label="Restart demo" onClick={restart} icon={<RotateCcw className="h-3.5 w-3.5" />} />
-        {/* Named for what it gives back, not for what it stops. Exiting hands over an app that is
-            immediately interactive and still shows whatever the demo just did. */}
-        <ControlButton label="Take over" onClick={exit} icon={<X className="h-4 w-4" />} />
+            {/* The step being performed, or the one Next will perform. Derived from the same
+                position the walk runs on, so the name and the counter cannot disagree with it. */}
+            <span className="ml-1.5 max-w-[240px] truncate pr-1 text-[13px] leading-[18px] text-white">
+              {failed ? failure : finished ? 'Finished' : stepLabel}
+            </span>
+            {!finished && !failed && (
+              <span className="shrink-0 pr-1 text-[11px] leading-[16px] tabular-nums text-white/60">
+                {Math.min(position + 1, stepCount)}/{stepCount}
+              </span>
+            )}
+          </div>
+        </Collapse>
       </div>
     </div>
   );

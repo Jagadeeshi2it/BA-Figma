@@ -8,6 +8,7 @@
  * loudly when the flow changes, which is the only way it stays trustworthy as documentation.
  */
 import { DemoRunToken, DemoTarget } from './types';
+import { PACE } from './pace';
 
 export const cancelled = (token: DemoRunToken) => token.cancelled;
 
@@ -157,7 +158,7 @@ export async function typeInto(
   input: HTMLInputElement | HTMLTextAreaElement,
   text: string,
   token: DemoRunToken,
-  perCharMs = 55
+  perCharMs = PACE.typeCharMs
 ) {
   setInputValue(input, '');
   for (let i = 0; i < text.length; i++) {

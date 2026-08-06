@@ -267,6 +267,7 @@ export default function UnallocatedProductsPanel({
               allocate/unallocate panel uses — leave without allocating, or allocate. */}
           <button
             type="button"
+            data-demo="unallocated-cancel"
             onClick={onClose}
             className="h-9 px-3 inline-flex items-center rounded-[4px] text-[14px] leading-[20px] bg-white text-[#095192] border border-[#095192] hover:bg-[#F1F6FA] transition-colors cursor-pointer"
           >

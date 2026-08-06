@@ -294,6 +294,7 @@ export default function HistoryPage({
               <button
                 type="button"
                 onClick={onBack}
+                data-demo="history-back"
                 aria-label="Back"
                 className="min-w-[40px] min-h-[40px] flex items-center justify-center rounded-[4px] hover:bg-gray-100 cursor-pointer bg-transparent border-none"
               >

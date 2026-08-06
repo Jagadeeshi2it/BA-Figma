@@ -43,10 +43,26 @@ export interface DemoStep {
   /** `type` only. */
   text?: string;
   /**
-   * Held after the step completes, before the next one starts. The default suits an ordinary
-   * click; raise it where the operator needs time to read what just happened on screen.
+   * Held after the step completes, before the next one starts. Defaults come from `PACE`; raise it
+   * where the viewer needs longer to find what just changed on screen.
    */
   settleMs?: number;
+  /**
+   * How to put the app back the way it was before this step ran — what Previous Step performs.
+   *
+   * The app has no undo, and nothing outside `useInventoryState` can rewind it, so a step that
+   * changes state has to say how to change it back. Most can, because most of what a demo does is
+   * a toggle: ticking a product un-ticks, tapping a bin un-taps, a typed query clears. Reversing is
+   * performed like any other step, cursor and all, so the viewer watches it happen.
+   *
+   *   `[]`        — this step changed nothing that needs putting back.
+   *   `[steps]`   — run these, in order, to undo it.
+   *   *absent*    — this step cannot be undone through the UI. Previous falls back to reloading and
+   *                 replaying the earlier steps at speed, which is correct but visibly a rebuild.
+   *
+   * `note` and `await` steps are reversible for free and need nothing declared.
+   */
+  reverse?: DemoStep[];
 }
 
 export interface DemoScenario {

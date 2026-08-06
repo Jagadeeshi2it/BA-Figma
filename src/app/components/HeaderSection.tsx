@@ -485,6 +485,7 @@ const HeaderSection = memo(function HeaderSection({
               full-page history mid-selection would discard it. */}
           {!showUnallocatedProducts && !changeAllocationMode && !showAllocateProducts && (
             <div 
+              data-demo="history-trigger"
               className="bg-white relative rounded-[4px] cursor-pointer h-[36px]"
               onClick={handleHistoryClick}
             >

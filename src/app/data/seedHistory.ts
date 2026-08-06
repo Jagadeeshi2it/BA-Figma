@@ -4,6 +4,10 @@ import { AllocationHistoryEntry } from '../types';
 // can render: allocations, single/multi-target moves, partial vs full moves, multi-product
 // entries, and unallocations. Dates are computed relative to load time so the "7 days" filter
 // always covers them regardless of when the demo is opened.
+//
+// Nothing is seeded into TODAY. Today's list is where a walkthrough's own transaction lands, and it
+// reads as the record of what just happened — seed rows sitting there beforehand make the operator
+// hunt for their own entry among strangers.
 const daysAgo = (days: number, hour: number, minute: number): Date => {
   const d = new Date();
   d.setDate(d.getDate() - days);
@@ -210,21 +214,11 @@ export const generateSeedHistory = (): AllocationHistoryEntry[] => [
     },
     action: 'unallocate',
     transactionType: 'Unallocated'
-  },
-
-  // 12. Unallocated — several products cleared from one bin in a single action.
-  {
-    id: 'seed-unalloc-multi',
-    timestamp: daysAgo(0, 8, 40),
-    products: [
-      { id: 'PROD012', name: 'BORTEZOMIB 3.5 MG VIAL', ndc: '55150033701', badge: 'MDV', quantity: 40, unit: 'vials' },
-      { id: 'PROD013', name: 'LEUCOVORIN CALCIUM 200 MG VIAL', ndc: '71288016230', badge: 'MDV', quantity: 2, unit: 'vials' }
-    ],
-    bins: [],
-    sourceBin: {
-      binId: 'seed-bin-d4-s2-d', binName: 'Bin D', shelfName: 'Shelf 2', doorNumber: '4', cabinetNumber: '1'
-    },
-    action: 'unallocate',
-    transactionType: 'Unallocated'
   }
+
+  // There was a 13th entry here: a multi-product unallocation stamped today at 08:40, which is the
+  // only seed record that landed in Today's list. Removed — Today is where a demo lands after doing
+  // something, and finding two unallocations already sitting there muddies the one row the operator
+  // just created. The single-product unallocation above (yesterday) still covers the record type, so
+  // nothing the History page can render has gone untested.
 ];

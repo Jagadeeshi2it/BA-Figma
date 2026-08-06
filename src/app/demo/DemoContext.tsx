@@ -9,6 +9,7 @@ import React, {
 } from 'react';
 import { DemoRunToken, DemoScenario, DemoStep } from './types';
 import { demoScenarios, findScenario } from './scenarios';
+import { PACE } from './pace';
 import {
   centreOf,
   dispatchRealClick,
@@ -24,11 +25,15 @@ import {
  *
  * The provider wraps App but App is not a consumer of it, and the `children` element is created
  * once in main.tsx — so React bails out of re-rendering the app when this state changes. That is
- * what makes it safe for the runner to update the step between every act; nothing but the overlay
- * re-renders.
+ * what makes it safe for the runner to update the position between every act; nothing but the
+ * overlay re-renders.
  *
  * The cursor is the exception and is deliberately NOT React state: it moves at frame rate, so the
  * runner writes its transform straight to the DOM node through `cursorRef`.
+ *
+ * **The walk is a position, not a for-loop.** `positionRef` counts completed steps and the loop
+ * reads it fresh each pass, which is what lets Previous move it *backwards* between steps. A
+ * for-loop over indices could only ever go forward.
  */
 
 export type DemoStatus = 'idle' | 'running' | 'paused' | 'finished' | 'failed';
@@ -37,7 +42,8 @@ interface DemoContextValue {
   status: DemoStatus;
   scenario: DemoScenario | null;
   scenarios: DemoScenario[];
-  stepIndex: number;
+  /** Steps completed, 0…stepCount. The step being performed is `steps[position]`. */
+  position: number;
   stepCount: number;
   stepLabel: string;
   failure: string | null;
@@ -67,7 +73,7 @@ export function useDemo() {
 
 /** The scenario to auto-run on load. See `start` for why entering Demo Mode goes through the URL. */
 const DEMO_PARAM = 'demo';
-/** Which step to arrive at. See `previousStep` for why stepping back is a URL round trip. */
+/** How many steps to replay before stopping. Only used by the Previous fallback — see `stepBack`. */
 const STEP_PARAM = 'step';
 
 const easeInOutCubic = (t: number) =>
@@ -76,11 +82,20 @@ const easeInOutCubic = (t: number) =>
 /** Where the cursor waits before its first move — off the bottom edge, so it glides into frame. */
 const parkingSpot = () => ({ x: window.innerWidth / 2, y: window.innerHeight + 60 });
 
+/**
+ * How to put `step` back, or null if it cannot be put back through the UI.
+ *
+ * `note` and `await` change nothing, so they reverse for free without having to say so.
+ */
+function reverseOf(step: DemoStep): DemoStep[] | null {
+  if (step.reverse) return step.reverse;
+  return step.kind === 'note' || step.kind === 'await' ? [] : null;
+}
+
 export function DemoProvider({ children }: { children: React.ReactNode }) {
   const [status, setStatus] = useState<DemoStatus>('idle');
   const [scenario, setScenario] = useState<DemoScenario | null>(null);
-  const [stepIndex, setStepIndex] = useState(0);
-  const [stepLabel, setStepLabel] = useState('');
+  const [position, setPosition] = useState(0);
   const [failure, setFailure] = useState<string | null>(null);
   const [pressed, setPressed] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -88,11 +103,13 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
   const cursorRef = useRef<HTMLDivElement | null>(null);
   const cursorPos = useRef(parkingSpot());
   const tokenRef = useRef<DemoRunToken | null>(null);
-  // Read by the inter-step gate. A ref rather than the status state because the loop is a plain
-  // async function — it cannot see a re-render, only what the ref holds when it next looks.
+  /** Steps completed. The loop's only notion of where it is, and the thing Previous decrements. */
+  const positionRef = useRef(0);
+  // Read by the inter-step gate. Refs rather than the status state because the loop is a plain
+  // async function — it cannot see a re-render, only what the refs hold when it next looks.
   const pausedRef = useRef(false);
-  // Set by Next Step: releases the gate for exactly one step, then the walk pauses again.
   const stepOnceRef = useRef(false);
+  const stepBackRef = useRef(false);
   // Set only when the tab going into the background paused the walk, so returning to the tab does
   // not resume a demo the viewer paused deliberately.
   const autoPausedRef = useRef(false);
@@ -108,8 +125,8 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
    * take as long as a trip across the cabinet, and the easing is the point of the whole thing —
    * a linear cursor reads as a machine, an eased one reads as a hand.
    *
-   * `fast` skips it entirely: that is the replay pass rebuilding state before a Previous Step, and
-   * nobody is meant to watch it.
+   * `fast` skips it entirely: that is the replay pass rebuilding state for the Previous fallback,
+   * and nobody is meant to watch it.
    */
   const moveCursorTo = useCallback(
     (x: number, y: number, token: DemoRunToken, fast: boolean) =>
@@ -122,7 +139,10 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
           resolve();
           return;
         }
-        const duration = Math.min(1000, Math.max(380, distance * 0.85));
+        const duration = Math.min(
+          PACE.cursorMaxMs,
+          Math.max(PACE.cursorMinMs, distance * PACE.cursorPerPx)
+        );
         const started = performance.now();
         let settled = false;
         const finish = () => {
@@ -154,26 +174,12 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
     [writeCursor]
   );
 
-  /**
-   * Hold between steps while paused, and release for exactly one step when Next Step asks.
-   *
-   * Gating between steps rather than inside one is what makes pausing safe: a pause never leaves
-   * half an interaction done, and resuming can never re-run a click that already landed.
-   */
-  const awaitGate = useCallback(async (token: DemoRunToken) => {
-    while (pausedRef.current && !stepOnceRef.current && !token.cancelled) {
-      await sleep(80, token);
-    }
-    if (stepOnceRef.current) stepOnceRef.current = false;
-  }, []);
-
   const runStep = useCallback(
     async (step: DemoStep, token: DemoRunToken, fast: boolean): Promise<boolean> => {
-      setStepLabel(step.label);
       const settle = fast ? 0 : step.settleMs;
 
       if (step.kind === 'note') {
-        await sleep(settle ?? 1200, token);
+        await sleep(settle ?? PACE.afterNoteMs, token);
         return true;
       }
 
@@ -182,7 +188,7 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
       const el = await waitForTarget(step.target, token, 8000);
       if (token.cancelled) return false;
       if (!el) {
-        setFailure(`Step ${step.label} could not find what it needed.`);
+        setFailure(`Step "${step.label}" could not find what it needed.`);
         setStatus('failed');
         return false;
       }
@@ -198,77 +204,42 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
       if (token.cancelled) return false;
 
       if (step.kind === 'await') {
-        await sleep(settle ?? 600, token);
+        await sleep(settle ?? PACE.afterAwaitMs, token);
         return true;
       }
+
+      // Arrive, then act. The pause between landing on a control and pressing it is most of what
+      // makes the cursor read as a hand rather than a script.
+      await sleep(fast ? 0 : PACE.approachMs, token);
+      if (token.cancelled) return false;
 
       if (step.kind === 'type') {
         const input = live as HTMLInputElement;
         setPressed(true);
         dispatchRealClick(input, x, y);
-        await sleep(fast ? 0 : 120, token);
+        await sleep(fast ? 0 : PACE.pressMs, token);
         setPressed(false);
-        await typeInto(input, step.text ?? '', token, fast ? 0 : 55);
-        await sleep(settle ?? 700, token);
+        await typeInto(input, step.text ?? '', token, fast ? 0 : PACE.typeCharMs);
+        await sleep(settle ?? PACE.afterClickMs, token);
         return true;
       }
 
       // click
       setPressed(true);
-      await sleep(fast ? 0 : 110, token);
+      await sleep(fast ? 0 : PACE.pressMs, token);
       dispatchRealClick(live, x, y);
-      await sleep(fast ? 0 : 110, token);
+      await sleep(fast ? 0 : PACE.pressMs, token);
       setPressed(false);
-      await sleep(settle ?? 700, token);
+      await sleep(settle ?? PACE.afterClickMs, token);
       return true;
     },
     [moveCursorTo]
   );
 
-  /**
-   * Walk the scenario, optionally replaying the first `arriveAt` steps at speed and stopping there.
-   *
-   * The replay is how Previous Step works. App state cannot be rewound — nothing can un-tick a
-   * product or un-allocate a bin — so the only honest way back to step n is to rebuild the state
-   * step n was reached with. It runs with no cursor animation and no settles, which makes it a
-   * flicker rather than a second viewing.
-   */
-  const runScenario = useCallback(
-    async (toRun: DemoScenario, arriveAt = 0) => {
-      // Cancel anything already walking before taking over, or two loops drive one cursor.
-      if (tokenRef.current) tokenRef.current.cancelled = true;
-      const token: DemoRunToken = { cancelled: false };
-      tokenRef.current = token;
-
-      pausedRef.current = false;
-      stepOnceRef.current = false;
-      setScenario(toRun);
-      setFailure(null);
-      setStepIndex(0);
-      setStatus('running');
-      writeCursor(parkingSpot().x, parkingSpot().y);
-
-      for (let i = 0; i < toRun.steps.length; i++) {
-        const fast = i < arriveAt;
-        if (!fast) {
-          // Arriving at a step the viewer asked to be positioned on: stop here and wait for Play or
-          // Next, rather than running on past the step they were trying to look at.
-          if (i === arriveAt && arriveAt > 0) {
-            pausedRef.current = true;
-            setStatus('paused');
-          }
-          await awaitGate(token);
-          if (token.cancelled) return;
-        }
-        setStepIndex(i);
-        const ok = await runStep(toRun.steps[i], token, fast);
-        if (!ok || token.cancelled) return;
-      }
-
-      setStatus('finished');
-    },
-    [awaitGate, runStep, writeCursor]
-  );
+  const advanceTo = useCallback((next: number) => {
+    positionRef.current = next;
+    setPosition(next);
+  }, []);
 
   /**
    * Entering a scenario reloads the page with `?demo=<id>`.
@@ -279,13 +250,120 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
    * both stop being true the moment anyone (including a previous run of this same demo) does the
    * thing it demonstrates. The palette says the current session will be discarded.
    */
-  const start = useCallback((scenarioId: string, arriveAt?: number) => {
+  const start = useCallback((scenarioId: string, replay?: number) => {
     const url = new URL(window.location.href);
     url.searchParams.set(DEMO_PARAM, scenarioId);
-    if (arriveAt && arriveAt > 0) url.searchParams.set(STEP_PARAM, String(arriveAt));
+    if (replay && replay > 0) url.searchParams.set(STEP_PARAM, String(replay));
     else url.searchParams.delete(STEP_PARAM);
     window.location.replace(url.toString());
   }, []);
+
+  /**
+   * Undo the last completed step, in place.
+   *
+   * Each step declares how to reverse itself (`DemoStep.reverse`) and the reverse is performed like
+   * any other step — cursor, click, settle — so stepping back looks like the operator changing
+   * their mind rather than the screen jumping. Position moves back by one and the walk stays
+   * paused, so Next re-runs the step just undone.
+   *
+   * A step with no reverse cannot be undone through the UI: this app has no undo, and nothing
+   * outside `useInventoryState` can rewind it. Allocating is the example — there is no path from
+   * the tray that un-allocates. Those fall back to reloading and replaying, which is correct but
+   * visibly a rebuild, and is why every step that CAN declare a reverse should.
+   */
+  const stepBack = useCallback(
+    async (toRun: DemoScenario, token: DemoRunToken): Promise<boolean> => {
+      const undoing = positionRef.current - 1;
+      if (undoing < 0) return true;
+
+      const reverse = reverseOf(toRun.steps[undoing]);
+      if (!reverse) {
+        start(toRun.id, undoing);
+        return false;
+      }
+
+      for (const step of reverse) {
+        const ok = await runStep(step, token, false);
+        if (!ok || token.cancelled) return false;
+      }
+
+      advanceTo(undoing);
+      pausedRef.current = true;
+      setStatus('paused');
+      return true;
+    },
+    [advanceTo, runStep, start]
+  );
+
+  const runScenario = useCallback(
+    async (toRun: DemoScenario, replay = 0) => {
+      // Cancel anything already walking before taking over, or two loops drive one cursor.
+      if (tokenRef.current) tokenRef.current.cancelled = true;
+      const token: DemoRunToken = { cancelled: false };
+      tokenRef.current = token;
+
+      pausedRef.current = false;
+      stepOnceRef.current = false;
+      stepBackRef.current = false;
+      setScenario(toRun);
+      setFailure(null);
+      advanceTo(0);
+      setStatus('running');
+      writeCursor(parkingSpot().x, parkingSpot().y);
+
+      // The Previous fallback's rebuild: everything up to `replay`, with no animation and no
+      // settles, then stop where the viewer asked to be.
+      for (let i = 0; i < replay; i++) {
+        const ok = await runStep(toRun.steps[i], token, true);
+        if (!ok || token.cancelled) return;
+        advanceTo(i + 1);
+      }
+      if (replay > 0) {
+        pausedRef.current = true;
+        setStatus('paused');
+      }
+
+      for (;;) {
+        // The gate. Holds while paused, and releases for one step when Next or Previous asks.
+        // Gating BETWEEN steps rather than inside one is what makes pausing safe: a pause never
+        // leaves half an interaction done, and resuming can never re-run a click that landed.
+        while (
+          (pausedRef.current || positionRef.current >= toRun.steps.length) &&
+          !stepOnceRef.current &&
+          !stepBackRef.current &&
+          !token.cancelled
+        ) {
+          await sleep(80, token);
+        }
+        if (token.cancelled) return;
+
+        if (stepBackRef.current) {
+          stepBackRef.current = false;
+          stepOnceRef.current = false;
+          const carryOn = await stepBack(toRun, token);
+          if (!carryOn || token.cancelled) return;
+          continue;
+        }
+
+        stepOnceRef.current = false;
+
+        const i = positionRef.current;
+        if (i >= toRun.steps.length) continue;
+        const ok = await runStep(toRun.steps[i], token, false);
+        if (!ok || token.cancelled) return;
+        advanceTo(i + 1);
+
+        // The walk is over but the loop is not: parking it in the gate rather than returning is
+        // what keeps Previous working from the final state, instead of dead-ending the viewer on
+        // the last screen with nothing but Restart.
+        if (positionRef.current >= toRun.steps.length) {
+          pausedRef.current = true;
+          setStatus('finished');
+        }
+      }
+    },
+    [advanceTo, runStep, stepBack, writeCursor]
+  );
 
   const play = useCallback(() => {
     autoPausedRef.current = false;
@@ -305,19 +383,11 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
     setStatus('paused');
   }, []);
 
-  /**
-   * Back one step — a reload and a fast replay, for the reason given on `runScenario`. Costly, and
-   * the alternative is worse: re-running a click without rewinding the state behind it would toggle
-   * the very thing the step did, so "back" would mean "undo something else".
-   */
   const previousStep = useCallback(() => {
-    if (!scenario || stepIndex <= 0) return;
-    // `stepIndex`, not `stepIndex - 1`. `arriveAt` counts the steps to REPLAY, and the panel shows
-    // `stepIndex + 1` — the step just completed. So replaying `stepIndex` steps (0 … stepIndex-1)
-    // lands on the one before it, which is what Previous means. Handing it `stepIndex - 1` skipped
-    // back two.
-    start(scenario.id, stepIndex);
-  }, [scenario, stepIndex, start]);
+    pausedRef.current = true;
+    stepBackRef.current = true;
+    setStatus('paused');
+  }, []);
 
   const restart = useCallback(() => {
     if (scenario) start(scenario.id);
@@ -332,9 +402,9 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
     if (tokenRef.current) tokenRef.current.cancelled = true;
     pausedRef.current = false;
     stepOnceRef.current = false;
+    stepBackRef.current = false;
     setStatus('idle');
     setScenario(null);
-    setStepLabel('');
     setFailure(null);
     const url = new URL(window.location.href);
     if (url.searchParams.has(DEMO_PARAM) || url.searchParams.has(STEP_PARAM)) {
@@ -374,9 +444,9 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
     const params = new URL(window.location.href).searchParams;
     const toRun = findScenario(params.get(DEMO_PARAM));
     if (!toRun) return;
-    const arriveAt = Math.max(
+    const replay = Math.max(
       0,
-      Math.min(toRun.steps.length - 1, Number(params.get(STEP_PARAM) ?? 0) || 0)
+      Math.min(toRun.steps.length, Number(params.get(STEP_PARAM) ?? 0) || 0)
     );
     let cancelledByUnmount = false;
     const token: DemoRunToken = { cancelled: false };
@@ -391,7 +461,7 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
       }
       await sleep(400, token);
       if (cancelledByUnmount) return;
-      runScenario(toRun, arriveAt);
+      runScenario(toRun, replay);
     })();
     return () => {
       cancelledByUnmount = true;
@@ -423,15 +493,19 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
     return () => document.removeEventListener('keydown', onKeyDown);
   }, [paletteOpen]);
 
-  const walking = status === 'running' || status === 'paused';
+  const stepCount = scenario?.steps.length ?? 0;
+  const walking = status === 'running' || status === 'paused' || status === 'finished';
+  // The step being performed, or the one Next will perform. Derived rather than stored, so the
+  // name, the counter and the walk cannot disagree about where it is.
+  const stepLabel = scenario?.steps[Math.min(position, stepCount - 1)]?.label ?? '';
 
   const value = useMemo<DemoContextValue>(
     () => ({
       status,
       scenario,
       scenarios: demoScenarios,
-      stepIndex,
-      stepCount: scenario?.steps.length ?? 0,
+      position,
+      stepCount,
       stepLabel,
       failure,
       pressed,
@@ -444,8 +518,8 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
       pause,
       nextStep,
       previousStep,
-      canStepBack: walking && stepIndex > 0,
-      canStepForward: walking && stepIndex < (scenario?.steps.length ?? 0) - 1,
+      canStepBack: walking && position > 0,
+      canStepForward: walking && position < stepCount,
       restart,
       exit,
     }),
@@ -453,7 +527,8 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
       status,
       walking,
       scenario,
-      stepIndex,
+      position,
+      stepCount,
       stepLabel,
       failure,
       pressed,
