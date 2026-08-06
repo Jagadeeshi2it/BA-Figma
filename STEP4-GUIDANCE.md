@@ -3,7 +3,10 @@
 **Status: part specification, part built.**
 
 - **§4–§5, the route planner** — built (`src/app/utils/moveRoute.ts`), verified against every scenario in
-  §9 by `node scripts/verify-move-route.mjs`.
+  §9 by `node scripts/verify-move-route.mjs` — **as §4 read before 2026-08-07**. It still batches takes
+  before places within a visit, so it does not yet produce the alternating or `place-in → alternate-through
+  → take-out` orders; scenarios 1a, 2 and 5 are now ahead of it. Door ordering (§4 step 3, §5) is
+  unaffected and stands.
 - **§1's one-door rule** — built (`useCabinetAccess` + `utils/cabinetAccess.ts`), verified by
   `node scripts/verify-cabinet-access.mjs`. Bin illumination is **not** modelled at all.
 - **Step ④ walks the route** — built: both screens order themselves by it
@@ -107,7 +110,21 @@ a sequence that varies run to run for the same input cannot be learned.
 **R6 — Fridges are free, so they don't interrupt.** Since a fridge visit neither costs a door
 transition nor blocks one, fridge stops are never allowed to break a cabinet door visit. Group them:
 fridge takes at the start of the route, fridge placements at the end. Never between two stops behind
-the same cabinet door.
+the same cabinet door. **Except a fridge-to-fridge pair**, which is taken and placed together at the
+front: neither end costs a transition, so there is nothing to gain by carrying it through the whole
+route and something to lose (R7).
+
+**R7 — Hold as little as possible at once, but never pay a door for it.** What is on the counter is
+cognitive load of the worst kind: the operator has to keep several products apart and pick the right one
+back up. So among routes that cost the same doors, prefer the one where less stock is in hand at any
+moment — even when that costs extra bin stops. This is the rule the same-door alternation comes from, and
+§4's within-visit ordering is the same rule applied across doors.
+
+**Precedence.** Where these pull apart, the order is **R1 → R2 → R7 → R3 → R4 → R5**. R7 sits above R3
+deliberately: alternating inside a door buys fewer things in hand at the price of more illuminations, and
+scenario 1a pays it. R7 sits below R2 just as deliberately: minimizing what is carried can never justify
+opening a door twice, because a door transition is a real physical cost and a full counter is a manageable
+one.
 
 ---
 
@@ -125,16 +142,94 @@ Given the transfers from step ③:
      feeding it.
    - **A door holding both** should be placed so its sources are worked and its targets filled in the
      same visit — which is what makes scenario 2 in §9 work.
-4. **Order the stops within a door visit** by R3/R4/R5: takes for that visit, then places, ascending bin
-   label within each.
+4. **Order the stops within a door visit** as **place-in → alternate-through → take-out**:
+   1. **Places for stock carried in from earlier doors, first.** The operator arrives holding it; putting
+      it away before anything else empties their hands (R7).
+   2. **Then the products whose source and target are both behind this door**, take and place alternating
+      per product. See "Alternate inside a door" below.
+   3. **Then the takes destined for later doors, last** — collected immediately before leaving, so they
+      are carried for the shortest part of the route and nothing else is in hand while collecting them.
+
+   Ascending bin label within each group (R5). This replaces "takes first, then places", which was exactly
+   backwards for carried-in stock: it had the operator hold what they walked in with while collecting more.
    - A bin that both gives and receives is normally **one stop** — emptied then filled while it is lit,
-     saving an illumination.
+     saving an illumination. **Within that one stop the take comes first**, the one exception to
+     place-in-first: it is the same bin, the stock is in hand for a moment either way, and taking first
+     makes room — which the app cannot reason about, having no capacity model (§10).
    - **Unless the stock arriving there comes out of another bin behind this same door.** That take
      happens later in the visit, so merging would have the operator fill a bin from stock they have not
      collected yet. In that case the bin gets two stops: its take with the other takes, its place after
      all of them. Precedence is otherwise only modelled *between* doors (step 2), and this is the one
      place it has to be checked within one.
 5. **Attach the fridge stops** per R6.
+
+### Alternate inside a door (revised 2026-08-07 — spec only, not built)
+
+> When a product's source **and** target are both behind the door currently open, the operator takes that
+> one product and places it immediately, then repeats for the next. Take-all-then-place-all applies only
+> where a door change sits between the two ends.
+
+The original rule batched every take in a visit before any place, on the grounds that fewer switches
+between the two mental modes is simpler. The pharmacy team's revision reverses that reasoning for the
+same-door case, and the argument is about the workstation rather than the door: batching means collecting
+several products, setting them all down, keeping them apart, and then picking the right one back up for
+each target. Alternating keeps **one product in hand at a time** — no staging, nothing to tell apart, no
+chance of placing B where A belongs. The door is already open, so the alternation costs nothing that R2
+was protecting.
+
+This does not extend across doors, and cannot: alternating per product would mean a door change per
+product, trading a real constraint (R2, door transitions) for a soft one. So the shape is
+
+| Where the two ends are | Sequence |
+|---|---|
+| Same door | take P1 → place P1 → take P2 → place P2 … (one product in hand) |
+| Different doors | take every product behind the source door, carry, place them behind the target door |
+| A door holding both | that door goes **last among the sources** (the key move below); products whose source *and* target are behind it alternate, while products carried in from earlier doors are placed in the same visit |
+
+**Consequence for the built flow:** step ④'s two screens are `take everything`, then `place everything`
+(CLAUDE.md §2 B). That is exactly the batching this revision replaces for the same-door case, so honouring
+it means step ④ can no longer be two screens that each run once — it becomes a walk over stops where a
+stop may be a take or a place, alternating. The route planner already produces that stop list
+(`planMoveRoute`); it is the two screens that assume the phases.
+
+### Across doors: what batching is forced, and what isn't (2026-08-07 — spec only, not built)
+
+Alternating per product across a door boundary would cost one transition per product, which R2 forbids. So
+when a product's two ends sit behind different doors, batching is **forced** — that much is settled. What
+was not settled is everything around the forced part, and R7 decides it: batch the minimum the doors
+require, and nothing beyond that.
+
+Three consequences, none of which costs a door:
+
+- **Batch per door pair, not per route.** Everything travelling from door `A` to door `B` is one batch,
+  because it crosses one transition together. Stock going `A → C` is a *different* batch and must not be
+  swept into it — collecting it at `A` alongside the `B`-bound stock means carrying it through the whole
+  `B` visit for nothing. Take it when the route reaches the visit that precedes `C`, if `A` is still
+  ahead of that point; only if `A` is behind it (R2 forbids returning) is the operator genuinely obliged
+  to carry it early, and then the panel says so.
+- **Unload before loading, at every visit.** This is §4 step 4's `place-in → alternate-through →
+  take-out`. It is the across-doors form of the same-door revision: the operator's hands are empty for
+  the middle of every visit, and hold one door-pair's batch at most while walking between doors.
+- **A door holding both sources and targets still goes last among the sources** (the key move below).
+  That is unchanged, and R7 reinforces it rather than competing with it: working that door last means the
+  carried-in stock is put down at the *start* of the visit it arrives in, instead of being held across
+  further visits.
+
+**Two things deliberately not done**, both because R5 outranks the marginal gain:
+
+- **Source doors are not reordered by how much they give.** Putting the largest load last would shorten
+  the time it is carried, but the total in hand on arrival at the target door is the same either way, and
+  a route whose door order depends on quantities is one the operator cannot predict.
+- **A batch is not split to lighten the load.** With no bound on what can be staged (§11), splitting buys
+  nothing and costs a door. If a carrying limit is ever established, this is the first rule to revisit —
+  it is the one case where R7 and R2 genuinely conflict, and the limit would be a hard constraint like R1
+  rather than a preference, so it would win.
+
+**What the operator is told.** Forced batching has to be explained where it happens, or it reads as the
+app ignoring the rule it follows everywhere else. The take stop that ends a door visit names the batch and
+its destination — *collect 3 products, then Door 5* — and the counter section of the panel (§6) is the
+running proof of what is in hand. Inside a door the operator is never told to collect anything; that
+asymmetry is the guidance, not an inconsistency in it.
 
 ### The key move (scenario 2 generalized)
 
@@ -176,7 +271,8 @@ A stop is one screen. It must answer, without the operator inferring anything:
 
 - **Which door is open**, stated as the only one that is. Not "Door 3 unlocked" as a status, but "Door 3
   is open — Door 1 is locked" where a transition just happened.
-- **Which bin is lit**, named the way the rest of the app names bins (`Bin 2A - Door 3`).
+- **Which bin is lit**, named the way the rest of the app names bins (`Door 3 - Bin 2A` — door first,
+  which is also the order the operator walks it).
 - **The action, with its quantity and product** — take 5 of X, or place 5 of X.
 - **What remains at this stop**, when the stop has several actions. One lit bin means they happen in
   order, so the screen must say which is current and how many follow.
@@ -269,7 +365,7 @@ source bin, place it, which needs the source door reopened). Rules:
 
 **The re-plan must be visible.** A route that silently rearranges under the operator's hands is worse
 than a suboptimal one — they are memorising a sequence in order to work it. On re-plan, the panel states
-what changed ("Door 1 no longer needed", "next stop is now Bin 2A - Door 3") rather than just redrawing.
+what changed ("Door 1 no longer needed", "next stop is now Door 3 - Bin 2A") rather than just redrawing.
 
 **Completed stops never re-order.** Re-planning applies only to the unworked remainder. A door already
 locked stays where it is in the panel's history, even if the new plan would not have visited it.
@@ -370,6 +466,23 @@ Door 3 locked
 ```
 One door visit, two stops, no lock/unlock between them. The door never closes mid-move.
 
+With **several products** moving between the same two bins, the stops alternate rather than batching
+(revised 2026-08-07):
+
+```
+Door 3 open
+  Bin 2A lit   take 10 of ALIMTA
+  Bin 3D lit   place 10 of ALIMTA
+  Bin 2A lit   take 25 of CARBOPLATIN 600
+  Bin 3D lit   place 25 of CARBOPLATIN 600
+  Bin 2A lit   take  5 of OCTAGAM
+  Bin 3D lit   place  5 of OCTAGAM
+Door 3 locked
+```
+Still one door visit. Six stops rather than four, and more bin illuminations — paid deliberately, because
+the operator holds one product at a time instead of three, and never has to tell them apart on the
+workstation. See "Alternate inside a door" in §4.
+
 ### Scenario 1b — one source, one target, different doors
 
 ```
@@ -387,14 +500,20 @@ Sources: `Bin 4C` (Door 2), `Bin 2A` and `Bin 2B` (Door 3). Target: `Bin 1C` (Do
 ```
 Door 2 open       Bin 4C lit   take 25
 Door 2 locked
-Door 3 open       Bin 2A lit   take 10
-                  Bin 2B lit   take 5
-                  Bin 1C lit   place 40        <- no door change; stock came off the counter
+Door 3 open       Bin 1C lit   place 25        <- carried in; put away before anything else is picked up
+                  Bin 2A lit   take 10
+                  Bin 1C lit   place 10
+                  Bin 2B lit   take  5
+                  Bin 1C lit   place  5
 Door 3 locked
 ```
-Two door visits, one transition, four stops. Door 3 is worked **last among the sources** precisely
+Two door visits, one transition, five stops. Door 3 is worked **last among the sources** precisely
 because it also holds the target. A fixed source-then-target pattern would have produced Door 3 → Door 2
 → Door 3, or all-takes-then-all-places: three door visits and two transitions for the same work.
+
+The five stops are the 2026-08-07 revision (this scenario read `take 10 → take 5 → place 40` before, in
+four). The extra illumination buys an operator whose hands are empty from the moment they walk in until
+they pick up Bin 2A's ten, and who never holds two bins' stock at once. R7 over R3.
 
 ### Scenario 3 — a fridge is involved
 
@@ -426,6 +545,28 @@ Door 2 locked
 ```
 Three door visits. R2 is broken once rather than twice: Door 1's take and place share its single visit,
 and only Door 2 is split.
+
+### Scenario 5 — a door that receives, pairs and gives (the three-phase visit)
+
+Three products, three doors. `Bin 4A` (Door 2) → `Bin 1B` (Door 3); `Bin 2A` → `Bin 1C`, both Door 3;
+`Bin 3D` (Door 3) → `Bin 5A` (Door 5).
+
+```
+Door 2 open   Bin 4A lit   take  20 of ALIMTA
+Door 2 locked
+Door 3 open   Bin 1B lit   place 20 of ALIMTA          <- 1. place-in: put down what was carried in
+              Bin 2A lit   take  10 of OCTAGAM         <- 2. alternate-through: both ends behind Door 3
+              Bin 1C lit   place 10 of OCTAGAM
+              Bin 3D lit   take  15 of CARBOPLATIN     <- 3. take-out: picked up on the way out
+Door 3 locked
+Door 5 open   Bin 5A lit   place 15 of CARBOPLATIN
+Door 5 locked
+```
+Three door visits, two transitions — the minimum for three doors, so R2 is untouched. The operator holds
+one product at a time for the whole route, and the counter is empty at both door transitions except for
+the single batch that has to cross them. This is §4 step 4's three phases in one visit; a `takes first,
+then places` visit would have had them collect CARBOPLATIN before placing the ALIMTA they walked in with,
+holding two products through the middle of the visit for no gain.
 
 ---
 
@@ -465,6 +606,24 @@ Every item here is a prerequisite, not a nice-to-have.
 
 ## Revisions
 
+- **2026-08-07** — The multi-door half of the same-day revision below, which that entry left open. The
+  principle behind the same-door alternation is generalised as **R7 — hold as little as possible at once,
+  but never pay a door for it** — and §3 now states the full precedence (`R1 → R2 → R7 → R3 → R4 → R5`),
+  which was previously only implied by list order. Across doors, batching is forced by R2 and is batched
+  **per door pair, not per route**; within every visit the order is now **place-in → alternate-through →
+  take-out**, replacing "takes first, then places", which had the operator hold what they walked in with
+  while collecting more. Scenario 2 gains a stop because of it (four → five) and scenario 5 is new.
+  Two refinements rejected for R5's sake, recorded in §4: source doors are not reordered by load, and a
+  batch is not split to lighten it — the latter being the first thing to revisit if a carrying limit is
+  ever established (§11), since that would be a hard constraint and would outrank R2.
+- **2026-08-07** — §4 and §9 scenario 1a revised: **within one door, a take and its place alternate per
+  product** instead of batching every take first. The original rule optimised for staying in one mental
+  mode; the revision optimises for what is in the operator's hands, which is the harder problem — batching
+  makes them collect several products, set them down, keep them apart and pick the right one back up.
+  Across doors the batching stands, because alternating there would cost a door transition per product.
+  **Not built:** step ④ is currently two screens (take everything, then place everything), which *is* the
+  batching this replaces, so honouring it turns step ④ into a walk over stops where each stop is a take or
+  a place. `planMoveRoute` already emits that stop list; the two screens are what assume the phases.
 - **2026-08-05** — §8 narrowed on the pharmacy team's call: cancelling is allowed **only before the first
   quantity is taken**. Past that it would depend on the operator returning stock to the right bin with
   nothing able to verify it, which is not safe to rely on. The return checklist below was built and then
