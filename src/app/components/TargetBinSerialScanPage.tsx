@@ -19,7 +19,7 @@ import {
 import { ProductTransfer, Bin, DoorShelfConfig } from '../types';
 import { formatBinLocation, getDoorName } from '../utils/changeAllocationUtils';
 import { pluralizeUnit } from '../utils/pluralizeUnit';
-import { getVialType, hasClimateBadge, hasCivBadge } from '../utils/binProducts';
+import ProductBadges from './ProductBadges';
 import { SkippedProduct, CANNOT_CANCEL_REASON } from './QuantitySelectionPage';
 import { CabinetAccess } from '../hooks/useCabinetAccess';
 
@@ -896,15 +896,7 @@ export default function TargetBinSerialScanPage({
               {/* The shared badges, as on the quantity screen — these two are the halves of one step,
                   so a product cannot wear a different badge on each. */}
               <div className="flex items-center gap-1">
-                <span className="bg-[#D1D5DB] text-[#111827] text-[9px] font-medium px-1.5 py-0.5 rounded">
-                  {getVialType(badgeIdentity)}
-                </span>
-                {hasClimateBadge(badgeIdentity) && (
-                  <span className="bg-[#DBEAFE] text-[#1D4ED8] text-[9px] font-medium px-1.5 py-0.5 rounded">CLIMATE</span>
-                )}
-                {hasCivBadge(badgeIdentity) && (
-                  <span className="bg-[#FEF3C7] text-[#B45309] text-[9px] font-medium px-1.5 py-0.5 rounded">CIV</span>
-                )}
+                <ProductBadges product={badgeIdentity} />
               </div>
             </div>
             {currentProduct.productDescription && (

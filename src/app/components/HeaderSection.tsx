@@ -274,7 +274,11 @@ const HeaderSection = memo(function HeaderSection({
                 // No comma instruction any more — terms split on whitespace too (utils/searchQuery), so
                 // there is no convention left to teach. It was never discoverable advice anyway; it was
                 // an apology for a matcher that needed "carbo, 600" to find CARBOPLATIN 600.
-                placeholder="Search products, bins, NDC codes..."
+                // Names the four things a query is actually matched against, in the order the dropdown
+                // reports them. "Search products, bins, NDC codes…" undersold it — inventory type is
+                // searchable and unlisted, which is what makes "carbo purchased" work, and nobody guesses
+                // at a field the box never mentions.
+                placeholder="Search by Product name, NDC, Inv type and Bin name"
                 value={searchQuery}
                 onChange={(e) => handleSearchQueryChange(e.target.value)}
                 onFocus={handleSearchFocus}

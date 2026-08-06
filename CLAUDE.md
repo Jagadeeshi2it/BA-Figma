@@ -198,11 +198,16 @@ summary cells and its step buttons, the side panels those cells open, and both s
 page uses the past tense (`Moved From` / `Moved To`) because it is a ledger of moves that happened.
 
 **Except that a Product move's from-end is just `Move`** — `sourceEndLabel` in `PipelineSteps.tsx`, used
-by the footer cell, the step-② Back button and the side panel header so the three cannot drift.
-`Move From` names a *place*, and in this kind nothing was chosen from anywhere: the operator picked
-products and the bins joined as a consequence. `Move From · 1 Product` asked from where and then didn't
-answer. Its search row's undo is `Remove Selection` for the same reason — no end to name. The to-end
-stays `Move To` in both kinds, because the target is always a bin.
+by the footer cell and the side panel header so the two cannot drift. `Move From` names a *place*, and in
+this kind nothing was chosen from anywhere: the operator picked products and the bins joined as a
+consequence. `Move From · 1 Product` asked from where and then didn't answer. Its search row's undo is
+`Remove Selection` for the same reason — no end to name. The to-end stays `Move To` in both kinds,
+because the target is always a bin.
+
+**Step ②'s back button is just `Back`.** It used to take `sourceEndLabel` too, which put the same words
+on a button that steps backwards and on the summary cell two positions to its left that opens a panel —
+two controls, one label, different jobs. The leading arrow already says which way this one goes, and
+`Back` is the word for it whichever unit the source was gathered in.
 
 **A Product move's source badge says `2 Selected` instead**, counting *that bin's* products in the move.
 They picked products, not bins — the bin joined the selection as a consequence — so the badge reports what
@@ -210,6 +215,13 @@ they chose. Per bin, not per move: the label is on one card, and a figure identi
 would say nothing about the one it is attached to. It counts against `changeAllocationSourceQuery`, **not**
 the highlight query (§3) — picking a product off a shelf records it in the former, and only a pick made
 through the search box reaches the latter, so counting from the highlight reported 0 for shelf picks.
+
+**A fridge draws that badge in its shelf heading, opposite the fridge name, not on the card.** A fridge
+card omits the bin header (one pooled bin has nothing to be told apart from), so a badge pinned to its
+top-right landed over the first product in the right-hand column and read as that product's label. Every
+other bin has its own header for the badge to sit under and keeps it there. Both placements call
+`selectionBadge` in `binProducts.ts` — `BinCard` for the card, `ShelfHeading` in `ShelvesSection` for the
+fridge — so the wording and colour cannot drift between them.
 
 Buttons name **what happens next**: `Select` / `Remove` on the cards, `Next Bin to Move From` →
 `Save & Continue` → `Proceed to Move To` on the quantity page. Nothing says "Confirm" until it
@@ -522,6 +534,11 @@ Bin search was advertised in the placeholder from the start and **never worked**
 matcher fed off `selectedSearchQuery`, which a product pick alone can set, so its `bin.name` branch was
 unreachable. `searchBins`, a third matcher, was exported and called by nothing; deleted with this.
 
+The placeholder now names the fields: `Search by Product name, NDC, Inv type and Bin name`. It said
+"Search products, bins, NDC codes…", which undersold it — **inventory type is searchable and was
+unlisted**, and that is the field making `carbo purchased` work. Nobody guesses at a field the box never
+mentions. It fits the 400px box with ~35px to spare; check that if the wording grows.
+
 Four things about the section are load-bearing:
 
 - **No hit is ever dropped for being spent** — neither a bin nor a product. Something the operator
@@ -736,14 +753,22 @@ that needs the refusal toast below.
 
 ### A refused tap says which control would work
 
-Two taps are legitimately refused, and both used to be refused in silence — the operator taps, nothing
-at all happens, and a rule working as designed is indistinguishable from a broken control
+Three taps are legitimately refused, and all of them used to be refused in silence — the operator taps,
+nothing at all happens, and a rule working as designed is indistinguishable from a broken control
 (`UX-AUDIT H9-1`):
 
 | Tap | Where | Says |
 |---|---|---|
 | a **bin** | Product move, step ① | *This move goes by product — tap a product inside the bin, or search for it.* |
 | a **product** | `AllProductsPanel`, in a move | *This move goes by bin…* / *Tap the bin itself to choose it as Move To.* |
+| a **source bin** | either kind, step ② | *This bin holds a product you are moving…* / *This bin is one you are moving from…* — *so it cannot also be moved to. Pick a different bin.* |
+
+The third lives in `handleBinClick`'s step-② branch rather than in `binTapRefusal`, because it is not
+about the *unit* being wrong: the bin is the right thing to tap there, it is this particular bin that
+cannot serve. Its wording follows the same rule as the badges — a Product move says "holds a product you
+are moving", because they picked products and the bin came along, while a Bin move says "one you are
+moving from". It shares `WRONG_UNIT_TOAST_ID` so a repeated tap replaces the message instead of stacking
+copies of it.
 
 `binTapRefusal` / `productTapRefusal` live in `PipelineSteps.tsx` beside `instructionFor`, so the
 correction and the footer's standing advice cannot drift into contradicting each other. Both return
@@ -917,6 +942,13 @@ been violations of it.
 - Shared visual vocabulary: product rows are name → italic generic name → grey badges →
   `ndc - inventoryType`; primary `#095192`, secondary white/`#095192` border, destructive `#C6362C`,
   selected tint `#F1F6FA`, assignment border `#8F48D2`.
+- **Badges sit beside the display name inside the move pipeline, and below the generic name outside it.**
+  Steps ③ and ④ — the Review cards and header, both step-④ screens, the Move List panel — read
+  name-and-kind as one thing: which product, and what handling it needs. On their own line they put two
+  rows between the product and the NDC that identifies it. Everywhere else (bin cards, both side panels,
+  the search dropdown) they stay on their own line under the generic name. `ProductBadges` renders the
+  three spans for every one of these surfaces, so only the *layout* differs; the badges themselves cannot.
+  The Move List drops `flex-wrap` because at 320px a long name wraps them back onto their own line.
 - **A "where this product lives" line is 13px, wherever it appears** — the bin locations under a product
   in either side panel, the purple list of bins it is about to be assigned to, and the search dropdown's
   locations. They are the same fact on four surfaces. Three of them were 12px at some point, which read

@@ -1,7 +1,9 @@
 import React from 'react';
-import { SourcePick } from '../utils/sourcePicks';
+import { SourcePick, productKeysForBin } from '../utils/sourcePicks';
 import { Search } from 'lucide-react';
 import ShelfLayout from './ShelfLayout';
+import { isFridgeDoor } from '../utils/doorUtils';
+import { selectionBadge } from '../utils/binProducts';
 
 interface ShelvesSectionProps {
   currentShelves: any[];
@@ -35,6 +37,54 @@ interface ShelvesSectionProps {
   onCloseAllProducts?: () => void;
 }
 
+/**
+ * A shelf's name, and — for a fridge only — its selection badge opposite it.
+ *
+ * The badge sits out here because a fridge card has no bin header for it to sit under: one pooled bin has
+ * nothing to be told apart from, so BinCard omits the header, and a badge pinned to the card's top-right
+ * landed over the first product in the right-hand column and read as that product's label rather than the
+ * bin's. Every other bin keeps its badge on the card, where its own header anchors it.
+ *
+ * The text comes from `selectionBadge`, the same helper BinCard reads, so the two placements cannot drift
+ * into saying different things. Extracted because the two shelf lists below (filtered and unfiltered)
+ * would otherwise each need their own copy of this.
+ */
+function ShelfHeading({
+  shelf,
+  selectedDoor,
+  changeAllocationSourceBins,
+  changeAllocationTargetBins,
+  moveMode,
+  sourceProductPicks
+}: {
+  shelf: any;
+  selectedDoor: string | null;
+  changeAllocationSourceBins: string[];
+  changeAllocationTargetBins: string[];
+  moveMode?: 'bin' | 'product' | null;
+  sourceProductPicks: SourcePick[];
+}) {
+  // One pooled bin per fridge shelf, so that bin is what the badge describes.
+  const bin = isFridgeDoor(selectedDoor || '') ? shelf.bins?.[0] : undefined;
+  const badge = bin
+    ? selectionBadge({
+        isSource: changeAllocationSourceBins.includes(bin.id),
+        isTarget: changeAllocationTargetBins.includes(bin.id),
+        moveMode,
+        pickedCount: productKeysForBin(sourceProductPicks, bin.id).length
+      })
+    : null;
+
+  return (
+    <div className="px-3 mb-3 flex items-baseline justify-between gap-3">
+      <h3 className="font-semibold">{shelf.name}</h3>
+      {badge && (
+        <span className={`${badge.className} text-[14px] leading-[16px] text-nowrap`}>{badge.text}</span>
+      )}
+    </div>
+  );
+}
+
 export default function ShelvesSection({
   currentShelves,
   searchQuery,
@@ -64,9 +114,14 @@ export default function ShelvesSection({
       {currentShelves.length > 0 ? (
         currentShelves.map((shelf) => (
           <div key={shelf.id}>
-            <div className="px-3 mb-3">
-              <h3 className="font-semibold">{shelf.name}</h3>
-            </div>
+            <ShelfHeading
+              shelf={shelf}
+              selectedDoor={selectedDoor}
+              changeAllocationSourceBins={changeAllocationSourceBins}
+              changeAllocationTargetBins={changeAllocationTargetBins}
+              moveMode={moveMode}
+              sourceProductPicks={sourceProductPicks}
+            />
 
             <ShelfLayout
               shelf={shelf}
@@ -106,9 +161,14 @@ export default function ShelvesSection({
       ) : (
         currentShelves.map((shelf) => (
           <div key={shelf.id}>
-            <div className="px-3 mb-3">
-              <h3 className="font-semibold">{shelf.name}</h3>
-            </div>
+            <ShelfHeading
+              shelf={shelf}
+              selectedDoor={selectedDoor}
+              changeAllocationSourceBins={changeAllocationSourceBins}
+              changeAllocationTargetBins={changeAllocationTargetBins}
+              moveMode={moveMode}
+              sourceProductPicks={sourceProductPicks}
+            />
 
             <ShelfLayout
               shelf={shelf}

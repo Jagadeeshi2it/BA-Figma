@@ -97,9 +97,14 @@ export default function AllocationBottomBar({
       <FooterActions>
         <FooterButton label="Cancel" variant="secondary" onClick={onCancel} />
         {step === 2 && (
-          // Named for the step it returns to, as the forward button is named for the step it advances to.
+          // Just "Back", in both kinds of move. It used to be named for the step it returns to
+          // (sourceEndLabel — "Move From" in a Bin move, "Move" in a Product one), which put the same
+          // words on a button that goes back and on the summary cell two positions to its left that
+          // opens a panel: two controls, one label, different jobs. The arrow already says which
+          // direction this one goes, and Back is the word for it whichever unit the source was gathered
+          // in. The cell keeps sourceLabel — naming the end is its whole purpose.
           <FooterButton
-            label={sourceLabel}
+            label="Back"
             variant="secondary"
             onClick={onBackToSource}
             leadingIcon={<ArrowLeft className="w-4 h-4" />}

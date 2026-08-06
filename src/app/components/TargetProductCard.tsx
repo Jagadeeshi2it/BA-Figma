@@ -4,7 +4,7 @@ import { Badge } from "./ui/badge";
 import { Card, CardContent } from "./ui/card";
 import { pluralizeUnit } from '../utils/pluralizeUnit';
 import { Product, Bin } from '../types';
-import { getVialType, hasClimateBadge, hasCivBadge } from '../utils/binProducts';
+import ProductBadges from './ProductBadges';
 
 interface SourceBinInfo {
   binId: string;
@@ -83,9 +83,18 @@ export default function TargetProductCard({
                   below both. The two cards sit side by side in this modal, so any difference in how
                   they present the same product reads as a difference in the product. */}
               <div>
-                <h4 className="font-normal text-[#020817] text-[14px] leading-[20px]">
-                  {product.name}
-                </h4>
+                {/* Badges beside the display name, not on a line of their own below the generic name.
+                    In the move pipeline the name and what kind of vial it is are read together — which
+                    product, and what handling it needs — and a row of their own pushed the NDC a line
+                    further from the name it belongs to. flex-wrap so a long name still keeps them. */}
+                <div className="flex items-baseline gap-2 flex-wrap">
+                  <h4 className="font-normal text-[#020817] text-[14px] leading-[20px]">
+                    {product.name}
+                  </h4>
+                  <span className="flex items-center gap-1 shrink-0">
+                    <ProductBadges product={product} />
+                  </span>
+                </div>
                 {product.description && (
                   <p className="italic text-gray-500 leading-snug text-[14px]">
                     {product.description}
@@ -93,17 +102,6 @@ export default function TargetProductCard({
                 )}
               </div>
 
-              <div className="flex items-center gap-1">
-                <span className="bg-[#D1D5DB] text-[#111827] text-[9px] font-medium px-1.5 py-0.5 rounded">
-                  {getVialType(product)}
-                </span>
-                {hasClimateBadge(product) && (
-                  <span className="bg-[#DBEAFE] text-[#1D4ED8] text-[9px] font-medium px-1.5 py-0.5 rounded">CLIMATE</span>
-                )}
-                {hasCivBadge(product) && (
-                  <span className="bg-[#FEF3C7] text-[#B45309] text-[9px] font-medium px-1.5 py-0.5 rounded">CIV</span>
-                )}
-              </div>
 
               {/* One line for both, as everywhere else — same block as the source card. */}
               <div className="text-gray-500 text-[14px] break-words">

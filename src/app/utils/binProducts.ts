@@ -54,3 +54,35 @@ export const consolidateBinProducts = (bin: Bin | undefined): any[] => {
 
   return Object.values(groupedProducts);
 };
+
+/**
+ * What a bin's selection badge says, and in which colour — `2 Selected`, `Move From` or `Move To`.
+ *
+ * Shared because the badge has two homes. A cabinet bin draws it inside its own card, top-right under
+ * the bin header; a **fridge** bin has no bin header to sit under (one pooled bin has nothing to be told
+ * apart from), so its badge floated over the first product in the right-hand column and read as that
+ * product's label rather than the bin's. There it is drawn in the shelf heading instead, opposite the
+ * fridge name. Two surfaces deciding this text separately is how they come to disagree.
+ *
+ * `pickedCount` is per bin and only meaningful in a Product move, where a source bin joined the selection
+ * *because* a product in it was picked. In a Bin move the whole bin was chosen, so there is no subset to
+ * count and the badge names the end instead.
+ */
+export const selectionBadge = ({
+  isSource,
+  isTarget,
+  moveMode,
+  pickedCount
+}: {
+  isSource: boolean;
+  isTarget: boolean;
+  moveMode?: 'bin' | 'product' | null;
+  pickedCount: number;
+}): { text: string; className: string } | null => {
+  if (isSource) {
+    const counted = moveMode === 'product' && pickedCount > 0;
+    return { text: counted ? `${pickedCount} Selected` : 'Move From', className: 'text-[#165dfc]' };
+  }
+  if (isTarget) return { text: 'Move To', className: 'text-[#359f5a]' };
+  return null;
+};

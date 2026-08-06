@@ -292,15 +292,35 @@ export const useInventoryState = () => {
           }
         } else if (changeAllocationStep === 2) {
           // Step 2: Select target bins (multiple allowed across any cabinet/door)
-          // Prevent selecting source bins as targets
-          if (!changeAllocationSourceBins.includes(binId)) {
-            if (changeAllocationTargetBins.includes(binId)) {
-              // Remove this bin from target selection
-              setChangeAllocationTargetBins(prev => prev.filter(id => id !== binId));
-            } else {
-              // Add this bin to target selection
-              setChangeAllocationTargetBins(prev => [...prev, binId]);
-            }
+          //
+          // A bin already being moved FROM cannot also be moved to — stock would leave and arrive in the
+          // same place. The rule is right; the silence was not. The operator taps a bin they can see is
+          // part of the move, nothing happens, and a rule working as designed is indistinguishable from a
+          // dead control (UX-AUDIT H9-1) — the same reason step ①'s wrong-unit tap explains itself above.
+          //
+          // Worded for what they picked, not for the app's roles: in a Product move they chose products
+          // and the bin came along, so it names the product end the way the footer does rather than
+          // calling it a "source bin".
+          if (changeAllocationSourceBins.includes(binId)) {
+            const message =
+              moveMode === 'product'
+                ? 'This bin holds a product you are moving, so it cannot also be moved to. Pick a different bin.'
+                : 'This bin is one you are moving from, so it cannot also be moved to. Pick a different bin.';
+            toast.custom(() => React.createElement(ValidationToast, { message }), {
+              // Shares the wrong-unit toast's id: both are "that tap cannot do what you meant", and a
+              // repeated tap must replace the message rather than stack another copy of it.
+              id: WRONG_UNIT_TOAST_ID,
+              duration: 4000
+            });
+            return;
+          }
+
+          if (changeAllocationTargetBins.includes(binId)) {
+            // Remove this bin from target selection
+            setChangeAllocationTargetBins(prev => prev.filter(id => id !== binId));
+          } else {
+            // Add this bin to target selection
+            setChangeAllocationTargetBins(prev => [...prev, binId]);
           }
         }
         return;

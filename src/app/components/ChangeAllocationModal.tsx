@@ -17,7 +17,7 @@ import ProductCentricCard from "./ProductCentricCard";
 import MoveSummaryPanel, { MoveSummaryRow } from "./MoveSummaryPanel";
 import { formatBinLocation, getDoorName } from '../utils/changeAllocationUtils';
 import { doesProductMatchSearch } from '../utils/textHighlight';
-import { getVialType, hasClimateBadge, hasCivBadge } from '../utils/binProducts';
+import ProductBadges from './ProductBadges';
 import { emergencyKitService } from '../services/EmergencyKitService';
 import { productDataService } from '../services/ProductDataService';
 import { toast } from "sonner@2.0.3";
@@ -1011,29 +1011,24 @@ export default function ChangeAllocationModal({
                             the products those cards list, so it shouldn't present it differently. */}
                         <div className="flex-1 flex flex-col space-y-1.5 min-w-0">
                           <div>
-                            <h4 className="font-normal text-[#020817] text-[14px] leading-[20px]">
-                              {focusedProduct?.name}
-                            </h4>
+                            {/* Badges beside the display name, as on both step-④ screens. On their own
+                                line under the generic name they sat two rows from the NDC they help
+                                identify, and the pipeline reads name-and-kind as one thing: which
+                                product, and what handling it needs. */}
+                            <div className="flex items-baseline gap-2 flex-wrap">
+                              <h4 className="font-normal text-[#020817] text-[14px] leading-[20px]">
+                                {focusedProduct?.name}
+                              </h4>
+                              <span className="flex items-center gap-1 shrink-0">
+                                <ProductBadges product={focusedProduct} />
+                              </span>
+                            </div>
                             {focusedProduct?.description && (
                               <p className="italic text-gray-500 leading-snug text-[14px]">
                                 {focusedProduct.description}
                               </p>
                             )}
                           </div>
-
-                          {focusedProduct && (
-                            <div className="flex items-center gap-1">
-                              <span className="bg-[#D1D5DB] text-[#111827] text-[9px] font-medium px-1.5 py-0.5 rounded">
-                                {getVialType(focusedProduct)}
-                              </span>
-                              {hasClimateBadge(focusedProduct) && (
-                                <span className="bg-[#DBEAFE] text-[#1D4ED8] text-[9px] font-medium px-1.5 py-0.5 rounded">CLIMATE</span>
-                              )}
-                              {hasCivBadge(focusedProduct) && (
-                                <span className="bg-[#FEF3C7] text-[#B45309] text-[9px] font-medium px-1.5 py-0.5 rounded">CIV</span>
-                              )}
-                            </div>
-                          )}
 
                           <div className="text-gray-500 text-[14px] break-words">
                             {focusedProduct?.ndc} - {focusedProduct?.inventoryType}

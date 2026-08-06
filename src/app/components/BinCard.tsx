@@ -9,7 +9,7 @@ import {
   TARGET_HIGHLIGHT_COLOR
 } from '../utils/textHighlight';
 // Grouping and badges are shared with AllProductsPanel so both views of a bin agree.
-import { consolidateBinProducts, getVialType, hasClimateBadge, hasCivBadge } from '../utils/binProducts';
+import { consolidateBinProducts, getVialType, hasClimateBadge, hasCivBadge, selectionBadge } from '../utils/binProducts';
 import { sourcePickKey, sourcePickQueryGroup } from '../utils/sourcePicks';
 
 interface BinCardProps {
@@ -173,6 +173,14 @@ export default function BinCard({
    * there is no subset to count.
    */
   const selectedProductCount = moveMode === 'product' ? (pickedProductKeys?.length ?? 0) : 0;
+
+  // The badge's text and colour, from the one helper both this card and the fridge's shelf heading read.
+  const selectionBadgeInfo = selectionBadge({
+    isSource: isChangeAllocationSource,
+    isTarget: isChangeAllocationTarget,
+    moveMode,
+    pickedCount: selectedProductCount
+  });
 
   // Measures the row height and leftover space in the actual, grid-stretched card, then converts
   // that into extra rows for heightFitCount above. A ResizeObserver rather than a one-shot effect:
@@ -401,15 +409,17 @@ export default function BinCard({
             In a Product move the source says "2 Selected" instead. They picked products — the bin is
             where those products happen to live and joined the selection as a consequence — so the badge
             reports what they chose. The count is per bin: the label sits on this card, so a figure that
-            was the same on every source bin would say nothing about the one it is attached to. */}
-        {isChangeAllocationSource && (
-          <p className="absolute font-['Inter:Regular',sans-serif] font-normal leading-[16px] right-3 not-italic text-[#165dfc] text-[14px] text-nowrap text-right top-2">
-            {selectedProductCount > 0 ? `${selectedProductCount} Selected` : 'Move From'}
-          </p>
-        )}
-        {isChangeAllocationTarget && (
-          <p className="absolute font-['Inter:Regular',sans-serif] font-normal leading-[16px] right-3 not-italic text-[#359f5a] text-[14px] text-nowrap text-right top-2">
-            Move To
+            was the same on every source bin would say nothing about the one it is attached to.
+
+            A fridge bin draws no badge here. It has no bin header for the badge to sit under, so
+            top-right put it over the first product in the right-hand column, where it read as that
+            product's label rather than the bin's — ShelvesSection renders it in the shelf heading
+            instead, opposite the fridge name. Same helper, so the wording cannot drift apart. */}
+        {!isFridgeBin && selectionBadgeInfo && (
+          <p
+            className={`absolute font-['Inter:Regular',sans-serif] font-normal leading-[16px] right-3 not-italic ${selectionBadgeInfo.className} text-[14px] text-nowrap text-right top-2`}
+          >
+            {selectionBadgeInfo.text}
           </p>
         )}
         

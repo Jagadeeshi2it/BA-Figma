@@ -19,7 +19,7 @@ import {
 import { ProductTransfer, Bin, DoorShelfConfig } from '../types';
 import { formatBinLocation, getDoorName } from '../utils/changeAllocationUtils';
 import { pluralizeUnit } from '../utils/pluralizeUnit';
-import { getVialType, hasClimateBadge, hasCivBadge } from '../utils/binProducts';
+import ProductBadges from './ProductBadges';
 import { CabinetAccess } from '../hooks/useCabinetAccess';
 import svgPaths from "../imports/svg-hyhz42ush2";
 
@@ -683,15 +683,7 @@ export default function QuantitySelectionPage({
                   every other badge while looking louder than all of them. The unit is already stated
                   everywhere a quantity is. */}
               <div className="flex items-center gap-1">
-                <span className="bg-[#D1D5DB] text-[#111827] text-[9px] font-medium px-1.5 py-0.5 rounded">
-                  {getVialType(badgeIdentity)}
-                </span>
-                {hasClimateBadge(badgeIdentity) && (
-                  <span className="bg-[#DBEAFE] text-[#1D4ED8] text-[9px] font-medium px-1.5 py-0.5 rounded">CLIMATE</span>
-                )}
-                {hasCivBadge(badgeIdentity) && (
-                  <span className="bg-[#FEF3C7] text-[#B45309] text-[9px] font-medium px-1.5 py-0.5 rounded">CIV</span>
-                )}
+                <ProductBadges product={badgeIdentity} />
               </div>
             </div>
             {currentGroup.productDescription && (

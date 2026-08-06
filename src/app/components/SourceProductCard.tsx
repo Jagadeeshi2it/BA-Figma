@@ -4,7 +4,7 @@ import { pluralizeUnit } from '../utils/pluralizeUnit';
 import { emergencyKitService } from '../services/EmergencyKitService';
 import { productDataService } from '../services/ProductDataService';
 import { Product } from '../types';
-import { getVialType, hasClimateBadge, hasCivBadge } from '../utils/binProducts';
+import ProductBadges from './ProductBadges';
 
 interface SourceProductCardProps {
   product: Product & { remainingQuantity: number };
@@ -102,9 +102,18 @@ export default function SourceProductCard({
                   up. The badge markup and colours are the shared set too; the black pill this used
                   to carry appeared nowhere else. */}
               <div>
-                <h4 className="font-normal text-[#020817] text-[14px] leading-[20px]">
-                  {enhancedProduct.name}
-                </h4>
+                {/* Badges beside the display name, not on a line of their own below the generic name.
+                    In the move pipeline the name and what kind of vial it is are read together — which
+                    product, and what handling it needs — and a row of their own pushed the NDC a line
+                    further from the name it belongs to. flex-wrap so a long name still keeps them. */}
+                <div className="flex items-baseline gap-2 flex-wrap">
+                  <h4 className="font-normal text-[#020817] text-[14px] leading-[20px]">
+                    {enhancedProduct.name}
+                  </h4>
+                  <span className="flex items-center gap-1 shrink-0">
+                    <ProductBadges product={enhancedProduct} />
+                  </span>
+                </div>
                 {enhancedProduct.description && (
                   <p className="italic text-gray-500 leading-snug text-[14px]">
                     {enhancedProduct.description}
@@ -112,17 +121,6 @@ export default function SourceProductCard({
                 )}
               </div>
 
-              <div className="flex items-center gap-1">
-                <span className="bg-[#D1D5DB] text-[#111827] text-[9px] font-medium px-1.5 py-0.5 rounded">
-                  {getVialType(enhancedProduct)}
-                </span>
-                {hasClimateBadge(enhancedProduct) && (
-                  <span className="bg-[#DBEAFE] text-[#1D4ED8] text-[9px] font-medium px-1.5 py-0.5 rounded">CLIMATE</span>
-                )}
-                {hasCivBadge(enhancedProduct) && (
-                  <span className="bg-[#FEF3C7] text-[#B45309] text-[9px] font-medium px-1.5 py-0.5 rounded">CIV</span>
-                )}
-              </div>
 
               {/* One line for both, as everywhere else. The "NDC:" and "Inventory Type:" labels cost
                   two rows to say what the values already say — an NDC is recognisable as an NDC. */}

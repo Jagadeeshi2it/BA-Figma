@@ -284,12 +284,18 @@ already said it, `Clear` where `Remove all` existed, two labelled NDC rows colla
 
 ## H9 — Help users recognise, diagnose and recover from errors
 
-- [ ] **H9-1** Failures are mostly silent. A bin tap outside a recognised mode does nothing, with no
+- [~] **H9-1** Failures are mostly silent. A bin tap outside a recognised mode does nothing, with no
   feedback. (This was literally a bug once: the allocate workflow had no branch in `handleBinClick`,
-  so taps did nothing at all and looked identical to a broken control.) **A Product move now makes a
-  bin tap deliberately silent**, which is the same non-response as the bug: the card drops its
-  pointer and hover so it does not *look* tappable, and the step instruction aims the operator at
-  product rows instead, but tapping a bin still says nothing. Mitigated, not fixed.
+  so taps did nothing at all and looked identical to a broken control.) **Three refusals now explain
+  themselves** rather than absorbing the tap — the wrong-unit bin tap in a Product move's step ①, the
+  wrong-unit product tap in `AllProductsPanel`, and, added 2026-08-06, tapping a **source** bin at step
+  ② while choosing targets ("This bin holds a product you are moving, so it cannot also be moved to").
+  All three share one toast id, so a repeated tap replaces the message instead of stacking copies.
+
+  **Still open, and the clearest remaining case:** in a Bin move's step ①, tapping an *available* bin
+  does nothing at all — `handleBinClick` requires `!bin.available && products.length > 0` and falls
+  through in silence otherwise. An empty bin is exactly what an operator might try to move stock *from*
+  before realising it holds none, so it deserves the same sentence the other three now get.
 
 **Working well:** the E-Kit refusal is the model to copy — it names the rule, the allowed inventory
 types, and both ways out.

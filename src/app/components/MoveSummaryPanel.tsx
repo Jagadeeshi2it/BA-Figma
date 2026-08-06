@@ -1,7 +1,7 @@
 import React from 'react';
 import { X, ArrowRight, LogOut, LogIn, Lock, Unlock, Package, Check, Route as RouteIcon } from 'lucide-react';
 import { pluralizeUnit } from '../utils/pluralizeUnit';
-import { getVialType, hasClimateBadge, hasCivBadge } from '../utils/binProducts';
+import ProductBadges from './ProductBadges';
 import { DoorVisit, RouteStop } from '../utils/moveRoute';
 
 /**
@@ -538,9 +538,21 @@ export default function MoveSummaryPanel({
                 {/* Identity block — same shape as SourceProductCard/TargetProductCard: name, italic
                     generic name, badges, then NDC - inventory type on one line. */}
                 <div className="flex items-start justify-between gap-2">
-                  <h4 className="font-normal text-[#020817] text-[14px] leading-[20px] truncate">
-                    {group.productName}
-                  </h4>
+                  {/* Name and badges together, as on both step-④ screens this panel sits beside — the
+                      badges were on their own line under the generic name, which put two rows between the
+                      product and its NDC. */}
+                  {/* No flex-wrap here, unlike the wider surfaces: this panel is 320px and product names
+                      are long, so wrapping put the badges on their own line again — the very thing this
+                      is meant to avoid. The name already truncates in this panel by design, so it gives
+                      up the few characters instead. */}
+                  <div className="flex items-baseline gap-2 min-w-0">
+                    <h4 className="font-normal text-[#020817] text-[14px] leading-[20px] truncate">
+                      {group.productName}
+                    </h4>
+                    <span className="flex items-center gap-1 shrink-0">
+                      <ProductBadges product={badgeIdentity} />
+                    </span>
+                  </div>
                   {/* At product level, beside the name — being skipped is a fact about the product,
                       not about one of its bins, and the bins are exactly what a skipped card has
                       nothing to say about. */}
@@ -551,17 +563,6 @@ export default function MoveSummaryPanel({
                     {group.productDescription}
                   </p>
                 )}
-                <div className="flex items-center gap-1 mt-1.5">
-                  <span className="bg-[#D1D5DB] text-[#111827] text-[9px] font-medium px-1.5 py-0.5 rounded">
-                    {getVialType(badgeIdentity)}
-                  </span>
-                  {hasClimateBadge(badgeIdentity) && (
-                    <span className="bg-[#DBEAFE] text-[#1D4ED8] text-[9px] font-medium px-1.5 py-0.5 rounded">CLIMATE</span>
-                  )}
-                  {hasCivBadge(badgeIdentity) && (
-                    <span className="bg-[#FEF3C7] text-[#B45309] text-[9px] font-medium px-1.5 py-0.5 rounded">CIV</span>
-                  )}
-                </div>
                 <div className="text-gray-500 text-[13px] break-words mt-1">
                   {group.ndc} - {group.inventoryType}
                 </div>
