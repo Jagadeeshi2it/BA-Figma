@@ -237,6 +237,16 @@ route once (`planMoveRoute` + `twoPhaseWalkOrder`) and hands the take order to o
 order to the other. This is what stops a move whose sources sit behind two doors sending the operator
 back to a door they had finished with. See [STEP4-GUIDANCE.md](STEP4-GUIDANCE.md).
 
+**The quantity page advances one stop at a time and nothing else** — `findNextStopIndex`, the next group
+the operator has not skipped. Because the route walks door by door, a product with bins behind two doors
+has *other products'* bins between its own, so the page must not go looking for "this product's next bin":
+that reorders the route behind the planner's back and steps over whatever lies between. It did, and the
+consequence was silent — a row's status is positional (`groupIndex < currentIndex` reads as `done`), so the
+leapfrogged bins were reported **Taken**, at whatever default quantity they carried, without the operator
+ever being shown them. The primary's label asks the same function, so it cannot promise a step the button
+does not take. `node scripts/verify-quantity-walk.mjs` (15 assertions) pins the walk down, including a skip
+whose product has bins further along.
+
 **Each step-④ screen carries an `Unlock Door` button** beside the product name — `UnlockDoorButton`,
 one component so the take half and the place half cannot drift on a control the operator reaches for
 when the cabinet is already misbehaving. Both screens already unlock on arrival from an effect; this is

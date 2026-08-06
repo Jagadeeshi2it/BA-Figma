@@ -414,13 +414,26 @@ export default function QuantitySelectionPage({
     setTempQuantity('');
   };
 
-  // The first group belonging to a product other than the one on screen, or -1 if this is the last.
-  const findNextProductIndex = () => {
-    const currentProductKey = productKeyOf(currentGroup);
-    return groupedTransfers.findIndex(
-      (group, idx) => idx > currentIndex && productKeyOf(group) !== currentProductKey
+  /**
+   * The next stop in the walk — the very next group the operator has not already skipped, or -1 at the end.
+   *
+   * Strictly forward, one step at a time, because `groupedTransfers` is already in the route's order
+   * (`takeBinOrder`, door by door) and that order is the whole point: it stops a move whose sources sit
+   * behind two doors sending the operator back to a door they had finished with.
+   *
+   * It used to jump to the next group of the SAME product, which quietly broke once the route interleaved
+   * products — a product with bins behind two doors has other products' bins between its own. Jumping past
+   * them left `currentIndex` beyond groups nobody had been shown, and `status` is positional
+   * (`groupIndex < currentIndex` reads as `done`), so those bins were reported as **Taken**, at whatever
+   * default quantity they carried, without the operator ever seeing them.
+   *
+   * Skipped groups are stepped over: skipping a product skips it in every bin it sits in, and with the
+   * route interleaving, more of its groups can lie further along the walk.
+   */
+  const findNextStopIndex = (skipped: Set<string>) =>
+    groupedTransfers.findIndex(
+      (group, idx) => idx > currentIndex && !skipped.has(productKeyOf(group))
     );
-  };
 
   // Hand the whole move over at once, at the quantities the operator set, leaving out any product
   // they skipped. Called only from the last product — quantities for everything are taken here,
@@ -478,10 +491,12 @@ export default function QuantitySelectionPage({
     const skipped = new Set(skippedProductKeys).add(productKeyOf(currentGroup));
     setSkippedProductKeys(skipped);
 
-    const nextProductIndex = findNextProductIndex();
+    // The freshly built set, not state: the next stop has to step over every remaining bin of the product
+    // just skipped, and setState has not landed in this tick.
+    const nextStop = findNextStopIndex(skipped);
 
-    if (nextProductIndex !== -1) {
-      setCurrentIndex(nextProductIndex);
+    if (nextStop !== -1) {
+      setCurrentIndex(nextStop);
       setEditingQuantity(false);
       return;
     }
@@ -491,41 +506,26 @@ export default function QuantitySelectionPage({
 
   const handleSave = () => {
     if (isSaving) return;
-    
-    // Get the current product identifier
-    const currentProductKey = `${currentGroup.productName}-${currentGroup.ndc}-${currentGroup.inventoryType}`;
-    
-    // Check if there are more source bins for the current product
-    const nextSourceBinIndex = groupedTransfers.findIndex((g, idx) => 
-      idx > currentIndex && 
-      `${g.productName}-${g.ndc}-${g.inventoryType}` === currentProductKey
-    );
-    
-    // If there's another source bin for this product, advance to it
-    if (nextSourceBinIndex !== -1) {
-      console.log('🔧 QuantitySelectionPage - Advancing to next source bin:', {
-        currentIndex,
-        nextSourceBinIndex,
-        currentSourceBin: currentGroup.sourceBinName,
-        nextSourceBin: groupedTransfers[nextSourceBinIndex].sourceBinName
-      });
-      setCurrentIndex(nextSourceBinIndex);
-      setEditingQuantity(false);
-      return;
-    }
-    
-    // This product is done. Another one still to take from? Stay here and advance to it — the whole
-    // move's quantities are taken at the source before anything is carried to the target, so the
-    // parent is only told once, at the end. That is also what keeps the footer's "1/4" honest: the
-    // list stays the whole move instead of being handed back a shorter one after every product.
-    const nextProductIndex = findNextProductIndex();
 
-    if (nextProductIndex !== -1) {
-      console.log('🔧 QuantitySelectionPage - Advancing to next product:', {
-        from: currentGroup.productName,
-        to: groupedTransfers[nextProductIndex].productName
+    // One step along the walk, whatever the next stop happens to be — another bin of this product or the
+    // first bin of another. It used to look for this product's next bin first and only then for another
+    // product, which reordered the route behind the planner's back and stepped over anything lying
+    // between (see findNextStopIndex).
+    //
+    // The whole move's quantities are taken at the source before anything is carried to the target, so the
+    // parent is only told once, at the end. That is also what keeps the footer's "1/4" honest: the list
+    // stays the whole move instead of being handed back a shorter one after every product.
+    const nextStop = findNextStopIndex(skippedProductKeys);
+
+    if (nextStop !== -1) {
+      console.log('🔧 QuantitySelectionPage - Advancing to next stop:', {
+        currentIndex,
+        nextStop,
+        currentSourceBin: currentGroup.sourceBinName,
+        nextSourceBin: groupedTransfers[nextStop].sourceBinName,
+        nextProduct: groupedTransfers[nextStop].productName
       });
-      setCurrentIndex(nextProductIndex);
+      setCurrentIndex(nextStop);
       setEditingQuantity(false);
       return;
     }
@@ -567,26 +567,24 @@ export default function QuantitySelectionPage({
   const uniqueProductKeys = new Set(groupedTransfers.map(g => `${g.productName}-${g.ndc}-${g.inventoryType}`));
   const hasMultipleProducts = uniqueProductKeys.size > 1;
 
-  // Does this product still have another source bin to pull from after this one?
-  // If so, the primary button just advances to that bin (still "taking out"); otherwise it
-  // hands off to the target-bin placement screen. The label/instructions reflect which.
-  const currentProductKeyForNav = `${currentGroup.productName}-${currentGroup.ndc}-${currentGroup.inventoryType}`;
-  const hasMoreSourceBinsForProduct = groupedTransfers.some((g, idx) =>
-    idx > currentIndex &&
-    `${g.productName}-${g.ndc}-${g.inventoryType}` === currentProductKeyForNav
+  // What the primary does next, asked of the walk rather than of the product — the same question
+  // findNextStopIndex answers, so the label cannot promise a step the button does not take. It used to ask
+  // "does this product have another bin?" first, which named the next bin as this product's even when the
+  // route's next stop belonged to someone else.
+  const currentProductKeyForNav = productKeyOf(currentGroup);
+  const nextStopIndexForLabel = groupedTransfers.findIndex(
+    (group, idx) => idx > currentIndex && !skippedProductKeys.has(productKeyOf(group))
   );
-  // And is there another product still to take quantities for? Every product's quantity is taken at
-  // the source before anything is carried anywhere, so exhausting this product's source bins usually
-  // means the next product, not the target bin. Promising the target bin three products early was
-  // what made the flow feel like it was bouncing between source and target.
-  const hasMoreProductsAfterThis = groupedTransfers.some((g, idx) =>
-    idx > currentIndex &&
-    `${g.productName}-${g.ndc}-${g.inventoryType}` !== currentProductKeyForNav
-  );
+  const nextStopGroup = nextStopIndexForLabel === -1 ? undefined : groupedTransfers[nextStopIndexForLabel];
+  // Another bin of the SAME product is still "taking out" of one product, so the button says so.
+  // Another product's bin is the same act on something else, and only an exhausted walk hands off to the
+  // placement screen — promising the target bin three products early was what made the flow feel like it
+  // was bouncing between source and target.
+  const nextStopIsSameProduct = !!nextStopGroup && productKeyOf(nextStopGroup) === currentProductKeyForNav;
 
-  const primaryActionLabel = hasMoreSourceBinsForProduct
+  const primaryActionLabel = nextStopIsSameProduct
     ? 'Next Bin to Move From'
-    : hasMoreProductsAfterThis
+    : nextStopGroup
       ? 'Save & Continue'
       : 'Proceed to Move To';
   
