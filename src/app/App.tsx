@@ -729,6 +729,8 @@ export default function App() {
               handleSelectBinsForAssignment={inventoryState.handleSelectBinsForAssignment}
               handleSelectSourceBinsFromSearch={inventoryState.handleSelectSourceBinsFromSearch}
               handleSelectTargetBinsFromSearch={inventoryState.handleSelectTargetBinsFromSearch}
+              handleSelectBinFromSearch={inventoryState.handleSelectBinFromSearch}
+              handleHighlightBinFromSearch={inventoryState.handleHighlightBinFromSearch}
               handleSearchProductClick={inventoryState.handleSearchProductClick}
               handleDoorClick={inventoryState.handleDoorClick}
               handleScrollToBin={setPendingScrollBinId}

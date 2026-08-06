@@ -634,6 +634,63 @@ export const useInventoryState = () => {
     }
   }, [changeAllocationSourceBins]);
 
+  /**
+   * A bin picked by NAME from the search dropdown — the bin-hit counterpart of the two handlers above.
+   *
+   * Deliberately NOT handleBinClick. That one resolves the bin against `getCurrentShelves(selectedDoor)`,
+   * so it can only ever see the door already on screen — and the whole point of finding a bin by name is
+   * that it is usually behind some other door. Changing the door first doesn't help either: setSelectedDoor
+   * is async, so a handleBinClick called straight after would still be looking at the old door.
+   *
+   * What it does mirror is that function's change-allocation branches, rule for rule:
+   *   - step 1 takes the bin whole (no source PICKS are recorded), which is what makes it hand-picked
+   *     rather than scoped to a product — see isBinScopedByQuery. Routing this through
+   *     applySourcePicks instead would quietly scope the bin to whatever the query matched inside it.
+   *   - step 1 requires the bin to actually hold something; step 2 refuses a bin already being moved
+   *     from. Both are the shelf tap's rules, and the dropdown disables the button for the same cases
+   *     rather than relying on this silently declining.
+   *   - both toggle, so picking a bin twice releases it exactly as a second tap does.
+   *
+   * The highlight query is the bin's own name, which is what binMatchesSearch tests first — so the card
+   * lights up on the shelf the same way a product pick lights up the bins holding it.
+   */
+  const handleSelectBinFromSearch = useCallback((binId: string, binName: string) => {
+    if (!changeAllocationMode) return;
+
+    if (changeAllocationStep === 1) {
+      // Product moves pick their source by product; a bin has nothing to scope to there, so the
+      // dropdown offers no Select on this row and this is belt-and-braces.
+      if (moveMode === 'product') return;
+
+      const bin = Object.values(doorShelfConfig || {})
+        .flat()
+        .flatMap(shelf => shelf.bins || [])
+        .find(candidate => candidate.id === binId);
+      if (!bin || bin.available || (bin.products?.length ?? 0) === 0) return;
+
+      setChangeAllocationSourceBins(prev =>
+        prev.includes(binId) ? prev.filter(id => id !== binId) : [...prev, binId]
+      );
+    } else {
+      if (changeAllocationSourceBins.includes(binId)) return;
+      setChangeAllocationTargetBins(prev =>
+        prev.includes(binId) ? prev.filter(id => id !== binId) : [...prev, binId]
+      );
+    }
+
+    setSelectedSearchQuery(prev => appendQueryGroup(prev, binName));
+  }, [changeAllocationMode, changeAllocationStep, moveMode, doorShelfConfig, changeAllocationSourceBins]);
+
+  /**
+   * Locate a bin found by name, without selecting it — the bin-hit counterpart of "Highlight in Bin".
+   * Used outside a move, and in a Product move's source step where the bin is not the unit being picked.
+   */
+  const handleHighlightBinFromSearch = useCallback((binName: string) => {
+    setSelectedSearchQuery(prev =>
+      changeAllocationMode ? appendQueryGroup(prev, binName) : binName
+    );
+  }, [changeAllocationMode]);
+
   // Handler for clicking on a product in search dropdown (when change allocation mode is off)
   const handleSearchProductClick = useCallback((productName: string, ndc: string, inventoryType: string) => {
     // Create a specific search query with product name, NDC, and inventory type
@@ -2062,6 +2119,8 @@ export const useInventoryState = () => {
     handleSelectSourceProductFromBin,
     sourceProductPicks,
     handleSelectTargetBinsFromSearch,
+    handleSelectBinFromSearch,
+    handleHighlightBinFromSearch,
     handleSearchProductClick,
     handleConfirmAssignment,
     closeBinInventory,

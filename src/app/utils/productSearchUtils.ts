@@ -108,6 +108,98 @@ export const searchProducts = (doorShelfConfig: DoorShelfConfig, searchQuery: st
     ? collectProducts(doorShelfConfig, product => productMatchesQuery(product, searchQuery))
     : [];
 
+export interface BinSearchResult {
+  binId: string;
+  binName: string;
+  shelfName: string;
+  doorName: string;
+  cabinetName: string;
+  /** Distinct product rows the bin holds — what its card lists. */
+  productCount: number;
+  totalQuantity: number;
+  available: boolean;
+}
+
+/**
+ * Bins whose NAME matches the query — the other half of what the search box has always claimed to do.
+ *
+ * Deliberately name-only. `binMatchesSearch` in doorUtils falls back to the bin's CONTENTS, which is
+ * right for tinting a card but wrong here: a bin holding a matched product would appear in both this
+ * list and the product list below it, as two different answers to one question. Products are the
+ * product section's job; this section answers "where is the bin I was told to go to".
+ *
+ * Same query grammar as searchProducts — "|"-separated OR-groups of ","-separated AND-terms — so a
+ * bin name and a product name can be searched with the same muscle memory.
+ *
+ * Ordered by door, then by the bin's own name, so the list reads in the order the operator would walk
+ * it rather than in whatever order the config happens to enumerate.
+ */
+export const searchBinsByName = (
+  doorShelfConfig: DoorShelfConfig,
+  searchQuery: string
+): BinSearchResult[] => {
+  if (!searchQuery.trim()) return [];
+
+  const orGroups = searchQuery.split('|').map(group => group.trim()).filter(group => group.length > 0);
+  const matchesName = (binName: string): boolean => {
+    const target = binName.toLowerCase();
+    return orGroups.some(group => {
+      const terms = group.split(',').map(term => term.trim().toLowerCase()).filter(term => term.length > 0);
+      return terms.length > 0 && terms.every(term => target.includes(term));
+    });
+  };
+
+  const results: BinSearchResult[] = [];
+
+  Object.entries(doorShelfConfig).forEach(([doorName, shelves]) => {
+    shelves.forEach(shelf => {
+      shelf.bins.forEach(bin => {
+        if (!matchesName(bin.name)) return;
+        const products = bin.products || [];
+        results.push({
+          binId: bin.id,
+          binName: bin.name,
+          shelfName: shelf.name,
+          doorName,
+          cabinetName: getCabinetNameFromDoorName(doorName),
+          productCount: products.length,
+          totalQuantity: products.reduce((total, product) => total + (product.quantity || 0), 0),
+          // A bin the app considers free to allocate into. Note this is not the same as "holds
+          // nothing" — the source rule below tests the products, exactly as the shelf tap does.
+          available: bin.available
+        });
+      });
+    });
+  });
+
+  const doorNumber = (doorName: string) => parseInt(doorName.replace('Door ', ''), 10) || 0;
+  return results.sort(
+    (a, b) => doorNumber(a.doorName) - doorNumber(b.doorName) || a.binName.localeCompare(b.binName)
+  );
+};
+
+
+/**
+ * The OR-group of `query` that matches this bin's NAME, or '' if none does.
+ *
+ * Lets a caller tell the two kinds of group in a highlight query apart. A product group is a record of
+ * something already picked, so it must only reach bins in the selection — letting it loose lights up
+ * every bin that merely holds the drug. A bin-name group is the opposite: it names one bin outright,
+ * so it can't over-reach, and it means "you asked where this is" rather than "you chose this".
+ */
+export const binNameQueryGroup = (query: string, binName: string): string => {
+  if (!query.trim() || !binName) return '';
+  const target = binName.toLowerCase();
+  const match = query
+    .split('|')
+    .map(group => group.trim())
+    .filter(group => group.length > 0)
+    .find(group => {
+      const terms = group.split(',').map(term => term.trim().toLowerCase()).filter(term => term.length > 0);
+      return terms.length > 0 && terms.every(term => target.includes(term));
+    });
+  return match ?? '';
+};
 
 // Helper function to get cabinet name from door name
 const getCabinetNameFromDoorName = (doorName: string): string => {

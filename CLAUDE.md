@@ -420,6 +420,57 @@ They are independent on purpose and most historical bugs came from conflating th
 `|`-separated OR-groups, each an `,`-separated AND-set. `appendQueryGroup` / `removeQueryGroup` /
 `pruneQueryToBins` maintain them.
 
+**Nothing on the canvas reads `searchQuery`.** The bin highlight, the door dots and the match count all
+read `selectedSearchQuery`, which only a dropdown pick sets. `ShelfLayout`'s prop is *named* `searchQuery`
+and is fed the highlight channel — do not read that name as the typed text.
+
+### The search box finds bins as well as products
+
+Two lists, from two functions, in one dropdown:
+
+| Function | Matches | Section |
+|---|---|---|
+| `searchProducts` | product name, NDC, source, inventoryType, description | `n matching products` |
+| `searchBinsByName` | **`bin.name` only** | `n matching bins`, rendered **first** |
+
+Bin hits are name-only on purpose. `binMatchesSearch` (doorUtils) falls back to a bin's *contents*, which
+is right for tinting a card and wrong for a list — a bin holding a matched product would appear in both
+sections as two answers to one question. Products are the product section's job; this one answers "where
+is the bin I was sent to".
+
+Bin search was advertised in the placeholder from the start and **never worked**: the only bin-name
+matcher fed off `selectedSearchQuery`, which a product pick alone can set, so its `bin.name` branch was
+unreachable. `searchBins`, a third matcher, was exported and called by nothing; deleted with this.
+
+Four things about the section are load-bearing:
+
+- **A bin hit is never dropped for being spent**, unlike a product hit. A bin is the singular thing the
+  operator just named, and a named thing vanishing from a search reads as "no such bin" — the exact
+  failure this closes. It reports its state in its button instead (`Remove from Move To`,
+  `Already in Move From`, `Empty — nothing to move from`).
+- **What acting on it means comes from `binActionFor`**, which restates the shelf tap's rules so the
+  button can name them: select in a Bin move's step ① and in step ② either kind, locate everywhere else.
+  A Product move's step ① locates because the bin is not the unit there, the same reason its shelves are
+  inert. **The two assignment panels locate too, and that is a decision** — a bin tap there runs the E-Kit
+  rule, the already-stocks-this conflict check and the "pick a product first" toast, and a second route in
+  that skipped all three would build a selection the panel cannot use.
+- **`handleSelectBinFromSearch` is not `handleBinClick`.** That one resolves the bin against
+  `getCurrentShelves(selectedDoor)`, so it only ever sees the open door — and a bin found by name is
+  usually behind another one. Opening the door first does not help: `setSelectedDoor` is async. It also
+  deliberately skips `applySourcePicks`, so a bin taken this way is **hand-picked**, not scoped (§ below).
+- **`binNameQueryGroup` is the exception in `resolveSearchQuery`.** In a move the highlight is scoped to
+  bins in the selection, so a *located* bin — not picked by definition — would light nothing. A bin-name
+  group is safe to let through where a product group is not: it matches exactly the bin it names and
+  cannot spread to bins that merely hold something. Only that group is passed on, so the products inside
+  stay unhighlighted.
+
+Rows are `Door 3 - Bin 1A`, the one-string form the move panels and review cards use. The door is doing
+real work: `binLabel` scopes uniqueness to the door, so the current seed answers `Bin 1A` with **eight**
+bins. Real cabinets are expected to carry globally unique names, which makes this a display concern
+rather than a modelling one — but the qualifier stays either way.
+
+`MIN_SEARCH_LENGTH = 3` applies to both lists, so a two-character bin name (`1A`) finds nothing.
+
 ### Scoped vs hand-picked source bins
 
 A bin added by searching a product is **scoped** to that product; a bin tapped on the shelf was

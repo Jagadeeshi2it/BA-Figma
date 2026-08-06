@@ -11,6 +11,7 @@ import {
   getSlotsPerShelf,
   binMatchesSearch
 } from '../utils/doorUtils';
+import { binNameQueryGroup } from '../utils/productSearchUtils';
 import { BOTTOM_DOOR_GRID, DOUBLE_DOOR_GRID } from '../utils/shelfLayoutConfig';
 
 interface ShelfLayoutProps {
@@ -89,7 +90,14 @@ export default function ShelfLayout({
     // the selection: a leftover query must not tint a bin that was taken back out.
     const isSource = changeAllocationSourceBins.includes(bin.id);
     const isTarget = changeAllocationTargetBins.includes(bin.id);
-    return isSource || isTarget ? searchQuery : '';
+    if (isSource || isTarget) return searchQuery;
+    // One exception to that scoping: a group naming this bin OUTRIGHT. "Highlight in Bin" on a bin
+    // hit has to light the bin up wherever the flow is — a Product move's source step scopes the
+    // highlight to picked bins, and a located bin is by definition not picked yet, so without this the
+    // button would jump to the door and light nothing. Safe to let through where a product group is
+    // not: a bin-name group matches exactly the bin it names, so it cannot spread to bins that merely
+    // hold something. Only that group is passed on, so the products inside stay unhighlighted.
+    return binNameQueryGroup(searchQuery, bin.name);
   };
 
   // Render a slotted grid shelf: double doors are 2 rows x 5 cols, bottom doors 5x5.

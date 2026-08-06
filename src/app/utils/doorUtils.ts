@@ -151,44 +151,6 @@ export const initializeDoorConfigs = (doorShelfConfig: DoorShelfConfig): DoorShe
   return updatedConfig;
 };
 
-// Search functionality to filter bins based on query
-export const searchBins = (shelves: Shelf[], query: string): Shelf[] => {
-  if (!query.trim()) return shelves;
-  
-  // Split query by commas and trim each term
-  const searchTerms = query.split(',').map(term => term.trim().toLowerCase()).filter(term => term.length > 0);
-  
-  if (searchTerms.length === 0) return shelves;
-  
-  return shelves.map(shelf => ({
-    ...shelf,
-    bins: shelf.bins.filter(bin => {
-      // For single term, use the original logic for backwards compatibility
-      if (searchTerms.length === 1) {
-        const searchTerm = searchTerms[0];
-        
-        // Search in bin name
-        if (bin.name.toLowerCase().includes(searchTerm)) return true;
-        
-        // Search in product names, NDC codes, and sources
-        return bin.products.some(product => 
-          product.name.toLowerCase().includes(searchTerm) ||
-          product.ndc.toLowerCase().includes(searchTerm) ||
-          product.source.toLowerCase().includes(searchTerm) ||
-          product.inventoryType.toLowerCase().includes(searchTerm) ||
-          product.description.toLowerCase().includes(searchTerm)
-        );
-      }
-      
-      // For multiple terms (comma-separated), check if bin name matches all terms
-      if (matchesAllTerms(bin.name, searchTerms)) return true;
-      
-      // For products, each search term must match at least one field of the same product
-      return bin.products.some(product => productMatchesAllTerms(product, searchTerms));
-    })
-  })).filter(shelf => shelf.bins.length > 0);
-};
-
 // Helper function to check if all search terms match a target string
 const matchesAllTerms = (target: string, searchTerms: string[]): boolean => {
   const targetLower = target.toLowerCase();

@@ -1,11 +1,11 @@
-import React, { memo, useState, useEffect, useRef } from 'react';
+import React, { memo, useState, useEffect, useMemo, useRef } from 'react';
 import { SourcePick } from '../utils/sourcePicks';
 import { Button } from './ui/button';
 import { Clock, X, ChevronDown } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { Checkbox } from './ui/checkbox';
 import SearchDropdown, { getResultKey } from './SearchDropdown';
-import { searchProducts, getBinIdsForProduct } from '../utils/productSearchUtils';
+import { searchProducts, searchBinsByName, getBinIdsForProduct } from '../utils/productSearchUtils';
 import { DoorShelfConfig } from '../types';
 
 // Shortest query that gets searched. Anything shorter matches so much of the catalogue that the
@@ -45,6 +45,9 @@ interface HeaderSectionProps {
   handleSelectBinsForAssignment?: (binIds: string[]) => void;
   handleSelectSourceBinsFromSearch?: (binIds: string[], productName: string, highlightQuery?: string) => void;
   handleSelectTargetBinsFromSearch?: (binIds: string[], productName: string, highlightQuery?: string) => void;
+  // A bin found by NAME, rather than by the product it holds — see searchBinsByName.
+  handleSelectBinFromSearch?: (binId: string, binName: string) => void;
+  handleHighlightBinFromSearch?: (binName: string) => void;
   handleSearchProductClick?: (productName: string, ndc: string, inventoryType: string) => void;
   handleDoorClick?: (doorName: string) => void;
   handleScrollToBin?: (binId: string) => void;
@@ -99,6 +102,8 @@ const HeaderSection = memo(function HeaderSection({
   handleSelectBinsForAssignment,
   handleSelectSourceBinsFromSearch,
   handleSelectTargetBinsFromSearch,
+  handleSelectBinFromSearch,
+  handleHighlightBinFromSearch,
   handleSearchProductClick,
   handleDoorClick,
   handleScrollToBin
@@ -138,6 +143,16 @@ const HeaderSection = memo(function HeaderSection({
     });
   };
 
+  // Bins whose name matches. Derived rather than held in state like the products beside it: there is
+  // no equivalent of viewedProductKeys to prune, so there is nothing for an effect to maintain.
+  const binResults = useMemo(
+    () =>
+      searchQuery.trim().length >= MIN_SEARCH_LENGTH && doorShelfConfig
+        ? searchBinsByName(doorShelfConfig, searchQuery)
+        : [],
+    [searchQuery, doorShelfConfig]
+  );
+
   // Update search results when query changes
   useEffect(() => {
     // One or two characters match too much of the catalogue to be worth reading, so the list stays
@@ -145,14 +160,16 @@ const HeaderSection = memo(function HeaderSection({
     if (searchQuery.trim().length >= MIN_SEARCH_LENGTH && doorShelfConfig) {
       const results = searchProducts(doorShelfConfig, searchQuery);
       setSearchResults(results);
-      setShowSearchDropdown(results.length > 0 && isSearchFocused);
+      // A bins-only query still opens the list — otherwise typing a bin name would look exactly like
+      // typing a nonexistent one, which is the gap this whole section exists to close.
+      setShowSearchDropdown((results.length > 0 || binResults.length > 0) && isSearchFocused);
       prunePicksToResults(results);
     } else {
       setSearchResults([]);
       setShowSearchDropdown(false);
       setViewedProductKeys([]);
     }
-  }, [searchQuery, doorShelfConfig, isSearchFocused]);
+  }, [searchQuery, doorShelfConfig, isSearchFocused, binResults]);
 
   const handleProductsViewed = (keys: string[]) => {
     // Replaces, not accumulates: switching to a new product un-hides whatever was
@@ -202,7 +219,7 @@ const HeaderSection = memo(function HeaderSection({
   // Handle search input focus
   const handleSearchFocus = () => {
     setIsSearchFocused(true);
-    if (searchResults.length > 0) {
+    if (searchResults.length > 0 || binResults.length > 0) {
       setShowSearchDropdown(true);
     }
   };
@@ -287,6 +304,10 @@ const HeaderSection = memo(function HeaderSection({
             {/* Search Results Dropdown */}
             <SearchDropdown
               searchResults={searchResults}
+              binResults={binResults}
+              targetBinIds={changeAllocationTargetBins}
+              onSelectBin={handleSelectBinFromSearch}
+              onHighlightBin={handleHighlightBinFromSearch}
               isVisible={showSearchDropdown}
               changeAllocationMode={changeAllocationMode}
               changeAllocationStep={changeAllocationStep}

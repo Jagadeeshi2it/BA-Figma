@@ -1,11 +1,19 @@
 import React, { memo } from 'react';
 import { SourcePick, sourcePickKey, hasSourcePick } from '../utils/sourcePicks';
 import { Button } from './ui/button';
-import { ProductSearchResult, getBinIdsForProduct } from '../utils/productSearchUtils';
+import { ProductSearchResult, BinSearchResult, getBinIdsForProduct } from '../utils/productSearchUtils';
 import { getVialType, hasClimateBadge, hasCivBadge } from '../utils/binProducts';
 
 interface SearchDropdownProps {
   searchResults: ProductSearchResult[];
+  /** Bins whose name matches the query. Listed above the products — see the section comment below. */
+  binResults?: BinSearchResult[];
+  /** Bins already picked as Move To, so a bin hit can report its own state rather than going dead. */
+  targetBinIds?: string[];
+  /** Select/release a bin found by name. Only wired where the bin is the unit being picked. */
+  onSelectBin?: (binId: string, binName: string) => void;
+  /** Locate a bin found by name without selecting it. */
+  onHighlightBin?: (binName: string) => void;
   isVisible: boolean;
   changeAllocationMode?: boolean;
   changeAllocationStep?: 1 | 2;
@@ -52,8 +60,54 @@ const formatBinLocations = (result: ProductSearchResult): string[] => [
   ...new Set(result.binLocations.map(loc => `${loc.binName} - ${loc.shelfName}, ${loc.doorName}`))
 ];
 
+/**
+ * What acting on a bin hit means, which is not the same in every mode — the same rule the shelf tap
+ * follows (handleBinClick), stated here so the button can name it and dim itself for the right reason
+ * instead of the row going quietly dead.
+ *
+ * `kind: 'locate'` is the fallback everywhere the bin is not the unit being picked: plain browsing, the
+ * two assignment panels, and a Product move's source step. In the assignment panels that is a real
+ * decision, not an omission — a bin tap there runs the E-Kit rule, the already-stocks-this-product
+ * conflict check and the "pick a product first" toast, and a second route into the selection that
+ * skipped all three would be a way to build a selection the panel can't use.
+ */
+type BinAction =
+  | { kind: 'locate' }
+  | { kind: 'select'; label: string }
+  | { kind: 'blocked'; label: string };
+
+const binActionFor = (
+  bin: BinSearchResult,
+  changeAllocationMode: boolean,
+  changeAllocationStep: 1 | 2,
+  moveMode: 'bin' | 'product' | null,
+  sourceBinIds: string[],
+  targetBinIds: string[]
+): BinAction => {
+  if (!changeAllocationMode) return { kind: 'locate' };
+
+  if (changeAllocationStep === 1) {
+    // The source is a product here, so the bin can only be located — same reason the shelves are inert.
+    if (moveMode === 'product') return { kind: 'locate' };
+    if (sourceBinIds.includes(bin.binId)) return { kind: 'select', label: 'Remove from Move From' };
+    // The shelf tap requires the same, and saying so is the point: an operator sent to a bin that
+    // turns out to be empty needs to be told that, not handed a button that does nothing.
+    if (bin.available || bin.productCount === 0) return { kind: 'blocked', label: 'Empty — nothing to move from' };
+    return { kind: 'select', label: 'Select as Move From' };
+  }
+
+  // Step 2 picks the target, which is a bin in either kind of move.
+  if (sourceBinIds.includes(bin.binId)) return { kind: 'blocked', label: 'Already in Move From' };
+  if (targetBinIds.includes(bin.binId)) return { kind: 'select', label: 'Remove from Move To' };
+  return { kind: 'select', label: 'Select as Move To' };
+};
+
 const SearchDropdown = memo(function SearchDropdown({
   searchResults,
+  binResults = [],
+  targetBinIds = [],
+  onSelectBin,
+  onHighlightBin,
   isVisible,
   changeAllocationMode = false,
   changeAllocationStep = 1,
@@ -73,7 +127,7 @@ const SearchDropdown = memo(function SearchDropdown({
   onDismissList,
   onClose
 }: SearchDropdownProps) {
-  if (!isVisible || searchResults.length === 0) {
+  if (!isVisible || (searchResults.length === 0 && binResults.length === 0)) {
     return null;
   }
 
@@ -222,13 +276,109 @@ const SearchDropdown = memo(function SearchDropdown({
     ? `${unavailablePrefix}: ${names.join(', ')}`
     : `${unavailablePrefix}: ${names.slice(0, 3).join(', ')} and ${names.length - 3} more`;
 
+  // Locate, or select, or neither — plus the jump, which every acted-on bin gets: a bin hit is only
+  // useful once the door holding it is open, and that door is usually not the one on screen.
+  const handleBinAction = (bin: BinSearchResult, action: BinAction) => {
+    if (action.kind === 'blocked') return;
+
+    if (action.kind === 'select') {
+      onSelectBin?.(bin.binId, bin.binName);
+    } else {
+      onHighlightBin?.(bin.binName);
+    }
+
+    onDoorClick?.(bin.doorName);
+    onScrollToBin?.(bin.binId);
+
+    if (action.kind === 'locate') {
+      // Names the bin in the box the way a product pick names the product — and normalises what was
+      // typed to the bin's real label, so "bin 1a" comes back as "Bin 1A".
+      onAutofillSearch?.(bin.binName);
+    } else {
+      onDismissList?.();
+    }
+  };
+
   return (
     <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-[#bcc3cd] rounded-[4px] shadow-lg z-[60] max-h-96 overflow-y-auto">
       <div>
+        {/* Bins first. The product list answers "where is this drug"; this one answers "where is the
+            bin I was told to go to" — a question with exactly one right answer, so it goes above the
+            list of many. Unlike the products below, a bin hit is never dropped for being spent: a bin
+            is the singular thing the operator just named, and a named thing vanishing from a search
+            reads as "no such bin" rather than "already chosen". It reports its state in its button
+            instead. */}
+        {binResults.length > 0 && (
+          <div>
+            <div className="px-4 py-3">
+              <p className="block font-normal leading-[16px] not-italic text-[#020817] text-[14px] text-left">
+                <span className="font-semibold">{binResults.length}</span> matching bin{binResults.length !== 1 ? 's' : ''}
+              </p>
+            </div>
+            <div className="divide-y divide-gray-200 border-t border-gray-200">
+              {binResults.map(bin => {
+                const action = binActionFor(
+                  bin, changeAllocationMode, changeAllocationStep, moveMode, sourceBinIds, targetBinIds
+                );
+                return (
+                  <div key={bin.binId} className="px-4 py-4">
+                    <div className="box-border content-stretch flex flex-row items-start justify-between gap-2 p-0 relative shrink-0 w-full mb-4">
+                      <div className="flex-1 box-border content-stretch flex flex-col gap-0.5 items-start justify-start min-w-0 p-0 relative">
+                        {/* Door first, then bin — the same one-string form the move panels and the
+                            review cards use ("Door 2 - Bin 4C"), so the search names a location the
+                            way every other surface names it. It also does the disambiguating: bin
+                            names only have to be unique within a door. */}
+                        <p className="block leading-[16px] text-[14px] font-medium break-words text-[#020817]">
+                          {bin.doorName} - {bin.binName}
+                        </p>
+                        {/* 13px, the size every "where this lives" line uses across the app. */}
+                        <p className="block leading-[16px] text-[13px] text-[#020817] break-words">
+                          {bin.shelfName}, {bin.cabinetName}
+                        </p>
+                        <p className="block leading-[16px] text-[14px] text-[#676b74] break-words mt-1">
+                          {bin.productCount === 0
+                            ? 'Empty'
+                            : `${bin.productCount} product${bin.productCount !== 1 ? 's' : ''}`}
+                        </p>
+                      </div>
+
+                      <div className="bg-[#f7f7f7] box-border content-stretch flex flex-col items-center justify-center p-[4px] relative rounded shrink-0 w-16">
+                        <div className="absolute border-[1px] border-[#e9e9e9] border-solid inset-0 pointer-events-none rounded" />
+                        <div className="flex flex-col font-medium justify-center leading-[0] not-italic relative shrink-0 text-[#020817] text-xs text-nowrap text-right">
+                          <p className="block leading-[16px] whitespace-pre text-[14px]">{bin.totalQuantity}</p>
+                        </div>
+                        <div className="flex flex-col font-semibold justify-center leading-[0] not-italic relative shrink-0 text-[#676b74] text-[8px] text-left text-nowrap">
+                          <p className="block leading-[normal] whitespace-pre text-[10px]">{getUnit(bin.totalQuantity)}</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Dimmed rather than recoloured when blocked — the app's rule for a secondary
+                        that has nothing to do (CLAUDE.md conventions). aria-disabled, not disabled:
+                        the label already carries the reason, so there's nothing for a click to
+                        explain, but the state still has to reach assistive tech. */}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      aria-disabled={action.kind === 'blocked'}
+                      onClick={() => handleBinAction(bin, action)}
+                      className={`w-full bg-white border-[#095192] text-[#095192] hover:bg-[#F1F6FA] hover:text-[#095192] text-[14px] h-10 rounded-[4px] ${
+                        action.kind === 'blocked' ? 'opacity-50 cursor-not-allowed hover:bg-white' : ''
+                      }`}
+                    >
+                      {action.kind === 'locate' ? 'Highlight in Bin' : action.label}
+                    </Button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {/* No count when there's nothing left to list — the message below says the whole story,
             and a count with an empty list under it just reads as a contradiction. */}
         {visibleResults.length > 0 && (
-          <div className="box-border content-stretch flex flex-row gap-3 items-center justify-between relative shrink-0 w-full px-4 py-3">
+          <div className={`box-border content-stretch flex flex-row gap-3 items-center justify-between relative shrink-0 w-full px-4 py-3 ${binResults.length > 0 ? 'border-t-4 border-gray-100' : ''}`}>
             <p className="block font-normal leading-[16px] not-italic text-[#020817] text-[14px] text-left">
               <span className="font-semibold">{visibleResults.length}</span> matching product{visibleResults.length !== 1 ? 's' : ''}
             </p>
@@ -247,9 +397,11 @@ const SearchDropdown = memo(function SearchDropdown({
           </div>
         )}
 
-        {/* Only change allocation mode can empty this list — view mode keeps every match listed,
-            and the component returns null when the search itself found nothing. */}
-        {visibleResults.length === 0 ? (
+        {/* Only change allocation mode can empty this list — view mode keeps every match listed. The
+            outer guard is what a bins-only query needs: the component no longer returns null when the
+            product search finds nothing, so without it a query that matched only bin names would print
+            "Already selected:" over an empty name list. */}
+        {searchResults.length > 0 && (visibleResults.length === 0 ? (
           <div className="text-[13px] text-[#64748b] text-center px-4 pb-3">
             {alreadySelectedMessage}
           </div>
@@ -380,7 +532,7 @@ const SearchDropdown = memo(function SearchDropdown({
           </div>
         ))}
         </div>
-        )}
+        ))}
       </div>
     </div>
   );
