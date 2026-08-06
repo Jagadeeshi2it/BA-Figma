@@ -14,7 +14,7 @@ import SourceProductCard from "./SourceProductCard";
 import TargetProductCard from "./TargetProductCard";
 import { productKeysForBin, sourcePickKey } from '../utils/sourcePicks';
 import ProductCentricCard from "./ProductCentricCard";
-import MoveSummaryPanel, { MoveSummaryRow } from "./MoveSummaryPanel";
+import MoveSummaryPanel, { MoveSummaryRow, moveSummaryProductKey } from "./MoveSummaryPanel";
 import { formatBinLocation, getDoorName } from '../utils/changeAllocationUtils';
 import { doesProductMatchSearch } from '../utils/textHighlight';
 import ProductBadges from './ProductBadges';
@@ -143,8 +143,14 @@ export default function ChangeAllocationModal({
   // Distinct products in the summary — the footer's counter reports this, matching the panel's own
   // "N products" header rather than a count of bin pairings (a product spanning two bins is one
   // product, not two, to both).
+  //
+  // Distinct by the identity triple, not by display name: three catalogue products share the name
+  // "CARBOPLATIN 600 MG/60 ML VIAL" in the current seed, so a name-only Set counted a four-product move
+  // as two — the same bug the panel's own grouping had, and it has to be fixed in both or the footer and
+  // the panel header disagree about the very number they exist to agree on.
   const summaryProductCount = useMemo(
-    () => new Set(summaryRows.map(row => row.productName)).size,
+    () =>
+      new Set(summaryRows.map(moveSummaryProductKey)).size,
     [summaryRows]
   );
 

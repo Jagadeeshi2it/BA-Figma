@@ -5,7 +5,7 @@ import { ChevronRight, Pencil, X, Package, LogOut, ListChecks, ArrowRight } from
 import { DoorUnlockedToast, ValidationToast } from "./ui/sonner-1";
 import CabinetPipView from "./CabinetPipView";
 import SideSheet from "./SideSheet";
-import MoveSummaryPanel, { MoveSummaryRow } from "./MoveSummaryPanel";
+import MoveSummaryPanel, { MoveSummaryRow, moveSummaryProductKey } from "./MoveSummaryPanel";
 import UnlockDoorButton from "./UnlockDoorButton";
 import {
   PipelineFooterShell,
@@ -319,7 +319,7 @@ export default function QuantitySelectionPage({
 
   // Distinct products in the summary, for the footer counter — matches the panel's own header count.
   const summaryProductCount = useMemo(
-    () => new Set(summaryRows.map(row => row.productName)).size,
+    () => new Set(summaryRows.map(moveSummaryProductKey)).size,
     [summaryRows]
   );
 

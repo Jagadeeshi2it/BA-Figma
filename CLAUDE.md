@@ -679,7 +679,15 @@ only the first share as the whole amount available.
 ### The Move List's row model
 
 `MoveSummaryRow` is one source→target pairing; the panel groups them (by product, then by source bin) to
-get the nesting. Three things about it are load-bearing:
+get the nesting. Four things about it are load-bearing:
+
+- **A row's product is the identity triple, via `moveSummaryProductKey`** — never `productName`. Three
+  catalogue products are called `CARBOPLATIN 600 MG/60 ML VIAL` and differ only by NDC, so grouping by
+  name folded them into one card: a four-product move reported `2 products`, and the surviving card wore
+  the first variant's NDC above a list of bins belonging to the other two. The same name-only `Set` was
+  counting distinct products for the footers of Review and both step-④ screens, so the fix had to reach
+  all four or the footer and the panel header would disagree about the number they exist to agree on.
+  One exported helper now serves all of them.
 
 - **`sourceQuantity` vs `quantity`.** The first is what leaves the source bin — one figure for the bin,
   repeated across the pairings that share it, so the panel takes it from the first and states it once.
@@ -943,12 +951,16 @@ been violations of it.
   `ndc - inventoryType`; primary `#095192`, secondary white/`#095192` border, destructive `#C6362C`,
   selected tint `#F1F6FA`, assignment border `#8F48D2`.
 - **Badges sit beside the display name inside the move pipeline, and below the generic name outside it.**
-  Steps ③ and ④ — the Review cards and header, both step-④ screens, the Move List panel — read
-  name-and-kind as one thing: which product, and what handling it needs. On their own line they put two
-  rows between the product and the NDC that identifies it. Everywhere else (bin cards, both side panels,
-  the search dropdown) they stay on their own line under the generic name. `ProductBadges` renders the
-  three spans for every one of these surfaces, so only the *layout* differs; the badges themselves cannot.
-  The Move List drops `flex-wrap` because at 320px a long name wraps them back onto their own line.
+  Steps ③ and ④ — the Review cards and header, both step-④ screens — read name-and-kind as one thing:
+  which product, and what handling it needs. On their own line they put two rows between the product and
+  the NDC that identifies it. Everywhere else (bin cards, both side panels, the search dropdown) they stay
+  on their own line under the generic name.
+  **The Move List panel is the exception inside the pipeline, and width is the reason:** at 320px, badges
+  on the name's line cost the name the characters it needs — `CARBOPLATIN 600 MG/60 ML VIAL` truncated to
+  `CARBOPLATIN 600 MG/6…`, losing the strength, which is the part the operator is checking. Do not
+  "restore consistency" there without widening the panel first.
+  `ProductBadges` renders the three spans for every one of these surfaces, so only the *position* differs;
+  the badges themselves cannot.
 - **A "where this product lives" line is 13px, wherever it appears** — the bin locations under a product
   in either side panel, the purple list of bins it is about to be assigned to, and the search dropdown's
   locations. They are the same fact on four surfaces. Three of them were 12px at some point, which read

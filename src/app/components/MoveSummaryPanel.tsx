@@ -52,6 +52,23 @@ export interface MoveSummaryRow {
 }
 
 /**
+ * A row's product identity — `name | ndc | inventoryType`, the triple the whole app groups by (CLAUDE.md
+ * §3), never the display name alone. Several catalogue products share a display name and differ only by
+ * NDC: the seed has three "CARBOPLATIN 600 MG/60 ML VIAL".
+ *
+ * Exported because the panel groups its cards by this and three screens count distinct products by it for
+ * their footers. They each had their own `new Set(rows.map(r => r.productName))`, which folded those three
+ * variants into one — a four-product move reported as two, on both the footer and the panel header, with
+ * the surviving card wearing the first variant's NDC above a list of bins belonging to the other two.
+ * One function so the count and the cards cannot disagree.
+ */
+export const moveSummaryProductKey = (row: {
+  productName: string;
+  ndc?: string;
+  inventoryType?: string;
+}) => `${row.productName}|${row.ndc ?? ''}|${row.inventoryType ?? ''}`;
+
+/**
  * Which half of the move the operator is physically doing right now.
  *
  * A pairing line reads the same on both halves of step 4 — "Bin B · Door 1 → Bin C · Door 1" — but
@@ -129,11 +146,18 @@ const groupByProduct = (rows: MoveSummaryRow[]) => {
   }[] = [];
   const indexByProduct = new Map<string, number>();
   rows.forEach(row => {
-    const existingIndex = indexByProduct.get(row.productName);
+    // Keyed on the identity triple, never the display name alone (CLAUDE.md §3). Several catalogue
+    // products share a display name and differ by NDC or inventory type — the seed has three
+    // "CARBOPLATIN 600 MG/60 ML VIAL" — so grouping by name folded them into ONE card: the panel said
+    // "2 products" for a four-product move, and the surviving card wore the first variant's NDC above a
+    // list of bins that belonged to the other two. Every count and badge in this app keys on the triple
+    // for exactly this reason.
+    const identity = moveSummaryProductKey(row);
+    const existingIndex = indexByProduct.get(identity);
     if (existingIndex !== undefined) {
       groups[existingIndex].rows.push(row);
     } else {
-      indexByProduct.set(row.productName, groups.length);
+      indexByProduct.set(identity, groups.length);
       groups.push({
         productName: row.productName,
         productDescription: row.productDescription,
@@ -538,21 +562,15 @@ export default function MoveSummaryPanel({
                 {/* Identity block — same shape as SourceProductCard/TargetProductCard: name, italic
                     generic name, badges, then NDC - inventory type on one line. */}
                 <div className="flex items-start justify-between gap-2">
-                  {/* Name and badges together, as on both step-④ screens this panel sits beside — the
-                      badges were on their own line under the generic name, which put two rows between the
-                      product and its NDC. */}
-                  {/* No flex-wrap here, unlike the wider surfaces: this panel is 320px and product names
-                      are long, so wrapping put the badges on their own line again — the very thing this
-                      is meant to avoid. The name already truncates in this panel by design, so it gives
-                      up the few characters instead. */}
-                  <div className="flex items-baseline gap-2 min-w-0">
-                    <h4 className="font-normal text-[#020817] text-[14px] leading-[20px] truncate">
-                      {group.productName}
-                    </h4>
-                    <span className="flex items-center gap-1 shrink-0">
-                      <ProductBadges product={badgeIdentity} />
-                    </span>
-                  </div>
+                  {/* The name gets the row to itself here — this panel is the one place in steps ③ and ④
+                      where the badges do NOT sit beside it. At 320px there is no room for both: badges on
+                      the name's line cost the name the characters it needs, so "CARBOPLATIN 600 MG/60 ML
+                      VIAL" truncated to "CARBOPLATIN 600 MG/6…" and the operator lost the strength, which
+                      is the one part of that name they are checking. Width decides this, not preference —
+                      the wider surfaces in the same steps keep badges beside the name. */}
+                  <h4 className="font-normal text-[#020817] text-[14px] leading-[20px] truncate">
+                    {group.productName}
+                  </h4>
                   {/* At product level, beside the name — being skipped is a fact about the product,
                       not about one of its bins, and the bins are exactly what a skipped card has
                       nothing to say about. */}
@@ -563,6 +581,12 @@ export default function MoveSummaryPanel({
                     {group.productDescription}
                   </p>
                 )}
+                {/* Below the generic name, on a line of their own — the layout the rest of the app uses
+                    outside the pipeline. Same `ProductBadges` as everywhere else, so only the position
+                    differs from the wider step-③/④ surfaces. */}
+                <div className="flex items-center gap-1 mt-1.5">
+                  <ProductBadges product={badgeIdentity} />
+                </div>
                 <div className="text-gray-500 text-[13px] break-words mt-1">
                   {group.ndc} - {group.inventoryType}
                 </div>
