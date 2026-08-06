@@ -219,7 +219,9 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
         dispatchRealClick(input, x, y);
         await sleep(fast ? 0 : PACE.pressMs, token);
         setPressed(false);
-        await typeInto(input, step.text ?? '', token, fast ? 0 : PACE.typeCharMs);
+        // Resolved here, not at module load — see DemoStep.text.
+        const text = typeof step.text === 'function' ? step.text() : step.text ?? '';
+        await typeInto(input, text, token, fast ? 0 : PACE.typeCharMs);
         await sleep(settle ?? PACE.afterClickMs, token);
         return true;
       }

@@ -276,6 +276,7 @@ const HeaderSection = memo(function HeaderSection({
             <div className="bg-white relative rounded-[4px] w-[400px] h-[36px] border border-[#bcc3cd] focus-within:border-[#666666] focus-within:ring-[3px] focus-within:ring-[#666666]/50">
               <input
                 ref={searchInputRef}
+                data-demo="main-search"
                 type="text"
                 // No comma instruction any more — terms split on whitespace too (utils/searchQuery), so
                 // there is no convention left to teach. It was never discoverable advice anyway; it was

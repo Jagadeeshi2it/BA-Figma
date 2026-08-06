@@ -1033,12 +1033,13 @@ the anchors, and the decisions that were tried and reversed. This section is ori
 
 `src/app/demo/` — a guided walkthrough that drives the app by moving a virtual cursor to real
 controls and clicking them. Pressing **`/`** anywhere outside a text field opens the Demo Scenarios
-palette; picking one runs it. One scenario exists: allocating an unallocated product to an empty bin,
-ending on the History page.
+palette; picking one runs it. Two scenarios exist, both over the Unallocated tray and both ending on
+the History page: allocating one product to an empty bin, and allocating several to a single bin.
 
 Nothing in `App` or `useInventoryState` knows Demo Mode exists. It is mounted in `main.tsx` as a
 provider wrapping `<App />` plus a `<DemoLayer />` that portals to `document.body`, and the only
-edits it needed inside the app were eleven `data-demo` attributes and one `data-bin-available`.
+edits it needed inside the app were a handful of `data-demo` attributes plus `data-bin-available`
+and `data-bin-name` on `BinCard` — everything else it drives by the same selectors a user's eye uses.
 
 | File | What |
 |---|---|

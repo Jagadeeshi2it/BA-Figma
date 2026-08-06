@@ -40,8 +40,13 @@ export interface DemoStep {
    */
   label: string;
   target?: DemoTarget;
-  /** `type` only. */
-  text?: string;
+  /**
+   * `type` only. A function is resolved at the moment the step runs, for the same reason DemoTarget
+   * allows one: text a scenario can only know at runtime. A walkthrough that resolves "a bin with
+   * room" from the DOM has to be able to type THAT bin's name, and hard-coding one would rot with
+   * the seed exactly as a hard-coded bin id would.
+   */
+  text?: string | (() => string);
   /**
    * Held after the step completes, before the next one starts. Defaults come from `PACE`; raise it
    * where the viewer needs longer to find what just changed on screen.

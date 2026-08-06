@@ -297,7 +297,7 @@ interface DemoStep {
   kind: 'click' | 'type' | 'await' | 'note';
   label: string;              // names the step; read in the panel, never drawn over the app
   target?: DemoTarget;        // CSS selector, or a function returning an Element
-  text?: string;              // 'type' only
+  text?: string | (() => string); // 'type' only; a function is resolved when the step runs
   settleMs?: number;          // overrides the PACE default
   reverse?: DemoStep[];       // see §5
 }
@@ -313,6 +313,10 @@ interface DemoStep {
 **A target may be a function**, re-evaluated at the moment the step runs. That is the escape hatch for
 anything only the scenario can identify — see `firstEmptyBin` in `allocateUnallocatedProduct.ts`. It
 is what keeps the runner from having to learn about bins.
+
+**So may `text`**, for the same reason: a scenario that resolves "a bin with room" from the DOM has to
+be able to type *that* bin's name, and a hard-coded one would rot with the seed exactly as a
+hard-coded bin id would. See `destinationBinName` in `allocateMultipleToOneBin.ts`.
 
 **Labels name the step; they never narrate it.** They are read in the control panel and in the failure
 message, and nowhere else.
@@ -385,6 +389,48 @@ nothing having happened; the entry under Today is the proof that a transaction w
 stamped today at 08:40, which rendered as the only two rows in Today's list — so a walkthrough's own
 transaction landed among strangers and the viewer had to hunt for the row they had just watched being
 created. Every record type the History page can render is still covered by the older entries.
+
+---
+
+## 10b. Scenario: Allocate Multiple Products to One Location
+
+Nineteen steps, same workflow. The first scenario proves the mechanism; this one proves the point of
+it — setting up a cabinet means allocating dozens of products, and the tray takes several at once into
+one bin.
+
+| # | Step | Reverse |
+|---|---|---|
+| 1 | *note* — the cabinet as it stands | free |
+| 2–4 | Open the menu, choose Allocate Product, *await* the tray | as §10 |
+| 5 | Type `MESNA` in the tray's search | clear it |
+| 6 | Tick it | un-tick it |
+| 7 | Type `KADCYLA` | back to `MESNA` |
+| 8 | Tick it | un-tick it |
+| 9 | Clear the search — both ticks now visible | back to `KADCYLA` |
+| 10 | *note* — two products on the list | free |
+| 11 | Type the destination bin's name in the **main** search | clear it |
+| 12 | Highlight the bin on the shelf | clear the search |
+| 13 | *note* — the destination, found by name | free |
+| 14 | Tap that bin | tap it again |
+| 15 | *note* — two products, one location | free |
+| 16 | **Allocate** | **none — rebuild** |
+| 17 | *note* — both allocated | free |
+| 18–19 | Close the tray, open History, *note* | as §10 |
+
+**Step 9 is the demonstration, not housekeeping.** Ticking survives a query change, so the two picks
+are made under different filters and clearing the box is the only moment both are on screen at once —
+which is exactly the gap CLAUDE.md §8 records against the tray.
+
+**Steps 11–12 use the main search, which stays visible while the tray is open.** Typing a bin name and
+pressing Highlight Bin is how an operator sent to a specific bin finds it, and it puts an amber ring on
+the destination a beat before the cursor lands there — so the viewer sees the bin being *chosen*
+rather than a cursor arriving somewhere arbitrary.
+
+**The first bin row in that dropdown is the right one, and not by luck.** Bin names are unique only
+within a door, so the query matches one bin per door; `searchBinsByName` sorts available bins first and
+keeps door order within that group, and the destination is by definition an available bin on Door 1.
+
+**Neither product is the one §10 uses**, so running that scenario first does not empty this one's tray.
 
 ---
 

@@ -371,6 +371,10 @@ export default function BinCard({
         // The same `bin.available` draws the green stroke, so the demo taps a bin the viewer can
         // already see is free.
         data-bin-available={bin.available ? 'true' : 'false'}
+        // Also for Demo Mode: having resolved "a bin with room" from the attribute above, a
+        // scenario needs the bin's NAME to type into the search box. Reading it out of the header
+        // text would mean stripping the size suffix, which is presentation the demo should not know.
+        data-bin-name={bin.name}
         className={`relative rounded-[4px] transition-all ${
           // The bin itself does nothing in a Product move — only its rows do — so it must not offer a
           // pointer or a hover lift it cannot honour (UX-AUDIT H9-1: a control that looks live and

@@ -519,6 +519,7 @@ const SearchDropdown = memo(function SearchDropdown({
                     <Button
                       size="sm"
                       variant="outline"
+                      data-demo="search-bin-action"
                       aria-disabled={action.kind === 'blocked'}
                       onClick={() => handleBinAction(bin, action)}
                       className={`w-full bg-white border-[#095192] text-[#095192] hover:bg-[#F1F6FA] hover:text-[#095192] text-[14px] h-10 rounded-[4px] ${
