@@ -12,8 +12,13 @@ interface SearchDropdownProps {
   query?: string;
   /** Bins already picked as Move To, so a bin hit can report its own state rather than going dead. */
   targetBinIds?: string[];
-  /** Select/release a bin found by name. Only wired where the bin is the unit being picked. */
-  onSelectBin?: (binId: string, binName: string) => void;
+  /**
+   * Select/release a bin found by name. Only wired where the bin is the unit being picked.
+   *
+   * Takes the id and nothing else, deliberately: selection is a set of bin identities and touches no
+   * query channel. Passing the name invited writing it into the highlight, which lit every namesake.
+   */
+  onSelectBin?: (binId: string) => void;
   /**
    * Light up bins without selecting them, BY ID. One id from a row's own Highlight Bin, every id from
    * the section's Highlight All — the two are deliberately separate acts, so the wide one has to be
@@ -189,6 +194,17 @@ const SearchDropdown = memo(function SearchDropdown({
   const showSelectAll =
     visibleResults.length > 1 && (changeAllocationMode || !visibleResults.every(isPicked));
 
+  /**
+   * Whether the product rows are offering selection — the same condition their own button uses below.
+   *
+   * In a Bin move's source step they only locate, because the bin is the unit there. The header used
+   * not to know that: it kept saying "Select All" and committing every match as a source, which is
+   * something every row beneath it refused to do — and it appended those product groups to the
+   * highlight, which that step's locator branch then spread across every bin holding any of them.
+   */
+  const productsAreSelectable =
+    changeAllocationMode && !(moveMode === 'bin' && changeAllocationStep === 1);
+
   const buildHighlightQuery = (products: ProductSearchResult[]) =>
     products
       .map(result => [result.name, result.ndc, result.inventoryType].filter(Boolean).join(', '))
@@ -226,7 +242,7 @@ const SearchDropdown = memo(function SearchDropdown({
   const handleSelectAll = () => {
     if (visibleResults.length === 0) return;
 
-    if (changeAllocationMode) {
+    if (productsAreSelectable) {
       // Actually select every matching bin as source/target, not just preview-highlight it. Only the
       // bins this step can take — on step 2 that skips the source bins these products also live in.
       const allBinIds = Array.from(new Set(visibleResults.flatMap(selectableBinIds)));
@@ -315,7 +331,7 @@ const SearchDropdown = memo(function SearchDropdown({
     if (action.kind === 'blocked') return;
 
     if (action.kind === 'select') {
-      onSelectBin?.(bin.binId, bin.binName);
+      onSelectBin?.(bin.binId);
     } else {
       // This one bin, by id. Passing its NAME instead lit every bin sharing it — eight of them for
       // "Bin 1A" — which is what Highlight All is for, out of a list that had just distinguished them
@@ -361,7 +377,7 @@ const SearchDropdown = memo(function SearchDropdown({
   // rules can't diverge: each state update is functional, so the batch applies cleanly.
   const handleSelectAllBins = () => {
     if (bulkSelectableBins.length === 0) return;
-    bulkSelectableBins.forEach(bin => onSelectBin?.(bin.binId, bin.binName));
+    bulkSelectableBins.forEach(bin => onSelectBin?.(bin.binId));
     onDoorClick?.(bulkSelectableBins[0].doorName);
     onScrollToBin?.(bulkSelectableBins[0].binId);
     onDismissList?.();
@@ -491,7 +507,7 @@ const SearchDropdown = memo(function SearchDropdown({
                 onClick={handleSelectAll}
                 className="bg-transparent hover:bg-transparent text-[#095192] hover:text-[#074080] hover:underline text-[14px] font-medium h-auto p-0 shrink-0"
               >
-                Select All
+                {productsAreSelectable ? 'Select All' : 'Highlight All'}
               </Button>
             )}
           </div>

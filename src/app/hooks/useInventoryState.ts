@@ -685,10 +685,13 @@ export const useInventoryState = () => {
    *     rather than relying on this silently declining.
    *   - both toggle, so picking a bin twice releases it exactly as a second tap does.
    *
-   * The highlight query is the bin's own name, which is what binMatchesSearch tests first — so the card
-   * lights up on the shelf the same way a product pick lights up the bins holding it.
+   * **It writes to no query channel at all**, which is the whole difference between selecting and
+   * highlighting. It used to append the bin's NAME to selectedSearchQuery so the card would light up —
+   * and since binMatchesSearch tests bin.name, choosing one Bin 1A as Move From lit all eight of them
+   * amber. A selection is not a search: the bin already says what it has become through its own blue or
+   * green stroke and its Move From / Move To badge, and it needs no text query to say it.
    */
-  const handleSelectBinFromSearch = useCallback((binId: string, binName: string) => {
+  const handleSelectBinFromSearch = useCallback((binId: string) => {
     if (!changeAllocationMode) return;
 
     if (changeAllocationStep === 1) {
@@ -711,8 +714,6 @@ export const useInventoryState = () => {
         prev.includes(binId) ? prev.filter(id => id !== binId) : [...prev, binId]
       );
     }
-
-    setSelectedSearchQuery(prev => appendQueryGroup(prev, binName));
   }, [changeAllocationMode, changeAllocationStep, moveMode, doorShelfConfig, changeAllocationSourceBins]);
 
   /**

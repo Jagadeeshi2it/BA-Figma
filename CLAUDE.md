@@ -501,6 +501,36 @@ it would put the least useful bin on top), and in a Bin move's source step an av
 the one with nothing to move — it is blocked already, so it lands at the bottom on that count alone. The
 sort is stable, so ties keep `searchBinsByName`'s door order and the list still reads as a walk.
 
+### Highlight and selection are independent states — never couple them
+
+Three separate things, and every bug in this area has been two of them sharing a channel:
+
+| State | Held in | Means | Shows as |
+|---|---|---|---|
+| **Highlight** | `binHighlight.binIds` | "this is the bin you went looking for" | amber stroke, amber bin name |
+| **Highlight All** | the same, with every match's id | the same, asked for deliberately across the cabinet | amber on each |
+| **Selection** | `changeAllocationSourceBins` / `changeAllocationTargetBins` | "this bin is committed to the move" | blue / green stroke, `Move From` / `Move To` badge |
+
+**A selection writes to no query channel.** `handleSelectBinFromSearch` used to append the bin's *name*
+to `selectedSearchQuery` so the card would light up — and since `binMatchesSearch` tests `bin.name`,
+choosing one `Bin 1A` as Move From lit all eight of them amber. It takes a bin **id and nothing else**
+now; the blue stroke and the badge already say what the bin has become.
+
+**The highlight never takes the selection's colour.** The bin name is always
+`SEARCH_HIGHLIGHT_COLOR`, even on a selected bin, unlike the product rows below it which do switch to
+blue/green. Recolouring it would make the highlight read as part of the selection — the same
+conflation in the other direction. Both facts can be true at once and each keeps its own signal.
+
+The one place they do meet is the card's **stroke**, which a bin can only have one of:
+`highlightSearch && !isChangeAllocationSource && !isChangeAllocationTarget` in `BinCard`. Selection wins,
+because it is the stronger claim.
+
+**A section header must not offer what its rows refuse.** Both lists in the dropdown decide
+select-vs-locate once (`binsAreSelectable`, `productsAreSelectable`) and use it for the rows *and* the
+bulk action. The products' `Select All` used to ignore this: in a Bin move's source step every row said
+`Highlight in Bin` while the header still committed all of them as sources — and appended their identity
+groups to the highlight, which that step's locator branch then spread over every bin holding any of them.
+
 ### Highlighting a bin is keyed on identity, never on a query
 
 `binHighlight: { binIds, query }` in `useInventoryState`. The query channel cannot express "this bin":

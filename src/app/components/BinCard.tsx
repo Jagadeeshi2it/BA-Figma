@@ -408,8 +408,14 @@ export default function BinCard({
                         than the whole query, so a product term that happens to appear in a bin's
                         label can't tint it. Same colour as the products below: amber for a hit,
                         blue once it's a source, green once it's a target. */}
+                    {/* Always the search amber, never the source blue or target green the products
+                        below take. Those colours mean "this bin is committed to the move"; this one
+                        means "this is the bin you went looking for", and the two are independent
+                        facts that can both be true at once. Recolouring the name with the selection
+                        would make the highlight look like part of the selection, which is the exact
+                        conflation that had choosing one Bin 1A light all eight. */}
                     {binNameHighlightQuery
-                      ? highlightText(bin.name, binNameHighlightQuery, productHighlightColor)
+                      ? highlightText(bin.name, binNameHighlightQuery, SEARCH_HIGHLIGHT_COLOR)
                       : bin.name}{' '}
                     <span className="text-[#7A7D85]">({getBinSizeDisplay(bin.size)})</span>
                   </p>

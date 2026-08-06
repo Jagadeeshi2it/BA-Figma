@@ -46,7 +46,7 @@ interface HeaderSectionProps {
   handleSelectSourceBinsFromSearch?: (binIds: string[], productName: string, highlightQuery?: string) => void;
   handleSelectTargetBinsFromSearch?: (binIds: string[], productName: string, highlightQuery?: string) => void;
   // A bin found by NAME, rather than by the product it holds — see searchBinsByName.
-  handleSelectBinFromSearch?: (binId: string, binName: string) => void;
+  handleSelectBinFromSearch?: (binId: string) => void;
   handleHighlightBins?: (binIds: string[], query: string) => void;
   handleSearchProductClick?: (productName: string, ndc: string, inventoryType: string) => void;
   handleDoorClick?: (doorName: string) => void;
