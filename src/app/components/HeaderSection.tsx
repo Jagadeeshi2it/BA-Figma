@@ -279,7 +279,10 @@ const HeaderSection = memo(function HeaderSection({
               <input
                 ref={searchInputRef}
                 type="text"
-                placeholder="Search products, bins, NDC codes... (use commas for multiple terms)"
+                // No comma instruction any more — terms split on whitespace too (utils/searchQuery), so
+                // there is no convention left to teach. It was never discoverable advice anyway; it was
+                // an apology for a matcher that needed "carbo, 600" to find CARBOPLATIN 600.
+                placeholder="Search products, bins, NDC codes..."
                 value={searchQuery}
                 onChange={(e) => handleSearchQueryChange(e.target.value)}
                 onFocus={handleSearchFocus}

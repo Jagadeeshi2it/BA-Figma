@@ -335,6 +335,38 @@ const SearchDropdown = memo(function SearchDropdown({
     }
   };
 
+  /**
+   * Whether the bin rows are offering selection at all — the same condition binActionFor branches on.
+   *
+   * It decides which act the section header carries. Inside a move the operator is building a
+   * selection, not browsing, so "highlight all of these" answers a question they are not asking;
+   * the useful bulk act there is to take them. Outside one, and in a Product move's source step where
+   * the bin is not the unit, there is nothing to take and highlighting is the only thing on offer.
+   *
+   * Deliberately not derived from how many rows are currently takeable: that number falls as bins are
+   * picked, and a header that renamed itself from Select All to Highlight All partway through a
+   * selection would look like the flow had changed under the operator. It disappears instead.
+   */
+  const binsAreSelectable =
+    changeAllocationMode && !(changeAllocationStep === 1 && moveMode === 'product');
+
+  // Only the rows a bulk take would actually add. Excludes blocked rows and ones already in the
+  // selection — whose button reads Remove, and sweeping those up would make Select All a toggle-all.
+  const bulkSelectableBins = orderedBinResults.filter(bin => {
+    const action = binActionFor(bin, changeAllocationMode, changeAllocationStep, moveMode, sourceBinIds, targetBinIds);
+    return action.kind === 'select' && action.label.startsWith('Select as');
+  });
+
+  // Take every match. Loops the single-bin handler rather than adding a bulk path of its own, so the
+  // rules can't diverge: each state update is functional, so the batch applies cleanly.
+  const handleSelectAllBins = () => {
+    if (bulkSelectableBins.length === 0) return;
+    bulkSelectableBins.forEach(bin => onSelectBin?.(bin.binId, bin.binName));
+    onDoorClick?.(bulkSelectableBins[0].doorName);
+    onScrollToBin?.(bulkSelectableBins[0].binId);
+    onDismissList?.();
+  };
+
   // Every match at once, and only when asked for. Lands on the first so the result isn't left entirely
   // off-screen, exactly as the products' Select All does. The typed query is what describes this
   // selection — there is no single name to put in the box — so the box is left alone and the list just
@@ -365,18 +397,18 @@ const SearchDropdown = memo(function SearchDropdown({
               <p className="block font-normal leading-[16px] not-italic text-[#020817] text-[14px] text-left">
                 <span className="font-semibold">{binResults.length}</span> matching bin{binResults.length !== 1 ? 's' : ''}
               </p>
-              {/* The wide act, and the only one that lights more than the bin you point at. It shares
-                  the count's row the way the products' Select All does, and appears on the same terms:
-                  only with more than one match, since a single row's own button already covers that
-                  case. Offered in every mode — it selects nothing, so it cannot disagree with a
-                  selection the way a Select would. */}
-              {binResults.length > 1 && (
+              {/* The bulk act, sharing the count's row the way the products' Select All does and
+                  appearing on the same terms: only with more than one row to act on, since a single
+                  row's own button already covers that case. Which act it is follows the rows beneath
+                  it — Select All where they select, Highlight All where they only locate — so the
+                  header can never offer something the list below it doesn't do. */}
+              {(binsAreSelectable ? bulkSelectableBins.length > 1 : binResults.length > 1) && (
                 <Button
                   variant="ghost"
-                  onClick={handleHighlightAllBins}
+                  onClick={binsAreSelectable ? handleSelectAllBins : handleHighlightAllBins}
                   className="bg-transparent hover:bg-transparent text-[#095192] hover:text-[#074080] hover:underline text-[14px] font-medium h-auto p-0 shrink-0"
                 >
-                  Highlight All
+                  {binsAreSelectable ? 'Select All' : 'Highlight All'}
                 </Button>
               )}
             </div>
