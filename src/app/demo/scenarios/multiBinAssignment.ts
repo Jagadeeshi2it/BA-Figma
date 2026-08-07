@@ -65,8 +65,15 @@ const doorWithFreeBins = (count: number) => () =>
   ) ?? null;
 
 /**
- * Open a door with room before a round starts. Tapping the door already open is a harmless no-op, so this
- * is unconditional rather than the scenario trying to predict when it is needed.
+ * Open a door with room, immediately before the bins are tapped — never at the top of a round.
+ *
+ * The walk is products first, then one trip to the cabinet, because that is the order the decision is
+ * actually made in: what am I giving another bin, and only then where. Opening the door first also cost
+ * a visible round trip — the cursor left the panel for the cabinet and came straight back to the panel
+ * it had just been in, since the search box is where the round really starts.
+ *
+ * Tapping the door already open is a harmless no-op, so this is unconditional rather than the scenario
+ * trying to predict when it is needed.
  */
 const openDoorWithRoom = (count: number): DemoStep => ({
   kind: 'click',
@@ -174,12 +181,16 @@ export const multiBinAssignment: DemoScenario = {
 
     // ── 1. One product, two bins ───────────────────────────────────────────────
     { kind: 'note', label: 'One product, two more bins', settleMs: 1400 },
-    openDoorWithRoom(2),
     ...pickProduct(ROUND_1),
     // The row now lists the bins it already occupies. That list is the whole reason this panel is not
     // the tray: it is what stops you picking a bin the drug is already in, and the app refuses that tap
     // anyway (one identity twice in a bin splits it into two rows and every count doubles it).
     { kind: 'note', label: 'It is already in two bins — these are two more', settleMs: 2200 },
+    // The door opens AFTER the product is picked, and the order is the whole point: the operator
+    // decides what they are moving, then goes to where it is going. Opening a door first sent the
+    // cursor across to the cabinet and straight back to the panel it had just been in — one product
+    // decision split by an errand, which reads as the walk changing its mind.
+    openDoorWithRoom(2),
     pickBin(0, 'Tap a free bin'),
     pickBin(1, 'And a second one'),
     // The picked bins are listed on the row in purple, under the ones it already occupies — where it is
@@ -193,7 +204,6 @@ export const multiBinAssignment: DemoScenario = {
 
     // ── 2. Two products, one bin ───────────────────────────────────────────────
     { kind: 'note', label: 'Now the other way round — two products, one bin', settleMs: 1600 },
-    openDoorWithRoom(1),
     ...pickProduct(ROUND_2[0]),
     // A second search does not lose the first pick: the panel holds the picked product OBJECTS, not their
     // keys, so a product found under one query survives the next one (§2 A).
@@ -217,6 +227,8 @@ export const multiBinAssignment: DemoScenario = {
       ],
     },
     { kind: 'note', label: 'Both, newest first, each with its own locations', settleMs: 2400 },
+    // Same order as round 1: everything in the panel first, then one trip to the cabinet.
+    openDoorWithRoom(1),
     pickBin(0, 'Tap one free bin for both'),
     { kind: 'note', label: 'One bin, taking both products', settleMs: 1800 },
     allocate,

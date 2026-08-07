@@ -515,8 +515,8 @@ the ledger:
 
 | Round | What the walk does |
 |---|---|
-| 1. one product → two bins | open a door with 2 free bins, search `COSELA`, tick it, tap both bins, Allocate |
-| 2. two products → one bin | search `MITOMYCIN`, tick; search `POLIVY`, tick; tap the footer counter to see both; tap one free bin; Allocate |
+| 1. one product → two bins | search `COSELA`, tick it, open a door with 2 free bins, tap both, Allocate |
+| 2. two products → one bin | search `MITOMYCIN`, tick; search `POLIVY`, tick; tap the footer counter to see both; open a door with a free bin, tap it; Allocate |
 
 **Two rounds, not the tray's four.** Copying `Allocate Product`'s grid would add a "many products into
 many bins" round that is the two above happening at once — a round with no new fact in it, on a walk
@@ -526,6 +526,13 @@ whose brief was to stay short.
 `handleAssignProductsToBins` leaves it up and clears exactly what should clear, so each round starts
 clean without a step to clean it, and the filled bins flip to `available: false` so the resolvers find
 the next free ones on their own.
+
+**The door opens after the product is picked, never at the top of a round.** Both rounds are
+everything-in-the-panel, then one trip to the cabinet — the order the decision is actually made in
+(what am I giving another bin, and only then where). Opening the door first cost a visible round trip:
+the `await` step parks the cursor on the search box, the door step dragged it across to the cabinet,
+and the search step dragged it straight back. One product decision, split by an errand, which reads as
+the walk changing its mind. Each round now crosses between panel and cabinet once.
 
 **Round 1's product is one that already lives in two bins.** COSELA's row lists both, so "and now a
 third and a fourth" is visible on the row itself rather than only in the ledger. That list is also the
