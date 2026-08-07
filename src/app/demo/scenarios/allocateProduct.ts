@@ -164,11 +164,11 @@ const setBadgeFilter = (value: string, label: string): DemoStep[] => [
   {
     kind: 'click',
     label: `Filter to ${label}`,
-    target: `[data-demo="unallocated-filter-${value}"]`,
+    target: `[data-demo="badge-filter-option-${value}"]`,
     settleMs: 1600,
     reverse: [
       { kind: 'click', label: 'Reopen the filter', target: '[data-demo="unallocated-badge-filter"]' },
-      { kind: 'click', label: 'Back to all products', target: '[data-demo="unallocated-filter-all"]' },
+      { kind: 'click', label: 'Back to all products', target: '[data-demo="badge-filter-option-all"]' },
     ],
   },
 ];

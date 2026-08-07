@@ -1,5 +1,5 @@
 /**
- * Verifies the Unallocated tray's badge filter — src/app/utils/unallocatedFilter.ts.
+ * Verifies the badge filter — src/app/utils/badgeFilter.ts and src/app/utils/unallocatedFilter.ts.
  *
  *     pnpm run dev
  *     node scripts/verify-unallocated-filter.mjs   # or DEV_ORIGIN=http://localhost:PORT node …
@@ -26,12 +26,15 @@ const fetchModule = async path => {
 
 let M;
 try {
-  const [filterSource, badgeSource] = await Promise.all([
+  const [traySource, badgeSource, derivationSource] = await Promise.all([
     fetchModule('/src/app/utils/unallocatedFilter.ts'),
+    fetchModule('/src/app/utils/badgeFilter.ts'),
     fetchModule('/src/app/utils/binProducts.ts')
   ]);
   M = await import(
-    `data:text/javascript,${encodeURIComponent(`${badgeSource}\n${filterSource}`)}`
+    `data:text/javascript,${encodeURIComponent(
+      `${derivationSource}\n${badgeSource}\n${traySource}`
+    )}`
   );
 } catch (error) {
   console.error(`Could not load the filter modules from ${ORIGIN} — is the dev server running there?`);
@@ -44,6 +47,7 @@ const {
   matchesBadgeFilter,
   matchesUnallocatedSearch,
   filterUnallocatedProducts,
+  badgeFilterLabel,
   // Re-exported through the concatenation above, so the cross-check below compares the filter against
   // the very functions the badges on screen are drawn from.
   getVialType,
@@ -88,7 +92,7 @@ const TRAY = [
 
 const names = list => list.map(product => product.name.split(' ')[0]);
 
-console.log('unallocatedFilter\n');
+console.log('badgeFilter\n');
 
 // ── The filter is the badge the row shows ───────────────────────────────────
 // A filter deriving its answer any other way than the badge beside it is worse than no filter, because
@@ -166,6 +170,24 @@ check('whitespace-only query lists everything', filterUnallocatedProducts(TRAY, 
 // flickering during exactly the bulk allocation the filter exists to serve.
 check('no option label carries a count', BADGE_FILTER_OPTIONS.some(option => /\(\s*\d+\s*\)/.test(option.label)), false);
 check('badgeFilterCounts is gone', typeof M.badgeFilterCounts, 'undefined');
+
+// ── Both allocation panels narrow by the same rule ──────────────────────────
+// AllocateProductsPanel filters `searchProducts` results with `matchesBadgeFilter` directly, rather
+// than through `filterUnallocatedProducts` — its search is a different, richer matcher. What has to
+// hold is that the BADGE half is the same function, so `Climate` means the same thing in both panels.
+check(
+  'the tray composes the same badge predicate the other panel calls',
+  BADGE_FILTER_OPTIONS.every(option =>
+    TRAY.every(
+      product =>
+        filterUnallocatedProducts([product], '', option.value).length ===
+        (matchesBadgeFilter(product, option.value) ? 1 : 0)
+    )
+  ),
+  true
+);
+check('every option has a label', BADGE_FILTER_OPTIONS.every(option => badgeFilterLabel(option.value) === option.label), true);
+check('an unknown filter has no label', badgeFilterLabel('nope'), '');
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

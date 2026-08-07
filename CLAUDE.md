@@ -430,19 +430,23 @@ holding in mind — they typed the query a second ago, but a filter set at the t
 whatever they do in the search box. It names itself, so the message is also the instruction for undoing it.
 
 **The badge filter, opposite `Select All`.** A dropdown narrowing the tray to `Climate`, `CIV`, `SDV` or
-`MDV`, each with the count picking it would leave. The pairing with `Select All` is the whole point and
-it is the workflow: most climate-sensitive stock belongs in a fridge, so *filter to Climate → Select All
+`MDV`. Both controls come from the shared `ProductListControls`, which `AllocateProductsPanel` renders too
+(§6). The pairing with `Select All` is the whole point and it is the workflow: most climate-sensitive stock belongs in a fridge, so *filter to Climate → Select All
 → tap a fridge → Allocate* is how the tray actually gets emptied. An exception still goes through the
 unfiltered list, which is where an exception belongs.
 
-- **`utils/unallocatedFilter.ts` owns "what is visible", and both callers ask it.** The panel renders the
+- **`utils/badgeFilter.ts` owns the badge rule**, because both allocation panels narrow by it. What stays
+  in `utils/unallocatedFilter.ts` is the tray's own four-field search, composed with the badge rule — a
+  module called "unallocated" owning a rule the other panel depends on is how the two come to disagree.
+- **`utils/unallocatedFilter.ts` owns "what is visible" for the tray, and both its callers ask it.** The panel renders the
   list; the hook's `handleSelectAllUnallocatedProducts` ticks it. Each used to write the search predicate
   out longhand, survivable with one condition and not with two — a filter honoured by the list and not by
   Select All would tick products that are not on screen, which is the one thing that control must never
-  do. `node scripts/verify-unallocated-filter.mjs` (83 assertions) pins it, including that the two
+  do. `node scripts/verify-unallocated-filter.mjs` (84 assertions) pins it, including that the two
   narrowings compose as **AND** in both directions: an OR would make picking a filter *widen* the list.
-- **The filter state lives in the hook, not the panel**, for the same reason — `Select All` is a hook
-  handler and cannot read panel state.
+- **The tray's filter state lives in the hook, not the panel**, for the same reason — its `Select All` is
+  a hook handler and cannot read panel state. `AllocateProductsPanel` keeps its own in `useState`, since
+  both halves live in that component and there is no boundary to agree across.
 - **It is single-select, deliberately.** `climate`/`civ` are flags; `SDV`/`MDV` are the two halves of one
   property. Multi-select would have to decide whether `Climate + CIV` means both badges or either, and
   `SDV + MDV` would be a combination that reads as narrowing and returns the unfiltered list.
@@ -977,6 +981,15 @@ been missed, which is why `Allocate/Move` did nothing in tablet mode. **Any new 
 pass `container={portalContainer ?? undefined}` to its `Portal`.** Symptom to recognise: works in
 desktop, dead in tablet, no console error.
 
+**The same symptom has a second cause: z-index.** A portalled overlay lands on `document.body`, so it is
+layered against the whole app rather than against the panel that owns it. `SelectContent` defaults to
+`z-50`, which happened to win inside the unallocated tray (`z-50`, later in the DOM) and lost inside
+`AllocateProductsPanel` (`z-[70]`) — the listbox opened, sat in the DOM with `data-state="open"`, and was
+completely hidden behind its own panel. Indistinguishable from an inert button, and again no error.
+`ProductListControls` passes `z-[80]`, which keeps the app's layering: panels 70, overlays they own 80,
+toasts 100. **Check both causes when a Radix trigger appears to do nothing** — and check the DOM before
+the pixels, since `data-state="open"` tells you immediately which of the two it is.
+
 ### A `fixed` element at `left-1/2` is capped at half the viewport
 
 `fixed top-3 left-1/2 -translate-x-1/2` with no width is the standard centring recipe, and the
@@ -1093,22 +1106,34 @@ been violations of it.
   appears only once there is something to clear), a one-line 14px empty state, and a `Select All`.
   A difference between them implies the two flows work differently. Change one and check the other.
 
-  **Two sanctioned differences, both in the tray, and both traceable to the same fact** — the tray is a
-  fixed, short, fully-listed set, while `AllocateProductsPanel` lists **nothing** until you search (§2 A):
+  **The control row is one component**, `ProductListControls` — `Select All` and the badge filter, rendered
+  by both. It had been holding by inspection, which is how the tray came to draw only the vial badge while
+  the other panel drew all three; a rule this easy to break by accident belongs in code rather than in a
+  paragraph asking the next person to check. Each panel passes its own `data-demo` anchors, so the shared
+  row does not have to invent them from a prefix (which would leave nothing literal for
+  `verify-demo-anchors` to find).
 
-  - **The badge filter.** Narrowing a listed set by a property is a real act; a badge dropdown over an
-    empty list would be a control with nothing to narrow. The query already *is* the filter in the other
-    panel. If it ever lists by default, it should gain this same filter rather than a different one.
-  - **`Select All` stays visible and dims when nothing is listed**, where the other panel withholds it.
-    Both are right for their own row. In `AllocateProductsPanel` the control is alone on its row, so the
-    row can leave with it and nothing moves. In the tray the row also carries the filter, which must stay
-    reachable exactly when the list is empty — it is usually what emptied it, so it is the only control
-    that can undo it. A checkbox appearing and disappearing beside a control that never moves is a layout
-    shifting under the operator mid-task; dimmed in place says "nothing to select" without it.
+  `Select All` is **visible always and dimmed when nothing is listed**. It used to be withheld, on the
+  reasoning that a control which cannot act reads as broken rather than unavailable — true where the
+  control is alone on its row and the row can go with it, and false once the row also carries the filter,
+  which must stay reachable exactly when the list is empty (it is usually what emptied it, so it is the
+  only control that can undo it). A checkbox appearing and disappearing beside a control that never moves
+  is a layout shifting under the operator mid-task. The dimmed state follows the disabled-secondary rule:
+  `opacity-50` and `cursor-not-allowed`, its own look kept rather than recoloured. It is a `div`, so
+  `disabled` would do nothing — `aria-disabled` carries the state and dropping the handler carries the
+  behaviour, the same split `FooterButton` uses.
 
-  The dimmed state follows the disabled-secondary rule: `opacity-50` and `cursor-not-allowed`, its own
-  look kept rather than recoloured. It is a `div`, so `disabled` would do nothing — `aria-disabled`
-  carries the state and dropping the handler carries the behaviour, the same split `FooterButton` uses.
+  **The one thing that still differs is what the filter can do**, and it follows from the lists rather than
+  the panels — the tray is a fixed, short, fully-listed set, while `AllocateProductsPanel` lists **nothing**
+  until you search (§2 A):
+
+  - In the tray, the filter **produces** the list. Narrowing a fixed eight by badge with no query is the
+    whole point there.
+  - In `AllocateProductsPanel` it **refines** search results and cannot produce them: with no query the
+    list stays empty whatever the filter says. Letting `Climate` alone list every climate-sensitive
+    product would reinstate exactly the catalogue-to-scroll that panel was built to avoid — the badges
+    split the catalogue roughly in half, so it would be ~130 rows. It is still useful before typing, as a
+    pre-set: choose `Climate`, then search, and only climate-sensitive matches come back.
 - **A move stage does not write its own footer.** Compose `PipelineFooter`'s parts (§2) so a stage
   chooses *what* to report, never how it looks. The step count comes from `TOTAL_PIPELINE_STEPS`, so
   it cannot disagree with the step vocabulary it describes.

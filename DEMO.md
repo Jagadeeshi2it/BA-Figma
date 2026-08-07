@@ -269,7 +269,9 @@ Targets are `data-demo` attributes. Never text, never structure.
 | `unallocated-product` | A tray product row (first match) |
 | `unallocated-select-all` | The tray's Select All checkbox row |
 | `unallocated-badge-filter` | The tray's badge filter trigger |
-| `unallocated-filter-<value>` | One filter option — `all`, `climate`, `civ`, `sdv`, `mdv` |
+| `allocate-select-all` | Multi Bin Assignment's Select All |
+| `allocate-badge-filter` | Multi Bin Assignment's badge filter trigger |
+| `badge-filter-option-<value>` | One filter option — `all`, `climate`, `civ`, `sdv`, `mdv` |
 | `unallocated-allocate` | The tray's Allocate button |
 | `unallocated-cancel` | The tray's Cancel button |
 | `history-trigger` | The header's History button |
@@ -320,9 +322,17 @@ have to know two components draw them.
 **`node scripts/verify-demo-anchors.mjs`** asserts every anchor a scenario reaches for still renders.
 A rename fails in the terminal instead of in front of a viewer.
 
+**The filter options are anchored per option, not per panel.** `ProductListControls` is one component
+rendered by both allocation panels, so the option rows cannot carry a panel-specific name — and they do
+not need one: the values are the same everywhere and only one of these panels can be open at a time, so
+a walk asking for "the Climate option" cannot reach the wrong one. The two *panel-specific* anchors (the
+Select All row and the filter trigger) are passed in as props, spelled out as literals at each call site
+so they stay greppable.
+
 Two spellings it had to learn, both from anchors that are not plain literals. A **conditional** anchor
 (`data-demo={taken ? undefined : 'review-select-product'}`) is found by reading the braces' own string
-literals. An **interpolated** one (`` data-demo={`unallocated-filter-${option.value}`} ``, one per row of
+literals — as is any `…demoId="x"` prop at a call site, which covers `FooterButton`'s `demoId` and
+`ProductListControls`' `selectAllDemoId` / `filterDemoId`. An **interpolated** one (`` data-demo={`unallocated-filter-${option.value}`} ``, one per row of
 a mapped list) is matched on its fixed prefix — weaker than an exact match and deliberately the last
 resort, but it still catches what actually goes wrong, which is the element being renamed or deleted.
 

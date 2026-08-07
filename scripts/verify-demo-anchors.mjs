@@ -75,7 +75,11 @@ for (const path of scenarioFiles) {
     //                          (SourceProductCard tags Select but not the spent Selected)
     const rendered =
       appSource.includes(`data-demo="${id}"`) ||
-      appSource.includes(`demoId="${id}"`) ||
+      // Any `…demoId="x"` prop, not just the exact name: `FooterButton` takes `demoId`, while
+      // `ProductListControls` takes `selectAllDemoId` and `filterDemoId` — one shared row rendered by
+      // two panels, so each panel names its own anchors at the call site rather than the component
+      // building them from a prefix (which would leave no literal for this to find).
+      new RegExp(`\\b\\w*[Dd]emoId="${id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"`).test(appSource) ||
       conditionalAnchors.has(id) ||
       //   data-demo={`x-${…}`}  one anchor per row of a mapped list — matched on its fixed prefix
       anchorPrefixes.some(prefix => id.startsWith(prefix));

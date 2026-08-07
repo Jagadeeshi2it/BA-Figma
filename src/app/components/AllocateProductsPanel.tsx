@@ -1,12 +1,14 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner@2.0.3';
-import { X, Search, Check, Minus, CheckCircle2 } from 'lucide-react';
+import { X, Search, Check, CheckCircle2 } from 'lucide-react';
 import { Input } from './ui/input';
 import { Separator } from './ui/separator';
 import { ValidationToast } from './ui/sonner-1';
 import { getBinLocationDetails } from '../utils/doorUtils';
 import { searchProducts, ProductSearchResult } from '../utils/productSearchUtils';
-import { getVialType, hasClimateBadge, hasCivBadge } from '../utils/binProducts';
+import ProductListControls from './ProductListControls';
+import { BadgeFilter, badgeFilterLabel, matchesBadgeFilter } from '../utils/badgeFilter';
+import ProductBadges from './ProductBadges';
 import { pluralizeUnit } from '../utils/pluralizeUnit';
 import { DoorShelfConfig } from '../types';
 
@@ -24,22 +26,6 @@ interface AllocateProductsPanelProps {
 }
 
 const productKeyOf = (product: ProductSearchResult) => `${product.ndc}|${product.inventoryType}`;
-
-function ProductBadges({ product }: { product: any }) {
-  return (
-    <div className="flex items-center gap-1">
-      <span className="bg-[#D1D5DB] text-[#111827] text-[9px] font-medium px-1.5 py-0.5 rounded">
-        {getVialType(product)}
-      </span>
-      {hasClimateBadge(product) && (
-        <span className="bg-[#DBEAFE] text-[#1D4ED8] text-[9px] font-medium px-1.5 py-0.5 rounded">CLIMATE</span>
-      )}
-      {hasCivBadge(product) && (
-        <span className="bg-[#FEF3C7] text-[#B45309] text-[9px] font-medium px-1.5 py-0.5 rounded">CIV</span>
-      )}
-    </div>
-  );
-}
 
 /**
  * One product row, shared by the search results and the "selected so far" list under the empty state.
@@ -103,7 +89,11 @@ function ProductRow({
               </p>
             )}
           </div>
-          <ProductBadges product={product} />
+          {/* The shared component, not a local copy of the same three spans — the badges the panel's
+              own filter narrows on have to be the badges it shows. */}
+          <div className="flex items-center gap-1">
+            <ProductBadges product={product} />
+          </div>
           <div className="text-gray-500 text-[14px] break-words">
             {product.ndc} - {product.inventoryType}
           </div>
@@ -198,18 +188,36 @@ export default function AllocateProductsPanel({
   // the objects makes the selection independent of what happens to be listed, the way the
   // unallocated tray's own selection is independent of its filter.
   const [selectedProducts, setSelectedProducts] = useState<ProductSearchResult[]>([]);
+  // Panel-local, unlike the tray's — there the hook owns it because `Select All` is a hook handler and
+  // the two must agree on what is visible. Here both live in this component, so there is nothing to
+  // agree with across a boundary.
+  const [badgeFilter, setBadgeFilter] = useState<BadgeFilter>('all');
 
   useEffect(() => {
     onSelectionChange?.(selectedProducts.map(productKeyOf));
   }, [selectedProducts, onSelectionChange]);
 
   const hasQuery = query.trim().length > 0;
+  const filterIsActive = badgeFilter !== 'all';
 
   // Nothing until asked for. Listing all 262 products on open made this a catalogue to scroll
   // rather than a tool — you arrive already knowing which product you mean.
+  //
+  // **The badge filter narrows the results; it cannot produce them.** With no query this stays empty
+  // whatever the filter says, and that is deliberate: the filter is a refinement of a search, not a
+  // second way to browse. Letting `Climate` alone list every climate-sensitive product would reinstate
+  // exactly the catalogue-to-scroll this panel was built to avoid — the badges split the catalogue
+  // roughly in half, so it would be ~130 rows. It is still useful before typing, as a pre-set: choose
+  // `Climate`, then search, and only climate-sensitive matches come back.
+  //
+  // The tray works the other way round for the same reason in reverse — it lists a fixed eight, so
+  // narrowing them by badge with no query is the whole point there.
   const results = useMemo(
-    () => (hasQuery ? searchProducts(doorShelfConfig, query) : []),
-    [doorShelfConfig, query, hasQuery]
+    () =>
+      hasQuery
+        ? searchProducts(doorShelfConfig, query).filter(product => matchesBadgeFilter(product, badgeFilter))
+        : [],
+    [doorShelfConfig, query, hasQuery, badgeFilter]
   );
 
   const selectedKeys = useMemo(() => new Set(selectedProducts.map(productKeyOf)), [selectedProducts]);
@@ -331,25 +339,18 @@ export default function AllocateProductsPanel({
           )}
         </div>
 
-        {/* Same control as the unallocated list: ticking everything and clearing it are the same
-            tap, so no separate Clear. Withheld when nothing is listed — a control that cannot act
-            reads as broken rather than as unavailable. */}
-        {results.length > 0 && (
-          <div className="flex items-center gap-2 cursor-pointer w-fit" onClick={toggleAll}>
-            <div
-              className={`w-5 h-5 rounded-[4px] shrink-0 flex items-center justify-center ${
-                someVisibleSelected ? 'bg-[#095192]' : 'border border-gray-300 bg-white'
-              }`}
-            >
-              {allVisibleSelected ? (
-                <Check className="w-3.5 h-3.5 text-white" strokeWidth={3} />
-              ) : someVisibleSelected ? (
-                <Minus className="w-3.5 h-3.5 text-white" strokeWidth={3} />
-              ) : null}
-            </div>
-            <span className="text-[14px] text-gray-900">Select All</span>
-          </div>
-        )}
+        {/* The same control row the tray uses, from the same component — ticking everything and clearing
+            it are the same tap, so there is no separate Clear. */}
+        <ProductListControls
+          allSelected={allVisibleSelected}
+          someSelected={someVisibleSelected}
+          canSelectAll={results.length > 0}
+          onSelectAll={toggleAll}
+          badgeFilter={badgeFilter}
+          onBadgeFilterChange={setBadgeFilter}
+          selectAllDemoId="allocate-select-all"
+          filterDemoId="allocate-badge-filter"
+        />
       </div>
 
       <div className="flex-1 overflow-y-auto">
@@ -361,8 +362,14 @@ export default function AllocateProductsPanel({
              rows they were ticked in, so a tap unticks. */
           <>
             {hasQuery && (
+              // Names the filter when one is on, the same as the tray's. A query that matched something
+              // and a filter that then removed it look identical without this, and the filter is the
+              // narrowing the operator is least likely to be holding in mind — they typed the query a
+              // second ago, while the filter sits above and outlives whatever they do in the box.
               <div className="p-8 text-center text-[14px] text-[#676b74]">
-                No products match that search.
+                {filterIsActive
+                  ? `No ${badgeFilterLabel(badgeFilter)} products match that search.`
+                  : 'No products match that search.'}
               </div>
             )}
 

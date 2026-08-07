@@ -4,7 +4,7 @@ import TopNav from './TopNav';
 import BinInventoryPanel from './BinInventoryPanel';
 import AllProductsPanel from './AllProductsPanel';
 import UnallocatedProductsPanel from './UnallocatedProductsPanel';
-import { BadgeFilter } from '../utils/unallocatedFilter';
+import { BadgeFilter } from '../utils/badgeFilter';
 import { Toaster } from './ui/sonner';
 
 interface MainLayoutProps {

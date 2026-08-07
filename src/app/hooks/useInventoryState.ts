@@ -20,7 +20,8 @@ import {
   removeSourcePicksForBin,
   binsFromSourcePicks
 } from '../utils/sourcePicks';
-import { BadgeFilter, filterUnallocatedProducts } from '../utils/unallocatedFilter';
+import { BadgeFilter } from '../utils/badgeFilter';
+import { filterUnallocatedProducts } from '../utils/unallocatedFilter';
 import { DoorShelfConfig, Bin, AllocationHistoryEntry, Product } from '../types';
 import { productDataService } from '../services/ProductDataService';
 import { pharmaceuticalProducts } from '../data/products';

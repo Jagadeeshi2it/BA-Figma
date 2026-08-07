@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Check, Search, Minus, CheckCircle2 } from 'lucide-react';
+import { X, Check, Search, CheckCircle2 } from 'lucide-react';
 import { Input } from './ui/input';
 import { Separator } from './ui/separator';
 // CRITICAL FIX: Remove direct import, will receive as prop
@@ -7,8 +7,9 @@ import { DoorShelfConfig } from '../types';
 import { getBinLocationDetails } from '../utils/doorUtils';
 import { highlightText, highlightNDC, SEARCH_HIGHLIGHT_COLOR } from '../utils/textHighlight';
 import ProductBadges from './ProductBadges';
-import { BadgeFilter, BADGE_FILTER_OPTIONS, filterUnallocatedProducts } from '../utils/unallocatedFilter';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import ProductListControls from './ProductListControls';
+import { BadgeFilter, badgeFilterLabel } from '../utils/badgeFilter';
+import { filterUnallocatedProducts } from '../utils/unallocatedFilter';
 
 interface UnallocatedProductsPanelProps {
   selectedUnallocatedProducts: string[];
@@ -55,7 +56,7 @@ export default function UnallocatedProductsPanel({
   const filterIsActive = badgeFilter !== 'all';
   // Named in the empty state, so the message says which narrowing is hiding things rather than leaving
   // the operator to notice the dropdown above it.
-  const activeFilterLabel = BADGE_FILTER_OPTIONS.find(option => option.value === badgeFilter)?.label ?? '';
+  const activeFilterLabel = badgeFilterLabel(badgeFilter);
 
   // Check if all filtered products are selected
   const allFilteredProductsSelected = hasListedProducts &&
@@ -136,92 +137,21 @@ export default function UnallocatedProductsPanel({
           )}
         </div>
 
-        {/* Select All on the left, the badge filter opposite it. The pairing is the workflow: narrow to
-            a kind, then take all of it. Most climate-sensitive stock goes to a fridge, so "show me the
-            Climate products and tick them" is the single most common way this tray gets emptied, and it
-            was previously eight rows to read and eight taps.
+        {/* The shared control row — see ProductListControls for why Select All stays visible and dims,
+            and why this is one component rather than the same markup in both allocation panels.
 
             The checkbox clears the selection on its own once everything is ticked, so a separate Clear
-            Selection control would be redundant.
-
-            **Both controls stay put when the list is empty; Select All dims instead of vanishing.** It
-            used to be withheld — the reasoning being that a control which cannot act reads as broken
-            rather than unavailable. That holds where the control is alone on its row and the row can go
-            with it. It does not hold here: this row also carries the filter, which must stay reachable
-            precisely when the list is empty (it is usually what emptied it, so it is the only control
-            that can undo it). So the row renders either way, and withholding the checkbox only made it
-            appear and disappear beside a control that never moves. Dimmed in place says the same
-            "nothing to select" without the layout shifting under the operator mid-task.
-
-            This is the one place the two allocation panels' shared design diverges, and the difference
-            is in the rows rather than the panels: AllocateProductsPanel has no filter, so its whole
-            control row can leave without anything jumping — and it opens with nothing listed, so an
-            always-present Select All there would greet the operator as a dead control. */}
-        <div className="flex items-center justify-between gap-3">
-          <div
-            data-demo="unallocated-select-all"
-            role="checkbox"
-            aria-checked={allFilteredProductsSelected}
-            // Not the `disabled` attribute — this is a div, so it would do nothing. `aria-disabled`
-            // carries the state and dropping the handler carries the behaviour, which is the same split
-            // FooterButton's blocked state uses (CLAUDE.md §6).
-            aria-disabled={!hasListedProducts}
-            onClick={hasListedProducts ? onSelectAll : undefined}
-            className={`flex items-center gap-2 w-fit ${
-              hasListedProducts ? 'cursor-pointer' : 'opacity-50 cursor-not-allowed'
-            }`}
-          >
-            <div
-              className={`w-5 h-5 rounded-[4px] shrink-0 flex items-center justify-center ${
-                someFilteredProductsSelected
-                  ? 'bg-[#095192]'
-                  : 'border border-gray-300 bg-white'
-              }`}
-            >
-              {allFilteredProductsSelected ? (
-                <Check className="w-3.5 h-3.5 text-white" strokeWidth={3} />
-              ) : someFilteredProductsSelected ? (
-                <Minus className="w-3.5 h-3.5 text-white" strokeWidth={3} />
-              ) : null}
-            </div>
-            <span className="text-[14px] text-gray-900">Select All</span>
-          </div>
-
-          <Select value={badgeFilter} onValueChange={value => onBadgeFilterChange(value as BadgeFilter)}>
-            <SelectTrigger
-              size="sm"
-              data-demo="unallocated-badge-filter"
-              aria-label="Filter by badge"
-              // Green when narrowed, exactly as `Bins Available(n)` goes green when on: this app already
-              // has a colour for "a view filter is active", and a second one would make two filters look
-              // like two kinds of control. `#15803D` on the text rather than the stroke's own green —
-              // #22C55E is 2.3:1 at this size, under the ~4.5:1 the app holds text to.
-              className={`w-[150px] shrink-0 text-[14px] ${
-                filterIsActive ? 'border-green-500 text-[#15803D]' : ''
-              }`}
-            >
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {BADGE_FILTER_OPTIONS.map(option => (
-                // No count, and never disabled on an empty result — an option that cannot be picked
-                // removes the way to ask "is there any CIV stock waiting?". The empty state names the
-                // filter, so an empty result cannot be mistaken for an empty tray.
-                <SelectItem
-                  key={option.value}
-                  value={option.value}
-                  // Anchored per option rather than by position or label: the Allocate Product
-                  // walkthrough picks `Climate` by name, and reordering the list or rewording an option
-                  // must not silently send it somewhere else.
-                  data-demo={`unallocated-filter-${option.value}`}
-                  className="text-[14px]"
-                >
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+            Selection control would be redundant. */}
+        <ProductListControls
+          allSelected={allFilteredProductsSelected}
+          someSelected={someFilteredProductsSelected}
+          canSelectAll={hasListedProducts}
+          onSelectAll={onSelectAll}
+          badgeFilter={badgeFilter}
+          onBadgeFilterChange={onBadgeFilterChange}
+          selectAllDemoId="unallocated-select-all"
+          filterDemoId="unallocated-badge-filter"
+        />
       </div>
 
       {/* Product list: plain rows split by dividers rather than individual cards. The checkbox and
