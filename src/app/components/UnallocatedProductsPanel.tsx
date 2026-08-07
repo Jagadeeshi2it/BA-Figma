@@ -48,13 +48,17 @@ export default function UnallocatedProductsPanel({
     badgeFilter
   );
 
+  // Whether Select All has anything to act on. Named rather than inlined because it decides three
+  // things about that control — its handler, its cursor and its aria state — and they must not drift.
+  const hasListedProducts = filteredProducts.length > 0;
+
   const filterIsActive = badgeFilter !== 'all';
   // Named in the empty state, so the message says which narrowing is hiding things rather than leaving
   // the operator to notice the dropdown above it.
   const activeFilterLabel = BADGE_FILTER_OPTIONS.find(option => option.value === badgeFilter)?.label ?? '';
 
   // Check if all filtered products are selected
-  const allFilteredProductsSelected = filteredProducts.length > 0 &&
+  const allFilteredProductsSelected = hasListedProducts &&
     filteredProducts.every(product => selectedUnallocatedProducts.includes(product.id));
 
   // Partial selection drives the checkbox's indeterminate (minus) state.
@@ -132,48 +136,56 @@ export default function UnallocatedProductsPanel({
           )}
         </div>
 
-        {/* The checkbox clears the selection on its own once everything is ticked, so a separate
-            Clear Selection control would be redundant.
-
-            Withheld when nothing is listed, matching AllocateProductsPanel: "Select All" over an empty
-            list has nothing to select, and a control that cannot act reads as broken rather than as
-            unavailable. It sat above the no-results message before, offering to tick nothing. */}
         {/* Select All on the left, the badge filter opposite it. The pairing is the workflow: narrow to
             a kind, then take all of it. Most climate-sensitive stock goes to a fridge, so "show me the
             Climate products and tick them" is the single most common way this tray gets emptied, and it
             was previously eight rows to read and eight taps.
 
-            The row is `justify-between` and always renders, but only the checkbox is conditional. The
-            filter must stay reachable when its own result is empty — it is the control that caused the
-            emptiness and therefore the only one that can undo it. Withholding it alongside Select All
-            would strand the operator on "no products match" with nothing to press. */}
+            The checkbox clears the selection on its own once everything is ticked, so a separate Clear
+            Selection control would be redundant.
+
+            **Both controls stay put when the list is empty; Select All dims instead of vanishing.** It
+            used to be withheld — the reasoning being that a control which cannot act reads as broken
+            rather than unavailable. That holds where the control is alone on its row and the row can go
+            with it. It does not hold here: this row also carries the filter, which must stay reachable
+            precisely when the list is empty (it is usually what emptied it, so it is the only control
+            that can undo it). So the row renders either way, and withholding the checkbox only made it
+            appear and disappear beside a control that never moves. Dimmed in place says the same
+            "nothing to select" without the layout shifting under the operator mid-task.
+
+            This is the one place the two allocation panels' shared design diverges, and the difference
+            is in the rows rather than the panels: AllocateProductsPanel has no filter, so its whole
+            control row can leave without anything jumping — and it opens with nothing listed, so an
+            always-present Select All there would greet the operator as a dead control. */}
         <div className="flex items-center justify-between gap-3">
-          {filteredProducts.length > 0 ? (
+          <div
+            data-demo="unallocated-select-all"
+            role="checkbox"
+            aria-checked={allFilteredProductsSelected}
+            // Not the `disabled` attribute — this is a div, so it would do nothing. `aria-disabled`
+            // carries the state and dropping the handler carries the behaviour, which is the same split
+            // FooterButton's blocked state uses (CLAUDE.md §6).
+            aria-disabled={!hasListedProducts}
+            onClick={hasListedProducts ? onSelectAll : undefined}
+            className={`flex items-center gap-2 w-fit ${
+              hasListedProducts ? 'cursor-pointer' : 'opacity-50 cursor-not-allowed'
+            }`}
+          >
             <div
-              data-demo="unallocated-select-all"
-              className="flex items-center gap-2 cursor-pointer w-fit"
-              onClick={onSelectAll}
+              className={`w-5 h-5 rounded-[4px] shrink-0 flex items-center justify-center ${
+                someFilteredProductsSelected
+                  ? 'bg-[#095192]'
+                  : 'border border-gray-300 bg-white'
+              }`}
             >
-              <div
-                className={`w-5 h-5 rounded-[4px] shrink-0 flex items-center justify-center ${
-                  someFilteredProductsSelected
-                    ? 'bg-[#095192]'
-                    : 'border border-gray-300 bg-white'
-                }`}
-              >
-                {allFilteredProductsSelected ? (
-                  <Check className="w-3.5 h-3.5 text-white" strokeWidth={3} />
-                ) : someFilteredProductsSelected ? (
-                  <Minus className="w-3.5 h-3.5 text-white" strokeWidth={3} />
-                ) : null}
-              </div>
-              <span className="text-[14px] text-gray-900">Select All</span>
+              {allFilteredProductsSelected ? (
+                <Check className="w-3.5 h-3.5 text-white" strokeWidth={3} />
+              ) : someFilteredProductsSelected ? (
+                <Minus className="w-3.5 h-3.5 text-white" strokeWidth={3} />
+              ) : null}
             </div>
-          ) : (
-            /* Holds the filter to the right when there is no checkbox to sit opposite, so the control
-               does not jump across the row as the list empties and fills. */
-            <span />
-          )}
+            <span className="text-[14px] text-gray-900">Select All</span>
+          </div>
 
           <Select value={badgeFilter} onValueChange={value => onBadgeFilterChange(value as BadgeFilter)}>
             <SelectTrigger
@@ -215,7 +227,7 @@ export default function UnallocatedProductsPanel({
       {/* Product list: plain rows split by dividers rather than individual cards. The checkbox and
           a light tint carry the selected state, so no border is needed. */}
       <div className="flex-1 overflow-y-auto">
-        {filteredProducts.length === 0 ? (
+        {!hasListedProducts ? (
           /* One quiet line, the same as AllocateProductsPanel's. A 48px icon over a heading over a
              sentence of advice made an ordinary non-result look like an error state — three elements and
              a page of vertical space to say what the panel beside it says in six words. The advice went

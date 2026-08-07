@@ -419,8 +419,8 @@ clearing).
 
 **It reads like workflow A now, deliberately.** Same header (`px-4 py-3`, 16px medium title, a real 24px
 close button), same search box (leading magnifier, clear X once there is something to clear), same
-one-line empty state at 14px — and the same `Select All`, withheld when nothing is listed rather than
-offering to tick an empty list. The tray's no-result state used to be a 48px icon over a heading over a
+one-line empty state at 14px. Its `Select All` is the one thing that now differs — see below. The tray's
+no-result state used to be a 48px icon over a heading over a
 sentence of advice, which made an ordinary non-result look like an error; the advice ("try a different
 name, NDC code, or keyword") only restated what the box already accepts. It keeps **three** distinct
 nothings, which are not interchangeable: `No Climate products match that search.`,
@@ -1090,14 +1090,25 @@ been violations of it.
 - **The two side panels are one design.** `AllocateProductsPanel` and `UnallocatedProductsPanel` are the
   menu's two allocation entries, so they share a header (`px-4 py-3`, a 16px medium `h2`, a real 24px
   close `button` with `aria-label`), a search box (`Search products`, leading magnifier, a clear `X` that
-  appears only once there is something to clear), a one-line 14px empty state, and a `Select All` that is
-  withheld when nothing is listed. A difference between them implies the two flows work differently.
-  Change one and check the other.
-  **The tray's badge filter is the one sanctioned difference**, and it is a difference in the lists rather
-  than in the panels: the tray is a fixed, short, fully-listed set, so narrowing it by a property is a real
-  act. `AllocateProductsPanel` lists **nothing** until you search (§2 A) — the query already is the filter
-  there, and a badge dropdown over an empty list would be a control with nothing to narrow. If that panel
-  ever lists by default, it should gain the same filter rather than a different one.
+  appears only once there is something to clear), a one-line 14px empty state, and a `Select All`.
+  A difference between them implies the two flows work differently. Change one and check the other.
+
+  **Two sanctioned differences, both in the tray, and both traceable to the same fact** — the tray is a
+  fixed, short, fully-listed set, while `AllocateProductsPanel` lists **nothing** until you search (§2 A):
+
+  - **The badge filter.** Narrowing a listed set by a property is a real act; a badge dropdown over an
+    empty list would be a control with nothing to narrow. The query already *is* the filter in the other
+    panel. If it ever lists by default, it should gain this same filter rather than a different one.
+  - **`Select All` stays visible and dims when nothing is listed**, where the other panel withholds it.
+    Both are right for their own row. In `AllocateProductsPanel` the control is alone on its row, so the
+    row can leave with it and nothing moves. In the tray the row also carries the filter, which must stay
+    reachable exactly when the list is empty — it is usually what emptied it, so it is the only control
+    that can undo it. A checkbox appearing and disappearing beside a control that never moves is a layout
+    shifting under the operator mid-task; dimmed in place says "nothing to select" without it.
+
+  The dimmed state follows the disabled-secondary rule: `opacity-50` and `cursor-not-allowed`, its own
+  look kept rather than recoloured. It is a `div`, so `disabled` would do nothing — `aria-disabled`
+  carries the state and dropping the handler carries the behaviour, the same split `FooterButton` uses.
 - **A move stage does not write its own footer.** Compose `PipelineFooter`'s parts (§2) so a stage
   chooses *what* to report, never how it looks. The step count comes from `TOTAL_PIPELINE_STEPS`, so
   it cannot disagree with the step vocabulary it describes.
