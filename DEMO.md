@@ -36,8 +36,10 @@ Everything awkward below follows from that choice, and is worth the cost.
 **Entering reloads, and it has to.** Inventory lives in React state seeded from a static file and
 nothing persists, so a reload is the only thing that guarantees a scenario's preconditions. This
 scenario needs MESNA still unallocated and a bin still empty — both stop being true the moment
-anyone runs it once, including the demo itself. The palette says so before you choose: *"Runs the
-real workflow, and reloads first — anything you have changed in this session is discarded."*
+anyone runs it once, including the demo itself. The palette used to say so in a footer line before
+you chose — *"Runs the real workflow, and reloads first…"* — which is now gone with the rest of that
+chrome (below). It was a warning printed on every visit about a state the viewer usually has not
+built: the palette is opened to start a walkthrough, not in the middle of careful work.
 
 **Exit deliberately does not reload.** The viewer has just watched something happen and the obvious
 next move is to poke at the result. Exiting hands back an app that is immediately interactive and
@@ -50,6 +52,13 @@ not a hidden door to one of them.
 
 The palette guards against its own shortcut: `/` typed inside an `input`, `textarea` or
 `contenteditable` is just a character. The app's own search box is why that check is not optional.
+
+**It is a title and the list, nothing else.** `Select a module for a demo`, then the scenarios. It had
+a search box at the top and a footer explaining the arrow keys; both were removed on 2026-08-08. Four
+scenarios fit on screen at once, so the box could only make a short list look like a long one — and it
+took the caret on open, so the first thing offered was somewhere to type rather than something to
+choose. The keys still work (↑↓, Enter, Esc); the dialog takes focus itself now, which the input used
+to do by accident. Restore the search when the list actually outgrows the panel, not before.
 
 ---
 
@@ -657,11 +666,13 @@ Checklist:
 - **Previous cannot undo an allocation** (§5). It is the one irreversible step in the current
   scenario and it falls back to the rebuild. If an unallocate path ever reaches the tray, that step
   is the one to give a `reverse` to.
-- **Entering always reloads**, so starting a demo discards whatever the viewer was doing. Stated in
-  the palette, but it is still a cost.
-- **Only one scenario exists.** The palette, the registry and the step vocabulary are all built for
-  more; nothing has been proven against a second one, and the first thing a second scenario is likely
-  to need is a step kind that does not exist yet.
+- **Entering always reloads**, so starting a demo discards whatever the viewer was doing. It is no
+  longer stated anywhere on screen — the palette's footer went with its search box (§2) — so a viewer
+  who had built something up loses it without warning. Judged the lesser cost: the palette is opened
+  to start a walkthrough, not mid-task.
+- **The four scenarios cover the four workflows, and none of the data-dependent shapes.** A product
+  picked across several bins, or a partial move with serial scanning, both need `repeatWhile` (§10d),
+  which is specified and not built.
 - **The runner has no headless test.** `verify-demo-anchors.mjs` checks that anchors resolve, which
   catches the most likely breakage, but the walk itself is verified by watching it. The project has
   no test infrastructure at all (CLAUDE.md §6).
