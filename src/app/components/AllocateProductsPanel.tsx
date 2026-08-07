@@ -6,7 +6,7 @@ import { Separator } from './ui/separator';
 import { ValidationToast } from './ui/sonner-1';
 import { getBinLocationDetails } from '../utils/doorUtils';
 import { searchProducts, ProductSearchResult } from '../utils/productSearchUtils';
-import ProductListControls from './ProductListControls';
+import { SelectAllToggle, BadgeFilterSelect } from './ProductListControls';
 import { BadgeFilter, badgeFilterLabel, matchesBadgeFilter } from '../utils/badgeFilter';
 import ProductBadges from './ProductBadges';
 import { pluralizeUnit } from '../utils/pluralizeUnit';
@@ -222,23 +222,6 @@ export default function AllocateProductsPanel({
 
   const selectedKeys = useMemo(() => new Set(selectedProducts.map(productKeyOf)), [selectedProducts]);
 
-  /**
-   * The selection as the filter leaves it — what the `Selected products` list actually shows.
-   *
-   * The filter sits above **both** lists and reads as one control over whatever is beneath it, so
-   * narrowing to `CIV` and then seeing MDV-only rows in the selection reads as the filter being
-   * broken. It only ever narrowed `results`, which made it look conditional on a search box that has
-   * nothing to do with it.
-   *
-   * This hides rows, never picks: `selectedProducts` is untouched, so a product filtered out of view
-   * is still selected, still counted in the footer and still allocated on confirm. That is the same
-   * bargain the search box already strikes here (a pick survives the query that found it), and the
-   * footer's count is what keeps it honest — it counts the selection, not the rows.
-   */
-  const listedSelection = useMemo(
-    () => selectedProducts.filter(product => matchesBadgeFilter(product, badgeFilter)),
-    [selectedProducts, badgeFilter]
-  );
 
   // A product already sitting in a bin that's already picked can't be ticked — allocating it there
   // again would just be skipped at confirm (the same identity can't sit twice in one bin), and
@@ -284,7 +267,7 @@ export default function AllocateProductsPanel({
    * than just falling back on `selectedProducts`: the two have to agree with the JSX below, or the
    * control acts on rows the operator cannot see — the one thing its label forbids.
    */
-  const listedProducts = results.length > 0 ? results : hasQuery ? [] : listedSelection;
+  const listedProducts = results.length > 0 ? results : hasQuery ? [] : selectedProducts;
 
   // Select All acts on what is listed, not on the catalogue — the filter and the search are how the
   // user says which products they mean, so ticking "all" of something they cannot see would be a
@@ -335,32 +318,41 @@ export default function AllocateProductsPanel({
   };
 
   /**
-   * Show me what I have picked. Clearing both narrowings is the whole implementation, because the
-   * panel's empty state is already a no-query view of the selection — so there is no second "review"
-   * surface to build or keep in step, and no mode to be in or out of.
+   * Emptying the search box drops the badge filter with it.
    *
-   * **Both**, not just the query. The control promises the selection, and the footer's count beside it
-   * says how many that is; landing on a filtered slice of it under a `Selected products` header makes
-   * the panel look like it has lost picks the count insists are still there. Dropping the query and
-   * leaving `CIV` on would answer "show me my 4 products" with 2.
+   * **The filter belongs to the search.** It narrows what a query can return and cannot produce a list
+   * on its own, so the two are one act of asking, and clearing half of it leaves a narrowing in force
+   * over a box that no longer explains it. What made that concrete: with the box clear this panel lists
+   * the *selection*, and a filter still running there hid picks the footer's count insisted were still
+   * held — "show me my 4 products", answered with 2, under a `Selected products` header.
    *
-   * The search box's own X is deliberately not this. It is labelled `Clear search` and clears the
-   * search — and the filter surviving a cleared box is what makes it usable as a pre-set (choose
-   * `Climate`, then search); resetting it there would take that away to fix a complaint about a
-   * different control.
+   * Every route that empties the box goes through here — the X, the footer's counter button, and
+   * backspacing to nothing — because a rule honoured by two of the three is worse than not having it.
    *
-   * Neither touches `selectedProducts`, and must not: this is a way of *looking* at the selection, and a
-   * control that reviewed and reset it would be one tap from losing work the operator spent several
+   * **The pre-set survives**, which is the one use that needs the filter to outlive a query: this fires
+   * on *clearing*, not on *being clear*, so choosing `Climate` on an empty box and then typing works
+   * exactly as before. What it costs is carrying a filter from one search straight into the next, which
+   * is a keystroke to redo and was never what the control was for.
+   */
+  const setSearch = (value: string) => {
+    setQuery(value);
+    if (value.trim().length === 0) setBadgeFilter('all');
+  };
+
+  /**
+   * Show me what I have picked. Clearing the search is the whole implementation, because the panel's
+   * empty state is already a no-query view of the selection — so there is no second "review" surface to
+   * build or keep in step, and no mode to be in or out of. The filter goes with it via `setSearch`.
+   *
+   * It does not touch `selectedProducts`, and must not: this is a way of *looking* at the selection, and
+   * a control that reviewed and reset it would be one tap from losing work the operator spent several
    * searches assembling.
    *
    * No blur. `Input` here is a plain component with no ref, and unlike `HeaderSection` this box gates
    * nothing on a React "focused" flag — so the desync trap in CLAUDE.md §4 does not apply, and leaving
    * the caret where it is means the next keystroke starts a new search rather than nothing at all.
    */
-  const reviewSelection = () => {
-    setQuery('');
-    setBadgeFilter('all');
-  };
+  const reviewSelection = () => setSearch('');
 
   const canConfirm = selectedProducts.length > 0 && selectedBinsForAssignment.length > 0;
 
@@ -388,11 +380,16 @@ export default function AllocateProductsPanel({
 
       {/* py-3, matching the header: 12px is the panel's vertical rhythm throughout. */}
       <div className="py-3 px-4 border-b border-gray-200 space-y-3">
-        <div className="relative">
+        {/* The badge filter sits at the end of this row, not on the Select All line below it. It narrows
+            what a search can return, so beside the box is where it says so — on the row underneath it
+            read as a second control over the list, which is a claim it cannot honour once that list is
+            the selection. See ProductListControls. */}
+        <div className="flex items-center gap-2">
+        <div className="relative flex-1 min-w-0">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#676b74]" />
           <Input
             value={query}
-            onChange={event => setQuery(event.target.value)}
+            onChange={event => setSearch(event.target.value)}
             // "Search products", same as the tray's. "…in this cabinet" was scoping the search out loud,
             // which the panel it sits in already does.
             placeholder="Search products"
@@ -406,7 +403,7 @@ export default function AllocateProductsPanel({
             <button
               type="button"
               aria-label="Clear search"
-              onClick={() => setQuery('')}
+              onClick={() => setSearch('')}
               className="absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 rounded flex items-center justify-center text-[#676b74] hover:bg-gray-100 cursor-pointer"
             >
               <X className="w-3.5 h-3.5" />
@@ -414,19 +411,23 @@ export default function AllocateProductsPanel({
           )}
         </div>
 
-        {/* The same control row the tray uses, from the same component — ticking everything and clearing
-            it are the same tap, so there is no separate Clear. */}
-        <ProductListControls
+          <BadgeFilterSelect
+            badgeFilter={badgeFilter}
+            onBadgeFilterChange={setBadgeFilter}
+            demoId="allocate-badge-filter"
+          />
+        </div>
+
+        {/* Alone on its line, directly above the rows it acts on — which is the whole of what it claims.
+            Ticking everything and clearing it are the same tap, so there is no separate Clear. */}
+        <SelectAllToggle
           allSelected={allVisibleSelected}
           someSelected={someVisibleSelected}
           // What is on screen, not what the search returned — with no results the panel lists the
           // selection instead, and Select All is how that gets cleared in one tap.
           canSelectAll={listedProducts.length > 0}
           onSelectAll={toggleAll}
-          badgeFilter={badgeFilter}
-          onBadgeFilterChange={setBadgeFilter}
-          selectAllDemoId="allocate-select-all"
-          filterDemoId="allocate-badge-filter"
+          demoId="allocate-select-all"
         />
       </div>
 
@@ -456,15 +457,7 @@ export default function AllocateProductsPanel({
                   ? `No ${badgeFilterLabel(badgeFilter)} products match that search.`
                   : 'No products match that search.'}
               </div>
-            ) : selectedProducts.length > 0 && listedSelection.length === 0 ? (
-              // Picked something, then narrowed past all of it. Distinct from both neighbours: the
-              // selection is not empty (so the "search and select" hint would be wrong) and no search is
-              // running (so "match that search" would blame the wrong control). Names the filter, which
-              // is the only thing that can undo it — the same rule the tray's three nothings follow.
-              <div className="p-8 text-center text-[14px] text-[#676b74]">
-                No {badgeFilterLabel(badgeFilter)} products in your selection.
-              </div>
-            ) : listedSelection.length > 0 ? (
+            ) : selectedProducts.length > 0 ? (
               <>
                 {/* No count here — the footer already carries it, and two figures for one number
                     invites checking whether they agree. This says what the list IS. */}
@@ -472,7 +465,7 @@ export default function AllocateProductsPanel({
                   Selected products
                 </div>
                 <div className="divide-y divide-gray-200">
-                  {listedSelection.map(product => (
+                  {selectedProducts.map(product => (
                     <ProductRow
                       key={productKeyOf(product)}
                       product={product}

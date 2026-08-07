@@ -210,15 +210,11 @@ what stops you picking a bin it is already in.
   how they came to disagree. It must stay in step with the JSX: the rule is that the control acts on the
   rows that are rendered, and there is no test holding the two together.
 - **The footer's two counters are one button — the way back to the selection.** Tapping it clears the
-  search **and resets the badge filter**, which is exactly what puts the whole `Selected products` list on
-  screen, so the operator can bounce between "what am I finding" and "what have I got" without emptying the
-  box by hand. Clearing both narrowings *is* the whole implementation: there is no second review surface to
-  build or keep in step, and no mode to be in or out of. **Both**, because the count sits in the same
-  control: dropping the query and leaving `CIV` on answers "show me my 4 products" with 2, under a
-  `Selected products` header, which reads as the panel having lost picks the count insists are still there.
-  The search box's own `X` is deliberately *not* this — it says `Clear search` and clears the search, and
-  the filter surviving a cleared box is what makes it usable as a pre-set (§6). It deliberately does not
-  touch the selection — this is a way of looking at it, and
+  search, which is exactly what puts the `Selected products` list on screen, so the operator can bounce
+  between "what am I finding" and "what have I got" without emptying the box by hand. Clearing the query
+  *is* the whole implementation — it goes through `setSearch`, so the badge filter drops with it (below).
+  There is no second review surface to build or keep in step, and no mode to be in or out of. It
+  deliberately does not touch the selection — this is a way of looking at it, and
   a control that reviewed and reset it would be one tap from losing several searches' work. One control
   rather than two, because they are one fact and the bin half is not separately actionable: bins are
   picked out on the shelves. Chevron and colour follow `SummaryCell` (§2 B), the app's existing idiom for
@@ -503,9 +499,11 @@ filter's version is checked first, because it is the narrowing the operator is l
 holding in mind — they typed the query a second ago, but a filter set at the top of the panel outlives
 whatever they do in the search box. It names itself, so the message is also the instruction for undoing it.
 
-**The badge filter, opposite `Select All`.** A dropdown narrowing the tray to `Climate`, `CIV`, `SDV` or
-`MDV`. Both controls come from the shared `ProductListControls`, which `AllocateProductsPanel` renders too
-(§6). The pairing with `Select All` is the whole point and it is the workflow: most climate-sensitive stock belongs in a fridge, so *filter to Climate → Select All
+**The badge filter, at the end of the search row.** A dropdown narrowing the tray to `Climate`, `CIV`,
+`SDV` or `MDV`. It and `Select All` come from `ProductListControls` as two parts (`BadgeFilterSelect`,
+`SelectAllToggle`), which `AllocateProductsPanel` composes the same way — the filter beside the box it
+narrows, `Select All` alone above the rows it ticks (§6). The pairing with `Select All` is still the
+workflow, one row apart: most climate-sensitive stock belongs in a fridge, so *filter to Climate → Select All
 → tap a fridge → Allocate* is how the tray actually gets emptied. An exception still goes through the
 unfiltered list, which is where an exception belongs.
 
@@ -1191,19 +1189,23 @@ been violations of it.
   appears only once there is something to clear), a one-line 14px empty state, and a `Select All`.
   A difference between them implies the two flows work differently. Change one and check the other.
 
-  **The control row is one component**, `ProductListControls` — `Select All` and the badge filter, rendered
-  by both. It had been holding by inspection, which is how the tray came to draw only the vial badge while
-  the other panel drew all three; a rule this easy to break by accident belongs in code rather than in a
-  paragraph asking the next person to check. Each panel passes its own `data-demo` anchors, so the shared
-  row does not have to invent them from a prefix (which would leave nothing literal for
-  `verify-demo-anchors` to find).
+  **The two controls are one module, in two parts** — `ProductListControls` exports `BadgeFilterSelect`
+  and `SelectAllToggle`, and both panels compose them the same way: the filter at the end of the search
+  row, `Select All` alone on the line below. Same pattern as `PipelineFooter`'s parts. Sharing had been
+  holding by inspection, which is how the tray came to draw only the vial badge while the other panel drew
+  all three; a rule this easy to break by accident belongs in code rather than in a paragraph asking the
+  next person to check. **They were one row until 2026-08-08** and splitting them was a scope fix, not a
+  layout preference — §2 A has the reasoning, and putting them back reopens it. Each panel passes its own
+  `data-demo` anchors, so a shared part does not have to invent them from a prefix (which would leave
+  nothing literal for `verify-demo-anchors` to find).
 
-  `Select All` is **visible always and dimmed when nothing is listed**. It used to be withheld, on the
-  reasoning that a control which cannot act reads as broken rather than unavailable — true where the
-  control is alone on its row and the row can go with it, and false once the row also carries the filter,
-  which must stay reachable exactly when the list is empty (it is usually what emptied it, so it is the
-  only control that can undo it). A checkbox appearing and disappearing beside a control that never moves
-  is a layout shifting under the operator mid-task. The dimmed state follows the disabled-secondary rule:
+  `Select All` is **visible always and dimmed when nothing is listed**. It was withheld once, on the
+  reasoning that a control which cannot act reads as broken rather than unavailable; that was dropped when
+  the filter shared its row and had to stay reachable exactly when the list was empty (it is usually what
+  emptied it, so it is the only control that can undo it). The filter has moved up, so what holds it now is
+  the other half: a checkbox appearing and disappearing as the list fills and empties is a layout shifting
+  under the operator mid-task, opening and closing the gap above the first row. The dimmed state follows
+  the disabled-secondary rule:
   `opacity-50` and `cursor-not-allowed`, its own look kept rather than recoloured. It is a `div`, so
   `disabled` would do nothing — `aria-disabled` carries the state and dropping the handler carries the
   behaviour, the same split `FooterButton` uses.
@@ -1220,15 +1222,26 @@ been violations of it.
     split the catalogue roughly in half, so it would be ~130 rows. It is still useful before typing, as a
     pre-set: choose `Climate`, then search, and only climate-sensitive matches come back.
 
-  **It narrows both of that panel's lists, though — results and the selection.** "Cannot produce a list"
-  is not "applies only while searching": the control sits above whatever is beneath it and reads as one
-  filter over it, so narrowing to `CIV` and then seeing MDV-only rows in `Selected products` reads as the
-  filter being broken. It filtered `results` alone until 2026-08-08. `listedSelection` is the filtered
-  selection and `listedProducts` falls back to *it*, so the rendered rows, `Select All`'s enable flag and
-  `toggleAll`'s own set stay the one set (§2 A). It hides rows and never picks: a product filtered out of
-  view is still selected, still in the footer's count and still allocated on confirm — which needs the
-  third empty state, `No Climate products in your selection.`, distinct from the search's no-match and
-  from the never-searched hint, and naming the filter because that is the only control that can undo it.
+  **The filter belongs to the search, and its position says so.** It sits at the end of the search row in
+  both panels; `Select All` is alone on the line below, directly above the rows. They shared a row until
+  2026-08-08, between the box and the list, which reads as both governing whatever is beneath — true of
+  `Select All`, which does act on the rows on screen whichever list they came from, and false of the
+  filter, which narrows the *catalogue* and has no business narrowing a selection assembled one product at
+  a time. That single row produced the bug in both directions in one day: a filter that ignored the
+  `Selected products` list, then one that hid picks from it while the footer's count insisted they were
+  still held. Two rules follow, and neither survives moving the control back:
+
+  - **`Selected products` is never filtered.** It always shows the whole selection and always agrees with
+    the footer's count. This is why there is no "no `CIV` products in your selection" empty state — the
+    state cannot arise.
+  - **Emptying the search box drops the filter with it** (`setSearch` in `AllocateProductsPanel`), on every
+    route: the `X`, the footer's counter button, and backspacing to nothing. A rule honoured by two of the
+    three is worse than not having it. The pre-set survives, because this fires on *clearing*, not on
+    *being clear* — choose `Climate` on an empty box, then type, and only climate-sensitive matches come
+    back. What it costs is carrying a filter from one search into the next, which was never its job.
+
+  **The tray keeps its filter across a cleared search**, and must: there the filter *produces* the list, so
+  resetting it on an empty box would undo the narrowing at the exact moment it is doing all the work.
 - **A move stage does not write its own footer.** Compose `PipelineFooter`'s parts (§2) so a stage
   chooses *what* to report, never how it looks. The step count comes from `TOTAL_PIPELINE_STEPS`, so
   it cannot disagree with the step vocabulary it describes.

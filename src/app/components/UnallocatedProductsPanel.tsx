@@ -7,7 +7,7 @@ import { DoorShelfConfig } from '../types';
 import { getBinLocationDetails } from '../utils/doorUtils';
 import { highlightText, highlightNDC, SEARCH_HIGHLIGHT_COLOR } from '../utils/textHighlight';
 import ProductBadges from './ProductBadges';
-import ProductListControls from './ProductListControls';
+import { SelectAllToggle, BadgeFilterSelect } from './ProductListControls';
 import { BadgeFilter, badgeFilterLabel } from '../utils/badgeFilter';
 import { filterUnallocatedProducts } from '../utils/unallocatedFilter';
 
@@ -113,7 +113,8 @@ export default function UnallocatedProductsPanel({
         {/* Same search control as AllocateProductsPanel's, down to the leading magnifier this one was
             missing: the two panels are the menu's two allocation entries, so a search box that looks
             different in each says the two searches work differently. */}
-        <div className="relative">
+        <div className="flex items-center gap-2">
+        <div className="relative flex-1 min-w-0">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#676b74]" />
           <Input
             type="text"
@@ -137,20 +138,28 @@ export default function UnallocatedProductsPanel({
           )}
         </div>
 
-        {/* The shared control row — see ProductListControls for why Select All stays visible and dims,
-            and why this is one component rather than the same markup in both allocation panels.
+          {/* In the search row, matching the other allocation panel — the two are the menu's two
+              allocation entries, so a control that sits somewhere different in each says the two flows
+              work differently. It does more here than there (it produces this list rather than refining
+              a search, §6), but it is the same kind of narrowing and belongs beside the other one. */}
+          <BadgeFilterSelect
+            badgeFilter={badgeFilter}
+            onBadgeFilterChange={onBadgeFilterChange}
+            demoId="unallocated-badge-filter"
+          />
+        </div>
+
+        {/* Alone above the rows it acts on — see ProductListControls for why it stays visible and dims,
+            and why these are shared components rather than the same markup in both allocation panels.
 
             The checkbox clears the selection on its own once everything is ticked, so a separate Clear
             Selection control would be redundant. */}
-        <ProductListControls
+        <SelectAllToggle
           allSelected={allFilteredProductsSelected}
           someSelected={someFilteredProductsSelected}
           canSelectAll={hasListedProducts}
           onSelectAll={onSelectAll}
-          badgeFilter={badgeFilter}
-          onBadgeFilterChange={onBadgeFilterChange}
-          selectAllDemoId="unallocated-select-all"
-          filterDemoId="unallocated-badge-filter"
+          demoId="unallocated-select-all"
         />
       </div>
 
