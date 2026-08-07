@@ -422,9 +422,53 @@ close button), same search box (leading magnifier, clear X once there is somethi
 one-line empty state at 14px — and the same `Select All`, withheld when nothing is listed rather than
 offering to tick an empty list. The tray's no-result state used to be a 48px icon over a heading over a
 sentence of advice, which made an ordinary non-result look like an error; the advice ("try a different
-name, NDC code, or keyword") only restated what the box already accepts. It keeps **two** distinct
-nothings, which are not interchangeable: `No products match that search.` versus
-`Nothing to allocate — every product already has a bin.`
+name, NDC code, or keyword") only restated what the box already accepts. It keeps **three** distinct
+nothings, which are not interchangeable: `No Climate products match that search.`,
+`No products match that search.` and `Nothing to allocate — every product already has a bin.` The
+filter's version is checked first, because it is the narrowing the operator is least likely to be
+holding in mind — they typed the query a second ago, but a filter set at the top of the panel outlives
+whatever they do in the search box. It names itself, so the message is also the instruction for undoing it.
+
+**The badge filter, opposite `Select All`.** A dropdown narrowing the tray to `Climate`, `CIV`, `SDV` or
+`MDV`, each with the count picking it would leave. The pairing with `Select All` is the whole point and
+it is the workflow: most climate-sensitive stock belongs in a fridge, so *filter to Climate → Select All
+→ tap a fridge → Allocate* is how the tray actually gets emptied. An exception still goes through the
+unfiltered list, which is where an exception belongs.
+
+- **`utils/unallocatedFilter.ts` owns "what is visible", and both callers ask it.** The panel renders the
+  list; the hook's `handleSelectAllUnallocatedProducts` ticks it. Each used to write the search predicate
+  out longhand, survivable with one condition and not with two — a filter honoured by the list and not by
+  Select All would tick products that are not on screen, which is the one thing that control must never
+  do. `node scripts/verify-unallocated-filter.mjs` (83 assertions) pins it, including that the two
+  narrowings compose as **AND** in both directions: an OR would make picking a filter *widen* the list.
+- **The filter state lives in the hook, not the panel**, for the same reason — `Select All` is a hook
+  handler and cannot read panel state.
+- **It is single-select, deliberately.** `climate`/`civ` are flags; `SDV`/`MDV` are the two halves of one
+  property. Multi-select would have to decide whether `Climate + CIV` means both badges or either, and
+  `SDV + MDV` would be a combination that reads as narrowing and returns the unfiltered list.
+- **Green when narrowed**, matching `Bins Available(n)` — the app already has a colour for "a view filter
+  is on", and a second one would make two filters look like two kinds of control. `#15803D` on the label
+  rather than the stroke's `#22C55E`, which is 2.3:1 at this size.
+- **The row is `justify-between` and always renders; only the checkbox is conditional.** The filter has to
+  stay reachable when its own result is empty — it caused the emptiness, so it is the only control that
+  can undo it. An empty `<span />` holds it right so it does not jump as the list empties and fills.
+- **An option is never disabled on a zero.** `CIV (0)` is the useful answer to "is any CIV stock waiting?";
+  disabling it removes the way to ask, and the empty state names the filter so the result cannot be
+  mistaken for an empty tray.
+- **Counts are against the search but not against the filter** — an option must report what picking it
+  would show. Counting it against itself makes every unpicked option read 0.
+- **Cleared on open as well as on close**, unlike the search box, and for a sharper version of the reason
+  the ticks are: a stale tick still shows itself in the footer's count, while a stale `Climate` would just
+  make the tray look like it holds two products.
+
+**The tray renders the shared `ProductBadges` now.** It hand-wrote the vial chip alone, so CLIMATE and CIV
+were invisible in the one place the operator decides *where a product should go* — and a climate-sensitive
+product belongs in a fridge. All three badges derive from `binProducts`, not from `product.badge`, which is
+`'SDV'` for every tray product; a filter reading that field would answer "everything" and "nothing".
+
+Note the seed's inventory types matter here: `applyInventoryTypes` spreads products across the four types
+at build time, and the type is part of the identity triple the badge hashes, so the tray's distribution
+(2 CLIMATE, 2 CIV, 2 SDV, 6 MDV) cannot be predicted from `realData.ts` alone.
 
 **Nothing of the old entry point is left.** The `/` listener, `showUnallocatedButton`, the button itself,
 the tinted `Unallocated (n)` chip that used to sit in the header while the tray was open, and the
@@ -1033,6 +1077,11 @@ been violations of it.
   appears only once there is something to clear), a one-line 14px empty state, and a `Select All` that is
   withheld when nothing is listed. A difference between them implies the two flows work differently.
   Change one and check the other.
+  **The tray's badge filter is the one sanctioned difference**, and it is a difference in the lists rather
+  than in the panels: the tray is a fixed, short, fully-listed set, so narrowing it by a property is a real
+  act. `AllocateProductsPanel` lists **nothing** until you search (§2 A) — the query already is the filter
+  there, and a badge dropdown over an empty list would be a control with nothing to narrow. If that panel
+  ever lists by default, it should gain the same filter rather than a different one.
 - **A move stage does not write its own footer.** Compose `PipelineFooter`'s parts (§2) so a stage
   chooses *what* to report, never how it looks. The step count comes from `TOTAL_PIPELINE_STEPS`, so
   it cannot disagree with the step vocabulary it describes.
@@ -1148,6 +1197,10 @@ physically impossible allocation without objection (§5).
   over a selection that is still live. This is exactly the gap workflow A closed by listing the picks
   under its empty state (§2 A); the tray needs the same, which means extracting its row the way
   `ProductRow` was extracted. The footer's `n Products selected` is currently the only trace.
+  **The badge filter widens this**, since it is a second way to hide a live selection and one the
+  operator is less likely to be holding in mind than a query they just typed. It is mitigated, not
+  closed: the empty state names the filter (`No Climate products match that search.`), so the cause is
+  at least on screen even though the selection still is not.
 - **Step ④'s position counters are switched off, not decided.** `SHOW_STEP4_POSITION_COUNTERS = false`
   (§2). The operator asked to hide them while the Move Summary is judged alone and said they would call
   it; the cells and their side sheets stay wired. If the answer is "off", delete them — that is the

@@ -20,6 +20,7 @@ import {
   removeSourcePicksForBin,
   binsFromSourcePicks
 } from '../utils/sourcePicks';
+import { BadgeFilter, filterUnallocatedProducts } from '../utils/unallocatedFilter';
 import { DoorShelfConfig, Bin, AllocationHistoryEntry, Product } from '../types';
 import { productDataService } from '../services/ProductDataService';
 import { pharmaceuticalProducts } from '../data/products';
@@ -157,6 +158,10 @@ export const useInventoryState = () => {
   // product being chosen first, and to refuse a bin that already holds every ticked product.
   const [allocateSelectedProductKeys, setAllocateSelectedProductKeys] = useState<string[]>([]);
   const [unallocatedSearchQuery, setUnallocatedSearchQuery] = useState<string>("");
+  // The tray's badge filter. It lives here rather than in the panel because `Select All` is a hook
+  // handler and has to tick exactly what the panel lists — two copies of "what is visible" is how that
+  // control comes to act on rows nobody can see.
+  const [unallocatedBadgeFilter, setUnallocatedBadgeFilter] = useState<BadgeFilter>('all');
   const [allocationHistory, setAllocationHistory] = useState<AllocationHistoryEntry[]>(generateSeedHistory);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [changeAllocationMode, setChangeAllocationMode] = useState(false);
@@ -517,6 +522,11 @@ export const useInventoryState = () => {
     setSelectedBin(null);
     setSelectedUnallocatedProducts([]);
     setSelectedBinsForAssignment([]);
+    // Cleared on OPEN as well as on close, unlike the search box, and for a sharper version of the same
+    // reason the ticks are: a filter carried over from an abandoned visit hides products with no visible
+    // cause. A stale tick at least shows itself in the footer's count; a stale `Climate` would just make
+    // the tray look like it holds two products.
+    setUnallocatedBadgeFilter('all');
   };
 
   const closeUnallocatedProducts = () => {
@@ -524,6 +534,7 @@ export const useInventoryState = () => {
     setSelectedUnallocatedProducts([]);
     setSelectedBinsForAssignment([]);
     setUnallocatedSearchQuery("");
+    setUnallocatedBadgeFilter('all');
   };
 
   const handleUnallocatedProductSelect = (productId: string) => {
@@ -558,18 +569,15 @@ export const useInventoryState = () => {
   };
 
   const handleSelectAllUnallocatedProducts = () => {
-    // Filter products based on current search query to select only visible products
-    const filteredProducts = unallocatedProducts.filter(product => {
-      if (!unallocatedSearchQuery.trim()) return true;
-      
-      const query = unallocatedSearchQuery.toLowerCase();
-      return (
-        product.name.toLowerCase().includes(query) ||
-        product.description.toLowerCase().includes(query) ||
-        product.ndc.toLowerCase().includes(query) ||
-        product.source.toLowerCase().includes(query)
-      );
-    });
+    // Exactly what the panel lists — search AND badge filter, from the one shared predicate. This used
+    // to re-implement the search test here, which was survivable with one condition and would not be
+    // with two: a badge filter honoured by the list and not by this control would tick products that
+    // are not on screen. "All" has to mean the visible list.
+    const filteredProducts = filterUnallocatedProducts(
+      unallocatedProducts,
+      unallocatedSearchQuery,
+      unallocatedBadgeFilter
+    );
 
     // Check if all filtered products are currently selected
     const allFilteredProductsSelected = filteredProducts.length > 0 && 
@@ -2238,6 +2246,8 @@ export const useInventoryState = () => {
     selectedUnallocatedProducts,
     selectedBinsForAssignment,
     unallocatedSearchQuery,
+    unallocatedBadgeFilter,
+    setUnallocatedBadgeFilter,
     allocationHistory,
     showHistoryModal,
     changeAllocationMode,

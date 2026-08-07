@@ -4,6 +4,7 @@ import TopNav from './TopNav';
 import BinInventoryPanel from './BinInventoryPanel';
 import AllProductsPanel from './AllProductsPanel';
 import UnallocatedProductsPanel from './UnallocatedProductsPanel';
+import { BadgeFilter } from '../utils/unallocatedFilter';
 import { Toaster } from './ui/sonner';
 
 interface MainLayoutProps {
@@ -31,6 +32,10 @@ interface MainLayoutProps {
   selectedUnallocatedProducts: string[];
   selectedBinsForAssignment: string[];
   unallocatedSearchQuery: string;
+  // The tray's badge filter. Optional so the three non-cabinet pages that mount MainLayout without a
+  // tray need not carry it — they already pass an empty search query for the same reason.
+  unallocatedBadgeFilter?: BadgeFilter;
+  onUnallocatedBadgeFilterChange?: (filter: BadgeFilter) => void;
   doorShelfConfig: any;
   unallocatedProducts: any[]; // CRITICAL FIX: Add unallocated products as prop
   currentStation?: string;
@@ -74,6 +79,8 @@ export default function MainLayout({
   selectedUnallocatedProducts,
   selectedBinsForAssignment,
   unallocatedSearchQuery,
+  unallocatedBadgeFilter = 'all',
+  onUnallocatedBadgeFilterChange,
   doorShelfConfig,
   unallocatedProducts,
   currentStation,
@@ -163,11 +170,13 @@ export default function MainLayout({
           selectedUnallocatedProducts={selectedUnallocatedProducts}
           selectedBinsForAssignment={selectedBinsForAssignment}
           unallocatedSearchQuery={unallocatedSearchQuery}
+          badgeFilter={unallocatedBadgeFilter}
           doorShelfConfig={doorShelfConfig}
           unallocatedProducts={unallocatedProducts} // CRITICAL FIX: Pass unallocated products as prop
           onClose={closeUnallocatedProducts}
           onProductSelect={handleUnallocatedProductSelect}
           onSearchChange={handleUnallocatedSearchChange}
+          onBadgeFilterChange={onUnallocatedBadgeFilterChange ?? (() => {})}
           onSelectAll={handleSelectAllUnallocatedProducts}
           onConfirmAssignment={handleConfirmAssignment}
         />

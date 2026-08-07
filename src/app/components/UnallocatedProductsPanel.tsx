@@ -6,17 +6,26 @@ import { Separator } from './ui/separator';
 import { DoorShelfConfig } from '../types';
 import { getBinLocationDetails } from '../utils/doorUtils';
 import { highlightText, highlightNDC, SEARCH_HIGHLIGHT_COLOR } from '../utils/textHighlight';
-import { getVialType } from '../utils/binProducts';
+import ProductBadges from './ProductBadges';
+import {
+  BadgeFilter,
+  BADGE_FILTER_OPTIONS,
+  badgeFilterCounts,
+  filterUnallocatedProducts
+} from '../utils/unallocatedFilter';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 
 interface UnallocatedProductsPanelProps {
   selectedUnallocatedProducts: string[];
   selectedBinsForAssignment: string[];
   unallocatedSearchQuery: string;
+  badgeFilter: BadgeFilter;
   doorShelfConfig: DoorShelfConfig;
   unallocatedProducts: any[]; // CRITICAL FIX: Accept unallocated products as prop
   onClose: () => void;
   onProductSelect: (productId: string) => void;
   onSearchChange: (query: string) => void;
+  onBadgeFilterChange: (filter: BadgeFilter) => void;
   onConfirmAssignment: () => void;
   onSelectAll: () => void;
 }
@@ -25,27 +34,32 @@ export default function UnallocatedProductsPanel({
   selectedUnallocatedProducts,
   selectedBinsForAssignment,
   unallocatedSearchQuery,
+  badgeFilter,
   doorShelfConfig,
   unallocatedProducts,
   onClose,
   onProductSelect,
   onSearchChange,
+  onBadgeFilterChange,
   onConfirmAssignment,
   onSelectAll
 }: UnallocatedProductsPanelProps) {
 
-  // Filter products based on search query
-  const filteredProducts = unallocatedProducts.filter(product => {
-    if (!unallocatedSearchQuery.trim()) return true;
+  // Search AND badge filter, from the shared predicate the hook's Select All also calls — see
+  // utils/unallocatedFilter.ts for why the two must not each own a copy of "what is visible".
+  const filteredProducts = filterUnallocatedProducts(
+    unallocatedProducts,
+    unallocatedSearchQuery,
+    badgeFilter
+  );
 
-    const query = unallocatedSearchQuery.toLowerCase();
-    return (
-      product.name.toLowerCase().includes(query) ||
-      product.description.toLowerCase().includes(query) ||
-      product.ndc.toLowerCase().includes(query) ||
-      product.source.toLowerCase().includes(query)
-    );
-  });
+  // Counted against the search but not against the filter, so each option reports what picking it
+  // would show rather than what the current pick has left.
+  const filterCounts = badgeFilterCounts(unallocatedProducts, unallocatedSearchQuery);
+  const filterIsActive = badgeFilter !== 'all';
+  // Named in the empty state, so the message says which narrowing is hiding things rather than leaving
+  // the operator to notice the dropdown above it.
+  const activeFilterLabel = BADGE_FILTER_OPTIONS.find(option => option.value === badgeFilter)?.label ?? '';
 
   // Check if all filtered products are selected
   const allFilteredProductsSelected = filteredProducts.length > 0 &&
@@ -132,24 +146,66 @@ export default function UnallocatedProductsPanel({
             Withheld when nothing is listed, matching AllocateProductsPanel: "Select All" over an empty
             list has nothing to select, and a control that cannot act reads as broken rather than as
             unavailable. It sat above the no-results message before, offering to tick nothing. */}
-        {filteredProducts.length > 0 && (
-        <div className="flex items-center gap-2 cursor-pointer w-fit" onClick={onSelectAll}>
-          <div
-            className={`w-5 h-5 rounded-[4px] shrink-0 flex items-center justify-center ${
-              someFilteredProductsSelected
-                ? 'bg-[#095192]'
-                : 'border border-gray-300 bg-white'
-            }`}
-          >
-            {allFilteredProductsSelected ? (
-              <Check className="w-3.5 h-3.5 text-white" strokeWidth={3} />
-            ) : someFilteredProductsSelected ? (
-              <Minus className="w-3.5 h-3.5 text-white" strokeWidth={3} />
-            ) : null}
-          </div>
-          <span className="text-[14px] text-gray-900">Select All</span>
+        {/* Select All on the left, the badge filter opposite it. The pairing is the workflow: narrow to
+            a kind, then take all of it. Most climate-sensitive stock goes to a fridge, so "show me the
+            Climate products and tick them" is the single most common way this tray gets emptied, and it
+            was previously eight rows to read and eight taps.
+
+            The row is `justify-between` and always renders, but only the checkbox is conditional. The
+            filter must stay reachable when its own result is empty — it is the control that caused the
+            emptiness and therefore the only one that can undo it. Withholding it alongside Select All
+            would strand the operator on "no products match" with nothing to press. */}
+        <div className="flex items-center justify-between gap-3">
+          {filteredProducts.length > 0 ? (
+            <div className="flex items-center gap-2 cursor-pointer w-fit" onClick={onSelectAll}>
+              <div
+                className={`w-5 h-5 rounded-[4px] shrink-0 flex items-center justify-center ${
+                  someFilteredProductsSelected
+                    ? 'bg-[#095192]'
+                    : 'border border-gray-300 bg-white'
+                }`}
+              >
+                {allFilteredProductsSelected ? (
+                  <Check className="w-3.5 h-3.5 text-white" strokeWidth={3} />
+                ) : someFilteredProductsSelected ? (
+                  <Minus className="w-3.5 h-3.5 text-white" strokeWidth={3} />
+                ) : null}
+              </div>
+              <span className="text-[14px] text-gray-900">Select All</span>
+            </div>
+          ) : (
+            /* Holds the filter to the right when there is no checkbox to sit opposite, so the control
+               does not jump across the row as the list empties and fills. */
+            <span />
+          )}
+
+          <Select value={badgeFilter} onValueChange={value => onBadgeFilterChange(value as BadgeFilter)}>
+            <SelectTrigger
+              size="sm"
+              data-demo="unallocated-badge-filter"
+              aria-label="Filter by badge"
+              // Green when narrowed, exactly as `Bins Available(n)` goes green when on: this app already
+              // has a colour for "a view filter is active", and a second one would make two filters look
+              // like two kinds of control. `#15803D` on the text rather than the stroke's own green —
+              // #22C55E is 2.3:1 at this size, under the ~4.5:1 the app holds text to.
+              className={`w-[150px] shrink-0 text-[14px] ${
+                filterIsActive ? 'border-green-500 text-[#15803D]' : ''
+              }`}
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {BADGE_FILTER_OPTIONS.map(option => (
+                // Never disabled on a zero. A count of 0 is the useful answer to "is there any CIV
+                // stock waiting?" — disabling it removes the way to ask, and the empty state names the
+                // filter so the result cannot be mistaken for an empty tray.
+                <SelectItem key={option.value} value={option.value} className="text-[14px]">
+                  {option.label} ({filterCounts[option.value] ?? 0})
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
-        )}
       </div>
 
       {/* Product list: plain rows split by dividers rather than individual cards. The checkbox and
@@ -162,12 +218,22 @@ export default function UnallocatedProductsPanel({
              too: "try a different name, NDC code, or keyword" only restates what the box already
              accepts.
 
-             Two different nothings, though, and they are not interchangeable: a query that matched
-             nothing, versus a tray with nothing left in it because every product now has a bin. */
+             Three different nothings, though, and they are not interchangeable: a badge filter that
+             matched nothing, a query that matched nothing, and a tray with nothing left in it because
+             every product now has a bin.
+
+             The filter comes first because it is the narrowing the operator is least likely to be
+             holding in mind — they typed the query a second ago, but a filter set at the top of the
+             panel silently outlives whatever they do in the search box. It names itself, so the message
+             is also the instruction for undoing it. */
           <div className="p-8 text-center text-[14px] text-[#676b74]">
-            {unallocatedSearchQuery.trim()
-              ? 'No products match that search.'
-              : 'Nothing to allocate — every product already has a bin.'}
+            {filterIsActive
+              ? unallocatedSearchQuery.trim()
+                ? `No ${activeFilterLabel} products match that search.`
+                : `No ${activeFilterLabel} products are waiting for a bin.`
+              : unallocatedSearchQuery.trim()
+                ? 'No products match that search.'
+                : 'Nothing to allocate — every product already has a bin.'}
           </div>
         ) : (
           <div className="divide-y divide-gray-200">
@@ -207,12 +273,17 @@ export default function UnallocatedProductsPanel({
                     </p>
                   </div>
 
-                  {/* Badge sits under the generic name, matching AllProductsPanel. Derived rather
-                      than read from product.badge, which is 'SDV' for all eight tray products. */}
+                  {/* Badges sit under the generic name, matching AllProductsPanel and the other
+                      allocation panel — outside the move pipeline they get their own line (CLAUDE.md §6).
+
+                      The shared `ProductBadges`, not a hand-written span. This row used to draw the vial
+                      chip alone, so CLIMATE and CIV — which two and three of the eight tray products
+                      respectively carry — were invisible in the one place the operator decides where a
+                      product should go. A climate-sensitive product belongs in a fridge, and the tray was
+                      the only surface not saying which ones those were. All three are derived from
+                      `binProducts`, not from `product.badge`, which is 'SDV' for every tray product. */}
                   <div className="flex items-center gap-1">
-                    <span className="bg-[#D1D5DB] text-[#111827] text-[9px] font-medium px-1.5 py-0.5 rounded">
-                      {getVialType(product)}
-                    </span>
+                    <ProductBadges product={product} />
                   </div>
 
                   <div className="text-gray-500 text-[14px]">

@@ -742,6 +742,8 @@ export default function App() {
           selectedUnallocatedProducts={inventoryState.selectedUnallocatedProducts}
           selectedBinsForAssignment={inventoryState.selectedBinsForAssignment}
           unallocatedSearchQuery={inventoryState.unallocatedSearchQuery}
+          unallocatedBadgeFilter={inventoryState.unallocatedBadgeFilter}
+          onUnallocatedBadgeFilterChange={inventoryState.setUnallocatedBadgeFilter}
           doorShelfConfig={inventoryState.doorShelfConfig}
           unallocatedProducts={inventoryState.unallocatedProducts} // CRITICAL FIX: Pass unallocated products
           currentStation={currentStation}
