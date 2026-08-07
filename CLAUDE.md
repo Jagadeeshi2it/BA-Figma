@@ -209,6 +209,17 @@ what stops you picking a bin it is already in.
   enable flag, the checkbox state and `toggleAll`'s own set all read it, since keying them separately is
   how they came to disagree. It must stay in step with the JSX: the rule is that the control acts on the
   rows that are rendered, and there is no test holding the two together.
+- **The footer's two counters are one button — the way back to the selection.** Tapping it clears the
+  search, which is exactly what puts the `Selected products` list on screen, so the operator can bounce
+  between "what am I finding" and "what have I got" without emptying the box by hand. Clearing the query
+  *is* the whole implementation: there is no second review surface to build or keep in step, and no mode
+  to be in or out of. It deliberately does not touch the selection — this is a way of looking at it, and
+  a control that reviewed and reset it would be one tap from losing several searches' work. One control
+  rather than two, because they are one fact and the bin half is not separately actionable: bins are
+  picked out on the shelves. Chevron and colour follow `SummaryCell` (§2 B), the app's existing idiom for
+  "this cell opens a view of the selection", down to withholding the affordance when there is nothing to
+  look at. **Not offered in the tray**, which otherwise shares this bar: it has no selected-products list
+  for the control to reveal (§8), so the same tap there would just show the tray again.
 - **It writes a `New Bin Allocation` history entry**, filed the same way the tray's allocations are,
   because it is the same event: a product gaining a location. It writes it itself rather than reusing
   `handleConfirmAssignment`'s, whose shape invents a plausible opening quantity for stock arriving from

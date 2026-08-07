@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner@2.0.3';
-import { X, Search, Check, CheckCircle2 } from 'lucide-react';
+import { X, Search, Check, CheckCircle2, ChevronRight } from 'lucide-react';
 import { Input } from './ui/input';
 import { Separator } from './ui/separator';
 import { ValidationToast } from './ui/sonner-1';
@@ -309,6 +309,21 @@ export default function AllocateProductsPanel({
     }
   };
 
+  /**
+   * Show me what I have picked. Clearing the query is the whole implementation, because the panel's
+   * empty state is already a no-query view of the selection — so there is no second "review" surface to
+   * build or keep in step, and no mode to be in or out of.
+   *
+   * It does not touch `selectedProducts`, and must not: this is a way of *looking* at the selection, and
+   * a control that reviewed and reset it would be one tap from losing work the operator spent several
+   * searches assembling.
+   *
+   * No blur. `Input` here is a plain component with no ref, and unlike `HeaderSection` this box gates
+   * nothing on a React "focused" flag — so the desync trap in CLAUDE.md §4 does not apply, and leaving
+   * the caret where it is means the next keystroke starts a new search rather than nothing at all.
+   */
+  const reviewSelection = () => setQuery('');
+
   const canConfirm = selectedProducts.length > 0 && selectedBinsForAssignment.length > 0;
 
   const productCount = selectedProducts.length;
@@ -453,23 +468,49 @@ export default function AllocateProductsPanel({
           shelves — so a single disabled button could not say which one was outstanding.
           Cancel sits beside Allocate rather than across the bar, so the counters own the left. */}
       <div className="py-3 px-4 border-t border-gray-200 bg-white flex items-center justify-between gap-3">
-        {/* Nothing selected yet needs no instruction — the disabled button already says so. */}
-        <div className="text-[14px] leading-[20px]">
-          {productCount > 0 && (
-            <>
-              <p className="text-[#095192]">
+        {/* The two counters are one control: what has been gathered, and the way back to it.
+
+            They were two static lines. Making them a single button gives the selection a dedicated place
+            to be reviewed and edited — tapping clears the search, which is exactly what puts the
+            `Selected products` list back on screen (see the empty state above, which is a no-query view).
+            So the operator can bounce between "what am I finding" and "what have I got" without emptying
+            the search box by hand and without losing the picks either way.
+
+            One control rather than two because they are one fact — the state of the assembly — and the
+            bin half is not separately actionable: bins are picked out on the shelves, not in here.
+
+            Chevron and colour follow `SummaryCell` in the pipeline footer, which is the app's existing
+            idiom for "this cell opens a view of the selection", down to withholding the affordance when
+            there is nothing to look at. Here that is the whole block: nothing selected needs no
+            instruction, because the disabled Allocate button already says so.
+
+            Not offered in the unallocated tray, though the two panels otherwise share this bar — the tray
+            has no selected-products list for it to reveal (the gap CLAUDE.md §8 records), so the same
+            control there would clear the box and show the tray, which is not the same act. */}
+        {productCount > 0 ? (
+          <button
+            type="button"
+            onClick={reviewSelection}
+            aria-label={`Review the ${productCount} selected product${productCount > 1 ? 's' : ''}`}
+            // Negative margin so the hover tint has room to breathe without the counters shifting when
+            // the block becomes a button.
+            className="-mx-2 px-2 py-1 rounded-[4px] flex items-center gap-2 text-left text-[14px] leading-[20px] hover:bg-[#F1F6FA] transition-colors cursor-pointer"
+          >
+            <span className="min-w-0">
+              <span className="block text-[#095192]">
                 {productCount} Product{productCount > 1 ? 's' : ''} selected
-              </p>
-              {binCount === 0 ? (
-                <p className="text-[#8F48D2]">Select bin(s) to allocate</p>
-              ) : (
-                <p className="text-[#8F48D2]">
-                  {binCount} Bin{binCount > 1 ? 's' : ''} selected
-                </p>
-              )}
-            </>
-          )}
-        </div>
+              </span>
+              <span className="block text-[#8F48D2]">
+                {binCount === 0
+                  ? 'Select bin(s) to allocate'
+                  : `${binCount} Bin${binCount > 1 ? 's' : ''} selected`}
+              </span>
+            </span>
+            <ChevronRight className="w-4 h-4 text-[#095192] shrink-0" />
+          </button>
+        ) : (
+          <div />
+        )}
 
         <div className="flex items-center gap-2 shrink-0">
           <button
