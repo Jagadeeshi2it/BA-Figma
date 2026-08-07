@@ -1,6 +1,7 @@
 import { DemoScenario } from '../types';
 import { allocateProduct } from './allocateProduct';
 import { moveFromBin } from './moveFromBin';
+import { moveFromProduct } from './moveFromProduct';
 
 /**
  * The palette's contents. Adding a walkthrough is adding a file and a line here — nothing in the
@@ -12,7 +13,7 @@ import { moveFromBin } from './moveFromBin';
  * tray, did one thing and shut it, which is not how a cabinet gets set up — and four separate walks
  * cannot show the tray shortening and the free bins running out as the work proceeds.
  */
-export const demoScenarios: DemoScenario[] = [allocateProduct, moveFromBin];
+export const demoScenarios: DemoScenario[] = [allocateProduct, moveFromBin, moveFromProduct];
 
 export const findScenario = (id: string | null | undefined) =>
   (id ? demoScenarios.find(scenario => scenario.id === id) : undefined) ?? null;

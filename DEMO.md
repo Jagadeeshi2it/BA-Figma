@@ -472,6 +472,59 @@ the walk's target resolver asks for a *free* bin, which by definition never is o
 
 ---
 
+## 10c. Scenario: Move from Product
+
+The same pipeline entered through the other door. From step ② onward the two walks are near-identical,
+**because the workflows are** — one pipeline with two ways in, not two pipelines. Everything worth
+watching is step ①, and all of it follows from the operator having declared the unit up front:
+
+| | Move from Bin | Move from Product |
+|---|---|---|
+| Bin card tap | selects the bin | **inert** — refused with an explanation |
+| Product row tap | inert (bubbles to the card) | **selects that product** |
+| Source badge | `Move From` | `1 Selected` |
+| Footer's from-end | `Move From` | just `Move` (`sourceEndLabel`) |
+| Review | headed by the bin, lists its products | headed by the product, lists its bins |
+
+**One product, from one bin — and the flagship behaviour is deliberately not here.** Picking a product
+out of the search dropdown takes it *in every bin it lives in*, which is what "wherever this drug is"
+means and is the best reason this workflow exists. It is not in this walk for a mechanical reason: how
+many bins a product occupies is seed data, and a multi-bin pick makes **two** step counts depend on it
+— Review pages source bin by source bin, each needing its own `Select`, and step ④ then takes from each
+in turn. A scenario is a static list of steps and can count neither. See §10d.
+
+**Review needs both cards anchored.** The bin-centric view renders `SourceProductCard`; the
+product-centric one renders `ProductCentricCard`. They look alike on purpose — same column, same
+secondary button — so both carry `review-select-product`, and a walk asks for "the Select in Review"
+without knowing which kind of move is running. Anchoring only the first is exactly how this walk
+stalled on its first run, on a screen that looked correct.
+
+**`data-product-quantity` sits beside the row anchor.** A product at 0 is movable by design (what moves
+is the allocation, CLAUDE.md §2 E) but it is not the happy path, and the seed holds several such rows —
+Bin 1B's ALIMTA is one.
+
+---
+
+## 10d. Not built: the multi-bin pick
+
+Both move walks stop short of the same thing, and for the same reason. `Move from Product` cannot show
+the search dropdown's "take it wherever it lives", and `Move from Bin` cannot show a partial move with
+serial scanning. In each case the number of steps is a function of the data:
+
+| Walk | What it cannot show | Because |
+|---|---|---|
+| Move from Product | picking a product across all its bins | Review pages per source bin; step ④ takes per source bin |
+| Move from Bin | a partial move | the placement screen needs one scan per unit still to place |
+
+**The fix is one addition to the step vocabulary, not a cleverer scenario**: a way to say *"press this
+until the condition clears"* — `repeatWhile?: () => boolean` on a click step, run in `runStep` behind a
+hard iteration cap. The conditions are already expressible and read well:
+`() => !!document.querySelector('[data-demo="step4-quantity"]')` is "keep taking until the take phase
+ends". Faking it with a fixed number of repeats would produce a walk that works on today's seed and
+stops halfway on tomorrow's — which is the failure this whole file is written to avoid.
+
+---
+
 ## 11. Adding a scenario
 
 A file in `demo/scenarios/` and a line in its `index.ts`. Nothing in the runner, the cursor or the

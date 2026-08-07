@@ -1076,6 +1076,14 @@ palette; picking one runs it. Two scenarios exist:
 - **Move from Bin** — workflow B's four steps end to end: a stocked bin as Move From, a free bin as
   Move To, one of the source bin's products selected in Review, then the full quantity taken and
   placed. It ends with the emptied bin's zero-inventory banner and the move in the ledger.
+- **Move from Product** — the same pipeline entered through the other door. From step ② on it is the
+  same walk, because the workflows are the same workflow; step ① is where they differ, and the walk is
+  built to show that — the bin card inert, the product row answering the tap, the badge reading
+  `1 Selected`, the footer's from-end reading just `Move`, and Review headed by the product.
+
+Neither move walk shows the case where the step count depends on the data — a product picked across
+several bins, or a partial move with serial scanning. Both need one addition to the step vocabulary
+(`repeatWhile`), which is specified in [DEMO.md](DEMO.md) §10d and not built.
 
 Nothing in `App` or `useInventoryState` knows Demo Mode exists. It is mounted in `main.tsx` as a
 provider wrapping `<App />` plus a `<DemoLayer />` that portals to `document.body`, and the only

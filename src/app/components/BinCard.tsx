@@ -304,6 +304,15 @@ export default function BinCard({
         // rendered height stands in for the rest when heightFitCount above works out how many more
         // fit in the space this bin's card actually got stretched to.
         ref={index === 0 ? firstRowRef : undefined}
+        // Demo Mode's handle on the gesture that defines a Product move: the row, not the card, is
+        // what a tap means here. Carried only while the row actually picks — in a Bin move or at
+        // either kind's target step the same row is inert and the tap belongs to the bin, so anchoring
+        // it unconditionally would hand a walkthrough a target that does something else entirely.
+        data-demo={picksSourceProduct ? 'source-product-row' : undefined}
+        // Alongside it, because "a product to move" means one with something to move. A row at 0 is
+        // movable by design (the allocation relocates, CLAUDE.md §2 E) but it is not the happy path,
+        // and the seed has several — Bin 1B's ALIMTA is one.
+        data-product-quantity={product.quantity}
         // py-2 unconditionally: it used to ride along with the clickable state, so a row gained 8px of
         // padding the moment it became tappable and lost it again when it didn't. With three products
         // that moved a bin card by 48px — the cards visibly resettled on entering a Bin move (rows

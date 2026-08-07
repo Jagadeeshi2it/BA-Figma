@@ -98,6 +98,11 @@ export default function ProductCentricCard({
                 {/* Stays put once picked, dimmed rather than gone — a row losing its control looks
                     like the control failed, not like the work is done. */}
                 <button
+                  // The same Demo Mode anchor the bin-centric card's Select carries, for the same
+                  // reason those two buttons look alike: they render in the same column and differ
+                  // only by which kind of move is running, so a walkthrough asking for "the Select in
+                  // Review" must reach whichever one is on screen. Only the un-taken rows carry it.
+                  data-demo={hasMoved ? undefined : 'review-select-product'}
                   onClick={hasMoved ? undefined : () => onMoveFromBin(binLocation.productId, binLocation.binId)}
                   disabled={hasMoved}
                   // Secondary, matching Select on the bin-centric card: the two render in the same
