@@ -434,6 +434,13 @@ open the tray, do one thing and shut it — which is not how a cabinet gets set 
 also shows what four separate demos cannot: the tray shortening and the free bins running out as the
 work proceeds.
 
+**Each round is the tray first, then one trip to the cabinet.** `openDoorWithRoom` runs immediately
+before the bins are tapped, never at the top of a round — the order the decision is actually made in
+(what needs a home, and only then where), and it removes a visible round trip: the `await` step parks
+the cursor on the search box, so a door step above the search dragged it out to the cabinet and the
+search dragged it straight back. Round 2 needs no door step (`firstFridge` opens the fridge) and
+already ran in this order. The Multi Bin walk follows the same rule (§10a2).
+
 **The seam between rounds is free.** `handleConfirmAssignment` leaves the panel open and resets exactly
 what should reset: allocated products leave the tray, the ticks and bin picks clear, and the filled bin
 flips to `available: false`. So a round starts clean without a step to clean it, and `nthFreeBin` simply
@@ -681,7 +688,10 @@ Checklist:
   picked across several bins, or a partial move with serial scanning, both need `repeatWhile` (§10d),
   which is specified and not built.
 - **The runner has no headless test.** `verify-demo-anchors.mjs` checks that anchors resolve, which
-  catches the most likely breakage, but the walk itself is verified by watching it. The project has
+  catches the most likely breakage, but the walk itself is verified by watching it — or by importing a
+  scenario in the console and driving its steps through `dom.ts`'s own `dispatchRealClick`. Use the
+  runner's function, not a hand-rolled click: a sequence missing `pointermove` opens a Radix Select and
+  then fails to commit the option, silently, which looks exactly like the scenario being wrong. The project has
   no test infrastructure at all (CLAUDE.md §6).
 - **Nothing scales the pace at runtime.** `PACE` is a module constant; a speed control would be a
   small change and is the obvious next affordance if anyone finds the pace wrong rather than merely

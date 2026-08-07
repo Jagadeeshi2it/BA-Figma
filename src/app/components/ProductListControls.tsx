@@ -113,7 +113,10 @@ export function BadgeFilterSelect({
   return (
     <Select value={badgeFilter} onValueChange={value => onBadgeFilterChange(value as BadgeFilter)}>
       <SelectTrigger
-        size="sm"
+        // `default`, not `sm`: it sits in the search row now, and `sm` is h-8 against the box's h-9 —
+        // a 4px stagger on two controls sharing one line, which reads as one of them being misaligned
+        // rather than smaller on purpose.
+        size="default"
         data-demo={demoId}
         aria-label="Filter by badge"
         // Blue only while the control is being pressed, then straight back to default.
@@ -127,7 +130,15 @@ export function BadgeFilterSelect({
         //
         // `active:` is the press itself, not the open dropdown: a trigger that stayed blue while its
         // listbox was open would be back to a persistent state colour by another route.
-        className="w-[150px] shrink-0 text-[14px] active:border-[#095192] active:text-[#095192]"
+        // 120px, leaving the search box the rest of the row — it was 150 when this sat on its own line
+        // opposite Select All, where the width cost nothing; sharing a row with the box, every pixel
+        // here is one the query does not get.
+        //
+        // The tighter padding is what makes 120 honest. `All products` is 78px of text, and at the
+        // primitive's `px-3 gap-2` the trigger needs 128 — at 120 the value's `line-clamp-1` silently
+        // ate the "s" and the control read `All product`. `!` because these fight the same utilities on
+        // the base class, where class order in the string decides nothing (CLAUDE.md §4).
+        className="w-[120px] !px-2 !gap-1 shrink-0 text-[14px] active:border-[#095192] active:text-[#095192]"
       >
         <SelectValue />
       </SelectTrigger>

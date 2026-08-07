@@ -87,8 +87,18 @@ const doorWithFreeBins = (count: number) => () =>
  * the box's list is gated on React's own onFocus having fired, and during a run it sometimes has not.
  * Worth revisiting as a runner fix rather than a scenario one — see DEMO.md §12.
  *
- * Open a door with room before a round starts. Tapping the door already open is a harmless no-op, so
- * this can be unconditional rather than the scenario trying to predict when it is needed.
+ * Open a door with room, immediately before the bins are tapped — never at the top of a round.
+ *
+ * Each round is everything-in-the-tray, then one trip to the cabinet, which is the order the decision is
+ * actually made in: what needs a home, and only then where. Opening the door first also cost a visible
+ * round trip, since the round really starts at the search box: the cursor left the tray for the cabinet
+ * and came straight back to the panel it had just been in.
+ *
+ * Round 2 needs no such step — it goes to a fridge, which `firstFridge` opens — but it already follows
+ * the same order: filter, Select All, and only then the cold store.
+ *
+ * Tapping the door already open is a harmless no-op, so this can be unconditional rather than the
+ * scenario trying to predict when it is needed.
  */
 const openDoorWithRoom = (count: number): DemoStep => ({
   kind: 'click',
@@ -245,8 +255,8 @@ export const allocateProduct: DemoScenario = {
 
     // ── 1. One product, one bin ────────────────────────────────────────────────
     { kind: 'note', label: 'One product, one bin', settleMs: 1400 },
-    openDoorWithRoom(1),
     ...pickProduct(ROUND_1[0]),
+    openDoorWithRoom(1),
     pickBin(0, 'Tap a free bin'),
     allocate('Allocate'),
     { kind: 'note', label: 'Allocated — and the tray is one shorter', settleMs: 2200 },
@@ -318,8 +328,8 @@ export const allocateProduct: DemoScenario = {
     ...setBadgeFilter('all', 'all products'),
     { kind: 'note', label: 'Filter cleared — the rest of the tray is still there', settleMs: 1800 },
     { kind: 'note', label: 'Now one product across two bins', settleMs: 1400 },
-    openDoorWithRoom(2),
     ...pickProduct(ROUND_3[0]),
+    openDoorWithRoom(2),
     pickBin(0, 'Tap the first bin'),
     pickBin(1, 'Tap a second bin'),
     { kind: 'note', label: 'One product, two locations', settleMs: 1800 },
@@ -330,7 +340,6 @@ export const allocateProduct: DemoScenario = {
 
     // ── 4. Several products, several bins ──────────────────────────────────────
     { kind: 'note', label: 'And the general case: several of each', settleMs: 1400 },
-    openDoorWithRoom(2),
     {
       kind: 'type',
       // Searching is not the only way in, and by this round it would be the wrong one to show. An
@@ -354,6 +363,7 @@ export const allocateProduct: DemoScenario = {
     },
     pickFromList(0, 'Tick a product from the list'),
     pickFromList(1, 'And the one below it'),
+    openDoorWithRoom(2),
     pickBin(0, 'Tap the first bin'),
     pickBin(1, 'Tap a second bin'),
     // Every product goes into every bin — the tray assigns the cross product, not a pairing. Worth a
