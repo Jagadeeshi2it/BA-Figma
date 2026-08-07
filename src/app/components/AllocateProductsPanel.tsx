@@ -251,15 +251,35 @@ export default function AllocateProductsPanel({
     );
   };
 
+  /**
+   * The rows actually on screen — which is **not** always `results`.
+   *
+   * With nothing matching the search the panel does not go blank: it lists the current selection under
+   * a `Selected products` header, so the picks stay visible and droppable after the query that found
+   * them has moved on (see the empty state below). Those rows are a list like any other, and Select All
+   * has to act on them.
+   *
+   * Keying the control on `results` alone is what made it go dead in exactly that state: a fully ticked
+   * list on screen, and the one control that could clear it in a single tap greyed out — so clearing a
+   * long selection meant unticking it row by row. The label promises to act on the list; this is the
+   * list.
+   */
+  const listedProducts = results.length > 0 ? results : selectedProducts;
+
   // Select All acts on what is listed, not on the catalogue — the filter and the search are how the
   // user says which products they mean, so ticking "all" of something they cannot see would be a
   // different act than the one the label describes. Its box therefore reflects the visible rows,
   // while the footer counts everything picked across every search.
-  const allVisibleSelected = results.length > 0 && results.every(product => selectedKeys.has(productKeyOf(product)));
-  const someVisibleSelected = results.some(product => selectedKeys.has(productKeyOf(product)));
+  //
+  // In the selected-products state every listed row is by definition ticked, so the box reads as fully
+  // checked and the tap can only clear — which is precisely the "unselect all while reviewing" the
+  // control is wanted for.
+  const allVisibleSelected =
+    listedProducts.length > 0 && listedProducts.every(product => selectedKeys.has(productKeyOf(product)));
+  const someVisibleSelected = listedProducts.some(product => selectedKeys.has(productKeyOf(product)));
 
   const toggleAll = () => {
-    const visible = new Set(results.map(productKeyOf));
+    const visible = new Set(listedProducts.map(productKeyOf));
 
     // Clearing is never blocked — only picking up something new can conflict.
     if (someVisibleSelected) {
@@ -267,7 +287,7 @@ export default function AllocateProductsPanel({
       return;
     }
 
-    const toAdd = results.filter(product => !selectedKeys.has(productKeyOf(product)));
+    const toAdd = listedProducts.filter(product => !selectedKeys.has(productKeyOf(product)));
     const blocked = toAdd.filter(conflictsWithSelectedBins);
     const allowed = toAdd.filter(product => !conflictsWithSelectedBins(product));
 
@@ -344,7 +364,9 @@ export default function AllocateProductsPanel({
         <ProductListControls
           allSelected={allVisibleSelected}
           someSelected={someVisibleSelected}
-          canSelectAll={results.length > 0}
+          // What is on screen, not what the search returned — with no results the panel lists the
+          // selection instead, and Select All is how that gets cleared in one tap.
+          canSelectAll={listedProducts.length > 0}
           onSelectAll={toggleAll}
           badgeFilter={badgeFilter}
           onBadgeFilterChange={setBadgeFilter}
