@@ -163,6 +163,9 @@ export const useInventoryState = () => {
   // handler and has to tick exactly what the panel lists — two copies of "what is visible" is how that
   // control comes to act on rows nobody can see.
   const [unallocatedBadgeFilter, setUnallocatedBadgeFilter] = useState<BadgeFilter>('all');
+  // "Show me only what I have ticked", asked for from the footer's counter. Here for the same reason the
+  // badge filter is: it changes what the tray lists, and `Select All` must act on exactly those rows.
+  const [reviewUnallocatedSelection, setReviewUnallocatedSelection] = useState(false);
   const [allocationHistory, setAllocationHistory] = useState<AllocationHistoryEntry[]>(generateSeedHistory);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [changeAllocationMode, setChangeAllocationMode] = useState(false);
@@ -243,6 +246,20 @@ export const useInventoryState = () => {
       console.log('⏳ DoorShelfConfig not ready yet, will initialize when available');
     }
   }, []); // Run only on mount
+
+  /**
+   * An emptied selection ends the review of it.
+   *
+   * The exported value is ANDed with the selection's length so an empty review can never render, but
+   * that alone leaves the *flag* set — and then ticking a product again silently re-enters a mode the
+   * operator left several actions ago, scoping the tray to one row with no visible cause. Clearing it
+   * here rather than at each place the selection can empty (untick the last row, `Unselect All`,
+   * allocating everything picked, starting a move) because that list is exactly the kind that grows a
+   * fourth member without this one being remembered.
+   */
+  useEffect(() => {
+    if (selectedUnallocatedProducts.length === 0) setReviewUnallocatedSelection(false);
+  }, [selectedUnallocatedProducts.length]);
 
   // CRITICAL FIX: One-time migration to backfill missing sourceBin information
   useEffect(() => {
@@ -528,6 +545,7 @@ export const useInventoryState = () => {
     // cause. A stale tick at least shows itself in the footer's count; a stale `Climate` would just make
     // the tray look like it holds two products.
     setUnallocatedBadgeFilter('all');
+    setReviewUnallocatedSelection(false);
   };
 
   const closeUnallocatedProducts = () => {
@@ -536,6 +554,7 @@ export const useInventoryState = () => {
     setSelectedBinsForAssignment([]);
     setUnallocatedSearchQuery("");
     setUnallocatedBadgeFilter('all');
+    setReviewUnallocatedSelection(false);
   };
 
   const handleUnallocatedProductSelect = (productId: string) => {
@@ -567,6 +586,39 @@ export const useInventoryState = () => {
 
   const handleUnallocatedSearchChange = (query: string) => {
     setUnallocatedSearchQuery(query);
+    // Searching is a question about the whole tray, so it leaves the review of the picks rather than
+    // running inside it. Composing them would be defensible — the predicate ANDs all three — but it
+    // needs a second empty state to explain a search that found nothing *within a selection*, and the
+    // tray holds eight products: there is nothing in a selection of them worth searching.
+    if (query.trim().length > 0) setReviewUnallocatedSelection(false);
+  };
+
+  /**
+   * The footer's counter, tapped: show only the ticked products.
+   *
+   * The tray lists all eight by default, so unlike `AllocateProductsPanel` (where clearing the query is
+   * enough — its no-query view already *is* the selection) this needs a state of its own. What it shares
+   * is the promise: the control states how many products are picked, so tapping it must show that many.
+   * Hence it clears the query and the badge filter on the way in — landing on a narrowed slice under a
+   * `Selected products` header would read as picks that had gone missing.
+   *
+   * A toggle, because the tray has no other way back: in the other panel, typing returns you to the
+   * search results, but here the thing you came from is the unfiltered list and no keystroke asks for it.
+   *
+   * Not guarded on the selection being non-empty. The control is not rendered at zero (the footer's whole
+   * counter block is withheld there), and `reviewUnallocatedSelection` is ANDed with the selection's
+   * length at the point of use, so unticking the last product drops back to the full tray rather than
+   * leaving an empty list with no visible cause.
+   */
+  const handleReviewUnallocatedSelection = () => {
+    setReviewUnallocatedSelection(previous => {
+      const next = !previous;
+      if (next) {
+        setUnallocatedSearchQuery("");
+        setUnallocatedBadgeFilter('all');
+      }
+      return next;
+    });
   };
 
   const handleSelectAllUnallocatedProducts = () => {
@@ -577,7 +629,13 @@ export const useInventoryState = () => {
     const filteredProducts = filterUnallocatedProducts(
       unallocatedProducts,
       unallocatedSearchQuery,
-      unallocatedBadgeFilter
+      unallocatedBadgeFilter,
+      // The review of the picks is a third narrowing and this control has to honour it too — while it is
+      // on, every listed row is ticked by definition, so the checkbox reads `Unselect All` and the tap
+      // clears the lot. That is the state the control is most wanted in.
+      reviewUnallocatedSelection && selectedUnallocatedProducts.length > 0
+        ? selectedUnallocatedProducts
+        : null
     );
 
     // Check if all filtered products are currently selected
@@ -2248,7 +2306,17 @@ export const useInventoryState = () => {
     selectedBinsForAssignment,
     unallocatedSearchQuery,
     unallocatedBadgeFilter,
-    setUnallocatedBadgeFilter,
+    // Not the raw setter: picking a badge is a question about the whole tray, so it leaves the review of
+    // the picks the same way typing does. Exported wrapped rather than left to the panel, because the
+    // hook's own `Select All` reads both pieces of state and they have to change together.
+    setUnallocatedBadgeFilter: (filter: BadgeFilter) => {
+      setUnallocatedBadgeFilter(filter);
+      setReviewUnallocatedSelection(false);
+    },
+    // ANDed with the selection here, once, so nothing downstream can render an empty review: unticking
+    // the last product drops straight back to the full tray.
+    reviewUnallocatedSelection: reviewUnallocatedSelection && selectedUnallocatedProducts.length > 0,
+    handleReviewUnallocatedSelection,
     allocationHistory,
     showHistoryModal,
     changeAllocationMode,

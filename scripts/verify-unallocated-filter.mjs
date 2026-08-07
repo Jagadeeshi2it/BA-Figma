@@ -168,6 +168,49 @@ check('search by generic name', names(filterUnallocatedProducts(TRAY, 'mesna', '
 check('search is case-insensitive', names(filterUnallocatedProducts(TRAY, 'PoLiVy', 'all')), ['POLIVY']);
 check('whitespace-only query lists everything', filterUnallocatedProducts(TRAY, '   ', 'all').length, TRAY.length);
 
+// ── The review-the-selection narrowing ──────────────────────────────────────
+// The footer's counter scopes the tray to what is ticked. Same rule as the other two: the panel renders
+// this list and the hook's Select All ticks it, so a disagreement here would let "all" mean rows nobody
+// can see. `null` is "not asking" and must be the identity, or every ordinary render is scoped to
+// nothing.
+const PICKED = [TRAY[0].id, TRAY[2].id];
+check('null selectedIds lists everything', filterUnallocatedProducts(TRAY, '', 'all', null).length, TRAY.length);
+check('an omitted selectedIds lists everything', filterUnallocatedProducts(TRAY, '', 'all').length, TRAY.length);
+check(
+  'a selection lists exactly itself',
+  filterUnallocatedProducts(TRAY, '', 'all', PICKED).map(p => p.id),
+  PICKED
+);
+check('an empty selection lists nothing', filterUnallocatedProducts(TRAY, '', 'all', []).length, 0);
+// AND with the other two, in both directions — an OR would make reviewing your picks widen the list.
+for (const option of BADGE_FILTER_OPTIONS) {
+  const scoped = filterUnallocatedProducts(TRAY, '', option.value, PICKED);
+  check(
+    `selection + ${option.value} is a subset of the selection`,
+    scoped.every(product => PICKED.includes(product.id)),
+    true
+  );
+  check(
+    `selection + ${option.value} is a subset of ${option.value} alone`,
+    scoped.every(product => matchesBadgeFilter(product, option.value)),
+    true
+  );
+}
+check(
+  'selection + search is a subset of both',
+  filterUnallocatedProducts(TRAY, 'vial', 'all', PICKED).every(
+    product => PICKED.includes(product.id) && matchesUnallocatedSearch(product, 'vial')
+  ),
+  true
+);
+// The state the panel actually renders: everything listed while reviewing is ticked, so Select All reads
+// "Unselect All" and one tap clears the lot.
+check(
+  'every row in a review is selected',
+  filterUnallocatedProducts(TRAY, '', 'all', PICKED).every(product => PICKED.includes(product.id)),
+  true
+);
+
 // ── The options carry no counts ─────────────────────────────────────────────
 // A count read as informative and was not: the trigger shows the selected option's label, so the number
 // on screen most of the time restated the list directly below it, and it moved as the tray emptied —

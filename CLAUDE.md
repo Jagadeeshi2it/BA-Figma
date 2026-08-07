@@ -224,8 +224,8 @@ what stops you picking a bin it is already in.
   rather than two, because they are one fact and the bin half is not separately actionable: bins are
   picked out on the shelves. Chevron and colour follow `SummaryCell` (§2 B), the app's existing idiom for
   "this cell opens a view of the selection", down to withholding the affordance when there is nothing to
-  look at. **Not offered in the tray**, which otherwise shares this bar: it has no selected-products list
-  for the control to reveal (§8), so the same tap there would just show the tray again.
+  look at. **The tray has the same control** (§2 D) — it had none while it had no selected-products list
+  to reveal, which was the gap §8 recorded.
 - **It writes a `New Bin Allocation` history entry**, filed the same way the tray's allocations are,
   because it is the same event: a product gaining a location. It writes it itself rather than reusing
   `handleConfirmAssignment`'s, whose shape invents a plausible opening quantity for stock arriving from
@@ -519,8 +519,9 @@ unfiltered list, which is where an exception belongs.
   list; the hook's `handleSelectAllUnallocatedProducts` ticks it. Each used to write the search predicate
   out longhand, survivable with one condition and not with two — a filter honoured by the list and not by
   Select All would tick products that are not on screen, which is the one thing that control must never
-  do. `node scripts/verify-unallocated-filter.mjs` (84 assertions) pins it, including that the two
-  narrowings compose as **AND** in both directions: an OR would make picking a filter *widen* the list.
+  do. `node scripts/verify-unallocated-filter.mjs` (101 assertions) pins it, including that all three
+  narrowings compose as **AND** in both directions: an OR would make picking a filter — or asking for
+  your own selection — *widen* the list.
 - **The tray's filter state lives in the hook, not the panel**, for the same reason — its `Select All` is
   a hook handler and cannot read panel state. `AllocateProductsPanel` keeps its own in `useState`, since
   both halves live in that component and there is no boundary to agree across.
@@ -543,6 +544,27 @@ unfiltered list, which is where an exception belongs.
 - **Cleared on open as well as on close**, unlike the search box, and for a sharper version of the reason
   the ticks are: a stale tick still shows itself in the footer's count, while a stale `Climate` would just
   make the tray look like it holds two products.
+
+**The footer's counter shows the picks, the same as workflow A's** (§2 A) — tap `n Products selected` and
+the tray lists only what is ticked, under the same `Selected products` band. Three things differ from the
+other panel, all following from the tray listing its eight products by default rather than nothing:
+
+- **It needs a state of its own** (`reviewUnallocatedSelection` in the hook, beside the badge filter and
+  for the same reason: `Select All` is a hook handler and must tick exactly what is listed). In workflow A
+  clearing the query is the whole implementation, because that panel's no-query view already *is* the
+  selection. Here the no-query view is the full tray.
+- **It is a toggle**, because there is no other way back. Typing returns the other panel to its results;
+  the thing you came from here is the unfiltered list, and no keystroke asks for it. The chevron rotates
+  rather than changing glyph — one control, two states.
+- **Entering clears the query and the badge filter**, and changing either leaves the review. The control
+  states how many products are held, so it has to show that many; a narrowed slice under that header reads
+  as picks gone missing. Searching is a question about the whole tray, not about a selection of eight.
+
+An emptied selection ends the review, cleared in one effect rather than at each of the four places the
+selection can empty (untick the last row, `Unselect All`, allocating, starting a move). The exported value
+is ANDed with the selection's length as well, so an empty review cannot render even for one frame — but
+that alone would leave the flag set, and the next tick would silently re-enter a mode abandoned several
+actions ago. Both halves are needed; this was a real bug during the build, caught in the browser pass.
 
 **The tray renders the shared `ProductBadges` now.** It hand-wrote the vial chip alone, so CLIMATE and CIV
 were invisible in the one place the operator decides *where a product should go* — and a climate-sensitive
@@ -1358,16 +1380,13 @@ physically impossible allocation without objection (§5).
   arrives. Note the features it was built for — a 0-inventory filter and a per-location release
   control — have since been removed, so its remaining purpose is thin.
 - **`BinCard`'s `showUnallocatedProducts` prop is misnamed** for what it does (see §3).
-- **The Unallocated tray's selection goes invisible when its filter hides it.** Tick a product, search
-  something else, and it stays selected — `selectedUnallocatedProducts` is independent of the filter, as
-  it should be — but nothing on screen says so, and the empty state says `No products match that search.`
-  over a selection that is still live. This is exactly the gap workflow A closed by listing the picks
-  under its empty state (§2 A); the tray needs the same, which means extracting its row the way
-  `ProductRow` was extracted. The footer's `n Products selected` is currently the only trace.
-  **The badge filter widens this**, since it is a second way to hide a live selection and one the
-  operator is less likely to be holding in mind than a query they just typed. It is mitigated, not
-  closed: the empty state names the filter (`No Climate products match that search.`), so the cause is
-  at least on screen even though the selection still is not.
+- **The Unallocated tray's selection can still be hidden by a search or a filter** — `Tick a product,
+  search something else` leaves it selected and off screen, since `selectedUnallocatedProducts` is
+  independent of both narrowings, as it should be. **Closed as far as it needs to be, not fully**: the
+  footer's counter now shows the picks on demand (§2 D), so there is always a way to see what is held,
+  and the empty states name whichever narrowing is hiding things. What is still true is that nothing
+  *announces* a hidden pick at the moment it becomes hidden. Workflow A is in the same position and the
+  same control answers it, so this is now one small gap rather than two.
 - **Step ④'s position counters are switched off, not decided.** `SHOW_STEP4_POSITION_COUNTERS = false`
   (§2). The operator asked to hide them while the Move Summary is judged alone and said they would call
   it; the cells and their side sheets stay wired. If the answer is "off", delete them — that is the

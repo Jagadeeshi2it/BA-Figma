@@ -36,6 +36,10 @@ interface MainLayoutProps {
   // tray need not carry it — they already pass an empty search query for the same reason.
   unallocatedBadgeFilter?: BadgeFilter;
   onUnallocatedBadgeFilterChange?: (filter: BadgeFilter) => void;
+  // Whether the tray is scoped to its ticked products, and the control that toggles it. Optional for
+  // the same reason as the filter above — the pages that mount MainLayout without a tray.
+  reviewUnallocatedSelection?: boolean;
+  onReviewUnallocatedSelection?: () => void;
   doorShelfConfig: any;
   unallocatedProducts: any[]; // CRITICAL FIX: Add unallocated products as prop
   currentStation?: string;
@@ -81,6 +85,8 @@ export default function MainLayout({
   unallocatedSearchQuery,
   unallocatedBadgeFilter = 'all',
   onUnallocatedBadgeFilterChange,
+  reviewUnallocatedSelection = false,
+  onReviewUnallocatedSelection,
   doorShelfConfig,
   unallocatedProducts,
   currentStation,
@@ -177,6 +183,8 @@ export default function MainLayout({
           onProductSelect={handleUnallocatedProductSelect}
           onSearchChange={handleUnallocatedSearchChange}
           onBadgeFilterChange={onUnallocatedBadgeFilterChange ?? (() => {})}
+          reviewingSelection={reviewUnallocatedSelection}
+          onReviewSelection={onReviewUnallocatedSelection ?? (() => {})}
           onSelectAll={handleSelectAllUnallocatedProducts}
           onConfirmAssignment={handleConfirmAssignment}
         />

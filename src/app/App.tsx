@@ -744,6 +744,8 @@ export default function App() {
           unallocatedSearchQuery={inventoryState.unallocatedSearchQuery}
           unallocatedBadgeFilter={inventoryState.unallocatedBadgeFilter}
           onUnallocatedBadgeFilterChange={inventoryState.setUnallocatedBadgeFilter}
+          reviewUnallocatedSelection={inventoryState.reviewUnallocatedSelection}
+          onReviewUnallocatedSelection={inventoryState.handleReviewUnallocatedSelection}
           doorShelfConfig={inventoryState.doorShelfConfig}
           unallocatedProducts={inventoryState.unallocatedProducts} // CRITICAL FIX: Pass unallocated products
           currentStation={currentStation}

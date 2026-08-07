@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Check, Search, CheckCircle2 } from 'lucide-react';
+import { X, Check, Search, CheckCircle2, ChevronRight } from 'lucide-react';
 import { Input } from './ui/input';
 import { Separator } from './ui/separator';
 // CRITICAL FIX: Remove direct import, will receive as prop
@@ -16,12 +16,15 @@ interface UnallocatedProductsPanelProps {
   selectedBinsForAssignment: string[];
   unallocatedSearchQuery: string;
   badgeFilter: BadgeFilter;
+  /** Whether the list is scoped to the ticked products. Already ANDed with the selection by the hook. */
+  reviewingSelection: boolean;
   doorShelfConfig: DoorShelfConfig;
   unallocatedProducts: any[]; // CRITICAL FIX: Accept unallocated products as prop
   onClose: () => void;
   onProductSelect: (productId: string) => void;
   onSearchChange: (query: string) => void;
   onBadgeFilterChange: (filter: BadgeFilter) => void;
+  onReviewSelection: () => void;
   onConfirmAssignment: () => void;
   onSelectAll: () => void;
 }
@@ -31,22 +34,26 @@ export default function UnallocatedProductsPanel({
   selectedBinsForAssignment,
   unallocatedSearchQuery,
   badgeFilter,
+  reviewingSelection,
   doorShelfConfig,
-  unallocatedProducts,
   onClose,
+  unallocatedProducts,
   onProductSelect,
   onSearchChange,
   onBadgeFilterChange,
+  onReviewSelection,
   onConfirmAssignment,
   onSelectAll
 }: UnallocatedProductsPanelProps) {
 
-  // Search AND badge filter, from the shared predicate the hook's Select All also calls — see
-  // utils/unallocatedFilter.ts for why the two must not each own a copy of "what is visible".
+  // Search AND badge filter AND, while the operator is reviewing, the selection — from the shared
+  // predicate the hook's Select All also calls. See utils/unallocatedFilter.ts for why the two must not
+  // each own a copy of "what is visible".
   const filteredProducts = filterUnallocatedProducts(
     unallocatedProducts,
     unallocatedSearchQuery,
-    badgeFilter
+    badgeFilter,
+    reviewingSelection ? selectedUnallocatedProducts : null
   );
 
   // Whether Select All has anything to act on. Named rather than inlined because it decides three
@@ -191,6 +198,16 @@ export default function UnallocatedProductsPanel({
                 : 'Nothing to allocate — every product already has a bin.'}
           </div>
         ) : (
+          <div>
+            {/* The same band, wording and type as AllocateProductsPanel's — the two panels are the
+                menu's two allocation entries, and this is the same act on both. No count on it: the
+                footer's counter is both the number and the control that got you here, and a second
+                figure invites checking whether they agree. */}
+            {reviewingSelection && (
+              <div className="px-4 py-2 border-b border-gray-200 bg-[#f7f7f7] text-[12px] leading-[16px] font-medium text-[#676b74]">
+                Selected products
+              </div>
+            )}
           <div className="divide-y divide-gray-200">
             {filteredProducts.map((product) => (
               <div
@@ -270,29 +287,56 @@ export default function UnallocatedProductsPanel({
               </div>
             ))}
           </div>
+          </div>
         )}
       </div>
 
       {/* Always-present action bar. The status text on the left says what is still missing, and
           Allocate stays disabled until both a product and a bin are chosen. */}
       <div className="py-3 px-4 border-t border-gray-200 bg-white flex items-center justify-between gap-3">
-        {/* Nothing selected yet needs no instruction — the disabled button already says so. */}
-        <div className="text-[14px] leading-[20px]">
-          {productCount > 0 && (
-            <>
-              <p className="text-[#095192]">
+        {/* The two counters are one button — the way to see what has been ticked, exactly as in
+            AllocateProductsPanel. It is a toggle here, which that one does not need: there, typing
+            returns you to the search results, but the tray's default list is the unfiltered eight and no
+            keystroke asks for it, so the way back has to be the same control.
+
+            Nothing selected yet needs no instruction — and no control, since there is nothing to look
+            at — so the whole block is withheld at zero, the same as the other panel's. */}
+        {productCount > 0 ? (
+          <button
+            type="button"
+            data-demo="unallocated-review-selection"
+            onClick={onReviewSelection}
+            aria-expanded={reviewingSelection}
+            aria-label={
+              reviewingSelection
+                ? 'Show all unallocated products'
+                : `Review the ${productCount} selected product${productCount > 1 ? 's' : ''}`
+            }
+            // Negative margin so the hover tint has room without the counters shifting when the block
+            // becomes a button.
+            className="-mx-2 px-2 py-1 rounded-[4px] flex items-center gap-2 text-left text-[14px] leading-[20px] hover:bg-[#F1F6FA] transition-colors cursor-pointer"
+          >
+            <span className="min-w-0">
+              <span className="block text-[#095192]">
                 {productCount} Product{productCount > 1 ? 's' : ''} selected
-              </p>
-              {binCount === 0 ? (
-                <p className="text-[#8F48D2]">Select bin(s) to allocate</p>
-              ) : (
-                <p className="text-[#8F48D2]">
-                  {binCount} Bin{binCount > 1 ? 's' : ''} selected
-                </p>
-              )}
-            </>
-          )}
-        </div>
+              </span>
+              <span className="block text-[#8F48D2]">
+                {binCount === 0
+                  ? 'Select bin(s) to allocate'
+                  : `${binCount} Bin${binCount > 1 ? 's' : ''} selected`}
+              </span>
+            </span>
+            {/* Rotated rather than swapped for a different glyph: it is one control in two states, and
+                the turn is what says the second tap undoes the first. */}
+            <ChevronRight
+              className={`w-4 h-4 text-[#095192] shrink-0 transition-transform ${
+                reviewingSelection ? 'rotate-90' : ''
+              }`}
+            />
+          </button>
+        ) : (
+          <div />
+        )}
 
         <div className="flex items-center gap-2 shrink-0">
           {/* A way out that doesn't involve hunting for the X in the header, and the same pairing the
