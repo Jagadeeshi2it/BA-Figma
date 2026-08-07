@@ -1136,6 +1136,17 @@ been violations of it.
 - Comments explain **why**, especially where a simpler-looking approach was tried and failed. The
   codebase leans heavily on this; match it.
 - Buttons are named for what they do next, never "Confirm" unless they commit.
+- **A bulk toggle names its own next act.** `ProductListControls`' checkbox reads `Select All` while
+  anything listed is still unticked and `Unselect All` once everything is — a control reading
+  `Select All` above a fully ticked list leaves the operator to work out that it must therefore clear.
+  It is keyed on *all* selected, not *some*, and that only works because both allocation panels'
+  toggles **complete a partial selection rather than clearing it**. Multi Bin used to clear from
+  partial, so a half-ticked list would have read `Select All` and then cleared: the label and the
+  behaviour are one decision, and splitting them is how a control comes to lie.
+  Two other `Select All`s in the app are deliberately *not* this. `SearchDropdown`'s excludes rows
+  already spent, so it can never reach an all-selected state — making it a toggle-all is a bug it has
+  had before (§3). `ProductCentricCard`'s becomes a dimmed `All selected`, because it commits picks and
+  cannot take them back; there the spent label is a status, not an offer.
 - **A disabled primary states its requirement in its own label.** Never grey a button and leave the
   reason off screen. **The exception is a control whose label is its identity** — step ④'s `Cancel` keeps
   the word "Cancel" when it is unavailable and explains via a toast on tap (`FooterButton`'s

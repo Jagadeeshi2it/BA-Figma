@@ -72,7 +72,17 @@ export default function ProductListControls({
             <Minus className="w-3.5 h-3.5 text-white" strokeWidth={3} />
           ) : null}
         </div>
-        <span className="text-[14px] text-gray-900">Select All</span>
+        {/* Named for what the tap does next, like every other button in the app — `Select All` while
+            there is anything left to tick, `Unselect All` once everything listed is ticked. A control
+            reading `Select All` above a fully ticked list leaves the operator to work out that it must
+            therefore clear.
+
+            Keyed on `allSelected`, not `someSelected`, and that is exactly what both panels' toggles now
+            do: a partial selection COMPLETES rather than clears, so the label is true in all three
+            states. Multi Bin used to clear from partial, which is why that had to change with this —
+            the label and the behaviour are one decision, and splitting them is how a control comes to
+            lie. */}
+        <span className="text-[14px] text-gray-900">{allSelected ? 'Unselect All' : 'Select All'}</span>
       </div>
 
       <Select value={badgeFilter} onValueChange={value => onBadgeFilterChange(value as BadgeFilter)}>

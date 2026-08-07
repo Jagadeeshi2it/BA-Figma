@@ -283,8 +283,15 @@ export default function AllocateProductsPanel({
   const toggleAll = () => {
     const visible = new Set(listedProducts.map(productKeyOf));
 
-    // Clearing is never blocked — only picking up something new can conflict.
-    if (someVisibleSelected) {
+    // Clears only when EVERY listed row is already ticked; a partial selection completes instead.
+    //
+    // It used to clear from a partial selection too, which is the opposite of what the tray does and
+    // could not survive the control naming its own action: the label reads `Select All` until everything
+    // is ticked, so a partial tap that cleared would have made it lie. Completing is also the more useful
+    // half — from three of eight you usually want the other five, and clearing is then one more tap.
+    //
+    // Clearing is never blocked, unlike adding: only picking something new up can conflict with a bin.
+    if (allVisibleSelected) {
       setSelectedProducts(previous => previous.filter(candidate => !visible.has(productKeyOf(candidate))));
       return;
     }
