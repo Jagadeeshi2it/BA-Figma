@@ -210,10 +210,15 @@ what stops you picking a bin it is already in.
   how they came to disagree. It must stay in step with the JSX: the rule is that the control acts on the
   rows that are rendered, and there is no test holding the two together.
 - **The footer's two counters are one button — the way back to the selection.** Tapping it clears the
-  search, which is exactly what puts the `Selected products` list on screen, so the operator can bounce
-  between "what am I finding" and "what have I got" without emptying the box by hand. Clearing the query
-  *is* the whole implementation: there is no second review surface to build or keep in step, and no mode
-  to be in or out of. It deliberately does not touch the selection — this is a way of looking at it, and
+  search **and resets the badge filter**, which is exactly what puts the whole `Selected products` list on
+  screen, so the operator can bounce between "what am I finding" and "what have I got" without emptying the
+  box by hand. Clearing both narrowings *is* the whole implementation: there is no second review surface to
+  build or keep in step, and no mode to be in or out of. **Both**, because the count sits in the same
+  control: dropping the query and leaving `CIV` on answers "show me my 4 products" with 2, under a
+  `Selected products` header, which reads as the panel having lost picks the count insists are still there.
+  The search box's own `X` is deliberately *not* this — it says `Clear search` and clears the search, and
+  the filter surviving a cleared box is what makes it usable as a pre-set (§6). It deliberately does not
+  touch the selection — this is a way of looking at it, and
   a control that reviewed and reset it would be one tap from losing several searches' work. One control
   rather than two, because they are one fact and the bin half is not separately actionable: bins are
   picked out on the shelves. Chevron and colour follow `SummaryCell` (§2 B), the app's existing idiom for
@@ -1214,6 +1219,16 @@ been violations of it.
     product would reinstate exactly the catalogue-to-scroll that panel was built to avoid — the badges
     split the catalogue roughly in half, so it would be ~130 rows. It is still useful before typing, as a
     pre-set: choose `Climate`, then search, and only climate-sensitive matches come back.
+
+  **It narrows both of that panel's lists, though — results and the selection.** "Cannot produce a list"
+  is not "applies only while searching": the control sits above whatever is beneath it and reads as one
+  filter over it, so narrowing to `CIV` and then seeing MDV-only rows in `Selected products` reads as the
+  filter being broken. It filtered `results` alone until 2026-08-08. `listedSelection` is the filtered
+  selection and `listedProducts` falls back to *it*, so the rendered rows, `Select All`'s enable flag and
+  `toggleAll`'s own set stay the one set (§2 A). It hides rows and never picks: a product filtered out of
+  view is still selected, still in the footer's count and still allocated on confirm — which needs the
+  third empty state, `No Climate products in your selection.`, distinct from the search's no-match and
+  from the never-searched hint, and naming the filter because that is the only control that can undo it.
 - **A move stage does not write its own footer.** Compose `PipelineFooter`'s parts (§2) so a stage
   chooses *what* to report, never how it looks. The step count comes from `TOTAL_PIPELINE_STEPS`, so
   it cannot disagree with the step vocabulary it describes.

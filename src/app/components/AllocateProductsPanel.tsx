@@ -222,6 +222,24 @@ export default function AllocateProductsPanel({
 
   const selectedKeys = useMemo(() => new Set(selectedProducts.map(productKeyOf)), [selectedProducts]);
 
+  /**
+   * The selection as the filter leaves it — what the `Selected products` list actually shows.
+   *
+   * The filter sits above **both** lists and reads as one control over whatever is beneath it, so
+   * narrowing to `CIV` and then seeing MDV-only rows in the selection reads as the filter being
+   * broken. It only ever narrowed `results`, which made it look conditional on a search box that has
+   * nothing to do with it.
+   *
+   * This hides rows, never picks: `selectedProducts` is untouched, so a product filtered out of view
+   * is still selected, still counted in the footer and still allocated on confirm. That is the same
+   * bargain the search box already strikes here (a pick survives the query that found it), and the
+   * footer's count is what keeps it honest — it counts the selection, not the rows.
+   */
+  const listedSelection = useMemo(
+    () => selectedProducts.filter(product => matchesBadgeFilter(product, badgeFilter)),
+    [selectedProducts, badgeFilter]
+  );
+
   // A product already sitting in a bin that's already picked can't be ticked — allocating it there
   // again would just be skipped at confirm (the same identity can't sit twice in one bin), and
   // letting the tick "succeed" only to unpick the bin behind the user's back was worse: it looked
@@ -266,7 +284,7 @@ export default function AllocateProductsPanel({
    * than just falling back on `selectedProducts`: the two have to agree with the JSX below, or the
    * control acts on rows the operator cannot see — the one thing its label forbids.
    */
-  const listedProducts = results.length > 0 ? results : hasQuery ? [] : selectedProducts;
+  const listedProducts = results.length > 0 ? results : hasQuery ? [] : listedSelection;
 
   // Select All acts on what is listed, not on the catalogue — the filter and the search are how the
   // user says which products they mean, so ticking "all" of something they cannot see would be a
@@ -317,19 +335,32 @@ export default function AllocateProductsPanel({
   };
 
   /**
-   * Show me what I have picked. Clearing the query is the whole implementation, because the panel's
-   * empty state is already a no-query view of the selection — so there is no second "review" surface to
-   * build or keep in step, and no mode to be in or out of.
+   * Show me what I have picked. Clearing both narrowings is the whole implementation, because the
+   * panel's empty state is already a no-query view of the selection — so there is no second "review"
+   * surface to build or keep in step, and no mode to be in or out of.
    *
-   * It does not touch `selectedProducts`, and must not: this is a way of *looking* at the selection, and
-   * a control that reviewed and reset it would be one tap from losing work the operator spent several
+   * **Both**, not just the query. The control promises the selection, and the footer's count beside it
+   * says how many that is; landing on a filtered slice of it under a `Selected products` header makes
+   * the panel look like it has lost picks the count insists are still there. Dropping the query and
+   * leaving `CIV` on would answer "show me my 4 products" with 2.
+   *
+   * The search box's own X is deliberately not this. It is labelled `Clear search` and clears the
+   * search — and the filter surviving a cleared box is what makes it usable as a pre-set (choose
+   * `Climate`, then search); resetting it there would take that away to fix a complaint about a
+   * different control.
+   *
+   * Neither touches `selectedProducts`, and must not: this is a way of *looking* at the selection, and a
+   * control that reviewed and reset it would be one tap from losing work the operator spent several
    * searches assembling.
    *
    * No blur. `Input` here is a plain component with no ref, and unlike `HeaderSection` this box gates
    * nothing on a React "focused" flag — so the desync trap in CLAUDE.md §4 does not apply, and leaving
    * the caret where it is means the next keystroke starts a new search rather than nothing at all.
    */
-  const reviewSelection = () => setQuery('');
+  const reviewSelection = () => {
+    setQuery('');
+    setBadgeFilter('all');
+  };
 
   const canConfirm = selectedProducts.length > 0 && selectedBinsForAssignment.length > 0;
 
@@ -425,7 +456,15 @@ export default function AllocateProductsPanel({
                   ? `No ${badgeFilterLabel(badgeFilter)} products match that search.`
                   : 'No products match that search.'}
               </div>
-            ) : selectedProducts.length > 0 ? (
+            ) : selectedProducts.length > 0 && listedSelection.length === 0 ? (
+              // Picked something, then narrowed past all of it. Distinct from both neighbours: the
+              // selection is not empty (so the "search and select" hint would be wrong) and no search is
+              // running (so "match that search" would blame the wrong control). Names the filter, which
+              // is the only thing that can undo it — the same rule the tray's three nothings follow.
+              <div className="p-8 text-center text-[14px] text-[#676b74]">
+                No {badgeFilterLabel(badgeFilter)} products in your selection.
+              </div>
+            ) : listedSelection.length > 0 ? (
               <>
                 {/* No count here — the footer already carries it, and two figures for one number
                     invites checking whether they agree. This says what the list IS. */}
@@ -433,7 +472,7 @@ export default function AllocateProductsPanel({
                   Selected products
                 </div>
                 <div className="divide-y divide-gray-200">
-                  {selectedProducts.map(product => (
+                  {listedSelection.map(product => (
                     <ProductRow
                       key={productKeyOf(product)}
                       product={product}
