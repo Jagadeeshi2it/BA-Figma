@@ -52,6 +52,9 @@ function ProductRow({
     <div
       role="button"
       tabIndex={0}
+      // One anchor for both lists, because it is one row — a walkthrough asking for "a product row"
+      // should not have to know which of the two it is looking at.
+      data-demo="allocate-product"
       aria-pressed={isSelected}
       aria-label={`Select ${product.name} for assignment`}
       onClick={() => onToggle(product)}
@@ -401,6 +404,7 @@ export default function AllocateProductsPanel({
         <div className="relative flex-1 min-w-0">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#676b74]" />
           <Input
+            data-demo="allocate-search"
             value={query}
             onChange={event => setSearch(event.target.value)}
             // "Search products", same as the tray's. "…in this cabinet" was scoping the search out loud,
@@ -542,6 +546,7 @@ export default function AllocateProductsPanel({
         {productCount > 0 ? (
           <button
             type="button"
+            data-demo="allocate-review-selection"
             onClick={reviewSelection}
             aria-label={`Review the ${productCount} selected product${productCount > 1 ? 's' : ''}`}
             // Negative margin so the hover tint has room to breathe without the counters shifting when
@@ -567,6 +572,7 @@ export default function AllocateProductsPanel({
         <div className="flex items-center gap-2 shrink-0">
           <button
             type="button"
+            data-demo="allocate-cancel"
             onClick={onClose}
             className="h-9 px-3 inline-flex items-center rounded-[4px] text-[14px] leading-[20px] bg-white text-[#095192] border border-[#095192] hover:bg-[#F1F6FA] transition-colors cursor-pointer"
           >
@@ -574,6 +580,7 @@ export default function AllocateProductsPanel({
           </button>
 
           <div
+            data-demo="allocate-confirm"
             className={`relative rounded-[4px] shrink-0 bg-[#095192] ${
               canConfirm ? 'cursor-pointer' : 'opacity-50 cursor-not-allowed'
             }`}

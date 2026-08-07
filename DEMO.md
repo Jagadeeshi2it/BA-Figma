@@ -269,8 +269,13 @@ Targets are `data-demo` attributes. Never text, never structure.
 | `unallocated-product` | A tray product row (first match) |
 | `unallocated-select-all` | The tray's Select All checkbox row |
 | `unallocated-badge-filter` | The tray's badge filter trigger |
+| `allocate-search` | Multi Bin Assignment's search box |
+| `allocate-product` | A Multi Bin result row — and a `Selected products` row, since it is one row |
 | `allocate-select-all` | Multi Bin Assignment's Select All |
 | `allocate-badge-filter` | Multi Bin Assignment's badge filter trigger |
+| `allocate-review-selection` | Multi Bin's footer counter — the way back to the selection |
+| `allocate-confirm` | Multi Bin Assignment's Allocate button |
+| `allocate-cancel` | Multi Bin Assignment's Cancel button |
 | `badge-filter-option-<value>` | One filter option — `all`, `climate`, `civ`, `sdv`, `mdv` |
 | `unallocated-allocate` | The tray's Allocate button |
 | `unallocated-cancel` | The tray's Cancel button |
@@ -491,6 +496,50 @@ ledger. All three badges derive from `binProducts` now (CLAUDE.md §2 D).
 stamped today at 08:40, which rendered as the only rows in Today's list — so a walkthrough's own
 transactions landed among strangers and the viewer had to hunt for the ones they had just watched being
 created. Every record type the History page can render is still covered by the older entries.
+
+---
+
+## 10a2. Scenario: Multi Bin Assignment
+
+Workflow A — giving a product that is **already stocked** another bin. Two rounds, 30 steps, ending at
+the ledger:
+
+| Round | What the walk does |
+|---|---|
+| 1. one product → two bins | open a door with 2 free bins, search `COSELA`, tick it, tap both bins, Allocate |
+| 2. two products → one bin | search `MITOMYCIN`, tick; search `POLIVY`, tick; tap the footer counter to see both; tap one free bin; Allocate |
+
+**Two rounds, not the tray's four.** Copying `Allocate Product`'s grid would add a "many products into
+many bins" round that is the two above happening at once — a round with no new fact in it, on a walk
+whose brief was to stay short.
+
+**The panel stays open between them**, as in the tray's walk and for the same reason:
+`handleAssignProductsToBins` leaves it up and clears exactly what should clear, so each round starts
+clean without a step to clean it, and the filled bins flip to `available: false` so the resolvers find
+the next free ones on their own.
+
+**Round 1's product is one that already lives in two bins.** COSELA's row lists both, so "and now a
+third and a fourth" is visible on the row itself rather than only in the ledger. That list is also the
+point of this panel over the tray — it is the context for choosing another bin, and it is what tells
+you not to pick one the drug is already in.
+
+**Round 2 exists to show two things at once**: that a second search does not lose the first pick (the
+panel holds the picked product *objects*, not their keys), and that the footer's counter is how you
+then *see* both — it clears the query, and a clear box is what puts the `Selected products` list on
+screen. Its reverse types the second term back rather than tapping the counter again, because the
+counter is not a toggle in this panel (it is in the tray, which has no other way back).
+
+**Products are searched for, never picked off a list.** This panel lists nothing until something is
+typed, so the tray's `pickFromList` has no equivalent here — and that is the workflow, not a
+limitation: you arrive knowing which drug needs another bin.
+
+**Allocate has no reverse**, the same as the tray's: nothing in this panel unallocates, and the app's
+only unallocation is the zero-inventory banner after a move. Previous rebuilds from the start.
+
+**The ledger is the closing beat and also a check.** Both rounds file as `New Bin Allocation`, the same
+as the tray's. This panel wrote nothing to History at all until 2026-08-07 — the one workflow whose
+entire output is an allocation was the one missing from the allocation record — so a walk that ends
+here fails loudly if that regresses.
 
 ---
 

@@ -1305,7 +1305,7 @@ the anchors, and the decisions that were tried and reversed. This section is ori
 
 `src/app/demo/` — a guided walkthrough that drives the app by moving a virtual cursor to real
 controls and clicking them. Pressing **`/`** anywhere outside a text field opens the Demo Scenarios
-palette; picking one runs it. Three scenarios exist:
+palette; picking one runs it. Four scenarios exist, listed in the workflow menu's own order:
 
 - **Allocate Product** — all four allocation patterns (one/many products into one/many bins) without
   closing the tray between them, ending on the History page showing the four transactions.
@@ -1318,6 +1318,13 @@ palette; picking one runs it. Three scenarios exist:
   setting the filter, since the two narrowings compose as AND and round 1 leaves its term in the box.
   Round 3 then resets the filter to `All products` — not housekeeping smuggled into the walk, but the
   one moment the filter's persistence across an allocation is visible.
+- **Multi Bin Assignment** — workflow A in two rounds: one product into two bins, then two products
+  into one, ending on the ledger. **Two rounds, not the tray's four** — "many products into many bins"
+  is the two of them at once and adds no fact. Round 1 searches a product that already occupies two
+  bins, so its row lists them and the round's "and now a third and a fourth" is visible where the
+  operator is looking; round 2 searches twice and then taps the footer's counter, which shows that a
+  second search does not lose the first pick *and* how to see both. Nothing is picked off a list here:
+  the panel lists nothing until you search, which is the workflow rather than a limitation.
 - **Move from Bin** — workflow B's four steps end to end: a stocked bin as Move From, a free bin as
   Move To, one of the source bin's products selected in Review, then the full quantity taken and
   placed. It ends with the emptied bin's zero-inventory banner and the move in the ledger.
