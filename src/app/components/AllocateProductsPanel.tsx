@@ -222,6 +222,19 @@ export default function AllocateProductsPanel({
 
   const selectedKeys = useMemo(() => new Set(selectedProducts.map(productKeyOf)), [selectedProducts]);
 
+  /**
+   * The selection, newest pick first — the order the `Selected products` list renders in.
+   *
+   * Appending put the newest row at the bottom, which is off screen the moment the selection outgrows
+   * the panel: the operator ticks a product, comes back to check, and sees the one they picked first.
+   * The row that just changed is the one they are looking for, so it goes where they are already looking.
+   *
+   * Reversed here rather than by prepending in `toggleProduct`, because `selectedProducts` is also what
+   * `onConfirmAssignment` receives and what the history entry is built from, and a ledger reads in the
+   * order the work was done. This is a view of that list, not a different list.
+   */
+  const selectionNewestFirst = useMemo(() => [...selectedProducts].reverse(), [selectedProducts]);
+
 
   // A product already sitting in a bin that's already picked can't be ticked — allocating it there
   // again would just be skipped at confirm (the same identity can't sit twice in one bin), and
@@ -465,7 +478,7 @@ export default function AllocateProductsPanel({
                   Selected products
                 </div>
                 <div className="divide-y divide-gray-200">
-                  {selectedProducts.map(product => (
+                  {selectionNewestFirst.map(product => (
                     <ProductRow
                       key={productKeyOf(product)}
                       product={product}

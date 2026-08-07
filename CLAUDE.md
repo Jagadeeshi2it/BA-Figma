@@ -190,7 +190,12 @@ what stops you picking a bin it is already in.
 - Multi-select survives re-searching: the panel holds the **picked product objects**, not their
   keys, so a product picked under one query is not lost when the query changes.
 - **With the search box clear, the panel lists the selection** under a `Selected products` header, in
-  the same `ProductRow` the results use, always ticked — so a tap can only remove. Surviving a query
+  the same `ProductRow` the results use, always ticked — so a tap can only remove. **Newest pick first**
+  (`selectionNewestFirst`): appending put the row that just changed at the bottom, off screen as soon as
+  the selection outgrew the panel, so the operator ticked a product, came back to check, and saw the one
+  they picked first. Reversed in the view rather than by prepending, because `selectedProducts` is also
+  what `onConfirmAssignment` and the history entry are built from, and a ledger reads in the order the
+  work was done. Surviving a query
   change used to mean surviving *invisibly*: the footer said `2 Products selected` with no way to see
   which two, or drop one, without remembering the query that found each. The header carries no count,
   because the footer already does and two figures for one number invite checking whether they agree.
