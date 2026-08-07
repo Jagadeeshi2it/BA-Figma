@@ -1,5 +1,6 @@
 import React from 'react';
 import { SEARCH_HIGHLIGHT_COLOR } from '../utils/textHighlight';
+import { isFridgeDoor } from '../utils/doorUtils';
 
 interface CabinetComponentProps {
   cabinetName: string;
@@ -68,6 +69,12 @@ function DoorButton({
   onClick: (e: React.MouseEvent) => void;
 }) {
   const doorNumber = door.split(' ')[1];
+  // Which KIND of door this is, for Demo Mode. A fridge is Door 9-14 and renders as "Fridge N", but a
+  // walkthrough must not match on that label — nothing in Demo Mode matches on display text, or a
+  // rewording breaks a walk silently. The one existing door anchor (`data-door-free-bins`) cannot
+  // stand in either: a fridge's single pooled bin is normally stocked, so it reports 0 free and reads
+  // as a door with no room, when in fact it is the destination climate-sensitive stock is headed for.
+  const doorKind = isFridgeDoor(door) ? 'fridge' : 'cabinet';
   const shouldHighlightGreen = highlightAvailableBins && hasAvailableBins && !isSelected;
   const shouldHighlightSearch = searchQuery?.trim() && hasSearchMatches && !isSelected;
   const shouldHighlightAllocation = showUnallocatedProducts && hasSelectedBins && !isSelected;
@@ -84,6 +91,7 @@ function DoorButton({
         data-name={`Button - ${door}`}
         data-demo="door"
         data-door-free-bins={freeBinCount}
+        data-door-kind={doorKind}
         onClick={onClick}
       >
         <div className={`absolute border ${
@@ -150,6 +158,7 @@ function DoorButton({
       data-name={`Button - ${door}`}
       data-demo="door"
       data-door-free-bins={freeBinCount}
+      data-door-kind={doorKind}
       onClick={onClick}
     >
       <div className={`absolute border ${
@@ -225,6 +234,12 @@ function FullWidthDoorButton({
   onClick: (e: React.MouseEvent) => void;
 }) {
   const doorNumber = door.split(' ')[1];
+  // Which KIND of door this is, for Demo Mode. A fridge is Door 9-14 and renders as "Fridge N", but a
+  // walkthrough must not match on that label — nothing in Demo Mode matches on display text, or a
+  // rewording breaks a walk silently. The one existing door anchor (`data-door-free-bins`) cannot
+  // stand in either: a fridge's single pooled bin is normally stocked, so it reports 0 free and reads
+  // as a door with no room, when in fact it is the destination climate-sensitive stock is headed for.
+  const doorKind = isFridgeDoor(door) ? 'fridge' : 'cabinet';
   const shouldHighlightGreen = highlightAvailableBins && hasAvailableBins && !isSelected;
   const shouldHighlightSearch = searchQuery?.trim() && hasSearchMatches && !isSelected;
   const shouldHighlightAllocation = showUnallocatedProducts && hasSelectedBins && !isSelected;
@@ -240,6 +255,7 @@ function FullWidthDoorButton({
       data-name={`Button - ${door}`}
       data-demo="door"
       data-door-free-bins={freeBinCount}
+      data-door-kind={doorKind}
       onClick={onClick}
     >
       <div className={`absolute border ${

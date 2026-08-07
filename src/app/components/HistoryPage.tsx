@@ -7,7 +7,7 @@ import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { Clock, X, RotateCcw, ArrowLeft, ChevronDown } from 'lucide-react';
 import { AllocationHistoryEntry } from '../types';
 import { pluralizeUnit } from '../utils/pluralizeUnit';
-import { getVialType } from '../utils/binProducts';
+import { getVialType, hasClimateBadge, hasCivBadge } from '../utils/binProducts';
 import { productDataService } from '../services/ProductDataService';
 import { getSourceDisplayName, shouldHaveSourceBin } from '../utils/historyUtils';
 import { doorShelfConfig as defaultDoorConfig } from '../data/doorConfigurations';
@@ -48,6 +48,8 @@ interface HistoryRow {
   ndc: string;
   inventoryType: string;
   vialType: 'SDV' | 'MDV';
+  hasClimate: boolean;
+  hasCiv: boolean;
   sources: SourceLine[];    // every bin the product came from (empty for allocations)
   targets: TargetLine[];
   movedTotal: number;       // total units moved across all targets (0 for allocations)
@@ -233,11 +235,17 @@ export default function HistoryPage({
           if (!hay.includes(q)) return;
         }
 
-        // Fall back to the shared derivation, not a local one: a history row names the same drug
-        // the bins and search list do, so it has to reach the same badge.
-        const vialType: 'SDV' | 'MDV' = (ep.vialType === 'MDV' || ep.vialType === 'SDV')
-          ? ep.vialType
-          : getVialType({ name, ndc, inventoryType });
+        // The shared derivation, always — a history row names the same drug the bins and search list do,
+        // so it has to reach the same badge.
+        //
+        // This used to PREFER `enhanceProduct`'s catalogue `vialType` and fall back to the shared
+        // derivation only when that was absent, which defeated the fallback in exactly the rows that
+        // could resolve a product id: ALIMTA 500 read MDV on its bin card and SDV in the ledger. The
+        // badge belongs to the identity triple (CLAUDE.md §3), and the catalogue's own field is keyed to
+        // a master product, so the two disagree wherever the seed's inventory type differs from the
+        // import's.
+        const badgeProduct = { name, ndc, inventoryType };
+        const vialType: 'SDV' | 'MDV' = getVialType(badgeProduct);
 
         out.push({
           key: `${entry.id}-${product.id}`,
@@ -246,6 +254,8 @@ export default function HistoryPage({
           ndc,
           inventoryType,
           vialType,
+          hasClimate: hasClimateBadge(badgeProduct),
+          hasCiv: hasCivBadge(badgeProduct),
           sources: sources.length ? sources : [{ label: '—', movedQty: null, remainingQty: 0 }],
           targets: targets.length ? targets : [{ label: '—', movedQty: 0, resultingQty: 0 }],
           movedTotal,
@@ -270,12 +280,38 @@ export default function HistoryPage({
     setShowUnallocated(true);
   };
 
-  // Real SDV/MDV badge + static CLIMATE / CIV badges (to match the reference mock).
-  const ProductBadges = ({ vialType }: { vialType: 'SDV' | 'MDV' }) => (
+  /**
+   * All three badges derived, none of them decoration.
+   *
+   * CLIMATE and CIV were printed on **every** row unconditionally, "to match the reference mock" — so
+   * the ledger claimed every drug in the cabinet was both climate-sensitive and a controlled substance.
+   * Harmless-looking while nothing else in the app disagreed out loud; not harmless now that the
+   * unallocated tray filters on exactly these badges (CLAUDE.md §2 D). A tray that finds two Climate
+   * products out of eight, followed by a ledger that marks all of them Climate, reads as the filter
+   * being wrong rather than the ledger.
+   *
+   * Kept as this page's own component rather than the shared `ProductBadges`: the table's badges are
+   * 10px on a black SDV/MDV chip, against 9px on grey everywhere else, and that is a table-density
+   * decision rather than a drift. The VALUES now come from `binProducts` like everyone else's, which is
+   * the part that was actually wrong.
+   */
+  const ProductBadges = ({
+    vialType,
+    hasClimate,
+    hasCiv
+  }: {
+    vialType: 'SDV' | 'MDV';
+    hasClimate: boolean;
+    hasCiv: boolean;
+  }) => (
     <div className="flex items-center gap-1 mt-1">
       <span className="bg-black text-white text-[10px] font-bold px-1.5 py-0.5 rounded">{vialType}</span>
-      <span className="bg-[#DBEAFE] text-[#1D4ED8] text-[10px] font-medium px-1.5 py-0.5 rounded">CLIMATE</span>
-      <span className="bg-[#FEF3C7] text-[#B45309] text-[10px] font-medium px-1.5 py-0.5 rounded">CIV</span>
+      {hasClimate && (
+        <span className="bg-[#DBEAFE] text-[#1D4ED8] text-[10px] font-medium px-1.5 py-0.5 rounded">CLIMATE</span>
+      )}
+      {hasCiv && (
+        <span className="bg-[#FEF3C7] text-[#B45309] text-[10px] font-medium px-1.5 py-0.5 rounded">CIV</span>
+      )}
     </div>
   );
 
@@ -425,7 +461,11 @@ export default function HistoryPage({
                             {row.genericName && (
                               <div className="text-[13px] italic text-[#64748b] leading-snug">{row.genericName}</div>
                             )}
-                            <ProductBadges vialType={row.vialType} />
+                            <ProductBadges
+                              vialType={row.vialType}
+                              hasClimate={row.hasClimate}
+                              hasCiv={row.hasCiv}
+                            />
                           </td>
                           <td className="px-4 py-4 text-[14px] text-[#020817] whitespace-nowrap">{row.ndc}</td>
                           <td className="px-4 py-4 text-[14px] text-[#020817] whitespace-nowrap">{row.inventoryType}</td>

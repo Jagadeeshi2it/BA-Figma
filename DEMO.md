@@ -35,7 +35,7 @@ Everything awkward below follows from that choice, and is worth the cost.
 
 **Entering reloads, and it has to.** Inventory lives in React state seeded from a static file and
 nothing persists, so a reload is the only thing that guarantees a scenario's preconditions. This
-scenario needs SOLU-CORTEF still unallocated and a bin still empty — both stop being true the moment
+scenario needs MESNA still unallocated and a bin still empty — both stop being true the moment
 anyone runs it once, including the demo itself. The palette says so before you choose: *"Runs the
 real workflow, and reloads first — anything you have changed in this session is discarded."*
 
@@ -267,6 +267,9 @@ Targets are `data-demo` attributes. Never text, never structure.
 | `workflow-move-from-product` | Menu entry |
 | `unallocated-search` | The tray's search box |
 | `unallocated-product` | A tray product row (first match) |
+| `unallocated-select-all` | The tray's Select All checkbox row |
+| `unallocated-badge-filter` | The tray's badge filter trigger |
+| `unallocated-filter-<value>` | One filter option — `all`, `climate`, `civ`, `sdv`, `mdv` |
 | `unallocated-allocate` | The tray's Allocate button |
 | `unallocated-cancel` | The tray's Cancel button |
 | `history-trigger` | The header's History button |
@@ -279,8 +282,8 @@ Targets are `data-demo` attributes. Never text, never structure.
 | `step4-placement` | The place half of step ④ |
 
 Plus the data attributes a scenario resolves against rather than naming a specific element:
-`data-bin-id`, `data-bin-available` and `data-bin-product-count` on `BinCard`, and
-`data-door-free-bins` on each door button.
+`data-bin-id`, `data-bin-available`, `data-bin-product-count` and `data-product-quantity` on `BinCard`,
+and `data-door-free-bins` / `data-door-kind` on each door button.
 
 **One anchor for four primaries.** `pipeline-primary` is on every stage's forward button rather than
 one per stage, because the footer's whole design is that the operator looks at one place for what
@@ -306,8 +309,22 @@ same `bin.available` that draws the green stroke, so the demo taps a bin the vie
 Selecting a bin does not change it, so the same card resolves on the way back — which is what lets the
 reverse step simply tap it again.
 
+**`data-door-kind` tells a fridge from a cabinet door.** Cold storage is Door 9-14 and renders as
+`Fridge N`, but a walk must not match on that label. `data-door-free-bins` cannot stand in either: a
+fridge's single pooled bin is stocked in this seed, so it reports no room — and a bin holding something
+is not a bin that is full, since the app models no capacity at all (CLAUDE.md §5). Fridges are drawn by
+`VirtualCabinetComponent` rather than `CabinetComponent`, and carried no door anchor at all until the
+Climate round needed one; they answer `data-demo="door"` now, so a walk looking for "a door" does not
+have to know two components draw them.
+
 **`node scripts/verify-demo-anchors.mjs`** asserts every anchor a scenario reaches for still renders.
 A rename fails in the terminal instead of in front of a viewer.
+
+Two spellings it had to learn, both from anchors that are not plain literals. A **conditional** anchor
+(`data-demo={taken ? undefined : 'review-select-product'}`) is found by reading the braces' own string
+literals. An **interpolated** one (`` data-demo={`unallocated-filter-${option.value}`} ``, one per row of
+a mapped list) is matched on its fixed prefix — weaker than an exact match and deliberately the last
+resort, but it still catches what actually goes wrong, which is the element being renamed or deleted.
 
 ---
 
@@ -381,10 +398,10 @@ One walk, four rounds, in order of increasing shape:
 
 | Round | Pattern | Products | Bins |
 |---|---|---|---|
-| 1 | one → one | `SOLU-CORTEF` | first free |
-| 2 | many → one | `MESNA`, `KADCYLA` | first free, found by name |
+| 1 | one → one | `MESNA` | first free |
+| 2 | many → one | **whatever the `Climate` filter finds** | a fridge's pooled bin |
 | 3 | one → many | `VYLOY` | first two free |
-| 4 | many → many | `DOXORUBICIN`, `VINORELBINE` | first two free |
+| 4 | many → many | top two off the unfiltered list | first two free |
 
 Then: close the tray, open History, end on four entries under Today.
 
@@ -402,6 +419,31 @@ finds what is left.
 over whatever is still unallocated, so they renumber after every round of this very scenario — a step
 naming one would be wrong by round two. Six of the eight reserved products are used; two are left so the
 tray still has something in it at the end rather than bottoming out into its empty state.
+
+**Round 2 is the badge filter, and it carries the round's whole point.** Narrow the tray to `Climate`,
+`Select All`, open a fridge, tap its bin, Allocate. That is the many-products-one-location case done the
+way the job is actually done: climate-sensitive stock belongs in cold storage, so every product the
+filter finds has the *same* destination — which is exactly when `Select All` is the right control and
+exactly why the filter sits opposite it.
+
+It replaces a round that searched two names in turn and then cleared the box so both picks were on screen
+at once. That version existed to show the tray's invisible-selection gap (CLAUDE.md §8), which is a caveat
+rather than a workflow; the caveat is still visible in round 4, where a filtered pick meets an unfiltered
+one.
+
+Three things about it are load-bearing and easy to break by editing the rounds:
+
+- **Round 1 must not allocate a CLIMATE product.** There are two in the seed, so taking one leaves round 2
+  a single row and it stops being a bulk allocation at all. Round 1 was `SOLU-CORTEF`, which is exactly
+  that — hence `MESNA`.
+- **Round 2 clears the search box before setting the filter.** The two narrowings compose as AND, and
+  round 1 leaves its product's name in the box, so the filter would land on top of a query for one
+  specific drug and find nothing. Clearing first is also the honest order: the point of the round is that
+  no typing is needed.
+- **Round 3 resets the filter to `All products`.** The filter survives an allocation — it is only reset
+  when the tray is opened or closed — so nothing else can be found until it is put back. Not housekeeping
+  smuggled into the walk: it is the one moment the persistence is visible, and a viewer who has just
+  watched the filter empty the tray should see that the tray is not empty.
 
 **Round 2 used to find its bin by name** — typing it into the main search and pressing Highlight Bin, so
 the destination lit up a beat before the cursor arrived. Removed, and not because the idea was wrong:
@@ -426,6 +468,11 @@ hides while any workflow is open.
 
 **It ends at the ledger on purpose.** An allocation that shows only as a 0-vial row in a bin reads as
 nothing having happened; four entries under Today are the proof that four transactions were recorded.
+
+That ending is also what forced the History page's badges to be fixed. They were hardcoded — every row
+printed `CLIMATE` and `CIV` regardless — so a walk whose second round filters two Climate products out of
+eight ended on a page marking all of them Climate, which reads as the filter being broken rather than the
+ledger. All three badges derive from `binProducts` now (CLAUDE.md §2 D).
 
 **`data/seedHistory.ts` seeds nothing into today.** It used to carry a multi-product unallocation
 stamped today at 08:40, which rendered as the only rows in Today's list — so a walkthrough's own

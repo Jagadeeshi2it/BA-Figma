@@ -44,7 +44,6 @@ const {
   matchesBadgeFilter,
   matchesUnallocatedSearch,
   filterUnallocatedProducts,
-  badgeFilterCounts,
   // Re-exported through the concatenation above, so the cross-check below compares the filter against
   // the very functions the badges on screen are drawn from.
   getVialType,
@@ -161,15 +160,12 @@ check('search by generic name', names(filterUnallocatedProducts(TRAY, 'mesna', '
 check('search is case-insensitive', names(filterUnallocatedProducts(TRAY, 'PoLiVy', 'all')), ['POLIVY']);
 check('whitespace-only query lists everything', filterUnallocatedProducts(TRAY, '   ', 'all').length, TRAY.length);
 
-// ── The counts in the dropdown ──────────────────────────────────────────────
-const counts = badgeFilterCounts(TRAY, '');
-check('the "all" count is the whole tray', counts.all, TRAY.length);
-check('each count equals its own filtered length', BADGE_FILTER_OPTIONS.every(option => counts[option.value] === filterUnallocatedProducts(TRAY, '', option.value).length), true);
-// Counted against the search but NOT against the current filter — an option must report what picking
-// it would show. Counting it against itself is how every unpicked option comes to read 0.
-const searchedCounts = badgeFilterCounts(TRAY, 'biocaresd');
-check('counts narrow with the search', searchedCounts.all, 4);
-check('counts stay independent of the active filter', badgeFilterCounts(TRAY, '').climate, climate.length);
+// ── The options carry no counts ─────────────────────────────────────────────
+// A count read as informative and was not: the trigger shows the selected option's label, so the number
+// on screen most of the time restated the list directly below it, and it moved as the tray emptied —
+// flickering during exactly the bulk allocation the filter exists to serve.
+check('no option label carries a count', BADGE_FILTER_OPTIONS.some(option => /\(\s*\d+\s*\)/.test(option.label)), false);
+check('badgeFilterCounts is gone', typeof M.badgeFilterCounts, 'undefined');
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

@@ -452,11 +452,13 @@ unfiltered list, which is where an exception belongs.
 - **The row is `justify-between` and always renders; only the checkbox is conditional.** The filter has to
   stay reachable when its own result is empty — it caused the emptiness, so it is the only control that
   can undo it. An empty `<span />` holds it right so it does not jump as the list empties and fills.
-- **An option is never disabled on a zero.** `CIV (0)` is the useful answer to "is any CIV stock waiting?";
-  disabling it removes the way to ask, and the empty state names the filter so the result cannot be
-  mistaken for an empty tray.
-- **Counts are against the search but not against the filter** — an option must report what picking it
-  would show. Counting it against itself makes every unpicked option read 0.
+- **An option is never disabled on an empty result.** `CIV` with nothing behind it is still the way to ask
+  "is any CIV stock waiting?"; disabling it removes the question, and the empty state names the filter so
+  the result cannot be mistaken for an empty tray.
+- **The options carry no counts.** Each briefly read `Climate (2)`, which looked informative and was not:
+  the trigger shows the *selected* option's label, so the number on screen most of the time restated the
+  list directly beneath it — and it moved as the tray emptied, flickering during exactly the bulk
+  allocation the filter exists to serve. The list's own length is the count, one line down.
 - **Cleared on open as well as on close**, unlike the search box, and for a sharper version of the reason
   the ticks are: a stale tick still shows itself in the footer's count, while a stale `Climate` would just
   make the tray look like it holds two products.
@@ -469,6 +471,20 @@ product belongs in a fridge. All three badges derive from `binProducts`, not fro
 Note the seed's inventory types matter here: `applyInventoryTypes` spreads products across the four types
 at build time, and the type is part of the identity triple the badge hashes, so the tray's distribution
 (2 CLIMATE, 2 CIV, 2 SDV, 6 MDV) cannot be predicted from `realData.ts` alone.
+
+**The History page's badges were fixed with this, and had to be.** They were the last surface deriving
+them any other way, and both halves were wrong. `CLIMATE` and `CIV` were printed on **every** row
+unconditionally — "to match the reference mock" — so the ledger claimed every drug in the cabinet was
+both climate-sensitive and controlled. And `vialType` *preferred* `enhanceProduct`'s catalogue value,
+falling back to the shared `getVialType` only when absent, which defeated the fallback in exactly the
+rows that could resolve a product id (ALIMTA 500 read MDV on its bin card and SDV in the ledger).
+
+That was survivable while nothing disagreed out loud. It is not survivable now: the tray filters on these
+badges, and the Allocate Product walkthrough **ends on this page**. A tray that finds two Climate products
+out of eight followed by a ledger marking all of them Climate reads as the filter being broken. All three
+badges are derived from `binProducts` now. `HistoryPage` keeps its own `ProductBadges` component — 10px on
+a black SDV/MDV chip against 9px on grey elsewhere, a table-density decision — but only the *markup*
+differs; the values cannot.
 
 **Nothing of the old entry point is left.** The `/` listener, `showUnallocatedButton`, the button itself,
 the tinted `Unallocated (n)` chip that used to sit in the header while the tray was open, and the
@@ -1118,10 +1134,19 @@ the anchors, and the decisions that were tried and reversed. This section is ori
 
 `src/app/demo/` — a guided walkthrough that drives the app by moving a virtual cursor to real
 controls and clicking them. Pressing **`/`** anywhere outside a text field opens the Demo Scenarios
-palette; picking one runs it. Two scenarios exist:
+palette; picking one runs it. Three scenarios exist:
 
 - **Allocate Product** — all four allocation patterns (one/many products into one/many bins) without
   closing the tray between them, ending on the History page showing the four transactions.
+  **Round 2 is the badge filter**: narrow to `Climate`, `Select All`, and put the lot in a fridge. It is
+  the many-products-one-location case done the way the job is actually done, rather than by typing two
+  names — every product the filter finds has the same destination, which is precisely when `Select All`
+  is the right control. Two consequences to keep in step if the rounds are edited: round 1 must **not**
+  allocate one of the two CLIMATE products, or round 2 has a single row and stops being a bulk
+  allocation (it used to be SOLU-CORTEF, hence MESNA); and round 2 must clear the search box before
+  setting the filter, since the two narrowings compose as AND and round 1 leaves its term in the box.
+  Round 3 then resets the filter to `All products` — not housekeeping smuggled into the walk, but the
+  one moment the filter's persistence across an allocation is visible.
 - **Move from Bin** — workflow B's four steps end to end: a stocked bin as Move From, a free bin as
   Move To, one of the source bin's products selected in Review, then the full quantity taken and
   placed. It ends with the emptied bin's zero-inventory banner and the move in the ledger.
@@ -1176,13 +1201,6 @@ one**: there are no domain constraints at all beyond the E-Kit rule, so the app 
 physically impossible allocation without objection (§5).
 
 
-- **History's SDV/MDV badge can disagree with the bin card's.** `HistoryPage` prefers
-  `enhanceProduct`'s `vialType`, which comes from the catalogue master, and only falls back to the
-  shared `getVialType` derivation when that is absent — so a resolvable product id defeats the very
-  fallback whose comment says a history row "has to reach the same badge" as the bins. ALIMTA 500 reads
-  MDV on its bin card and SDV in the ledger. Pre-existing and general: it applies to every entry, not
-  just allocations. `CLIMATE` and `CIV` beside it are hardcoded in `HistoryPage`'s own `ProductBadges`
-  and are decoration, which is part of why this went unnoticed.
 - **Unreachable code in `App.handleChangeAllocationConfirm`**: the allocate-only routing branch and
   the `window.allocateOnlyTransfers` handoff. Nothing can produce an allocate-only transfer now.
   Left alone because unpicking it touches the quantity/serial handoff.

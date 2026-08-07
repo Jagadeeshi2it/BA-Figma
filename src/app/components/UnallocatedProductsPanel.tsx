@@ -7,12 +7,7 @@ import { DoorShelfConfig } from '../types';
 import { getBinLocationDetails } from '../utils/doorUtils';
 import { highlightText, highlightNDC, SEARCH_HIGHLIGHT_COLOR } from '../utils/textHighlight';
 import ProductBadges from './ProductBadges';
-import {
-  BadgeFilter,
-  BADGE_FILTER_OPTIONS,
-  badgeFilterCounts,
-  filterUnallocatedProducts
-} from '../utils/unallocatedFilter';
+import { BadgeFilter, BADGE_FILTER_OPTIONS, filterUnallocatedProducts } from '../utils/unallocatedFilter';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 
 interface UnallocatedProductsPanelProps {
@@ -53,9 +48,6 @@ export default function UnallocatedProductsPanel({
     badgeFilter
   );
 
-  // Counted against the search but not against the filter, so each option reports what picking it
-  // would show rather than what the current pick has left.
-  const filterCounts = badgeFilterCounts(unallocatedProducts, unallocatedSearchQuery);
   const filterIsActive = badgeFilter !== 'all';
   // Named in the empty state, so the message says which narrowing is hiding things rather than leaving
   // the operator to notice the dropdown above it.
@@ -157,7 +149,11 @@ export default function UnallocatedProductsPanel({
             would strand the operator on "no products match" with nothing to press. */}
         <div className="flex items-center justify-between gap-3">
           {filteredProducts.length > 0 ? (
-            <div className="flex items-center gap-2 cursor-pointer w-fit" onClick={onSelectAll}>
+            <div
+              data-demo="unallocated-select-all"
+              className="flex items-center gap-2 cursor-pointer w-fit"
+              onClick={onSelectAll}
+            >
               <div
                 className={`w-5 h-5 rounded-[4px] shrink-0 flex items-center justify-center ${
                   someFilteredProductsSelected
@@ -196,11 +192,19 @@ export default function UnallocatedProductsPanel({
             </SelectTrigger>
             <SelectContent>
               {BADGE_FILTER_OPTIONS.map(option => (
-                // Never disabled on a zero. A count of 0 is the useful answer to "is there any CIV
-                // stock waiting?" — disabling it removes the way to ask, and the empty state names the
-                // filter so the result cannot be mistaken for an empty tray.
-                <SelectItem key={option.value} value={option.value} className="text-[14px]">
-                  {option.label} ({filterCounts[option.value] ?? 0})
+                // No count, and never disabled on an empty result — an option that cannot be picked
+                // removes the way to ask "is there any CIV stock waiting?". The empty state names the
+                // filter, so an empty result cannot be mistaken for an empty tray.
+                <SelectItem
+                  key={option.value}
+                  value={option.value}
+                  // Anchored per option rather than by position or label: the Allocate Product
+                  // walkthrough picks `Climate` by name, and reordering the list or rewording an option
+                  // must not silently send it somewhere else.
+                  data-demo={`unallocated-filter-${option.value}`}
+                  className="text-[14px]"
+                >
+                  {option.label}
                 </SelectItem>
               ))}
             </SelectContent>

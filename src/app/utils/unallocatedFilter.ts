@@ -24,6 +24,13 @@ import { getVialType, hasClimateBadge, hasCivBadge } from './binProducts';
  */
 export type BadgeFilter = 'all' | 'climate' | 'civ' | 'sdv' | 'mdv';
 
+/**
+ * Bare labels, no counts. Each option briefly read `Climate (2)`, which looked informative and was not:
+ * the trigger shows the selected option's label, so the count the operator saw most was the one for the
+ * filter they had already applied — a number restating the list directly beneath it. The counts also
+ * moved as the tray emptied, so the control flickered during exactly the bulk allocation it exists to
+ * serve. The list's own length is the count, and it is one line down.
+ */
 export const BADGE_FILTER_OPTIONS: Array<{ value: BadgeFilter; label: string }> = [
   // "All products", not "All" — the trigger shows the selected label, and a bare "All" beside a
   // Select All checkbox reads as a second way to say the same thing.
@@ -81,16 +88,3 @@ export const filterUnallocatedProducts = <T,>(
   products.filter(
     product => matchesUnallocatedSearch(product, query) && matchesBadgeFilter(product, badgeFilter)
   );
-
-/**
- * How many products each option would leave, counted against the **search** but not against the badge
- * filter — an option has to report what picking it would show, and counting it against itself would
- * make every unpicked option read 0.
- */
-export const badgeFilterCounts = (products: any[], query: string): Record<BadgeFilter, number> => {
-  const searched = products.filter(product => matchesUnallocatedSearch(product, query));
-  return BADGE_FILTER_OPTIONS.reduce((counts, option) => {
-    counts[option.value] = searched.filter(product => matchesBadgeFilter(product, option.value)).length;
-    return counts;
-  }, {} as Record<BadgeFilter, number>);
-};

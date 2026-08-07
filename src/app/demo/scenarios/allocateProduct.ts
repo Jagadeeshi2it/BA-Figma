@@ -31,12 +31,16 @@ import { DemoStep, DemoScenario } from '../types';
  * Each term matches exactly one of the eight. Two are deliberately left over, so the tray still has
  * something in it at the end rather than bottoming out into its "nothing to allocate" state.
  */
-const ROUND_1 = ['SOLU-CORTEF'];
-const ROUND_2 = ['MESNA', 'KADCYLA'];
+const ROUND_1 = ['MESNA'];
+// Round 2 names nothing either: it takes whatever the CLIMATE filter leaves — SOLU-CORTEF and
+// FLUOROURACIL in the current seed. That is the point of the round, so naming them would undo it.
 const ROUND_3 = ['VYLOY'];
 // Round 4 names nothing: it picks the top two rows off the unfiltered list (see pickFromList), which in
-// the current seed leaves FLUOROURACIL and DOXORUBICIN by the time it runs. Naming them would be a
-// second place to keep in step with the three rounds above.
+// the current seed leaves DOXORUBICIN and VINORELBINE by the time it runs. Naming them would be a
+// second place to keep in step with the rounds above.
+//
+// ROUND_1 must not be one of the two CLIMATE products, or round 2 has one row to select and stops being
+// a bulk allocation. It was SOLU-CORTEF, which is exactly that — hence MESNA.
 
 
 /**
@@ -142,6 +146,48 @@ const pickProduct = (term: string, previousTerm?: string): DemoStep[] => [
   },
 ];
 
+/**
+ * Set the tray's badge filter. Two clicks, because it is a Radix Select — the trigger opens a portalled
+ * listbox, and the options only exist once it is open.
+ *
+ * Reversing puts it back to `All products` rather than to whatever was set before: the filter is reset
+ * on every open of the tray, so "before" is `all` at every point a Previous can land on in this walk.
+ */
+const setBadgeFilter = (value: string, label: string): DemoStep[] => [
+  {
+    kind: 'click',
+    label: 'Open the badge filter',
+    target: '[data-demo="unallocated-badge-filter"]',
+    settleMs: 900,
+    reverse: [{ kind: 'click', label: 'Close the filter', target: '[data-demo="unallocated-badge-filter"]' }],
+  },
+  {
+    kind: 'click',
+    label: `Filter to ${label}`,
+    target: `[data-demo="unallocated-filter-${value}"]`,
+    settleMs: 1600,
+    reverse: [
+      { kind: 'click', label: 'Reopen the filter', target: '[data-demo="unallocated-badge-filter"]' },
+      { kind: 'click', label: 'Back to all products', target: '[data-demo="unallocated-filter-all"]' },
+    ],
+  },
+];
+
+/**
+ * The fridge to put climate-sensitive stock in.
+ *
+ * Found by `data-door-kind`, never by the "Fridge N" label. It cannot be found by `data-door-free-bins`
+ * either — a fridge's one pooled bin is stocked in this seed, so it reports no room, and a bin holding
+ * something is not a bin that is full (the app models no capacity at all, CLAUDE.md §5).
+ */
+const firstFridge = () => document.querySelector('[data-demo="door"][data-door-kind="fridge"]');
+
+/**
+ * A fridge's single bin. Not `nthFreeBin`, which filters on `data-bin-available="true"` and would find
+ * nothing here for the reason above. A fridge has exactly one bin, so the first is the only one.
+ */
+const fridgeBin = () => document.querySelector('[data-bin-id]');
+
 /** Tap a free bin as a destination. */
 const pickBin = (index: number, label: string): DemoStep => ({
   kind: 'click',
@@ -202,35 +248,72 @@ export const allocateProduct: DemoScenario = {
     allocate('Allocate'),
     { kind: 'note', label: 'Allocated — and the tray is one shorter', settleMs: 2200 },
 
-    // ── 2. Several products, one bin ───────────────────────────────────────────
-    { kind: 'note', label: 'Now several products into one bin', settleMs: 1400 },
-    openDoorWithRoom(1),
-    ...pickProduct(ROUND_2[0]),
-    ...pickProduct(ROUND_2[1], ROUND_2[0]),
+    // ── 2. Several products, one location — by badge, into a fridge ────────────
+    //
+    // The general "many products, one bin" case, done the way the job is actually done rather than by
+    // typing two names. Climate-sensitive stock belongs in a fridge, so the operator narrows the tray to
+    // what needs cold storage, takes all of it, and puts it away in one act. Every product this filter
+    // finds has the same destination — which is exactly when Select All is the right control and exactly
+    // why the filter sits opposite it.
+    //
+    // It replaces a round that searched two names in turn and then cleared the box so both picks were on
+    // screen at once. That version existed to show the tray's invisible-selection gap (CLAUDE.md §8),
+    // which is a caveat rather than a workflow; this shows the workflow, and the caveat is still visible
+    // in round 4 where a filtered pick and an unfiltered one meet.
+    { kind: 'note', label: 'Now the bulk case — everything that needs a fridge', settleMs: 1800 },
     {
       kind: 'type',
-      // Not housekeeping: ticks survive a query change, so the two picks were made under different
-      // filters and clearing the box is the only moment both are on screen at once. That invisibility
-      // is the gap CLAUDE.md §8 records against the tray — shown here rather than explained.
-      label: 'Clear the search to see both picks',
+      // Round 1 left its product's name in the box, and the two narrowings compose as AND — so the
+      // filter would land on top of a query for one specific drug and find nothing. Clearing first is
+      // also the honest order to show it in: the point of this round is that no typing is needed.
+      label: 'Clear the search first',
       target: '[data-demo="unallocated-search"]',
       text: '',
-      settleMs: 1800,
+      settleMs: 1200,
       reverse: [
-        {
-          kind: 'type',
-          label: `Back to ${ROUND_2[1]}`,
-          target: '[data-demo="unallocated-search"]',
-          text: ROUND_2[1],
-        },
+        { kind: 'type', label: `Back to ${ROUND_1[0]}`, target: '[data-demo="unallocated-search"]', text: ROUND_1[0] },
       ],
     },
-    pickBin(0, 'Tap a free bin'),
-    { kind: 'note', label: 'Two products, one location', settleMs: 1800 },
+    ...setBadgeFilter('climate', 'Climate'),
+    // Nothing was typed and nothing was read row by row: the tray is now exactly the cold-storage list.
+    { kind: 'note', label: 'The tray is only the climate-sensitive stock now', settleMs: 2200 },
+    {
+      kind: 'click',
+      // Select All acts on what is LISTED, so under a filter it means "all the Climate products" — the
+      // hook and the panel share one predicate for that, or this tap would take the whole tray
+      // (CLAUDE.md §2 D).
+      label: 'Select All of them',
+      target: '[data-demo="unallocated-select-all"]',
+      settleMs: 1800,
+      reverse: [{ kind: 'click', label: 'Clear the selection', target: '[data-demo="unallocated-select-all"]' }],
+    },
+    {
+      kind: 'click',
+      label: 'Open a fridge',
+      target: firstFridge,
+      settleMs: 1400,
+      reverse: [],
+    },
+    {
+      kind: 'click',
+      label: 'Tap the fridge’s bin',
+      target: fridgeBin,
+      settleMs: 1600,
+      reverse: [{ kind: 'click', label: 'Release the bin', target: fridgeBin }],
+    },
+    { kind: 'note', label: 'Two products, one cold location', settleMs: 1800 },
     allocate('Allocate'),
-    { kind: 'note', label: 'Both landed in the same bin', settleMs: 2200 },
+    // Both land in the fridge at 0 vials, as every allocation does. The filter is still on Climate and
+    // the tray now has nothing to show under it — which is the next step's problem, and a real one.
+    { kind: 'note', label: 'Both in the fridge — and no climate stock left waiting', settleMs: 2600 },
 
     // ── 3. One product, several bins ───────────────────────────────────────────
+    // The filter survives an allocation — it is only reset when the tray is opened or closed — so it has
+    // to be put back before anything else can be found. Not housekeeping smuggled into the walk: it is
+    // the one moment the filter's persistence is visible, and a viewer who has just watched it empty the
+    // tray should see that the tray is not empty.
+    ...setBadgeFilter('all', 'all products'),
+    { kind: 'note', label: 'Filter cleared — the rest of the tray is still there', settleMs: 1800 },
     { kind: 'note', label: 'Now one product across two bins', settleMs: 1400 },
     openDoorWithRoom(2),
     ...pickProduct(ROUND_3[0]),
@@ -249,9 +332,11 @@ export const allocateProduct: DemoScenario = {
       kind: 'type',
       // Searching is not the only way in, and by this round it would be the wrong one to show. An
       // operator setting up a cabinet works down the list of what still needs a home rather than
-      // recalling six names to type — so this round clears the filter and picks off the list, which is
+      // recalling six names to type — so this round clears the search and picks off the list, which is
       // also what makes the remaining tray visible as a list at all.
-      label: 'Clear the filter to browse what is left',
+      // "the search", not "the filter" — the tray now has a badge filter as well, and this step clears
+      // the box. Calling the query a filter was harmless when it was the only narrowing and is not now.
+      label: 'Clear the search to browse what is left',
       target: '[data-demo="unallocated-search"]',
       text: '',
       settleMs: 1600,

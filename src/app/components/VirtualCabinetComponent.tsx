@@ -72,6 +72,17 @@ function FridgeButton({
     <div
       className="bg-[#ffffff] box-border content-stretch flex flex-col items-center justify-center min-h-12 px-[13px] py-[37px] relative rounded shrink-0 w-[54px] cursor-pointer"
       data-name={`Button - ${door}`}
+      // Fridges answer the same door anchor the cabinet doors do — a walkthrough looking for "a door"
+      // should not have to know that two components draw them. `kind` is what tells them apart, because
+      // nothing in Demo Mode may match on the "Fridge N" label (a rewording would break a walk silently).
+      //
+      // Deliberately NO `data-door-free-bins`: this component is never told the counts, and writing a 0
+      // would be a claim rather than an omission. A missing attribute reads as 0 in every resolver that
+      // asks, which is the right answer here anyway — a fridge's single pooled bin is stocked in this
+      // seed, so no fridge should ever satisfy a "door with room" query. A fridge still ACCEPTS an
+      // allocation; a stocked bin is not a full one (the app models no capacity at all — CLAUDE.md §5).
+      data-demo="door"
+      data-door-kind="fridge"
       onClick={onClick}
     >
       <div className={`absolute border ${
