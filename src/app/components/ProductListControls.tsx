@@ -80,13 +80,18 @@ export default function ProductListControls({
           size="sm"
           data-demo={filterDemoId}
           aria-label="Filter by badge"
-          // Green when narrowed, exactly as `Bins Available(n)` goes green when on: this app already has
-          // a colour for "a view filter is active", and a second one would make two filters look like two
-          // kinds of control. `#15803D` on the text rather than the stroke's own green — #22C55E is
-          // 2.3:1 at this size, under the ~4.5:1 the app holds text to.
-          className={`w-[150px] shrink-0 text-[14px] ${
-            badgeFilter !== 'all' ? 'border-green-500 text-[#15803D]' : ''
-          }`}
+          // Blue only while the control is being pressed, then straight back to default.
+          //
+          // It used to go green and STAY green for as long as a filter was applied, borrowing
+          // `Bins Available(n)`'s "a view filter is on" colour. Dropped: the two are not the same kind of
+          // control. That one is a toggle whose whole state is on-or-off, so a colour is the only thing
+          // that can report it; this one already says what it is doing in its own label — the trigger
+          // reads `Climate`, not `All products`. Colouring it as well stated the same fact twice, in a
+          // green that pulled the eye to the least surprising thing on the panel.
+          //
+          // `active:` is the press itself, not the open dropdown: a trigger that stayed blue while its
+          // listbox was open would be back to a persistent state colour by another route.
+          className="w-[150px] shrink-0 text-[14px] active:border-[#095192] active:text-[#095192]"
         >
           <SelectValue />
         </SelectTrigger>
