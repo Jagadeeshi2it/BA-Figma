@@ -3,6 +3,7 @@ import { realDoorShelfConfig } from './realData';
 import { applyShelfLayouts } from '../utils/shelfLayoutConfig';
 import { redistributeProducts } from '../utils/redistributeProducts';
 import { withInventoryType } from '../utils/inventoryTypes';
+import { hasClimateBadge } from '../utils/binProducts';
 
 // Spread bin products across the four inventory types. Keyed on the master product
 // id, so a drug sitting in several bins reports the same type in all of them and
@@ -162,6 +163,124 @@ const stockOneLocationForDemo = (config: DoorShelfConfig): DoorShelfConfig => {
   return out;
 };
 
+/**
+ * Climate-sensitive stock belongs in a fridge.
+ *
+ * Every CLIMATE product in Cabinet 1 or Cabinet 2 is moved into the Virtual cabinet's fridges, bar one
+ * exception per cabinet. Fridges keep their non-Climate stock — the rule is about what may sit in a
+ * warm cabinet, not about what a fridge may hold.
+ *
+ * **The two exceptions are the point, not an oversight.** A cabinet with no Climate stock at all says
+ * the rule is enforced by the system, and it is not: the app has no domain constraints beyond the E-Kit
+ * rule (CLAUDE.md §5), and nothing stops an operator allocating a CLIMATE product to a room-temperature
+ * door. Leaving one in each cabinet keeps the data honest about that, and gives the real-world case a
+ * face — stock pulled for a run and not yet returned, or a product a pharmacist has judged tolerant.
+ * One per cabinet rather than two in one, so the exception is visible wherever the operator is looking.
+ *
+ * Two mechanics worth not re-deriving:
+ *
+ *   - **A product already stocked in a fridge merges into that row** rather than arriving as a second
+ *     one. A bin holding one identity twice splits it into two rows and every count in the app doubles
+ *     it (CLAUDE.md §2 A) — the same reason `handleAssignProductsToBins` skips a bin that already stocks
+ *     the product. Otherwise it goes to whichever fridge holds fewest rows, so the six stay even.
+ *   - **A cabinet bin emptied by the move becomes available.** In the current seed that is exactly one
+ *     bin (Door 5's, which held a single CLIMATE product). Leaving it `available: false` with nothing in
+ *     it would be a bin that reads as allocated and shows no stock — the state the zero-inventory banner
+ *     exists to clear up, arrived at by a data build rather than by a move.
+ *
+ * Runs LAST, after the demo scaffolding, so it has the final word: no later step can put a CLIMATE
+ * product back into a cabinet without this being reconsidered. It is safe there because it only moves
+ * products between existing bins — the geometry was fixed by `applyShelfLayouts` several steps earlier
+ * and nothing here touches a bin's size.
+ */
+const CLIMATE_CABINET_EXCEPTIONS_PER_CABINET = 1;
+
+const cabinetOf = (doorName: string): 1 | 2 | null => {
+  const doorNumber = parseInt(doorName.split(' ')[1], 10);
+  if (doorNumber >= 1 && doorNumber <= 4) return 1;
+  if (doorNumber >= 5 && doorNumber <= 8) return 2;
+  return null;
+};
+
+const moveClimateStockToFridges = (config: DoorShelfConfig): DoorShelfConfig => {
+  const productIdentity = (product: any) =>
+    `${product.name || ''}|${product.ndc || ''}|${product.inventoryType || ''}`.toLowerCase();
+
+  // Deep-ish clone: bins and their product arrays are rewritten below, so the seed's own objects must
+  // not be mutated — `initializeDoorConfigs` hands this straight to React state.
+  const out: DoorShelfConfig = {};
+  Object.keys(config).forEach(doorName => {
+    out[doorName] = config[doorName].map(shelf => ({
+      ...shelf,
+      bins: shelf.bins.map(bin => ({ ...bin, products: [...(bin.products || [])] }))
+    }));
+  });
+
+  const fridgeBins = Object.keys(out)
+    .filter(doorName => cabinetOf(doorName) === null)
+    .flatMap(doorName => out[doorName].flatMap(shelf => shelf.bins));
+
+  if (fridgeBins.length === 0) return out;
+
+  // One exception per cabinet, taken as the first CLIMATE row encountered. Iteration order over the
+  // seed is stable, so the same two products are the exceptions on every reload and the demo can be
+  // rehearsed against them.
+  const exceptionsKept: Record<number, number> = { 1: 0, 2: 0 };
+
+  Object.keys(out).forEach(doorName => {
+    const cabinet = cabinetOf(doorName);
+    if (cabinet === null) return;
+
+    out[doorName].forEach(shelf => {
+      shelf.bins.forEach(bin => {
+        const staying: any[] = [];
+
+        bin.products.forEach((product: any) => {
+          if (!hasClimateBadge(product)) {
+            staying.push(product);
+            return;
+          }
+          if (exceptionsKept[cabinet] < CLIMATE_CABINET_EXCEPTIONS_PER_CABINET) {
+            exceptionsKept[cabinet] += 1;
+            // First in its bin, so the card shows it without expanding. `BinCard` renders a couple of
+            // rows and hides the rest behind "+N more", and the first exception landed third in a bin
+            // of three — an exception nobody can see demonstrates nothing. Order within a bin carries no
+            // meaning anywhere else (`consolidateBinProducts` groups by identity, not position).
+            staying.unshift(product);
+            return;
+          }
+
+          const identity = productIdentity(product);
+          const alreadyStocking = fridgeBins.find(fridge =>
+            fridge.products.some((existing: any) => productIdentity(existing) === identity)
+          );
+
+          if (alreadyStocking) {
+            alreadyStocking.products = alreadyStocking.products.map((existing: any) =>
+              productIdentity(existing) === identity
+                ? { ...existing, quantity: (existing.quantity || 0) + (product.quantity || 0) }
+                : existing
+            );
+            return;
+          }
+
+          const destination = fridgeBins.reduce((fewest, candidate) =>
+            candidate.products.length < fewest.products.length ? candidate : fewest
+          );
+          destination.products = [...destination.products, product];
+          destination.available = false;
+        });
+
+        bin.products = staying;
+        // An emptied bin is a free bin, and the green stroke and every free-bin count read this flag.
+        if (staying.length === 0) bin.available = true;
+      });
+    });
+  });
+
+  return out;
+};
+
 // The live cabinet layout is now driven by the real OCSRI bin-allocation data.
 // See realData.ts (auto-generated from OCSRI_BIN_ALLOCATION 1.pdf).
 //   Cabinet 1 = Doors 1-4, Cabinet 2 = Doors 5-8 (structured shelves/bins)
@@ -175,8 +294,13 @@ const stockOneLocationForDemo = (config: DoorShelfConfig): DoorShelfConfig => {
 //
 // emptySomeProductsForDemo runs LAST, after the geometry: applyShelfLayouts sizes each bin from how
 // much it holds, so zeroing quantities any earlier would change the physical shape of the cabinet.
-export const doorShelfConfig: DoorShelfConfig = stockOneLocationForDemo(
-  emptySomeProductsForDemo(
-    applyShelfLayouts(redistributeProducts(applyInventoryTypes(realDoorShelfConfig)))
+//
+// moveClimateStockToFridges runs last of all, so nothing after it can leave a CLIMATE product in a
+// warm cabinet — see its own comment for the two exceptions it deliberately keeps.
+export const doorShelfConfig: DoorShelfConfig = moveClimateStockToFridges(
+  stockOneLocationForDemo(
+    emptySomeProductsForDemo(
+      applyShelfLayouts(redistributeProducts(applyInventoryTypes(realDoorShelfConfig)))
+    )
   )
 );

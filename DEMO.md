@@ -443,9 +443,12 @@ one.
 
 Three things about it are load-bearing and easy to break by editing the rounds:
 
-- **Round 1 must not allocate a CLIMATE product.** There are two in the seed, so taking one leaves round 2
-  a single row and it stops being a bulk allocation at all. Round 1 was `SOLU-CORTEF`, which is exactly
-  that — hence `MESNA`.
+- **The tray must hold at least two CLIMATE products, and round 1 must not take one.** `Select All` over
+  a single row is not a bulk allocation. Both halves have bitten: round 1 was `SOLU-CORTEF`, which was
+  Climate at the time (hence `MESNA`), and later the Climate rate dropping to ~1 in 6 cost `SOLU-CORTEF`
+  the badge and left the tray with one. The reserve list is maintained by hand against this constraint
+  now — see `UNALLOCATED_RESERVE_IDS`. `FLUOROURACIL` and `OPDIVO` are the two today, and
+  `verify-unallocated-filter.mjs` asserts the count.
 - **Round 2 clears the search box before setting the filter.** The two narrowings compose as AND, and
   round 1 leaves its product's name in the box, so the filter would land on top of a query for one
   specific drug and find nothing. Clearing first is also the honest order: the point of the round is that

@@ -26,9 +26,20 @@ const badgeIdentity = (product: any): string =>
 export const getVialType = (product: any): 'SDV' | 'MDV' =>
   hashString(`vial-${badgeIdentity(product)}`) % 2 === 0 ? 'MDV' : 'SDV';
 
-// CLIMATE shows on about half of products; CIV (controlled substance) is rare (~1 in 12).
+// CLIMATE is a minority handling requirement (~1 in 6); CIV (controlled substance) is rarer (~1 in 12).
+//
+// It was a coin flip, which made ~41% of the catalogue temperature-sensitive — 114 of the 262 products
+// sitting in bins. That is not what a pharmacy looks like, and it had two consequences beyond realism.
+// It made the tray's Climate filter a control that halves a list rather than one that isolates the cold
+// chain, and it made "climate-sensitive stock belongs in a fridge" impossible to model: honouring it
+// would have emptied 40% of both cabinets into six pooled fridge bins.
+//
+// 6 rather than 4 or 8 because it has to leave enough Climate products for the fridges to look stocked
+// while leaving the cabinets clearly the bigger store. Changing this divisor reshuffles WHICH products
+// are Climate, not just how many — the badge is a hash of the identity triple — so the fridge relocation
+// in doorConfigurations.ts and the tray's own distribution both move with it.
 export const hasClimateBadge = (product: any): boolean =>
-  hashString(`climate-${badgeIdentity(product)}`) % 2 === 0;
+  hashString(`climate-${badgeIdentity(product)}`) % 6 === 0;
 
 export const hasCivBadge = (product: any): boolean =>
   hashString(`civ-${badgeIdentity(product)}`) % 12 === 0;

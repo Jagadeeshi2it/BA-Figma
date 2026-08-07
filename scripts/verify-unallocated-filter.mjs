@@ -80,14 +80,14 @@ const check = (label, actual, expected) => {
  * is what is stale.
  */
 const TRAY = [
-  { id: 'unalloc-1', name: 'SOLU-CORTEF 100 MG AOV 2 ML', description: 'hydrocortisone sod succinate (PF) 100 mg/2 mL solution for injection', ndc: '00009001103', source: 'BioCareSD', inventoryType: 'Purchased' },
-  { id: 'unalloc-2', name: 'FLUOROURACIL 2.5 GRAM/50 ML VL', description: 'fluorouracil 2.5 gram/50 mL intravenous solution', ndc: '70700018822', source: 'BioCareSD', inventoryType: 'Charity Care' },
-  { id: 'unalloc-3', name: 'MESNA 1 GRAM/10 ML VIAL', description: 'mesna 100 mg/mL intravenous solution', ndc: '10019095301', source: 'Oncology Supply', inventoryType: 'Charity Care' },
-  { id: 'unalloc-4', name: 'DOXORUBICIN 200 MG/100 ML VIAL', description: 'doxorubicin 2 mg/mL intravenous solution', ndc: '00069154220', source: 'BioCareSD', inventoryType: 'Charity Care' },
-  { id: 'unalloc-5', name: 'VINORELBINE 50 MG/5 ML VIAL', description: 'vinorelbine 50 mg/5 mL intravenous solution', ndc: '25021020405', source: 'Oncology Supply', inventoryType: 'Purchased' },
-  { id: 'unalloc-6', name: 'KADCYLA 100 MG VIAL', description: 'ado-trastuzumab emtansine 100 mg intravenous solution', ndc: '50242008801', source: 'Oncology Supply', inventoryType: 'Specialty Pharmacy' },
-  { id: 'unalloc-7', name: 'POLIVY 30 MG VIAL', description: 'polatuzumab vedotin-piiq 30 mg intravenous solution', ndc: '50242010301', source: 'Oncology Supply', inventoryType: 'Charity Care' },
-  { id: 'unalloc-8', name: 'VYLOY 100 MG VIAL', description: 'zolbetuximab-clzb 100 mg intravenous solution', ndc: '00469342510', source: 'BioCareSD', inventoryType: 'Charity Care' }
+  { id: 'unalloc-1', name: "FLUOROURACIL 2.5 GRAM/50 ML VL", description: "fluorouracil 2.5 gram/50 mL intravenous solution", ndc: "70700018822", source: "BioCareSD", inventoryType: "Charity Care" },
+  { id: 'unalloc-2', name: "MESNA 1 GRAM/10 ML VIAL", description: "mesna 100 mg/mL intravenous solution", ndc: "10019095301", source: "Oncology Supply", inventoryType: "Charity Care" },
+  { id: 'unalloc-3', name: "DOXORUBICIN 200 MG/100 ML VIAL", description: "doxorubicin 2 mg/mL intravenous solution", ndc: "00069154220", source: "BioCareSD", inventoryType: "Charity Care" },
+  { id: 'unalloc-4', name: "VINORELBINE 50 MG/5 ML VIAL", description: "vinorelbine 50 mg/5 mL intravenous solution", ndc: "25021020405", source: "Oncology Supply", inventoryType: "Purchased" },
+  { id: 'unalloc-5', name: "OPDIVO 240 MG/24 ML VIAL", description: "nivolumab 240 mg/24 mL intravenous solution", ndc: "00003373413", source: "BioCareSD", inventoryType: "Purchased" },
+  { id: 'unalloc-6', name: "KADCYLA 100 MG VIAL", description: "ado-trastuzumab emtansine 100 mg intravenous solution", ndc: "50242008801", source: "Oncology Supply", inventoryType: "Specialty Pharmacy" },
+  { id: 'unalloc-7', name: "POLIVY 30 MG VIAL", description: "polatuzumab vedotin-piiq 30 mg intravenous solution", ndc: "50242010301", source: "Oncology Supply", inventoryType: "Charity Care" },
+  { id: 'unalloc-8', name: "VYLOY 100 MG VIAL", description: "zolbetuximab-clzb 100 mg intravenous solution", ndc: "00469342510", source: "BioCareSD", inventoryType: "Charity Care" }
 ];
 
 const names = list => list.map(product => product.name.split(' ')[0]);
@@ -140,9 +140,13 @@ for (const option of BADGE_FILTER_OPTIONS) {
 
 // A concrete pairing rather than only the algebra above.
 const climate = filterUnallocatedProducts(TRAY, '', 'climate');
-check('CLIMATE alone', names(climate), ['SOLU-CORTEF', 'FLUOROURACIL']);
+check('CLIMATE alone', names(climate), ['FLUOROURACIL', 'OPDIVO']);
 check('CIV alone', names(filterUnallocatedProducts(TRAY, '', 'civ')), ['VINORELBINE', 'VYLOY']);
-check('SDV alone', names(sdv), ['SOLU-CORTEF', 'FLUOROURACIL']);
+check('SDV alone', names(sdv), ['FLUOROURACIL', 'OPDIVO']);
+// The Allocate Product walkthrough's bulk round filters to Climate and presses Select All. One row is
+// not a bulk allocation, so the tray carrying at least two CLIMATE products is a demo precondition —
+// see UNALLOCATED_RESERVE_IDS, where it is enforced by hand.
+check('the tray holds at least two CLIMATE products', climate.length >= 2, true);
 check('CLIMATE + a query matching one of them', names(filterUnallocatedProducts(TRAY, 'fluoro', 'climate')), ['FLUOROURACIL']);
 check('CLIMATE + a query matching neither', filterUnallocatedProducts(TRAY, 'kadcyla', 'climate').length, 0);
 
@@ -159,7 +163,7 @@ for (const option of BADGE_FILTER_OPTIONS) {
 
 // ── Search still reaches every field it used to ─────────────────────────────
 check('search by NDC', names(filterUnallocatedProducts(TRAY, '50242008801', 'all')), ['KADCYLA']);
-check('search by source', names(filterUnallocatedProducts(TRAY, 'biocaresd', 'all')), ['SOLU-CORTEF', 'FLUOROURACIL', 'DOXORUBICIN', 'VYLOY']);
+check('search by source', names(filterUnallocatedProducts(TRAY, 'biocaresd', 'all')), ['FLUOROURACIL', 'DOXORUBICIN', 'OPDIVO', 'VYLOY']);
 check('search by generic name', names(filterUnallocatedProducts(TRAY, 'mesna', 'all')), ['MESNA']);
 check('search is case-insensitive', names(filterUnallocatedProducts(TRAY, 'PoLiVy', 'all')), ['POLIVY']);
 check('whitespace-only query lists everything', filterUnallocatedProducts(TRAY, '   ', 'all').length, TRAY.length);

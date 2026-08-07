@@ -32,15 +32,18 @@ import { DemoStep, DemoScenario } from '../types';
  * something in it at the end rather than bottoming out into its "nothing to allocate" state.
  */
 const ROUND_1 = ['MESNA'];
-// Round 2 names nothing either: it takes whatever the CLIMATE filter leaves — SOLU-CORTEF and
-// FLUOROURACIL in the current seed. That is the point of the round, so naming them would undo it.
+// Round 2 names nothing either: it takes whatever the CLIMATE filter leaves — FLUOROURACIL and OPDIVO
+// in the current seed. That is the point of the round, so naming them would undo it. The tray carrying
+// at least TWO Climate products is a precondition, enforced by hand in UNALLOCATED_RESERVE_IDS: Select
+// All over a single row is not a bulk allocation.
 const ROUND_3 = ['VYLOY'];
 // Round 4 names nothing: it picks the top two rows off the unfiltered list (see pickFromList), which in
 // the current seed leaves DOXORUBICIN and VINORELBINE by the time it runs. Naming them would be a
 // second place to keep in step with the rounds above.
 //
 // ROUND_1 must not be one of the two CLIMATE products, or round 2 has one row to select and stops being
-// a bulk allocation. It was SOLU-CORTEF, which is exactly that — hence MESNA.
+// a bulk allocation. It was SOLU-CORTEF, which was Climate at the time — hence MESNA. (SOLU-CORTEF has
+// since left the tray entirely; it lost the badge when the Climate rate dropped to ~1 in 6.)
 
 
 /**

@@ -3986,7 +3986,26 @@ export const pharmaceuticalProducts: MasterProduct[] = [
   }
 ];
 
-export const UNALLOCATED_RESERVE_IDS: string[] = ["PROD007", "PROD056", "PROD105", "PROD154", "PROD203", "PROD252", "PROD301", "PROD350"];
+/**
+ * The eight products held back from the bin data, so the Unallocated tray always has something waiting
+ * for a home. Hand-maintained — this is the one export in this generated file that does not come from
+ * the source PDF, so keep it if the rest is ever regenerated.
+ *
+ * **Two of them must carry the CLIMATE badge**, and that is a live constraint rather than a coincidence:
+ * the tray's badge filter (CLAUDE.md §2 D) and the Allocate Product walkthrough's bulk round both need
+ * cold-chain stock waiting to be put away, and "Select All" over a single row is not a bulk allocation.
+ * FLUOROURACIL (PROD056) and OPDIVO (PROD210) are the two today.
+ *
+ * PROD210 replaced PROD007 (SOLU-CORTEF) when `hasClimateBadge` went from a coin flip to ~1 in 6:
+ * SOLU-CORTEF lost the badge, which left the tray with one CLIMATE product. The badge is a hash of the
+ * identity triple, so **changing that divisor reshuffles which products are Climate** — recheck this list
+ * if it ever moves again. OPDIVO is a refrigerated biologic, so it earns the badge on the merits too.
+ *
+ * Avoid ids whose display name and NDC are shared by another master (PROD348/PROD350 are both "VYLOY
+ * 100 MG VIAL"): allocation resolves the master by name + NDC, so a duplicate makes it pick the wrong
+ * one and the product never counts as assigned — see the note in `generateUnallocatedProducts`.
+ */
+export const UNALLOCATED_RESERVE_IDS: string[] = ["PROD056", "PROD105", "PROD154", "PROD203", "PROD210", "PROD252", "PROD301", "PROD350"];
 
 export const realDoorShelfConfig: DoorShelfConfig = {
   "Door 1": [

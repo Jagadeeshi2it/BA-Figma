@@ -58,9 +58,54 @@ told apart from.
 2. `redistributeProducts` — the import piles almost everything into the Virtual bins; this spreads it.
 3. `applyShelfLayouts` — **derives each bin's physical size from how much it holds** (fullest bin gets the largest footprint).
 4. `emptySomeProductsForDemo` + `stockOneLocationForDemo` — **demo scaffolding, tagged for deletion.**
+5. `moveClimateStockToFridges` — **CLIMATE stock does not sit in a warm cabinet**, bar one exception per
+   cabinet.
 
 Anything that changes quantities must run **after** step 3, or it silently changes the cabinet's
 geometry. That is why the demo steps are last.
+
+### Climate stock lives in the fridges
+
+`hasClimateBadge` is `hash % 6` — roughly 1 in 6 products, **39 of the 262 in bins**. It was `% 2`, which
+made 114 of them temperature-sensitive: not what a pharmacy looks like, and it made the rule below
+unimplementable, since honouring it would have emptied 40% of both cabinets into six pooled fridge bins.
+The divisor is not a dial to turn casually — the badge is a hash of the identity triple, so changing it
+reshuffles **which** products are Climate, not just how many.
+
+`moveClimateStockToFridges` then moves every remaining CLIMATE row out of Cabinets 1 and 2:
+
+| | Climate rows before | after |
+|---|---|---|
+| Cabinet 1 | 17 | **1** |
+| Cabinet 2 | 15 | **1** |
+| Fridges | 23 | **44** |
+
+- **The two survivors are the point, not an oversight.** A cabinet with no Climate stock says the rule is
+  enforced by the system, and it is not — there are no domain constraints beyond the E-Kit rule (§5), and
+  nothing stops an operator allocating a CLIMATE product to a room-temperature door. One per cabinet, so
+  the exception is visible wherever the operator is looking: `RIABNI` in Door 1 Bin 3C, `ETOPOSIDE` in
+  Door 5 Bin 1B. Each is **hoisted to the front of its bin**, because `BinCard` hides everything past the
+  first couple of rows behind `+N more` and an exception nobody can see demonstrates nothing.
+- **Fridges keep their non-Climate stock.** The rule is about what may sit in a warm cabinet, not about
+  what a fridge may hold — Fridge 1 carries 21 products, 9 of them Climate.
+- **A product already stocked in a fridge merges into that row**, quantities summed, rather than arriving
+  as a second one. One identity twice in a bin splits it into two rows and every count in the app doubles
+  it (§2 A). Otherwise it goes to whichever fridge holds fewest rows, so the six stay even at 20–21 each.
+- **Quantity is conserved exactly.** 262 identities before and after, and the only per-product diffs are
+  the three the demo scaffolding zeroes plus ALIMTA's demo restock. This is the conservation invariant §6
+  calls the highest-value assertion, and the relocation satisfies it by construction — it only moves rows
+  between bins.
+- **One cabinet bin was emptied and became available** (Door 5's, which held a single CLIMATE product), so
+  `Bins Available` reads 16 rather than 15. An empty bin that still reads as allocated is the state the
+  zero-inventory banner exists to clear up; arriving at it from a data build would be a bug.
+- It runs **last of all**, after the demo scaffolding, so nothing downstream can put a CLIMATE product
+  back into a cabinet without this being reconsidered. Safe there because it only moves products between
+  existing bins — geometry was fixed by `applyShelfLayouts` several steps earlier.
+
+**The tray must keep at least two CLIMATE products**, enforced by hand in `UNALLOCATED_RESERVE_IDS`: the
+Allocate Product walkthrough's bulk round filters to Climate and presses `Select All`, and one row is not
+a bulk allocation. The rate change cost `SOLU-CORTEF` its badge and left the tray with one, so `PROD007`
+was swapped for `PROD210` (OPDIVO, a refrigerated biologic). `FLUOROURACIL` and `OPDIVO` are the two.
 
 ---
 
@@ -1030,7 +1075,7 @@ Do not assume these exist; four of them look like they should.
 | **Par levels / min thresholds** | Zero occurrences anywhere in `src/app`. |
 | **Bin capacity / "bin is full"** | The only `capacity` is `placementCapacityForShelf`, a *seed-time layout* concern. No runtime fullness state, so no capacity conflict can be detected or reported. |
 | **Product fits bin** | Inverted: `shelfLayoutConfig.ts` gives the **largest footprint to the fullest bin**. Size is derived from contents, not a constraint on them. Products have no footprint. |
-| **Door-type routing** | `isFridgeDoor` only selects a layout. Nothing stops a CLIMATE product being allocated to a room-temperature door. |
+| **Door-type routing** | `isFridgeDoor` only selects a layout. Nothing stops a CLIMATE product being allocated to a room-temperature door. The **seed** now honours the rule (§1), but that is data, not enforcement — the two cabinet exceptions exist partly to keep that distinction visible. |
 | **The one real rule** | `EmergencyKitService`: E-Kit bins accept only `Purchased` inventory. Enforced on the bin tap in the unallocated tray, and at confirm in `handleAssignProductsToBins` (the only point holding both products and bins). |
 
 **Serial numbers are counted, not validated.** `index.html` advertises "requiring serial number
