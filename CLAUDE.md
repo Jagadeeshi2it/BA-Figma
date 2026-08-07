@@ -189,13 +189,26 @@ what stops you picking a bin it is already in.
   rows in one bin and every count in the app would double it.
 - Multi-select survives re-searching: the panel holds the **picked product objects**, not their
   keys, so a product picked under one query is not lost when the query changes.
-- **With nothing listed, the empty state lists the selection instead** under a `Selected products`
-  header, in the same `ProductRow` the results use, always ticked — so a tap can only remove. Surviving
-  a query change used to mean surviving *invisibly*: the footer said `2 Products selected` with no way
-  to see which two, or drop one, without remembering the query that found each. The header carries no
-  count, because the footer already does and two figures for one number invite checking whether they
-  agree. `ProductRow` is at module scope and shared by both lists, so the selected list cannot drift
-  into looking like a different kind of thing from the results it came from.
+- **With the search box clear, the panel lists the selection** under a `Selected products` header, in
+  the same `ProductRow` the results use, always ticked — so a tap can only remove. Surviving a query
+  change used to mean surviving *invisibly*: the footer said `2 Products selected` with no way to see
+  which two, or drop one, without remembering the query that found each. The header carries no count,
+  because the footer already does and two figures for one number invite checking whether they agree.
+  `ProductRow` is at module scope and shared by both lists, so the selected list cannot drift into
+  looking like a different kind of thing from the results it came from.
+  **While a search is running it is not shown**, and that is the whole condition: `No products match
+  that search.` followed by a list of products that plainly do not match reads as a contradiction, and
+  it buries the one line answering what the operator just did. A selected product that *does* match the
+  query appears in the results like any other row, already ticked, which is the honest place for it.
+- **`Select All` acts on `listedProducts`, not on `results`.** Those differ in exactly one state — box
+  clear, selection non-empty — and keying the control on `results` made it go dead there: a fully ticked
+  list on screen and the one control that could clear it in a tap greyed out, so clearing a long
+  selection meant unticking row by row. `listedProducts` is `results` when there are any, the selection
+  when the box is clear, and **empty while a query is running with no matches** — nothing is on screen
+  then, so the control is correctly dead and cannot silently clear picks the operator cannot see. The
+  enable flag, the checkbox state and `toggleAll`'s own set all read it, since keying them separately is
+  how they came to disagree. It must stay in step with the JSX: the rule is that the control acts on the
+  rows that are rendered, and there is no test holding the two together.
 - **It writes a `New Bin Allocation` history entry**, filed the same way the tray's allocations are,
   because it is the same event: a product gaining a location. It writes it itself rather than reusing
   `handleConfirmAssignment`'s, whose shape invents a plausible opening quantity for stock arriving from

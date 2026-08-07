@@ -254,17 +254,19 @@ export default function AllocateProductsPanel({
   /**
    * The rows actually on screen — which is **not** always `results`.
    *
-   * With nothing matching the search the panel does not go blank: it lists the current selection under
-   * a `Selected products` header, so the picks stay visible and droppable after the query that found
-   * them has moved on (see the empty state below). Those rows are a list like any other, and Select All
-   * has to act on them.
+   * With the search box clear the panel does not go blank: it lists the current selection under a
+   * `Selected products` header, so the picks stay visible and droppable after the query that found them
+   * has moved on (see the empty state below). Those rows are a list like any other, and Select All has
+   * to act on them — keying the control on `results` alone is what made it go dead in exactly that
+   * state: a fully ticked list on screen, and the one control that could clear it in a single tap greyed
+   * out, so clearing a long selection meant unticking row by row.
    *
-   * Keying the control on `results` alone is what made it go dead in exactly that state: a fully ticked
-   * list on screen, and the one control that could clear it in a single tap greyed out — so clearing a
-   * long selection meant unticking it row by row. The label promises to act on the list; this is the
-   * list.
+   * **While a search is running the selection is not listed at all**, so nothing is on screen for Select
+   * All to act on and it is correctly dead there. That is the whole reason this reads `hasQuery` rather
+   * than just falling back on `selectedProducts`: the two have to agree with the JSX below, or the
+   * control acts on rows the operator cannot see — the one thing its label forbids.
    */
-  const listedProducts = results.length > 0 ? results : selectedProducts;
+  const listedProducts = results.length > 0 ? results : hasQuery ? [] : selectedProducts;
 
   // Select All acts on what is listed, not on the catalogue — the filter and the search are how the
   // user says which products they mean, so ticking "all" of something they cannot see would be a
@@ -377,13 +379,21 @@ export default function AllocateProductsPanel({
 
       <div className="flex-1 overflow-y-auto">
         {results.length === 0 ? (
-          /* Nothing listed by the search — but the selection is not the search's to lose. The picks
-             survive a query changing (see selectedProducts), so with the box cleared they existed only
-             as a number in the footer: "2 Products selected" with no way to see WHICH two, or to drop
-             one, without remembering the query that found it. They are listed here instead, in the same
-             rows they were ticked in, so a tap unticks. */
+          /* Two different empty states, split on whether a search is running.
+
+             **While searching, the list is the search's alone.** A no-match message followed by a list
+             of products that plainly do not match reads as a contradiction — the panel says nothing was
+             found and then shows rows — and it buries the one line that answers what the operator just
+             did. If a selected product happens to match the query it appears in the results like any
+             other row, already ticked, which is the honest place for it.
+
+             **With the box clear, the selection is listed.** It is not the search's to lose: the picks
+             survive a query changing (see selectedProducts), so without this they existed only as a
+             number in the footer — "2 Products selected" with no way to see WHICH two, or drop one,
+             without remembering the query that found each. Here they are in the same rows they were
+             ticked in, so a tap unticks. */
           <>
-            {hasQuery && (
+            {hasQuery ? (
               // Names the filter when one is on, the same as the tray's. A query that matched something
               // and a filter that then removed it look identical without this, and the filter is the
               // narrowing the operator is least likely to be holding in mind — they typed the query a
@@ -393,9 +403,7 @@ export default function AllocateProductsPanel({
                   ? `No ${badgeFilterLabel(badgeFilter)} products match that search.`
                   : 'No products match that search.'}
               </div>
-            )}
-
-            {selectedProducts.length > 0 ? (
+            ) : selectedProducts.length > 0 ? (
               <>
                 {/* No count here — the footer already carries it, and two figures for one number
                     invites checking whether they agree. This says what the list IS. */}
@@ -417,12 +425,10 @@ export default function AllocateProductsPanel({
                 </div>
               </>
             ) : (
-              !hasQuery && (
-                <div className="p-8 text-center text-[14px] text-[#676b74]">
-                  Search for and select one or more products, then select one or more bins on the left
-                  canvas to allocate them.
-                </div>
-              )
+              <div className="p-8 text-center text-[14px] text-[#676b74]">
+                Search for and select one or more products, then select one or more bins on the left
+                canvas to allocate them.
+              </div>
             )}
           </>
         ) : (
