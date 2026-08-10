@@ -509,6 +509,9 @@ export default function TargetBinSerialScanPage({
             fromDoor: source.door,
             toLabel: targetBinGroup.targetBinName,
             toDoor: targetBinGroup.targetDoorName,
+            // Only so the panel can hand it back when the operator taps a bin to walk to it. This half
+            // is the only stage with a position to move within, so it is the only one that sends it.
+            toBinId: targetBinGroup.toBinId,
             // Taken out of this source.
             sourceQuantity: source.quantity,
             quantity,
@@ -571,13 +574,38 @@ export default function TargetBinSerialScanPage({
     currentProductIndex === productGroups.length - 1 &&
     (!remainingTransfers || remainingTransfers.length === 0);
 
-  // Label mirrors what saving actually does next: another target bin for this product,
-  // the next product in the queue, or wrapping up the whole move.
+  /**
+   * Nothing has gone into the bin in front of the operator, so saving would leave it empty and move on.
+   *
+   * Worth naming, because leaving a bin empty is legitimate — "all of it in the first bin, none in the
+   * second" is a real outcome and `canSave` allows it — but it should be a thing the operator *did*,
+   * not a consequence of tapping the same button they tap every other time. It was silent, and combined
+   * with a remainder that gets spent elsewhere it left the bin at 0 with no way to give it anything.
+   *
+   * Only asked when serials are being scanned. Without scanning the bin's figure is its own transfer
+   * total, decided before this screen, so there is nothing here to skip.
+   */
+  const currentBinIsEmpty =
+    serialScanningRequired &&
+    !!currentProduct &&
+    !!currentTargetBin &&
+    (scannedItems[scanKey(currentProduct.productId, currentTargetBin.toBinId)] || []).length === 0;
+
+  /**
+   * Label mirrors what saving actually does next: another target bin for this product, the next product
+   * in the queue, or wrapping up the whole move — or, if this bin has nothing in it, that it is being
+   * passed over. `Skip This Bin` borrows the quantity screen's own word for the same act.
+   *
+   * The final step keeps `Save & Finish` even on an empty bin: getting there means the remainder is 0,
+   * so everything is placed and there is nothing to skip.
+   */
   const saveButtonLabel = isFinalSaveStep
     ? 'Save & Finish'
-    : currentProduct && currentTargetBinIndex < currentProduct.targetBins.length - 1
-      ? 'Save & Next Bin'
-      : 'Save & Next Product';
+    : currentBinIsEmpty
+      ? 'Skip This Bin'
+      : currentProduct && currentTargetBinIndex < currentProduct.targetBins.length - 1
+        ? 'Save & Next Bin'
+        : 'Save & Next Product';
 
   // Unlock the door this target bin is behind, locking whatever was open. Silent when the door is
   // already the open one — see the matching effect on the quantity screen.
@@ -786,13 +814,31 @@ export default function TargetBinSerialScanPage({
     }
   }, [serialScanningRequired, currentTargetBin, currentProduct, doorShelfConfig]);
 
-  // Auto-fill the LAST target bin for the current product with whatever's still unaccounted
-  // for — once every earlier bin has taken its share of a split, the remainder has nowhere
-  // else to go, so there's nothing left for the user to decide by scanning it manually.
+  /**
+   * Auto-fill the LAST target bin with whatever is still unaccounted for — but only once every earlier
+   * bin has actually taken something.
+   *
+   * The convenience rests on an assumption: if the earlier bins have had their share, the remainder has
+   * nowhere else to go, so there is nothing left for the operator to decide by scanning it. That
+   * assumption fails the moment a bin is walked past empty. Then the remainder very much does have
+   * somewhere else to go, and filling this bin with all of it took the decision away *and* made it
+   * unrecoverable: `remainingQtyToMove` hits 0, which disables the scan control on every bin, so the
+   * empty one could never be given anything. With no Back in step ④ that was permanent — the operator
+   * watched a bin sit at 0 vials with the one control that could fix it greyed out.
+   *
+   * So the fill now waits for its own precondition to be true. When an earlier bin is empty the input
+   * stays live with a real remainder, and the operator can either put the rest here or jump back to the
+   * bin they missed (the Move List's target lines).
+   */
   useEffect(() => {
     if (!currentProduct || !currentTargetBin) return;
     const isLastTargetBinForProduct = currentTargetBinIndex === currentProduct.targetBins.length - 1;
     if (!isLastTargetBinForProduct || remainingQtyToMove <= 0) return;
+
+    const everyEarlierBinHasStock = currentProduct.targetBins
+      .slice(0, currentTargetBinIndex)
+      .every(tb => (scannedItems[scanKey(currentProduct.productId, tb.toBinId)] || []).length > 0);
+    if (!everyEarlierBinHasStock) return;
 
     const key = getTargetBinKey(currentTargetBin);
     if ((scannedItems[key] || []).length > 0) return;
@@ -861,6 +907,26 @@ export default function TargetBinSerialScanPage({
     onAddTargetBin(currentProduct.productId, binId, placedInCurrentBin);
     setPendingNewTargetBinId(binId);
     setAddBinOpen(false);
+  };
+
+  /**
+   * Walk to one of this product's target bins by tapping it in the Move List.
+   *
+   * The only route back step ④ has. It is not a `Back` — that was removed at the operator's request and
+   * stepped through the pipeline; this stays on the placement screen and changes which bin is in hand,
+   * which is a different act. Without it a bin walked past empty was unreachable, and since the scan
+   * control dies once the remainder is spent, its 0 was permanent.
+   *
+   * Scoped to the current product's bins on purpose. Jumping to another product's bin would have to move
+   * `currentProductIndex` too, and the walk's product order is the route's (planned door by door) — so
+   * that is a different and much larger question than "let me finish the bin I skipped".
+   */
+  const handleGoToTargetBin = (toBinId: string) => {
+    if (!currentProduct) return;
+    const index = currentProduct.targetBins.findIndex(tb => tb.toBinId === toBinId);
+    if (index === -1 || index === currentTargetBinIndex) return;
+    setCurrentTargetBinIndex(index);
+    setSerialInput('');
   };
 
   const handleScanOrAdd = () => {
@@ -1331,6 +1397,7 @@ export default function TargetBinSerialScanPage({
         onToggle={() => setSummaryOpen(prev => !prev)}
         // This half puts stock IN, so the target end of the current pairing is the bin in hand.
         stage="target"
+        onSelectTargetBin={handleGoToTargetBin}
       />
       </div>
 

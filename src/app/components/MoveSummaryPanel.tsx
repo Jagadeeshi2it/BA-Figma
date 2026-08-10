@@ -49,6 +49,12 @@ export interface MoveSummaryRow {
   // state a move that isn't happening.
   isSkipped?: boolean;
   status: 'pending' | 'current' | 'done';
+  /**
+   * The target bin's id, carried only so the placement half can be walked back to a bin the operator
+   * has already passed (`onSelectTargetBin`). Absent on Review and on the take half, where there is no
+   * walk to move within — the panel does nothing with it beyond handing it back.
+   */
+  toBinId?: string;
 }
 
 /**
@@ -115,6 +121,19 @@ interface MoveSummaryPanelProps {
    * supplies the per-product totals beneath it, because the product view never disappears (§6).
    */
   route?: MoveSummaryRouteView;
+  /**
+   * Walk back to a target bin the operator has already passed. Given only by the placement half, which
+   * is the only stage with a position to move within.
+   *
+   * This is the way back that step ④ otherwise has none of. `Back` was removed at the operator's
+   * request (UX-AUDIT H3-2) and is not being reinstated — this is not a step backwards through the
+   * pipeline, it is picking a different bin out of a list already on screen. The panel is the map of the
+   * move, so tapping the map is the cheapest possible route back, and it needs no new control anywhere.
+   *
+   * Without it, a target bin walked past empty could never be given anything: there is no route to it
+   * and the scan control is dead once the remainder is spent.
+   */
+  onSelectTargetBin?: (toBinId: string) => void;
 }
 
 const STAGE_COPY: Record<Exclude<MoveSummaryStage, 'review' | 'route'>, { label: string; icon: typeof LogOut }> = {
@@ -288,7 +307,8 @@ export default function MoveSummaryPanel({
   onToggle,
   title = 'Move List',
   stage = 'review',
-  route
+  route,
+  onSelectTargetBin
 }: MoveSummaryPanelProps) {
   // No collapsed rail: the footer's own Move Summary counter is what reopens this now, so a second,
   // always-present toggle sitting in the corner just to say "closed" would be a redundant control.
@@ -351,14 +371,48 @@ export default function MoveSummaryPanel({
   // badge lets the panel read the same across both halves instead of appearing to forget.
   const sourceTakenBadge = (row: MoveSummaryRow) =>
     stage === 'target' || (stage === 'source' && row.status === 'done') ? 'Taken' : null;
+  // `Moved` claims stock arrived, so a bin that received none does not get it however finished it is.
+  // A bin the operator skipped is done by position and holds nothing, and it wore the badge beside its
+  // own `0 vials` — the figure and the badge contradicting each other on one line.
   const targetMovedBadge = (row: MoveSummaryRow) =>
-    stage === 'target' && row.status === 'done' ? 'Moved' : null;
+    stage === 'target' && row.status === 'done' && (row.quantity ?? 0) > 0 ? 'Moved' : null;
 
   const doneBadge = (label: string) => (
     <span className="text-[10px] font-semibold text-[#12805C] bg-[#E1F5EC] rounded-full px-2 py-0.5">
       {label}
     </span>
   );
+
+  /**
+   * A target bin's name, tappable where the walk can be moved to it.
+   *
+   * Only the bin NAME is the control, not the whole row: the row also carries a quantity and a badge,
+   * which are statements about the bin rather than a way to reach it, and making the figure clickable
+   * would suggest it is the thing being edited.
+   *
+   * The current bin is not a link — tapping to go where you already are does nothing, and offering it
+   * invites the operator to wonder what it would have done. Geometry stays on the base class either way
+   * (§4: never let spacing depend on interactivity), so a card does not resize as the walk moves.
+   */
+  const targetBinLabel = (row: MoveSummaryRow) => {
+    const label = binLabel(row.toLabel, row.toDoor);
+    const weight = row.isCurrentTarget ? 'font-semibold text-[#020817]' : 'text-[#4a5565]';
+    const canJump = !!onSelectTargetBin && !!row.toBinId && !row.isCurrentTarget;
+
+    if (!canJump) return <span className={`block break-words ${weight}`}>{label}</span>;
+
+    return (
+      <button
+        type="button"
+        onClick={() => onSelectTargetBin!(row.toBinId!)}
+        title={`Go to ${label}`}
+        // No text alignment of its own — it inherits the column's, so the to-end stays flush right.
+        className={`block break-words w-full cursor-pointer hover:text-[#095192] hover:underline ${weight}`}
+      >
+        {label}
+      </button>
+    );
+  };
 
   /**
    * One pairing: a source bin on the left, one of its destinations on the right.
@@ -418,13 +472,7 @@ export default function MoveSummaryPanel({
             two columns floated in the middle. Anchored to the edges, each column has a straight side to
             read down. */}
         <span className="flex-1 min-w-0 text-right">
-          <span
-            className={`block break-words ${
-              row.isCurrentTarget ? 'font-semibold text-[#020817]' : 'text-[#4a5565]'
-            }`}
-          >
-            {binLabel(row.toLabel, row.toDoor)}
-          </span>
+          {targetBinLabel(row)}
           {(targetText || movedBadge) && (
             <span className="flex items-center justify-end gap-1.5 flex-wrap">
               {targetText && <span className="font-medium text-[#020817]">{targetText}</span>}
@@ -491,13 +539,7 @@ export default function MoveSummaryPanel({
           const movedBadge = targetMovedBadge(row);
           return (
             <div key={`col-target-${row.key}`}>
-              <span
-                className={`block break-words ${
-                  row.isCurrentTarget ? 'font-semibold text-[#020817]' : 'text-[#4a5565]'
-                }`}
-              >
-                {binLabel(row.toLabel, row.toDoor)}
-              </span>
+              {targetBinLabel(row)}
               {(targetText || movedBadge) && (
                 <span className="flex items-center justify-end gap-1.5 flex-wrap">
                   {targetText && <span className="font-medium text-[#020817]">{targetText}</span>}
