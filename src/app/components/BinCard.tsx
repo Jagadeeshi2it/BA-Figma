@@ -276,6 +276,21 @@ export default function BinCard({
    *   something that is still selected
    */
   const highlightQueryFor = (product: any): string => {
+    /**
+     * A bin committed as a Move To highlights nothing inside it.
+     *
+     * Selection outranks the highlight, which is the rule the card's stroke and its bin name already
+     * follow — this is the same rule reaching the rows. Amber means "the search found this", and by the
+     * target step the operator is not searching for anything: the query is a leftover from step ①, where
+     * picking a product appends its identity so its rows light up wherever the drug lives. That is right
+     * while they are locating it and wrong once a bin has become a destination, where it produced a green
+     * Move To card with an amber row inside — two states on one card, the amber answering a question
+     * nobody asked on that screen.
+     *
+     * Only a COMMITTED target is quietened. A bin that merely holds the drug still lights up while it is
+     * being considered, which is what tells the operator this destination already stocks it.
+     */
+    if (isChangeAllocationTarget) return '';
     if (moveMode !== 'product' || !isChangeAllocationSource || !pickedProductKeys) return searchQuery;
     // Matched against the product's OWN identity, not the ambient query. The pick is the reason the row is
     // highlighted, so the highlight has to survive the search box being cleared — reading the query meant

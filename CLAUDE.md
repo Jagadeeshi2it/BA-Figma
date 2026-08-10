@@ -846,6 +846,17 @@ to `selectedSearchQuery` so the card would light up — and since `binMatchesSea
 choosing one `Bin 1A` as Move From lit all eight of them amber. It takes a bin **id and nothing else**
 now; the blue stroke and the badge already say what the bin has become.
 
+**A bin committed as a Move To highlights nothing inside it** (`highlightQueryFor` in `BinCard`). Selection
+outranks the highlight, which is already the rule for the card's stroke and its bin name — this is that
+rule reaching the product rows, and it was the one place still leaking. Amber means "the search found
+this", and by the target step nothing is being searched for: the query is a leftover from step ①, where
+picking a product appends its identity so its rows light wherever the drug lives. Right while locating
+it, wrong once a bin is a destination — it produced a green `Move To` card with amber rows inside, two
+states on one card. The reachable path is the dropdown's `Select (n bins)` at step ②, which commits the
+bins *and* sets the highlight; both then rendered every matching row amber. Only a **committed** target
+is quietened: a bin that merely holds the drug still lights up while it is being considered, which is
+what tells the operator the destination already stocks it.
+
 **The highlight never takes the selection's colour.** The bin name is always
 `SEARCH_HIGHLIGHT_COLOR`, even on a selected bin, unlike the product rows below it which do switch to
 blue/green. Recolouring it would make the highlight read as part of the selection — the same
