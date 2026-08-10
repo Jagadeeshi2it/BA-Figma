@@ -361,60 +361,102 @@ export default function MoveSummaryPanel({
   );
 
   /**
-   * One destination line, plus which source bins feed it.
+   * One pairing: a source bin on the left, one of its destinations on the right.
    *
-   * The `from …` sub-line is the answer to "where goes where", and it is on the TARGET rather than the
-   * source for a mechanical reason: the target line is the one carrying a figure (what lands in this
-   * bin), the `Moved` badge and the you-are-here bold, so it has to stay one line per target. Sources
-   * annotated with their destinations instead would have meant giving all three of those somewhere
-   * else to live.
+   * This is the panel's whole structure now, and it replaces both the flat "sources, then targets" lists
+   * and the `from …` sub-line that was bolted onto them. Each row IS a `MoveSummaryRow`, which is what a
+   * row has been all along — the previous shapes took a list of pairings and printed two independent
+   * lists of bins, which is exactly the information the operator was missing: three sources and two
+   * targets does not say which feeds which, and it is at its worst where one source feeds both.
    *
-   * Nothing is repeated by saying it here. `sourceQuantity` is one figure per source bin and stays in
-   * the sources section above; `quantity` is one figure per target bin and stays on this line. Only
-   * bin NAMES appear in the sub-line, and a source feeding two targets is correctly named under both —
-   * that is the case the flat list could not express at all, and the reason this exists (Bin 2A into
-   * both 3C and 3A reads as an unexplained repeat in a flat list, or as nothing).
+   * `showSource` is false on a source's second and later rows, so the left column stays blank and the
+   * rows read as one block belonging to the bin named above them. That is what keeps a source's own
+   * figure stated once while its destinations each get a line.
    *
-   * Not the same thing as nesting the target lines under their sources, which is what was tried and
-   * dropped: that repeated one arrival's whole figure once per source, so a bin fed by three sources
-   * looked like three times the stock.
+   * `showTargetFigure` does the same job in the other direction, and it is the subtle one. A target's
+   * quantity is what lands in THAT BIN, not what came from one source, so a bin fed by three sources
+   * must not print its arriving amount on all three rows — that was the original reason for refusing to
+   * nest, and it is still true. The figure appears against the bin's first row and the rest carry the
+   * name alone. The bold you-are-here marking is deliberately NOT first-occurrence-only: it is a fact
+   * about the bin, so every row naming that bin wears it.
    */
-  const renderTargetLine = (
+  const renderPairingRow = (
     row: MoveSummaryRow,
     key: string,
-    sources: Array<{ label: string; door?: string }>
+    options: { showSource: boolean; showTargetFigure: boolean }
   ) => {
-    const targetText = quantityText(row.quantity, row.unit);
+    const sourceText = options.showSource ? quantityText(row.sourceQuantity, row.unit) : null;
+    const targetText = options.showTargetFigure ? quantityText(row.quantity, row.unit) : null;
+    const takenBadge = options.showSource ? sourceTakenBadge(row) : null;
+    const movedBadge = options.showTargetFigure ? targetMovedBadge(row) : null;
+
     return (
-      <div key={key} className="mt-0.5 pl-2">
-        <div className="flex items-center justify-between gap-2 text-[12px]">
-          <span className="flex items-center gap-1 min-w-0">
-            <ArrowRight className="w-3 h-3 shrink-0 text-[#94a3b8]" />
-            <span
-              className={`truncate ${
-                row.isCurrentTarget ? 'font-semibold text-[#020817]' : 'text-[#4a5565]'
-              }`}
-            >
-              {binLabel(row.toLabel, row.toDoor)}
+      <div key={key} className="flex items-start gap-1.5 text-[12px] leading-[18px]">
+        {/* Equal columns either side of the arrow, so the two ends line up down the card and the eye can
+            read either column on its own. `min-w-0` on both or a long door-qualified name pushes the
+            arrow out of the middle. */}
+        <span className="flex-1 min-w-0">
+          <span
+            className={`block break-words ${
+              row.isCurrentSource ? 'font-semibold text-[#020817]' : 'text-[#4a5565]'
+            }`}
+          >
+            {options.showSource ? binLabel(row.fromLabel, row.fromDoor) : ''}
+          </span>
+          {(sourceText || takenBadge) && (
+            <span className="flex items-center gap-1.5 flex-wrap">
+              {sourceText && <span className="font-medium text-[#020817]">{sourceText}</span>}
+              {takenBadge && doneBadge(takenBadge)}
             </span>
+          )}
+        </span>
+
+        <ArrowRight className="w-3 h-3 shrink-0 text-[#94a3b8] mt-[3px]" />
+
+        <span className="flex-1 min-w-0">
+          <span
+            className={`block break-words ${
+              row.isCurrentTarget ? 'font-semibold text-[#020817]' : 'text-[#4a5565]'
+            }`}
+          >
+            {binLabel(row.toLabel, row.toDoor)}
           </span>
-          {/* Quantity placed, and "Moved" only once it actually has been — this bin's own act, so
-              nothing appears here while the operator is still taking stock out at the source. */}
-          <span className="shrink-0 flex items-center gap-1.5 whitespace-nowrap">
-            {targetText && <span className="font-medium text-[#020817]">{targetText}</span>}
-            {targetMovedBadge(row) && doneBadge(targetMovedBadge(row)!)}
-          </span>
-        </div>
-        {/* Withheld when the product has one source: the sources section directly above already names
-            it, and "from Bin 4C" under a card whose only source is Bin 4C is a line that answers a
-            question nobody could have. It earns its place the moment there is a choice to disambiguate.
-            Wraps rather than truncating — a name the operator cannot finish reading is the one thing
-            this line must not do, and at 320px two qualified bin names do not fit on one. */}
-        {sources.length > 1 && (
-          <div className="pl-4 text-[11px] leading-snug text-[#94a3b8] break-words">
-            from {sources.map(source => binLabel(source.label, source.door)).join(', ')}
-          </div>
-        )}
+          {(targetText || movedBadge) && (
+            <span className="flex items-center gap-1.5 flex-wrap">
+              {targetText && <span className="font-medium text-[#020817]">{targetText}</span>}
+              {movedBadge && doneBadge(movedBadge)}
+            </span>
+          )}
+        </span>
+      </div>
+    );
+  };
+
+  /**
+   * A source bin on its own, with no destination beside it — the take half only.
+   *
+   * On that half the operator's whole job is the bin in front of them, and how the amount will divide
+   * between its targets is not decided until the placement screen. Pairing rows there would name
+   * destinations carrying no figure and no act, competing with the one line that matters. So the take
+   * half keeps the single column it always had, and the pairing grid starts at the point the pairing is
+   * something the operator is about to act on.
+   */
+  const renderSourceOnlyRow = (row: MoveSummaryRow, key: string) => {
+    const sourceText = quantityText(row.sourceQuantity, row.unit);
+    const takenBadge = sourceTakenBadge(row);
+    return (
+      <div key={key} className="flex items-center justify-between gap-2 text-[12px]">
+        <span
+          className={`truncate ${
+            row.isCurrentSource ? 'font-semibold text-[#020817]' : 'text-[#4a5565]'
+          }`}
+        >
+          {binLabel(row.fromLabel, row.fromDoor)}
+        </span>
+        <span className="shrink-0 flex items-center gap-1.5 whitespace-nowrap">
+          {sourceText && <span className="font-medium text-[#020817]">{sourceText}</span>}
+          {takenBadge && doneBadge(takenBadge)}
+        </span>
       </div>
     );
   };
@@ -570,61 +612,63 @@ export default function MoveSummaryPanel({
             // A skipped product's rows are all skipped — it is skipped as a product, not per bin.
             const isSkippedCard = group.rows.length > 0 && group.rows.every(row => row.isSkipped);
             /**
-             * This product's destinations, each stated once, WITH the source bins feeding each. Keyed on
-             * bin AND door, as everywhere else — the same bin name exists behind every door.
+             * The pairings, grouped by source bin — the panel's structure, and a direct restatement of
+             * what a row already is. Keyed on bin AND door throughout, as everywhere else, since the same
+             * bin name sits behind every door.
              *
-             * The lines stay one-per-target rather than being nested under individual source bins,
-             * because the figure on a target line is what lands in THAT BIN — not what came from one
-             * source. Nested, a bin fed by three sources printed itself three times, each with the full
-             * arriving amount, reading as three times the stock.
+             * Each source keeps its own destinations, deduped, so `Bin 4C → Bin 3C` and
+             * `Bin 2A → Bin 3C, Bin 3A` read as themselves. What this replaces is two independent lists —
+             * every source, then every target — which is where the routing was being lost: three sources
+             * and two targets cannot say which feeds which, and a source feeding both is unrecoverable
+             * from it.
              *
-             * Be careful with the distinction that mistake rests on. What is NOT divisible per pairing is
-             * the QUANTITY: the amount taken from a source is deliberately not split between its targets
-             * (§ Transfers) — the operator decides that by scanning into each bin on the placement
-             * screen. The ROUTING is a different fact, it is real, and the operator chose it themselves on
-             * Review. This panel used to drop it: it received rows that are each one source→target
-             * pairing and rendered two independent lists, so "Bin 4C, Bin 2A, Bin 2B into Bin 3C and Bin
-             * 3A" never said which fed which — worst where a source feeds both, which no reading of two
-             * flat lists can recover. So each target names its own sources (see renderTargetLine), and
-             * every figure is still stated exactly once.
-             *
-             * A target's own state is ORed across the rows that share it: it is the bin in hand if any
-             * of them says so, and placed once any of them is done.
+             * The distinction the old shape rested on is still respected, and it is worth not
+             * re-deriving. What is NOT divisible per pairing is the QUANTITY: the amount taken from a
+             * source is deliberately not split between its targets (§ Transfers) — the operator decides
+             * that by scanning into each bin. So a figure belongs to a BIN, and each is printed once
+             * (`firstRowForTarget` below, and `showSource` on the source side). The ROUTING is a
+             * different fact, it is real, and the operator chose it on Review.
              */
-            const distinctTargets = Array.from(
-              group.rows
-                .reduce((map, row) => {
-                  const key = `${row.toLabel}|${row.toDoor ?? ''}`;
-                  const seen = map.get(key);
-                  // The source bins feeding this target, collected as the rows collapse — this is the
-                  // pairing, and it exists only in the rows. Each row IS one source→target pairing, so
-                  // folding the rows down to one per target used to discard it entirely: the panel had
-                  // the routing and printed two independent lists. Deduped on bin AND door, as
-                  // everywhere else, since the same bin name sits behind every door.
-                  const sourceKey = `${row.fromLabel}|${row.fromDoor ?? ''}`;
-                  const sources = seen?.sources ?? new Map<string, { label: string; door?: string }>();
-                  if (!sources.has(sourceKey)) {
-                    sources.set(sourceKey, { label: row.fromLabel, door: row.fromDoor });
-                  }
-                  map.set(
-                    key,
-                    seen
-                      ? {
-                          ...seen,
-                          row: {
-                            ...seen.row,
-                            isCurrentTarget: seen.row.isCurrentTarget || row.isCurrentTarget,
-                            status:
-                              seen.row.status === 'done' || row.status === 'done' ? 'done' : seen.row.status
-                          },
-                          sources
-                        }
-                      : { row, sources }
-                  );
-                  return map;
-                }, new Map<string, { row: MoveSummaryRow; sources: Map<string, { label: string; door?: string }> }>())
-                .values()
-            );
+            const pairingsBySource = groupBySourceBin(group.rows).map(sourceBin => {
+              const targets = new Map<string, MoveSummaryRow>();
+              sourceBin.rows.forEach(row => {
+                const key = `${row.toLabel}|${row.toDoor ?? ''}`;
+                const seen = targets.get(key);
+                // A target's state is ORed across the rows that share it: the bin in hand if any of them
+                // says so, placed once any of them is done.
+                targets.set(
+                  key,
+                  seen
+                    ? {
+                        ...seen,
+                        isCurrentTarget: seen.isCurrentTarget || row.isCurrentTarget,
+                        status: seen.status === 'done' || row.status === 'done' ? 'done' : seen.status
+                      }
+                    : row
+                );
+              });
+              return { ...sourceBin, targets: Array.from(targets.values()) };
+            });
+
+            /**
+             * Which row gets to print each target bin's figure: its first, in the order the rows read.
+             *
+             * A target fed by three sources appears on three rows, and its arriving quantity is one
+             * figure for the bin — printing it on each would read as three times the stock, which is the
+             * mistake that made an earlier version of this panel refuse to show the pairing at all.
+             * Built once for the whole card rather than per source block, because the repeats are across
+             * blocks by definition.
+             */
+            const firstRowForTarget = new Map<string, string>();
+            pairingsBySource.forEach(sourceBin => {
+              sourceBin.targets.forEach(row => {
+                const key = `${row.toLabel}|${row.toDoor ?? ''}`;
+                if (!firstRowForTarget.has(key)) firstRowForTarget.set(key, row.key);
+              });
+            });
+
+            // Still needed for the "is there a target end at all" test the take half turns on.
+            const distinctTargets = Array.from(firstRowForTarget.keys());
 
             // What the operator ends up holding for this product: every source bin's amount added up,
             // once per bin. Repeated across the rows that share a source, so it is summed over the
@@ -694,67 +738,33 @@ export default function MoveSummaryPanel({
                   {group.ndc} - {group.inventoryType}
                 </div>
 
-                {/* Each source bin states itself once, with the target bins it feeds indented beneath.
-                    The pairings were flat "from → to" lines before, which repeated the source bin —
-                    and its quantity — once per destination, so a bin split three ways read as three
-                    separate departures of the same stock. Nested, the bin is the parent it actually is.
-
-                    No total line: the source line IS the total for everything under it. */}
+                {/* Source on the left, its destinations on the right, one row per pairing — the direct
+                    mapping, which is the one thing the operator cannot reconstruct from anywhere else.
+                    A source's name and figure appear on the first of its rows and the column stays blank
+                    below, so the block reads as belonging to the bin named at its head. */}
                 {isSkippedCard ? (
                   // Nothing below the identity block: the Skipped badge beside the product name already
                   // says it, and a sentence restating it was the second telling.
                   null
                 ) : (
                 <div className={`mt-2 pt-2 border-t space-y-2 ${isCurrentCard ? 'border-[#dbe9f6]' : 'border-gray-100'}`}>
-                  {groupBySourceBin(group.rows).map(sourceBin => {
-                    // One figure for the bin, not per destination, so it comes off the first row.
-                    const head = sourceBin.rows[0];
-                    const sourceText = quantityText(head.sourceQuantity, head.unit);
-                    return (
-                      <div key={`${sourceBin.label}-${sourceBin.door ?? ''}`}>
-                        {/* The source bin. Bold only when the operator is standing at it — the whole
-                            marking the redesign asks for, replacing the filled chip that read as a
-                            selected state rather than a "you are here". */}
-                        <div className="flex items-center justify-between gap-2 text-[12px]">
-                          <span
-                            className={`truncate ${
-                              head.isCurrentSource ? 'font-semibold text-[#020817]' : 'text-[#4a5565]'
-                            }`}
-                          >
-                            {binLabel(sourceBin.label, sourceBin.door)}
-                          </span>
-                          {/* Quantity taken, with this bin's own "Taken" beside it — the act belongs
-                              to the source, so the badge sits with the figure it refers to. */}
-                          <span className="shrink-0 flex items-center gap-1.5 whitespace-nowrap">
-                            {sourceText && (
-                              <span className="font-medium text-[#020817]">{sourceText}</span>
-                            )}
-                            {sourceTakenBadge(head) && doneBadge(sourceTakenBadge(head)!)}
-                          </span>
-                        </div>
-
-                      </div>
-                    );
-                  })}
-
-                  {/* The destinations, once each, beneath the sources they collect — so the arrows point
-                      from all of those bins at once, which is what actually happens.
-
-                      Not shown while taking: on that half the operator's whole job is the source bin in
-                      front of them, and how the amount divides between the targets is not decided until
-                      the placement screen, so the target lines would name bins carrying no figure and no
-                      act, competing with the one line that mattered. */}
-                  {stage !== 'source' && distinctTargets.length > 0 && (
-                    <div className="pt-1 border-t border-dashed border-gray-200">
-                      {distinctTargets.map(target =>
-                        renderTargetLine(
-                          target.row,
-                          `target-${target.row.key}`,
-                          Array.from(target.sources.values())
-                        )
-                      )}
+                  {pairingsBySource.map(sourceBin => (
+                    <div key={`${sourceBin.label}-${sourceBin.door ?? ''}`} className="space-y-0.5">
+                      {stage === 'source' || distinctTargets.length === 0
+                        ? // The take half keeps its single column — see renderSourceOnlyRow.
+                          renderSourceOnlyRow(
+                            sourceBin.rows[0],
+                            `source-${sourceBin.label}-${sourceBin.door ?? ''}`
+                          )
+                        : sourceBin.targets.map((row, targetIndex) =>
+                            renderPairingRow(row, `pair-${row.key}`, {
+                              showSource: targetIndex === 0,
+                              showTargetFigure:
+                                firstRowForTarget.get(`${row.toLabel}|${row.toDoor ?? ''}`) === row.key
+                            })
+                          )}
                     </div>
-                  )}
+                  ))}
                 </div>
                 )}
               </div>
