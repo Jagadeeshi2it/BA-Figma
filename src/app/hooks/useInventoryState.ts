@@ -22,6 +22,7 @@ import {
 } from '../utils/sourcePicks';
 import { BadgeFilter } from '../utils/badgeFilter';
 import { filterUnallocatedProducts } from '../utils/unallocatedFilter';
+import { focusPanelSearch } from '../utils/panelSearchFocus';
 import { DoorShelfConfig, Bin, AllocationHistoryEntry, Product } from '../types';
 import { productDataService } from '../services/ProductDataService';
 import { pharmaceuticalProducts } from '../data/products';
@@ -29,6 +30,13 @@ import { eKitHistoryService } from '../services/EKitHistoryService';
 import { emergencyKitService } from '../services/EmergencyKitService';
 
 // Helper function to resolve product names consistently across the app
+/**
+ * One id for both allocation panels' "pick a product first" refusal, so tapping four bins in a row
+ * replaces the message rather than stacking four copies of it down the screen. Same reasoning as the
+ * move pipeline's WRONG_UNIT_TOAST_ID, and the same one fact: that tap cannot do what you meant.
+ */
+const PICK_PRODUCT_FIRST_TOAST_ID = 'pick-product-first';
+
 const resolveProductName = (productId: string, doorShelfConfig: DoorShelfConfig): { name: string; ndc: string; badge: string; inventoryType: string; unit: string } => {
   const enhancedProduct = productDataService.enhanceProduct({ id: productId });
   
@@ -385,10 +393,25 @@ export const useInventoryState = () => {
         if (allocateSelectedProductKeys.length === 0) {
           toast.custom(
             () => React.createElement(ValidationToast, {
-              message: 'Search and select a product before choosing a bin.'
+              // Names WHERE both halves happen, because two search boxes are on screen and the old
+              // "Search and select a product before choosing a bin" said which act without saying in
+              // which field — the header's search is the more prominent of the two and finds products
+              // as well, so it is the one an operator reaches for first, and it cannot pick anything
+              // for an allocation. "this panel" and "the left canvas" are the panel's own words: its
+              // empty state already reads "…then select one or more bins on the left canvas".
+              //
+              // "Search for" rather than the tray's "Select": this panel lists nothing until something
+              // is typed, so searching genuinely is the first act here. The tray lists its products on
+              // open, where telling the operator to search for one already in front of them would be
+              // an instruction to do the wrong thing.
+              message: 'Search for a product in this panel, then tap a bin on the left canvas.'
             }),
-            { duration: 4000 }
+            { id: PICK_PRODUCT_FIRST_TOAST_ID, duration: 4000 }
           );
+          // Gives that sentence somewhere to point — the panel is at the right of a screen whose left
+          // half is the cabinet they were just tapping, and here the search box is literally the next
+          // action, since the list is empty until it is used.
+          focusPanelSearch('allocate');
           return;
         }
 
@@ -424,7 +447,24 @@ export const useInventoryState = () => {
       // If in unallocated products mode, check if products are selected first
       if (showUnallocatedProducts) {
         if (selectedUnallocatedProducts.length === 0) {
-          // Prevent bin selection if no products are selected
+          // The rule matched the panel above; the silence did not. A bin tapped before anything is
+          // ticked has nothing to assign to it, and this branch simply returned — so the app's most
+          // basic allocation flow was the one place where a refused tap did nothing and said nothing,
+          // which is indistinguishable from a dead control (UX-AUDIT H9-1).
+          //
+          // "Select", not "Search for": the tray lists every unallocated product on open, so the row
+          // the operator wants is already on screen. Everything after the comma is word-for-word the
+          // other panel's, because the second half of the job is the same job.
+          toast.custom(
+            () => React.createElement(ValidationToast, {
+              message: 'Select a product in this panel, then tap a bin on the left canvas.'
+            }),
+            { id: PICK_PRODUCT_FIRST_TOAST_ID, duration: 4000 }
+          );
+          // Pulls the eye to the panel the sentence is about. Its search box rather than its first row
+          // because focus belongs on something that takes input — and a query is how the operator gets
+          // to a product that is not one of the handful in view.
+          focusPanelSearch('unallocated');
           return;
         }
         
