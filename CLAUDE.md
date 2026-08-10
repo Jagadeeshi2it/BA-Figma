@@ -427,15 +427,27 @@ A 320px panel on Review and both halves of step ④, answering "what is moving f
 while the operator is mid-move. `MoveSummaryPanel.tsx` is purely presentational; each screen derives
 its own `MoveSummaryRow[]` from state it already holds (§3).
 
-- **Two columns: each source on the left, its own destinations on the right, one row per pairing.** The
-  source's name and figure sit on the first of its rows and the column stays blank below, so the block
-  reads as belonging to the bin at its head:
+- **Two columns, sources left and targets right — and the shape follows the move.** The pairing is spelled
+  out only where it actually varies, which is the whole rule (`everySourceSharesTargets`):
 
   ```
-  Door 2 - Bin 4C   →   Door 2 - Bin 3C
-  Door 3 - Bin 2A   →   Door 2 - Bin 3C
-                    →   Door 2 - Bin 3A
+  every source into the same bins          sources with different destinations
+  ── one arrow, two lists ──               ── one row per pairing ──
+
+  Door 2 - Bin 4C  →  Door 2 - Bin 3C      Door 1 - Bin 1B  →  Door 1 - Bin 3D
+  Door 3 - Bin 2A     Door 2 - Bin 4B      Door 1 - Bin 1C  →  Door 1 - Bin 3D
+  Door 3 - Bin 2B                                           →  Door 1 - Bin 4A
   ```
+
+  When every source feeds the same set, "all of these into all of these" says it completely and
+  per-source rows would print the same destination list once per source, saying nothing more for it. When
+  they differ, those rows are the only thing that can say which feeds which. In the per-source form a
+  source's name and figure sit on the first of its rows and the column stays blank below, so the block
+  reads as belonging to the bin at its head.
+
+  Compared as an **ordered** signature of each source's target keys: the rows arrive in the walk's order,
+  so two sources naming the same bins in a different order are genuinely visited differently and are not
+  folded together.
 
   **This replaced two flat lists — every source, then every target — on 2026-08-11, and the reason is
   what to hold on to.** That shape was chosen because a target's figure is what lands in *that bin*, not
@@ -447,11 +459,13 @@ its own `MoveSummaryRow[]` from state it already holds (§3).
   the operator chose it themselves on Review. Two flat lists cannot express it: three sources and two
   targets never says which feeds which, and it is worst exactly where a source feeds both, which no
   reading of the two lists recovers.
-- **A figure belongs to a bin, so each is printed once.** The source's on its first row; the target's on
-  the first row that names it (`firstRowForTarget`), later rows carrying the bin name alone. A target fed
-  by three sources appears on three rows, and repeating its arriving amount on each is the original
-  mistake in a new shape. **The bold you-are-here marking is deliberately not first-occurrence-only** —
-  that is a fact about the bin, so every row naming it wears it.
+- **A figure belongs to a bin, so each is printed once.** In the collapsed form this is free — each bin
+  has exactly one line, which is a good sign the shape fits the case. In the per-source form the source's
+  figure goes on its first row and the target's on the first row that names it (`firstRowForTarget`),
+  later rows carrying the bin name alone: a target fed by three sources appears on three rows, and
+  repeating its arriving amount on each is the original mistake in a new shape. **The bold you-are-here
+  marking is deliberately not first-occurrence-only** — that is a fact about the bin, so every row naming
+  it wears it.
 - **The take half keeps a single column**, source bins only (`renderSourceOnlyRow`). There the operator's
   whole job is the bin in front of them and no split has been decided, so pairing rows would name
   destinations carrying no figure and no act — and leave a column of dangling arrows.
