@@ -1228,13 +1228,19 @@ been violations of it.
   already spent, so it can never reach an all-selected state — making it a toggle-all is a bug it has
   had before (§3). `ProductCentricCard`'s becomes a dimmed `All selected`, because it commits picks and
   cannot take them back; there the spent label is a status, not an offer.
-- **A disabled primary states its requirement in its own label.** Never grey a button and leave the
-  reason off screen. **The exception is a control whose label is its identity** — step ④'s `Cancel` keeps
-  the word "Cancel" when it is unavailable and explains via a toast on tap (`FooterButton`'s
-  `onBlockedClick`), because "Cannot cancel — stock placed" replaced the button's *name* with a sentence
-  about it. Note `onBlockedClick` deliberately does **not** set the `disabled` attribute: a disabled
-  button swallows the click, so the operator taps, nothing happens at all, and a blocked control is
-  indistinguishable from a broken one. `aria-disabled` still carries the state.
+- **A disabled primary states its requirement in its own label** — on the bin-picking steps, where the
+  label's job is to name what happens next: `Select a source bin` → `Target Selection →`. Never grey a
+  button and leave the reason off screen.
+  **The exception is a control whose label is its identity**, and step ④ has two of them. `Cancel` keeps
+  the word "Cancel" when it is unavailable, because "Cannot cancel — stock placed" replaced the button's
+  *name* with a sentence about it. **The placement screen's save primary is the same case**: it read
+  `Place 9 more vials` when blocked, so the one control that finishes the move stopped saying what it
+  does — and `Save & Finish` / `Save & Next Bin` also tell the operator *where the flow goes next*, which
+  a requirement sentence takes away entirely. Both explain via a toast on tap (`FooterButton`'s
+  `onBlockedClick`); the save's names the two ways out and mentions `Add Move To Bin` only when that
+  control is actually on screen. Note `onBlockedClick` deliberately does **not** set the `disabled`
+  attribute: a disabled button swallows the click, so the operator taps, nothing happens at all, and a
+  blocked control is indistinguishable from a broken one. `aria-disabled` still carries the state.
 - **A disabled secondary keeps its own look, dimmed.** `Selected` / `All selected` on the Review cards stay
   white-and-blue at `opacity-50` rather than turning grey. Recolouring made a spent button look like a
   different kind of control from the live one beside it, when it is the same button reporting that its work

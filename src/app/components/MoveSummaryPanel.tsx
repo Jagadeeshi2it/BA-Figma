@@ -449,7 +449,11 @@ export default function MoveSummaryPanel({
    * first-occurrence bookkeeping, which is a good sign the shape fits the case.
    */
   const renderColumns = (sources: MoveSummaryRow[], targets: MoveSummaryRow[]) => (
-    <div className="flex items-center gap-1.5 text-[12px] leading-[18px]">
+    /* Both columns start at the top, and the arrow with them. Centring them meant the shorter list
+       floated against the longer one — three sources beside two targets put the arrow halfway down the
+       card with the target list hanging in the middle of nothing, which reads as an alignment accident
+       rather than two lists of different lengths. */
+    <div className="flex items-start gap-1.5 text-[12px] leading-[18px]">
       <div className="flex-1 min-w-0 space-y-0.5">
         {sources.map(row => {
           const sourceText = quantityText(row.sourceQuantity, row.unit);
@@ -474,7 +478,9 @@ export default function MoveSummaryPanel({
         })}
       </div>
 
-      <ArrowRight className="w-3 h-3 shrink-0 text-[#94a3b8]" />
+      {/* Nudged to sit on the first line's baseline rather than its box top — a 12px glyph flush against
+          an 18px line reads as floating above the text it points from. Same offset as renderPairingRow. */}
+      <ArrowRight className="w-3 h-3 shrink-0 text-[#94a3b8] mt-[3px]" />
 
       {/* Right-aligned, against the panel's right edge — see renderPairingRow. Both shapes anchor the
           to-end the same way, or the two would disagree about where a target bin sits depending on

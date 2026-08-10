@@ -1091,12 +1091,6 @@ export default function TargetBinSerialScanPage({
     return isLastTargetBin ? remainingQtyToMove === 0 : true;
   })();
 
-  // Blocked, the button says what it is waiting for rather than greying out mutely — the same rule
-  // the bin-picking footer follows. The only thing that can block it is quantity still unplaced.
-  const effectiveSaveLabel = canSave
-    ? saveButtonLabel
-    : `Place ${remainingQtyToMove} more ${pluralizeUnit(currentProduct.unit || 'vial', remainingQtyToMove)}`;
-
   /**
    * Whether to offer another Move To bin.
    *
@@ -1117,6 +1111,27 @@ export default function TargetBinSerialScanPage({
     // Asked of the bins the dialog will actually list, not of every bin in the cabinet — otherwise the
     // button can be offered on the strength of bins the operator is then not shown.
     selectableMoveToBins(reachableMoveToBins(addTargetBinCandidates).listed).length > 0;
+
+  /**
+   * Why saving is unavailable, said in a toast rather than in the button's label.
+   *
+   * The bin-picking steps put their requirement IN the label (`Select a source bin`), which works where
+   * the label's job is to name what happens next. It reads badly here for the same reason step ④'s
+   * `Cancel` keeps its own name: `Place 9 more vials` replaced the button's identity with a sentence
+   * about it, so the one control that finishes the move stopped saying what it does — and
+   * `Save & Finish` / `Save & Next Bin` also tell the operator where the flow goes next, which they lose
+   * entirely while the button is explaining itself.
+   *
+   * The message names both ways out, and mentions the second only when it is actually on screen:
+   * pointing at a control that is not there is worse than saying nothing about it. Declared below
+   * `canAddTargetBin` because a `const` is not hoisted (CLAUDE.md §4) — it threw from up there.
+   */
+  const cannotSaveReason = (() => {
+    const amount = `${remainingQtyToMove} ${pluralizeUnit(currentProduct.unit || 'vial', remainingQtyToMove)}`;
+    return canAddTargetBin
+      ? `${amount} still to place. Put them in this bin, or use Add Move To Bin for whatever will not fit.`
+      : `${amount} still to place in this bin.`;
+  })();
 
   // Same shaping as the quantity screen opposite: binProducts.ts keys badges on
   // name | ndc | inventoryType, which this screen carries under different field names.
@@ -1420,10 +1435,13 @@ export default function TargetBinSerialScanPage({
               />
             )}
             <FooterButton
-              label={effectiveSaveLabel}
+              label={saveButtonLabel}
               variant="primary"
               enabled={canSave}
               onClick={handleSave}
+              onBlockedClick={() =>
+                toast.custom(() => <ValidationToast message={cannotSaveReason} />, { duration: 6000 })
+              }
               trailingIcon={<ArrowRight className="w-4 h-4" />}
               demoId="pipeline-primary"
             />
