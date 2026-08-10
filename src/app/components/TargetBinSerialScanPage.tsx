@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { toast } from "sonner@2.0.3";
 import { Button } from "./ui/button";
-import { ChevronRight, Search, Trash2, Package, LogIn, ListChecks, ArrowRight } from "lucide-react";
+import { ChevronRight, Search, Trash2, Package, PackagePlus, LogIn, ListChecks, ArrowRight } from "lucide-react";
 import { DoorUnlockedToast, ValidationToast } from "./ui/sonner-1";
 import CabinetPipView from "./CabinetPipView";
 import SideSheet from "./SideSheet";
@@ -22,6 +22,14 @@ import { pluralizeUnit } from '../utils/pluralizeUnit';
 import ProductBadges from './ProductBadges';
 import { SkippedProduct, CANNOT_CANCEL_REASON } from './QuantitySelectionPage';
 import { CabinetAccess } from '../hooks/useCabinetAccess';
+import AddMoveToBinDialog from './AddMoveToBinDialog';
+import {
+  moveToBinCandidates,
+  selectableMoveToBins,
+  reachableMoveToBins,
+  MoveToBinInput
+} from '../utils/moveTargetBins';
+import { emergencyKitService } from '../services/EmergencyKitService';
 
 interface ScannedItem {
   serial: string;
@@ -50,6 +58,16 @@ interface TargetBinSerialScanPageProps {
   cabinetAccess: CabinetAccess;
   /** Target bin ids in the order the route says to fill them. Undefined keeps the arrival order. */
   placeBinOrder?: string[];
+  /**
+   * Give the product currently being placed another Move To bin, because the one in front of the
+   * operator has run out of room. `placedInCurrentBin` is what actually fit in the bin they are at —
+   * the remainder is what the new bin is for.
+   *
+   * Owned by App rather than this screen: the transfers are App's state, and the route, the footer's
+   * counters and the Move List all derive from them, so appending there keeps every one of those in
+   * step. A bin added into local state here would show up on this screen and nowhere else.
+   */
+  onAddTargetBin?: (productId: string, binId: string, placedInCurrentBin: number) => void;
 }
 
 interface TransferWithInfo extends ProductTransfer {
@@ -103,6 +121,29 @@ interface ProductGroup {
  */
 const scanKey = (productId: string, toBinId: string) => `${productId}-${toBinId}`;
 
+/**
+ * `n` stand-in scan entries, for the two places a quantity is settled without the operator scanning it
+ * one at a time: the last bin of a split, whose share is whatever the earlier bins left, and a bin added
+ * mid-move to take a stated remainder.
+ *
+ * Honest only because no serial value is ever checked against anything (§5) — these are counters wearing
+ * serial numbers. If serials ever start meaning something, both callers become real questions rather
+ * than arithmetic, and this function should stop existing rather than get a validation argument.
+ *
+ * Module scope, like `scanKey`, so no caller can be ordered before it.
+ */
+const synthesizeScannedItems = (count: number, unit?: string): ScannedItem[] =>
+  Array.from({ length: count }, () => ({
+    serial: `SN${Math.floor(Math.random() * 1000000000).toString().padStart(9, '0')}`,
+    lot: Math.floor(Math.random() * 10000000).toString(),
+    source: 'McKesson Medical',
+    expiration: new Date(Date.now() + Math.random() * 365 * 24 * 60 * 60 * 1000).toLocaleDateString(
+      'en-US',
+      { month: '2-digit', day: '2-digit', year: 'numeric' }
+    ),
+    quantity: `1 ${unit || 'vial'}`
+  }));
+
 export default function TargetBinSerialScanPage({
   transfers,
   doorShelfConfig,
@@ -112,7 +153,8 @@ export default function TargetBinSerialScanPage({
   skippedProducts,
   moveMode,
   cabinetAccess,
-  placeBinOrder
+  placeBinOrder,
+  onAddTargetBin
 }: TargetBinSerialScanPageProps) {
   const [currentProductIndex, setCurrentProductIndex] = useState(0);
   const [currentTargetBinIndex, setCurrentTargetBinIndex] = useState(0);
@@ -120,6 +162,14 @@ export default function TargetBinSerialScanPage({
   const [scannedItems, setScannedItems] = useState<{ [key: string]: ScannedItem[] }>({});
   // Right-side overlay opened by tapping the footer's Product / Target Bin counters
   const [activeSheet, setActiveSheet] = useState<null | 'product' | 'targetBin'>(null);
+  const [addBinOpen, setAddBinOpen] = useState(false);
+  /**
+   * A bin just added because the one in hand ran out of room. Held until the appended transfers come
+   * back down through props — App owns them, so there is a render between asking and having — and then
+   * the walk jumps to it. Without this the operator would be left standing at the full bin, having to
+   * find the bin they just asked for.
+   */
+  const [pendingNewTargetBinId, setPendingNewTargetBinId] = useState<string | null>(null);
   const [summaryOpen, setSummaryOpen] = useState(true);
 
   // CRITICAL: Determine if serial scanning is needed
@@ -499,6 +549,65 @@ export default function TargetBinSerialScanPage({
     return () => toast.dismiss(toastId);
   }, [currentTargetBin?.targetDoorName]);
 
+  /**
+   * Bins that could take the stock still in the operator's hands. Computed here rather than in the
+   * dialog so the button can be withheld when there is genuinely nowhere to put it — offering a
+   * control that opens an empty list is the silently-dead control the audit objects to.
+   *
+   * The three refusals are `moveToBinCandidates`' business; what this does is answer the questions
+   * only the cabinet and the E-Kit rule can: which bins exist, what they hold, and which of them
+   * restrict their contents.
+   */
+  const addTargetBinCandidates = useMemo(() => {
+    if (!currentProduct) return [];
+
+    const bins: MoveToBinInput[] = [];
+    const restrictedBinIds: string[] = [];
+
+    Object.keys(doorShelfConfig).forEach(doorName => {
+      doorShelfConfig[doorName]?.forEach(shelf => {
+        shelf.bins?.forEach(bin => {
+          bins.push({
+            binId: bin.id,
+            binName: bin.name,
+            doorName,
+            productCount: bin.products.length,
+            // Identity, not product.id — the same drug in another bin is a different row with a
+            // different id, so an id comparison would answer no for every bin that stocks it.
+            alreadyStocksProduct: bin.products.some(
+              product =>
+                product.name === currentProduct.productName &&
+                (product as any).ndc === currentProduct.ndc &&
+                (product as any).inventoryType === currentProduct.inventoryType
+            )
+          });
+          if (emergencyKitService.isBinInEmergencyKit(bin.id, doorShelfConfig)) {
+            restrictedBinIds.push(bin.id);
+          }
+        });
+      });
+    });
+
+    // Every bin this product is being taken out of, and every bin it is already going to.
+    const sourceBinIds = new Set<string>();
+    const existingTargetBinIds = new Set<string>();
+    currentProduct.targetBins.forEach(targetBin => {
+      existingTargetBinIds.add(targetBin.toBinId);
+      targetBin.transfers.forEach(transfer => sourceBinIds.add(transfer.fromBinId));
+    });
+
+    return moveToBinCandidates(bins, {
+      sourceBinIds: Array.from(sourceBinIds),
+      existingTargetBinIds: Array.from(existingTargetBinIds),
+      restrictedBinIds,
+      productAllowedInRestrictedBins: emergencyKitService.isInventoryTypeAllowed(
+        currentProduct.inventoryType || '',
+        'move'
+      ),
+      currentDoorName: currentTargetBin?.targetDoorName
+    });
+  }, [currentProduct, currentTargetBin?.targetDoorName, doorShelfConfig]);
+
   const getTargetBinKey = (targetBin: TargetBinGroup) =>
     scanKey(currentProduct.productId, targetBin.toBinId);
 
@@ -644,19 +753,71 @@ export default function TargetBinSerialScanPage({
     const key = getTargetBinKey(currentTargetBin);
     if ((scannedItems[key] || []).length > 0) return;
 
-    const autoFilledItems: ScannedItem[] = Array.from({ length: remainingQtyToMove }, () => ({
-      serial: `SN${Math.floor(Math.random() * 1000000000).toString().padStart(9, '0')}`,
-      lot: Math.floor(Math.random() * 10000000).toString(),
-      source: 'McKesson Medical',
-      expiration: new Date(Date.now() + Math.random() * 365 * 24 * 60 * 60 * 1000).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' }),
-      quantity: `1 ${currentProduct.unit || 'vial'}`
-    }));
-
     setScannedItems(prev => ({
       ...prev,
-      [key]: autoFilledItems
+      [key]: synthesizeScannedItems(remainingQtyToMove, currentProduct.unit)
     }));
   }, [currentProduct, currentTargetBin, currentTargetBinIndex, remainingQtyToMove, scannedItems]);
+
+  /**
+   * The bin the operator asked for has arrived in `transfers`, so walk them to it.
+   *
+   * Keyed on the id rather than on the target bin count, because the route decides where a new bin
+   * lands in the order — appending a transfer re-plans it (App's moveRoute memo), so the bin added
+   * last is not necessarily last in the walk. Looking it up by id lands on it wherever it sits.
+   */
+  useEffect(() => {
+    if (!pendingNewTargetBinId || !currentProduct) return;
+    const index = currentProduct.targetBins.findIndex(tb => tb.toBinId === pendingNewTargetBinId);
+    if (index === -1) return;
+    setCurrentTargetBinIndex(index);
+    setPendingNewTargetBinId(null);
+  }, [pendingNewTargetBinId, currentProduct]);
+
+  /**
+   * Take the operator's word for how much fit in the bin they are at, then ask for the new one.
+   *
+   * The trim is the whole reason this cannot just append a transfer. When the move was not scanning
+   * serials, the count for this bin was filled in for the operator at its full amount — so the app
+   * believes everything landed here, `remainingQtyToMove` is 0, and there is no remainder for a new bin
+   * to receive. Cutting the list to what actually fit is what creates the remainder. The synthetic
+   * entries are interchangeable (nothing is validated against a real serial — §5), so slicing is
+   * honest here in a way it would not be if serials meant anything.
+   *
+   * Nothing is trimmed when the operator was scanning: the scan list already records exactly what went
+   * in, and overwriting it with a typed figure would let the two disagree.
+   */
+  const handleAddTargetBin = (binId: string, placedInCurrentBin: number) => {
+    if (!currentProduct || !currentTargetBin || !onAddTargetBin) return;
+
+    if (!serialScanningRequired) {
+      const currentKey = getTargetBinKey(currentTargetBin);
+      const newBinKey = scanKey(currentProduct.productId, binId);
+      const remainder = Math.max(0, currentProductTotalQuantity - placedInCurrentBin);
+
+      setScannedItems(prev => ({
+        ...prev,
+        [currentKey]: (prev[currentKey] || []).slice(0, placedInCurrentBin),
+        // The remainder goes straight into the new bin rather than waiting to be scanned in.
+        //
+        // Same reasoning as the effect that fills the last bin of a split: there is nowhere else for it
+        // to go. The operator has just said 100 of 150 fit, and the bin they picked is the only other
+        // place the move has — so asking them to scan the other 50 one at a time is asking them to
+        // restate a decision they made in the dialog. It also matters that they were NOT scanning
+        // before this: adding a second bin flips serial scanning on (one source now feeds two bins), and
+        // without this the flip would land them in a scan they never opted into, holding stock, with the
+        // primary blocked on 50 more.
+        //
+        // When they were already scanning, none of this applies and neither branch runs: the scan list
+        // is the record of what went where, and seeding it would be putting words in their mouth.
+        [newBinKey]: remainder > 0 ? synthesizeScannedItems(remainder, currentProduct.unit) : []
+      }));
+    }
+
+    onAddTargetBin(currentProduct.productId, binId, placedInCurrentBin);
+    setPendingNewTargetBinId(binId);
+    setAddBinOpen(false);
+  };
 
   const handleScanOrAdd = () => {
     if (!currentTargetBin) return;
@@ -745,6 +906,21 @@ export default function TargetBinSerialScanPage({
       });
       const productTotalQuantity = Array.from(sourceTotals.values()).reduce((sum, q) => sum + q, 0);
 
+      /**
+       * How much each source bin still has left to be credited for, across EVERY target bin — not per
+       * bin. This has to be one running budget for the whole product, because a source feeds all of
+       * this product's targets and can only be debited for what it actually held.
+       *
+       * Capping per target bin instead (each bin measuring against the source's original declared
+       * amount) over-debited the first source and never touched the rest. It did not need a mid-move
+       * bin to go wrong: 200 from Bin 1B and 25 from Bin 1C, placed 120 into one target and 105 into
+       * another, debited Bin 1B by 225 and Bin 1C by 0 — because each bin drained 1B up to its full
+       * declared 200 independently. Fill the first target completely and it goes negative: 1B debited
+       * 212 of the 200 it had. The product's total stayed right, which is why it survived — the
+       * conservation invariant holds at the product level while the per-bin ledger is wrong.
+       */
+      const sourceBudget = new Map(sourceTotals);
+
       product.targetBins.forEach(targetBin => {
         // THIS product's scanned items, not the one that happens to be on screen. Keyed on
         // currentProduct, every product in the batch read back the same bin's scan list, so a
@@ -784,17 +960,19 @@ export default function TargetBinSerialScanPage({
           let serialCursor = 0;
           let remainingToAssign = actualQuantityForThisTargetBin;
 
-          targetBin.transfers.forEach((sourceTransfer, sourceIndex) => {
-            const isLastSource = sourceIndex === targetBin.transfers.length - 1;
-            const declaredQuantity = sourceTransfer.quantity || 0;
-            // Sources are consumed in the order they were added. The last one absorbs any
-            // difference between what the quantity step declared and what actually got
-            // scanned here, so the per-source quantities always sum to the real total.
-            const assignedQuantity = isLastSource
-              ? remainingToAssign
-              : Math.min(declaredQuantity, remainingToAssign);
+          targetBin.transfers.forEach(sourceTransfer => {
+            // Sources are consumed in the order they were added, each capped by what it has LEFT
+            // rather than by what it originally declared. There is no special case for the last
+            // source any more: it used to absorb the whole difference between declared and scanned,
+            // which is what let one bin's shortfall be charged to a source that had already been
+            // fully spent by an earlier bin. Draining in order does the same job — the shares still
+            // sum to what was actually placed — without any source going past what it held.
+            const sourceKey = `${sourceTransfer.fromBinId}-${sourceTransfer.productId}`;
+            const availableFromSource = sourceBudget.get(sourceKey) ?? 0;
+            const assignedQuantity = Math.min(availableFromSource, remainingToAssign);
 
             remainingToAssign -= assignedQuantity;
+            sourceBudget.set(sourceKey, availableFromSource - assignedQuantity);
             // Nothing landed here, so there's nothing to record — unless the product had no stock to
             // begin with, in which case this transfer is the whole point: it relocates the allocation
             // itself. Dropping it then silently cancelled the move, and the target bin never got the
@@ -874,6 +1052,27 @@ export default function TargetBinSerialScanPage({
   const effectiveSaveLabel = canSave
     ? saveButtonLabel
     : `Place ${remainingQtyToMove} more ${pluralizeUnit(currentProduct.unit || 'vial', remainingQtyToMove)}`;
+
+  /**
+   * Whether to offer another Move To bin.
+   *
+   * Only on this product's LAST bin: anywhere earlier, the next bin in the walk is already the place
+   * for whatever did not fit, and offering to add one there would invite splitting a move for no
+   * reason. Withheld for a zero-quantity move, which carries nothing to run out of room for, and when
+   * every bin in the cabinet is refused — a control that opens an empty list is worse than no control.
+   *
+   * NOT gated on `remainingQtyToMove > 0`, which is the tempting version and would make the button
+   * appear exactly when it cannot help. In the common case — the whole quantity going to one bin, so no
+   * serials are scanned — the count is filled in for the operator at the full amount, so the remainder
+   * reads as 0 right up until they say how much actually fit. That figure is what the dialog collects.
+   */
+  const canAddTargetBin =
+    !!onAddTargetBin &&
+    currentTargetBinIndex === currentProduct.targetBins.length - 1 &&
+    currentProductTotalQuantity > 0 &&
+    // Asked of the bins the dialog will actually list, not of every bin in the cabinet — otherwise the
+    // button can be offered on the strength of bins the operator is then not shown.
+    selectableMoveToBins(reachableMoveToBins(addTargetBinCandidates).listed).length > 0;
 
   // Same shaping as the quantity screen opposite: binProducts.ts keys badges on
   // name | ndc | inventoryType, which this screen carries under different field names.
@@ -1163,6 +1362,19 @@ export default function TargetBinSerialScanPage({
                 toast.custom(() => <ValidationToast message={CANNOT_CANCEL_REASON} />, { duration: 6000 })
               }
             />
+            {/* The way out of the one state this screen could not finish: the bin in front of the
+                operator has no room left for stock that has already left its source. Only offered
+                where it is the answer — on this product's last bin, with somewhere left to put the
+                rest — since anywhere else the next bin in the walk already is the answer. */}
+            {canAddTargetBin && (
+              <FooterButton
+                label="Add Move To Bin"
+                variant="secondary"
+                onClick={() => setAddBinOpen(true)}
+                leadingIcon={<PackagePlus className="w-4 h-4" />}
+                demoId="pipeline-add-target-bin"
+              />
+            )}
             <FooterButton
               label={effectiveSaveLabel}
               variant="primary"
@@ -1270,6 +1482,28 @@ export default function TargetBinSerialScanPage({
           );
         })}
       </SideSheet>
+
+      {/* Somewhere to put what would not fit. Mounted here rather than inside the footer so it is not
+          unmounted by the footer's own conditional — the button that opens it disappears the moment the
+          walk moves on, and a dialog that vanished mid-decision would lose the figure being typed. */}
+      {canAddTargetBin && (
+        <AddMoveToBinDialog
+          open={addBinOpen}
+          onOpenChange={setAddBinOpen}
+          productName={currentProduct.productName}
+          unit={pluralizeUnit(currentProduct.unit || 'vial', 2)}
+          currentBinLabel={`${currentTargetBin.targetDoorName} - ${currentTargetBin.targetBinName}`}
+          currentBinQuantity={
+            serialScanningRequired ? currentScannedItems.length : currentTargetBin.totalQuantity
+          }
+          totalQuantity={currentProductTotalQuantity}
+          // When serials are being scanned the list already records what fit; asking again would let a
+          // typed figure disagree with the serials beside it.
+          askHowMuchFit={!serialScanningRequired}
+          candidates={addTargetBinCandidates}
+          onConfirm={handleAddTargetBin}
+        />
+      )}
     </div>
   );
 }
