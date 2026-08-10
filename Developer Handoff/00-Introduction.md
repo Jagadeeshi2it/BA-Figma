@@ -37,15 +37,37 @@ usually the answer the operator came for: `Bin 1A - Shelf 1, Door 1`.
 
 From here the operator can press `Highlight in Bin` on a product to light up every bin holding it,
 `Highlight Bin` on a bin row to light that one bin, or `Highlight All` in either section header to
-light every match at once. Highlighting is how the canvas answers a search: matched bins take an amber
-outline, the matched text inside them is tinted, and doors holding a match carry an amber dot on the
-cabinet strip — so a hit behind a closed door is still visible. In View Mode nothing in this dropdown
-selects or changes anything; it only points. Typing alone does not mark the canvas either — the
-operator has to choose a row, which is what separates "what I am looking for" from "what I found".
+light every match at once. In View Mode nothing in this dropdown selects or changes anything; it only
+points. Typing alone does not mark the canvas either — the operator has to choose a row, which is what
+separates "what I am looking for" from "what I found". The two outcomes look different, and the
+difference is the point: one marks a **place**, the other marks a **drug wherever it is**.
+
+**A bin highlighted** — `Highlight Bin` on the row for Door 1's Bin 1A:
+
+![A bin highlighted by name](screenshots/introduction/03-search-bin-highlighted.png)
+
+The bin's card takes an amber outline and **its name turns amber**, the door holding it carries an
+amber dot in the cabinet strip, and the search box fills in the bin's real label. The products inside
+are untouched — the operator asked for a place, so the place is what is marked. If the bin sits behind
+a closed door, choosing the row opens that door and scrolls the card into view.
+
+**A product highlighted** — `Highlight in Bin` on ALIMTA 100 MG VIAL:
+
+![A product highlighted wherever it lives](screenshots/introduction/04-search-product-highlighted.png)
+
+Every bin holding that exact product is outlined, and inside each one the matching row's **name and
+`NDC - inventory type` turn amber** while the bin's own name stays black. Bin 1A and Bin 1B are both
+marked because the drug lives in both — matching is on the identity triple, so `ALIMTA 100 MG VIAL`
+with this NDC and inventory type is marked and the 500 MG variant on Shelf 2 is not.
+
+One behaviour here is easy to miss and must be preserved: **a matching row is floated to the top of its
+card, and the card's visible window grows to fit it.** Bin 1A shows only two of its four products by
+default, and ALIMTA was one of the two behind `+2 more` — without the float, the bin would light up
+while the thing the operator searched for stayed hidden.
 
 ## Product details {copy}
 
-![A product's detail page](screenshots/introduction/03-product-detail.png)
+![A product's detail page](screenshots/introduction/05-product-detail.png)
 
 Tapping a product row anywhere in View Mode — on a bin card or in the `+N more` panel — replaces the
 page with that product's detail view: name, generic name and badges, its total on hand, the NDC and
@@ -204,6 +226,16 @@ a two-character bin name like `1A` finds nothing.
 
 Bin hits match on **bin name only**, deliberately: a bin holding a matched product would otherwise
 appear in both sections as two answers to one question. Products are the product section's job.
+
+The highlight colour is `#A16207` throughout — the card outline, the bin name when the match is on the
+name, the product row's text when the match is on the product, and the door dot. Two mechanics behind
+the screenshots above:
+
+- **A bin is highlighted by id, never by query.** `Bin 1A` names eight bins in this seed, so putting the
+  name into a query channel lit all eight. `Highlight Bin` sends one id; `Highlight All` sends every
+  match's ids and the typed query, which is only used to decide which part of each label to tint.
+- **Matching product rows float to the top of their card** and the card's visible window grows to fit
+  them, so a match hidden behind `+N more` is never pointed at and then concealed.
 
 ---
 
