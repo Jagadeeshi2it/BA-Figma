@@ -117,10 +117,17 @@ The flow, and the rules that hold it together:
    product with stock cannot be unallocated, because that would strand physical units in a bin the
    system no longer believes in. Emptying it first is a move, not this.
 2. **It always confirms.** The dialog names the product and the bin — *"This removes ALIMTA 100 MG VIAL
-   from bin Bin 1B entirely. You can reallocate it later if needed."* — and offers `KEEP PRODUCT`
-   (outlined) against `UNALLOCATE` (the app's blue primary). Note the trigger is red and the
+   from bin Bin 1B entirely. You can reallocate it later if needed."* — and offers `Keep Product`
+   (outlined) against `Unallocate` (the app's blue primary). Note the trigger is red and the
    confirmation's commit is not: red marks the entrance to a destructive act, and by the dialog the
    operator has already been warned.
+
+   The dialog is not written here. Every alert and confirmation in the module renders one shared
+   component, `ConfirmDialog`, which fixes the language: a 20px semibold title, 14px `#4a5565` body,
+   and a right-aligned pair of 4px-radius actions — white outlined dismiss, blue primary commit. A
+   screen chooses the title, the copy and the two labels, never the styling. This page, the
+   zero-inventory banner's confirmation and the move pipeline's `Cancel this move?` had each written
+   their own until 2026-08-10 and had drifted apart on all three counts.
 3. **The escape hatch is stated, not implied.** "You can reallocate it later" is doing real work: it
    tells the operator this is reversible by reallocating, which is why the confirmation can be a single
    step rather than a typed confirmation.

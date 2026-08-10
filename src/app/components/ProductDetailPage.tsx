@@ -6,7 +6,7 @@ import { getVialType } from '../utils/binProducts';
 import Sidebar from "./Sidebar";
 import TopNav from "./TopNav";
 import { emergencyKitService } from '../services/EmergencyKitService';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "./ui/dialog";
+import ConfirmDialog, { ConfirmDialogText } from "./ConfirmDialog";
 
 // E-Kit Icon Component - Inline SVG
 const EkitIcon: React.FC = () => {
@@ -52,6 +52,12 @@ const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
   product,
   location,
   doorShelfConfig,
+  // Declared in the props interface and passed to TopNav below, but missing from this list until
+  // 2026-08-10 — so the page threw "currentStation is not defined" into the error boundary the moment
+  // it opened. esbuild strips types without checking them (CLAUDE.md §4), so nothing caught it.
+  currentStation,
+  onStationClick,
+  isClinicLevel,
   onBack,
   onUnallocate
 }) => {
@@ -424,38 +430,25 @@ const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
         </div>
       </div>
 
-      {/* Confirmation Modal — plain title, body copy, then a pair of actions bottom
-          right: outlined secondary alongside a solid primary, both uppercase. No
-          warning icon and no note callout. */}
-      <Dialog open={showConfirmModal} onOpenChange={setShowConfirmModal}>
-        <DialogContent className="max-w-lg p-8 gap-0 rounded-lg">
-          <DialogHeader className="space-y-4">
-            <DialogTitle className="text-[24px] font-bold leading-[32px] text-[#1a1a1a] pr-8 text-left">
-              Unallocate this product?
-            </DialogTitle>
-            <DialogDescription className="text-[16px] leading-[24px] text-[#3f4448] text-left">
-              This removes <strong className="font-semibold">{product.name}</strong> from bin{' '}
-              <strong className="font-semibold">{location?.bin}</strong> entirely. You can reallocate it later if needed.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="flex justify-end gap-3 mt-10">
-            <Button
-              onClick={() => setShowConfirmModal(false)}
-              variant="outline"
-              className="h-[44px] px-6 rounded-[4px] border border-[#095192] bg-white text-[#095192] hover:bg-[#095192]/5 hover:text-[#095192] text-[15px] font-medium tracking-wide uppercase"
-            >
-              Keep Product
-            </Button>
-            <Button
-              onClick={handleConfirmUnallocate}
-              className="h-[44px] px-6 rounded-[4px] bg-[#095192] hover:bg-[#073e70] text-white text-[15px] font-medium tracking-wide uppercase"
-            >
-              Unallocate
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+      {/* The third confirmation, and the last one still writing its own dialog: a 24px bold title, 16px
+          body and uppercase 44px buttons, all set to match a mock. It now goes through `ConfirmDialog`
+          like the other two, so the app has one alert language rather than a house style per screen. */}
+      <ConfirmDialog
+        open={showConfirmModal}
+        onOpenChange={setShowConfirmModal}
+        title="Unallocate this product?"
+        dismissLabel="Keep Product"
+        onDismiss={() => setShowConfirmModal(false)}
+        confirmLabel="Unallocate"
+        onConfirm={handleConfirmUnallocate}
+        className="max-w-lg"
+      >
+        <ConfirmDialogText>
+          This removes <strong className="font-semibold text-[#1a1a1a]">{product.name}</strong> from bin{' '}
+          <strong className="font-semibold text-[#1a1a1a]">{location?.bin}</strong> entirely. You can
+          reallocate it later if needed.
+        </ConfirmDialogText>
+      </ConfirmDialog>
     </div>
   );
 };

@@ -244,10 +244,17 @@ The flow, and the rules that hold it together:
    product with stock cannot be unallocated, because that would strand physical units in a bin the
    system no longer believes in. Emptying it first is a move, not this.
 2. **It always confirms.** The dialog names the product and the bin — *"This removes ALIMTA 100 MG VIAL
-   from bin Bin 1B entirely. You can reallocate it later if needed."* — and offers `KEEP PRODUCT`
-   (outlined) against `UNALLOCATE` (the app's blue primary). Note the trigger is red and the
+   from bin Bin 1B entirely. You can reallocate it later if needed."* — and offers `Keep Product`
+   (outlined) against `Unallocate` (the app's blue primary). Note the trigger is red and the
    confirmation's commit is not: red marks the entrance to a destructive act, and by the dialog the
    operator has already been warned.
+
+   The dialog is not written here. Every alert and confirmation in the module renders one shared
+   component, `ConfirmDialog`, which fixes the language: a 20px semibold title, 14px `#4a5565` body,
+   and a right-aligned pair of 4px-radius actions — white outlined dismiss, blue primary commit. A
+   screen chooses the title, the copy and the two labels, never the styling. This page, the
+   zero-inventory banner's confirmation and the move pipeline's `Cancel this move?` had each written
+   their own until 2026-08-10 and had drifted apart on all three counts.
 3. **The escape hatch is stated, not implied.** "You can reallocate it later" is doing real work: it
    tells the operator this is reversible by reallocating, which is why the confirmation can be a single
    step rather than a typed confirmation.
@@ -642,10 +649,17 @@ The flow, and the rules that hold it together:
    product with stock cannot be unallocated, because that would strand physical units in a bin the
    system no longer believes in. Emptying it first is a move, not this.
 2. **It always confirms.** The dialog names the product and the bin — *"This removes ALIMTA 100 MG VIAL
-   from bin Bin 1B entirely. You can reallocate it later if needed."* — and offers `KEEP PRODUCT`
-   (outlined) against `UNALLOCATE` (the app's blue primary). Note the trigger is red and the
+   from bin Bin 1B entirely. You can reallocate it later if needed."* — and offers `Keep Product`
+   (outlined) against `Unallocate` (the app's blue primary). Note the trigger is red and the
    confirmation's commit is not: red marks the entrance to a destructive act, and by the dialog the
    operator has already been warned.
+
+   The dialog is not written here. Every alert and confirmation in the module renders one shared
+   component, `ConfirmDialog`, which fixes the language: a 20px semibold title, 14px `#4a5565` body,
+   and a right-aligned pair of 4px-radius actions — white outlined dismiss, blue primary commit. A
+   screen chooses the title, the copy and the two labels, never the styling. This page, the
+   zero-inventory banner's confirmation and the move pipeline's `Cancel this move?` had each written
+   their own until 2026-08-10 and had drifted apart on all three counts.
 3. **The escape hatch is stated, not implied.** "You can reallocate it later" is doing real work: it
    tells the operator this is reversible by reallocating, which is why the confirmation can be a single
    step rather than a typed confirmation.
@@ -721,7 +735,10 @@ workflow; inside one, the same row either selects that product or does nothing (
 <p>The flow, and the rules that hold it together:</p>
 <ol>
 <li><strong>The action only exists at 0 quantity.</strong> It is conditional on the quantity being exactly 0 — a product with stock cannot be unallocated, because that would strand physical units in a bin the system no longer believes in. Emptying it first is a move, not this.</li>
-<li><strong>It always confirms.</strong> The dialog names the product and the bin — <em>"This removes ALIMTA 100 MG VIAL from bin Bin 1B entirely. You can reallocate it later if needed."</em> — and offers <code>KEEP PRODUCT</code> (outlined) against <code>UNALLOCATE</code> (the app's blue primary). Note the trigger is red and the confirmation's commit is not: red marks the entrance to a destructive act, and by the dialog the operator has already been warned.</li>
+<li><strong>It always confirms.</strong> The dialog names the product and the bin — <em>"This removes ALIMTA 100 MG VIAL from bin Bin 1B entirely. You can reallocate it later if needed."</em> — and offers <code>Keep Product</code> (outlined) against <code>Unallocate</code> (the app's blue primary). Note the trigger is red and the confirmation's commit is not: red marks the entrance to a destructive act, and by the dialog the operator has already been warned.</li>
+</ol>
+<p>The dialog is not written here. Every alert and confirmation in the module renders one shared component, <code>ConfirmDialog</code>, which fixes the language: a 20px semibold title, 14px <code>#4a5565</code> body, and a right-aligned pair of 4px-radius actions — white outlined dismiss, blue primary commit. A screen chooses the title, the copy and the two labels, never the styling. This page, the zero-inventory banner's confirmation and the move pipeline's <code>Cancel this move?</code> had each written their own until 2026-08-10 and had drifted apart on all three counts.</p>
+<ol>
 <li><strong>The escape hatch is stated, not implied.</strong> "You can reallocate it later" is doing real work: it tells the operator this is reversible by reallocating, which is why the confirmation can be a single step rather than a typed confirmation.</li>
 <li><strong>On confirm:</strong> the row is removed from the bin, the bin's <code>available</code> flag is recomputed, a <code>Unallocated</code> entry is written to History with the bin it came from, a success toast is raised, and the page returns to the cabinet — the operator does not sit on a detail page for a product that no longer has a location.</li>
 <li><strong>The same act exists on one other surface.</strong> After a move empties a bin, the zero-inventory banner above the cabinet offers unallocation for the products it emptied. Same outcome, same confirmation pattern; that one is prompted, this one is sought out.</li>

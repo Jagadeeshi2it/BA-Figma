@@ -1,6 +1,5 @@
 import React from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "./ui/dialog";
-import { Button } from "./ui/button";
+import ConfirmDialog from "./ConfirmDialog";
 
 interface ProductToUnallocate {
   productId: string;
@@ -38,47 +37,37 @@ export default function UnallocateConfirmModal({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl" aria-describedby={undefined}>
-        <DialogHeader>
-          <DialogTitle className="text-xl">Unallocate Products?</DialogTitle>
-        </DialogHeader>
-
-        <div className="space-y-4 my-4">
-          <div className="rounded-lg p-4 max-h-[300px] overflow-y-auto bg-[#ffffff]">
-            {productsToUnallocate.map((product, index) => (
-              <div 
-                key={`${product.productId}-${product.binId}-${index}`}
-                className="py-3 border-b border-gray-200 last:border-b-0"
-              >
-                <p className="font-semibold text-gray-900 mb-2">{product.productName}</p>
-                <p className="text-sm text-gray-600">
-                  The product has 0 inventory qty do you want to unallocate it from the bin?
-                </p>
-                <p className="text-sm text-gray-500 mt-2">
-                  Bin: {product.binName} • {product.location}
-                </p>
-              </div>
-            ))}
+    <ConfirmDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Unallocate Products?"
+      dismissLabel="Keep Products"
+      onDismiss={handleCancel}
+      confirmLabel="Unallocate"
+      onConfirm={handleConfirm}
+      /* Wider than the plain confirmations because the body is a list that can run to several products,
+         each carrying a full product name and a bin location. */
+      className="max-w-2xl"
+    >
+      {/* No padding and no card of its own: the rows sit flush against the dialog's `p-6`, on the same
+          left edge as the title above them. A padded white box inside a white dialog read as a second
+          surface, and the scroll cap is the only thing that has to stay. */}
+      <div className="max-h-[300px] overflow-y-auto">
+        {productsToUnallocate.map((product, index) => (
+          <div
+            key={`${product.productId}-${product.binId}-${index}`}
+            className="py-3 first:pt-0 border-b border-gray-200 last:border-b-0 last:pb-0"
+          >
+            <p className="font-semibold text-gray-900 mb-2">{product.productName}</p>
+            <p className="text-[14px] leading-[20px] text-[#4a5565]">
+              The product has 0 inventory qty do you want to unallocate it from the bin?
+            </p>
+            <p className="text-[14px] leading-[20px] text-gray-500 mt-2">
+              Bin: {product.binName} • {product.location}
+            </p>
           </div>
-        </div>
-
-        <div className="flex justify-end gap-3 mt-6">
-          <Button
-            onClick={handleCancel}
-            variant="outline"
-            className="px-6"
-          >
-            Keep Products
-          </Button>
-          <Button
-            onClick={handleConfirm}
-            className="bg-[#095192] hover:bg-[#074080] text-white px-6"
-          >
-            Unallocate
-          </Button>
-        </div>
-      </DialogContent>
-    </Dialog>
+        ))}
+      </div>
+    </ConfirmDialog>
   );
 }

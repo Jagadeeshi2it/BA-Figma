@@ -1272,6 +1272,17 @@ been violations of it.
 - **A move stage does not write its own footer.** Compose `PipelineFooter`'s parts (§2) so a stage
   chooses *what* to report, never how it looks. The step count comes from `TOTAL_PIPELINE_STEPS`, so
   it cannot disagree with the step vocabulary it describes.
+- **A confirmation does not write its own dialog.** All three render `ConfirmDialog` — the Unallocate
+  prompt behind `ZeroInventoryBanner`, the pipeline's `Cancel this move?`, and the Product Detail page's
+  `Unallocate this product?`. It fixes the language (20px semibold title, 14px `#4a5565` body, footer
+  right-aligned `gap-3 mt-6`, white outlined dismiss beside the blue primary, both `rounded-[4px]`); a
+  caller supplies a title, a body and two labels. They were three hand-written dialogs until 2026-08-10
+  and had drifted on every one of those: two spacing steps apart, one red primary, and one at 24px bold
+  with uppercase 44px buttons. **The body slot carries no padding of its own** — content sits flush
+  against the dialog's `p-6`, so a paragraph and a scrolling product list share one left edge; the
+  padded white box inside the white dialog read as a second surface. `tone="destructive"` exists for a
+  confirm that actually destroys data, and nothing currently passes it: discarding an uncommitted
+  selection is not destruction, which is the rule `Cancel`/`Back` already follow above.
 - Toasts are top-right (`MainLayout`'s `Toaster position="top-right"` inside a `fixed top-0 right-0
   z-100` wrapper) — the bottom is the footer's, and `z-100` is above the `z-70` side panels so a toast
   fired while one is open is not hidden behind it.
