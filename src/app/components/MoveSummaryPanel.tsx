@@ -474,9 +474,14 @@ export default function MoveSummaryPanel({
         <span className="flex-1 min-w-0 text-right">
           {targetBinLabel(row)}
           {(targetText || movedBadge) && (
+            /* Badge BEFORE the figure on this side, which is the opposite order to the source column and
+               deliberate: the column is right-aligned, so whatever comes last owns the right edge. With
+               the badge last, a bin carrying one had its figure pushed inward and the numbers down the
+               column stopped lining up — `2 vials Moved` above a bare `48 vials`. The figure is the thing
+               being read down the column, so it is the thing anchored to the edge. */
             <span className="flex items-center justify-end gap-1.5 flex-wrap">
-              {targetText && <span className="font-medium text-[#020817]">{targetText}</span>}
               {movedBadge && doneBadge(movedBadge)}
+              {targetText && <span className="font-medium text-[#020817]">{targetText}</span>}
             </span>
           )}
         </span>
@@ -541,9 +546,11 @@ export default function MoveSummaryPanel({
             <div key={`col-target-${row.key}`}>
               {targetBinLabel(row)}
               {(targetText || movedBadge) && (
+                // Badge first, figure last — see renderPairingRow: last owns the right edge, and the
+                // figures are what read down the column.
                 <span className="flex items-center justify-end gap-1.5 flex-wrap">
-                  {targetText && <span className="font-medium text-[#020817]">{targetText}</span>}
                   {movedBadge && doneBadge(movedBadge)}
+                  {targetText && <span className="font-medium text-[#020817]">{targetText}</span>}
                 </span>
               )}
             </div>

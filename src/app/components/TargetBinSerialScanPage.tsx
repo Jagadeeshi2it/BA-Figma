@@ -594,19 +594,30 @@ export default function TargetBinSerialScanPage({
 
   /**
    * Label mirrors what saving actually does next: another target bin for this product, the next product
-   * in the queue, or wrapping up the whole move — or, if this bin has nothing in it, that it is being
-   * passed over. `Skip This Bin` borrows the quantity screen's own word for the same act.
-   *
-   * The final step keeps `Save & Finish` even on an empty bin: getting there means the remainder is 0,
-   * so everything is placed and there is nothing to skip.
+   * in the queue, or wrapping up the whole move. It says nothing about skipping — that is a different
+   * act with a button of its own (`showSkipBin` below), rather than the same button changing meaning
+   * depending on whether the bin happens to be empty.
    */
   const saveButtonLabel = isFinalSaveStep
     ? 'Save & Finish'
-    : currentBinIsEmpty
-      ? 'Skip This Bin'
-      : currentProduct && currentTargetBinIndex < currentProduct.targetBins.length - 1
-        ? 'Save & Next Bin'
-        : 'Save & Next Product';
+    : currentProduct && currentTargetBinIndex < currentProduct.targetBins.length - 1
+      ? 'Save & Next Bin'
+      : 'Save & Next Product';
+
+  /**
+   * Passing over a bin without putting anything in it — its own control, beside Cancel, in the same slot
+   * and the same secondary weight as the quantity screen's `Skip Product`.
+   *
+   * Two acts, two buttons. Saving an empty bin and skipping it reach the same next screen, which is why
+   * one button briefly did both jobs by renaming itself; but they are not the same statement, and a
+   * primary that silently becomes a skip is how a bin gets passed over by an operator who thought they
+   * were saving. With the skip separate, the primary can go back to meaning exactly one thing and being
+   * unavailable when there is nothing to save.
+   *
+   * Not offered on the final step: getting there means the remainder is 0, so everything is already
+   * placed and there is nothing left to skip past.
+   */
+  const showSkipBin = currentBinIsEmpty && !isFinalSaveStep;
 
   // Unlock the door this target bin is behind, locking whatever was open. Silent when the door is
   // already the open one — see the matching effect on the quantity screen.
@@ -1146,12 +1157,17 @@ export default function TargetBinSerialScanPage({
       currentTargetBinIndex === currentProduct.targetBins.length - 1 &&
       currentProductIndex === productGroups.length - 1;
 
-    // Only the final bin carries a requirement: everything taken out of the source has to have been
-    // placed somewhere. Individual bins have no minimum of their own — the operator decides each
-    // bin's share by scanning into it, and "all of it in the first bin, none in the second" is a
-    // legitimate outcome of that. Both branches used to demand qtyMoved > 0 for the bin on screen,
-    // which made exactly that choice unfinishable: the emptied last bin could never be saved.
-    return isLastTargetBin ? remainingQtyToMove === 0 : true;
+    // The final bin carries the batch's requirement: everything taken out of the source has to have
+    // been placed somewhere.
+    if (isLastTargetBin) return remainingQtyToMove === 0;
+
+    // Elsewhere, the only thing that blocks saving is having nothing to save. Leaving a bin empty is
+    // still allowed — "all of it in the first bin, none in the second" is a legitimate outcome — but it
+    // goes through `Skip This Bin`, which says so. Saving is for a bin that received something.
+    //
+    // Note this is NOT the old "demand qtyMoved > 0 everywhere", which made the emptied last bin
+    // unfinishable: the last bin returns above, on the remainder, before ever reaching this line.
+    return !currentBinIsEmpty;
   })();
 
   /**
@@ -1193,6 +1209,11 @@ export default function TargetBinSerialScanPage({
    * `canAddTargetBin` because a `const` is not hoisted (CLAUDE.md §4) — it threw from up there.
    */
   const cannotSaveReason = (() => {
+    // Two different blocks, and they need different sentences. An empty bin is blocked on this bin
+    // having received nothing; the final bin is blocked on the batch still having stock unplaced.
+    if (showSkipBin) {
+      return 'Nothing has been placed in this bin yet. Add what goes here, or use Skip This Bin to pass it over.';
+    }
     const amount = `${remainingQtyToMove} ${pluralizeUnit(currentProduct.unit || 'vial', remainingQtyToMove)}`;
     return canAddTargetBin
       ? `${amount} still to place. Put them in this bin, or use Add Move To Bin for whatever will not fit.`
@@ -1488,10 +1509,8 @@ export default function TargetBinSerialScanPage({
                 toast.custom(() => <ValidationToast message={CANNOT_CANCEL_REASON} />, { duration: 6000 })
               }
             />
-            {/* The way out of the one state this screen could not finish: the bin in front of the
-                operator has no room left for stock that has already left its source. Only offered
-                where it is the answer — on this product's last bin, with somewhere left to put the
-                rest — since anywhere else the next bin in the walk already is the answer. */}
+            {/* The way out of the state this screen could not finish: the bin in front of the operator
+                has no room left for stock that has already left its source. */}
             {canAddTargetBin && (
               <FooterButton
                 label="Add Move To Bin"
@@ -1499,6 +1518,17 @@ export default function TargetBinSerialScanPage({
                 onClick={() => setAddBinOpen(true)}
                 leadingIcon={<PackagePlus className="w-4 h-4" />}
                 demoId="pipeline-add-target-bin"
+              />
+            )}
+            {/* Passing over a bin is its own act, so it gets its own button rather than the primary
+                renaming itself — same slot and weight as the quantity screen's Skip Product. Only while
+                the bin is empty: once something is in it, saving is what happens next. */}
+            {showSkipBin && (
+              <FooterButton
+                label="Skip This Bin"
+                variant="secondary"
+                onClick={handleSave}
+                demoId="pipeline-skip-bin"
               />
             )}
             <FooterButton
