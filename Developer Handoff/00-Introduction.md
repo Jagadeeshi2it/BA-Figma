@@ -76,7 +76,74 @@ with serial, lot, expiry and restock date.
 
 From here the operator can search the item table by serial, lot, expiry or restock date, and return with
 **Back to all products**, which comes back to the cabinet exactly as they left it. Each item row also
-offers `Print QR`, which is **not wired up** in the prototype — the button renders and does nothing. One conditional control: when the product's quantity is **0**, an `Unallocate` action
+offers `Print QR`, which is **not wired up** in the prototype — the button renders and does nothing.
+
+### Zero inventory — a product allocated but not stocked
+
+![The detail page for a product at 0 quantity](screenshots/introduction/06-zero-inventory.png)
+
+A product can hold a bin while holding no stock, and this is a **normal state, not an error**. It
+arises two ways, both of them ordinary:
+
+- **Multi Bin Assignment opens a new location at `quantity: 0` by design** — the allocation is the act;
+  stock arrives later by moving it in.
+- **A move empties the source** — every unit was taken out, and the allocation stayed behind.
+
+The page changes in three ways and no others:
+
+| | At 0 quantity |
+|---|---|
+| Header total | `0 vials / 0 mg` |
+| Items table | `Items in Cabinet (0 items)`, with one row of copy in place of bare column headers: *"No items in stock. This product is allocated to the bin but has no inventory yet."* |
+| Footer | A second, red-outlined action appears beside Back: **`UNALLOCATE FROM BIN`** |
+
+Everything else still reads normally — the drug's identity, its badges, and the door and bin it occupies
+— because the allocation is real. The bin also still counts as **occupied**: it is not "available" and
+not included in `Bins Available(n)`, which is the distinction that whole feature turns on
+([01-Bins-Available.md](01-Bins-Available.md) §3.2). A developer implementing that count from "bins with
+zero stock" would produce a different, wrong number.
+
+### The Unallocate action
+
+![The unallocate confirmation](screenshots/introduction/07-unallocate-confirm.png)
+
+`UNALLOCATE FROM BIN` releases the bin: the product's row is removed, and the bin becomes available if
+that was the last row in it. It is **the only inventory change reachable from this page**, and the only
+way to undo an allocation anywhere in the module.
+
+The flow, and the rules that hold it together:
+
+1. **The action only exists at 0 quantity.** It is conditional on the quantity being exactly 0 — a
+   product with stock cannot be unallocated, because that would strand physical units in a bin the
+   system no longer believes in. Emptying it first is a move, not this.
+2. **It always confirms.** The dialog names the product and the bin — *"This removes ALIMTA 100 MG VIAL
+   from bin Bin 1B entirely. You can reallocate it later if needed."* — and offers `KEEP PRODUCT`
+   (outlined) against `UNALLOCATE` (the app's blue primary). Note the trigger is red and the
+   confirmation's commit is not: red marks the entrance to a destructive act, and by the dialog the
+   operator has already been warned.
+3. **The escape hatch is stated, not implied.** "You can reallocate it later" is doing real work: it
+   tells the operator this is reversible by reallocating, which is why the confirmation can be a single
+   step rather than a typed confirmation.
+4. **On confirm:** the row is removed from the bin, the bin's `available` flag is recomputed, a
+   `Unallocated` entry is written to History with the bin it came from, a success toast is raised, and
+   the page returns to the cabinet — the operator does not sit on a detail page for a product that no
+   longer has a location.
+5. **The same act exists on one other surface.** After a move empties a bin, the zero-inventory banner
+   above the cabinet offers unallocation for the products it emptied. Same outcome, same confirmation
+   pattern; that one is prompted, this one is sought out.
+
+Three edge cases worth deciding deliberately rather than inheriting:
+
+- **The product does not return to an unallocated tray.** The tray is seeded once, from catalogue
+  products that hold no bin, and unallocating does not add to it. So the product becomes reachable only
+  by searching the catalogue in Multi Bin Assignment. Whether unallocating should return it to the tray
+  is an open product question, not a settled behaviour.
+- **A product in several bins is unallocated from one bin only.** The action is scoped to the bin the
+  page was opened from — which is right, but means "unallocate this product" reads more broadly than it
+  acts, and a product at 0 in three bins needs the flow three times.
+- **The return to the cabinet is on a timer.** The prototype waits 100ms after the state update before
+  navigating back. It works, and it is the kind of thing that should be driven by state rather than a
+  delay in a real build. One conditional control: when the product's quantity is **0**, an `Unallocate` action
 appears, which releases the bin — the only inventory change reachable from this page, and the same act
 the zero-inventory banner offers after a move empties a bin. A product row is only a link **outside** a
 workflow; inside one, the same row either selects that product or does nothing (§2).

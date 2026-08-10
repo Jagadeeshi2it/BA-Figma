@@ -30,9 +30,10 @@ which renders CLAUDE.md, DEMO.md and UX-AUDIT.md.
 | `01-default-state.png` | The page as it stands before the feature is used. |
 | `02-interaction-state.png` | The same page after the operator acts on it — same door, same scroll position, so the only difference visible is the feature's own. |
 
-The introduction carries five, because it covers several surfaces rather than one feature's two states:
+The introduction carries seven, because it covers several surfaces rather than one feature's two states:
 the cabinet browse, the search dropdown, the two different things a search can highlight — a bin, or a
-product wherever it lives — and a product's detail page.
+product wherever it lives — a product's detail page, and the two states of that page a happy path never
+reaches: zero inventory, and the unallocate confirmation.
 
 They exist for **visual context only**. Every behaviour, edge case, colour value and interaction rule
 belongs in the notes, not in a screenshot — a doc that documents through images needs a new image
