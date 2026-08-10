@@ -38,7 +38,12 @@ interface ProductDetailPageProps {
     bin: string;
     shelf: string;
   };
-  doorShelfConfig?: any; // Add doorShelfConfig to determine E-Kit status
+  doorShelfConfig?: any;
+  // The station and the access level, for the top bar this page renders itself. Without them it drew a
+  // station-level bar over a clinic-level session — same bug History had.
+  currentStation?: string;
+  onStationClick?: () => void;
+  isClinicLevel?: boolean;
   onBack: () => void;
   onUnallocate?: (productId: string, binId: string) => void;
 }
@@ -183,7 +188,12 @@ const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
       <div className="flex-1 min-w-0 flex flex-col">
         {/* Top Header */}
         <div className="h-[50px]">
-          <TopNav onLogout={handleLogout} />
+          <TopNav
+            currentStation={currentStation}
+            onStationClick={onStationClick}
+            isClinicLevel={isClinicLevel}
+            onLogout={handleLogout}
+          />
         </div>
 
         {/* Main Content Area */}

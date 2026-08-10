@@ -60,7 +60,7 @@ export default function StationSelectionModal({
         {/* The app's own vocabulary rather than the primitives' defaults: 4px corners like every card
             and bin in the app, and #095192 for the picked row — it was the shadcn default, which is
             near-black and reads as a different product's selected state. */}
-        <div className="space-y-2 py-4">
+        <div className="space-y-2">
           {stations.map((station) => {
             const isPicked = tempSelectedStation === station;
             return (

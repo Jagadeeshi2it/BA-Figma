@@ -741,6 +741,9 @@ export default function App() {
           product={selectedProduct}
           location={productLocation}
           doorShelfConfig={inventoryState.doorShelfConfig}
+          currentStation={currentStation}
+          onStationClick={() => setShowStationModal(true)}
+          isClinicLevel={accessLevel === 'clinic'}
           onBack={handleProductDetailBack}
           onUnallocate={(productId, binId) => {
             console.log('🔧 App.tsx: Unallocating product', productId, 'from bin', binId);

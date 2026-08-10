@@ -329,8 +329,20 @@ table's serial, lot, expiry and restock values are **generated at render time** 
 quantity, with a random mg figure), and the header's total reads `quantity × 100 mg` regardless of the
 drug's real strength.
 
-Also inert: the left navigation rail and the top bar's practice/clinic switchers are visual only. The
-rail's Inventory entry opens a small menu of views, which sets local state and changes nothing.
+**The left navigation rail is mostly inert, but not entirely** — and the exception is the kind of thing
+that looks like a bug when you find it by clicking:
+
+| Rail item | What it does |
+|---|---|
+| `Resource` | **Toggles the "Cabinet — Live Physical View" picture-in-picture panel.** Its only hint is a `title` tooltip; pressing it turns the icon orange and otherwise shows nothing, because the panel renders only inside step ④ of a move (the take and place screens), where it draws the door opening and the bin being worked on. A demo aid that predates the rest of this work. |
+| `Inventory` | Opens a small menu of views. Sets local state; changes nothing. |
+| Everything else | Visual only. |
+
+In the top bar, `Onco Demo` (the practice) is visual only. **`Onco Clinic Center` is a real control**: it
+switches the operator from station level to clinic level, where the two Move workflows are withheld
+because there is no cabinet within reach, and the station being worked on becomes a choice named beside
+the page title. Refreshing returns to station level. That feature has its own document pending; what
+matters here is that the label is a switch rather than a caption.
 
 ---
 

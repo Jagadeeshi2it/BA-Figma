@@ -455,8 +455,20 @@ table's serial, lot, expiry and restock values are **generated at render time** 
 quantity, with a random mg figure), and the header's total reads `quantity × 100 mg` regardless of the
 drug's real strength.
 
-Also inert: the left navigation rail and the top bar's practice/clinic switchers are visual only. The
-rail's Inventory entry opens a small menu of views, which sets local state and changes nothing.
+**The left navigation rail is mostly inert, but not entirely** — and the exception is the kind of thing
+that looks like a bug when you find it by clicking:
+
+| Rail item | What it does |
+|---|---|
+| `Resource` | **Toggles the "Cabinet — Live Physical View" picture-in-picture panel.** Its only hint is a `title` tooltip; pressing it turns the icon orange and otherwise shows nothing, because the panel renders only inside step ④ of a move (the take and place screens), where it draws the door opening and the bin being worked on. A demo aid that predates the rest of this work. |
+| `Inventory` | Opens a small menu of views. Sets local state; changes nothing. |
+| Everything else | Visual only. |
+
+In the top bar, `Onco Demo` (the practice) is visual only. **`Onco Clinic Center` is a real control**: it
+switches the operator from station level to clinic level, where the two Move workflows are withheld
+because there is no cabinet within reach, and the station being worked on becomes a choice named beside
+the page title. Refreshing returns to station level. That feature has its own document pending; what
+matters here is that the label is a switch rather than a caption.
 
 ---
 
@@ -1076,7 +1088,25 @@ workflow; inside one, the same row either selects that product or does nothing (
 </tbody></table></div>
 <p>Taken together: <strong>within the scope of this phase there are no domain constraints on what may go where.</strong> Any product can be allocated to any bin in either cabinet or any fridge, and the module will accept it without objection. Validation of that kind is outstanding work, not a rule waiting to be found in the code — so a real build has to decide which constraints exist before it can enforce any.</p>
 <p>Two more pieces of the detail page are placeholder and must not be implemented as behaviour: the item table's serial, lot, expiry and restock values are <strong>generated at render time</strong> (one row per unit of quantity, with a random mg figure), and the header's total reads <code>quantity × 100 mg</code> regardless of the drug's real strength.</p>
-<p>Also inert: the left navigation rail and the top bar's practice/clinic switchers are visual only. The rail's Inventory entry opens a small menu of views, which sets local state and changes nothing.</p>
+<p><strong>The left navigation rail is mostly inert, but not entirely</strong> — and the exception is the kind of thing that looks like a bug when you find it by clicking:</p>
+<div class="table-scroll"><table><thead><tr>
+<th>Rail item</th>
+<th>What it does</th>
+</tr></thead><tbody>
+<tr>
+<td><code>Resource</code></td>
+<td><strong>Toggles the "Cabinet — Live Physical View" picture-in-picture panel.</strong> Its only hint is a <code>title</code> tooltip; pressing it turns the icon orange and otherwise shows nothing, because the panel renders only inside step ④ of a move (the take and place screens), where it draws the door opening and the bin being worked on. A demo aid that predates the rest of this work.</td>
+</tr>
+<tr>
+<td><code>Inventory</code></td>
+<td>Opens a small menu of views. Sets local state; changes nothing.</td>
+</tr>
+<tr>
+<td>Everything else</td>
+<td>Visual only.</td>
+</tr>
+</tbody></table></div>
+<p>In the top bar, <code>Onco Demo</code> (the practice) is visual only. <strong><code>Onco Clinic Center</code> is a real control</strong>: it switches the operator from station level to clinic level, where the two Move workflows are withheld because there is no cabinet within reach, and the station being worked on becomes a choice named beside the page title. Refreshing returns to station level. That feature has its own document pending; what matters here is that the label is a switch rather than a caption.</p>
 <hr />
   
 </section>

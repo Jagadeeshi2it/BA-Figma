@@ -217,10 +217,14 @@ function Frame1410084048({
         data-name="Horizonal Rule 1"
       />
       <Frame1410084044 isClinicLevel={isClinicLevel} onClick={onClinicClick} />
-      <div
-        className="bg-[#e0e0e0] h-10 opacity-80 shrink-0 w-[0.988px]"
-        data-name="Horizontal Rule 2"
-      />
+      {/* The divider goes with the station chip it used to separate. A rule with nothing after it reads
+          as a missing item rather than as a boundary. */}
+      {!isClinicLevel && (
+        <div
+          className="bg-[#e0e0e0] h-10 opacity-80 shrink-0 w-[0.988px]"
+          data-name="Horizontal Rule 2"
+        />
+      )}
       {/* Withheld at clinic level: the station is named beside the page title there, where it is a
           choice rather than a fixed fact, and two copies of one name invite wondering whether they can
           disagree. At station level this bar is the only place it appears. */}

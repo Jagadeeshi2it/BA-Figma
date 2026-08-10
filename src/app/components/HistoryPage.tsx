@@ -350,7 +350,15 @@ export default function HistoryPage({
       <Sidebar />
       <div className="flex-1 min-w-0 flex flex-col">
         <div className="h-[50px]">
-          <TopNav currentStation={currentStation} onStationClick={onStationClick} onLogout={onLogout} />
+          {/* isClinicLevel goes through, or the top bar reverts to its station-level shape the moment
+              the operator opens History: the station chip reappears beside a divider, which reads as
+              having been dropped back to station level by looking at a ledger. */}
+          <TopNav
+            currentStation={currentStation}
+            onStationClick={onStationClick}
+            isClinicLevel={isClinicLevel}
+            onLogout={onLogout}
+          />
         </div>
 
         <div className="flex-1 overflow-y-auto bg-[#f9fafb]">
