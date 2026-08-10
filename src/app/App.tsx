@@ -19,6 +19,8 @@ import AllocateProductsPanel from "./components/AllocateProductsPanel";
 import CancelMoveConfirmModal from "./components/CancelMoveConfirmModal";
 import ZeroInventoryBanner from "./components/ZeroInventoryBanner";
 import { useDebounce } from "./hooks/useDebounce";
+import { toast } from "sonner@2.0.3";
+import { ValidationToast } from "./components/ui/sonner-1";
 
 import { useInventoryState } from "./hooks/useInventoryState";
 import { useCabinetAccess } from "./hooks/useCabinetAccess";
@@ -51,6 +53,19 @@ export default function App() {
   // Station selection state
   const [currentStation, setCurrentStation] = useState("Onco Station");
   const [showStationModal, setShowStationModal] = useState(false);
+
+  /**
+   * Where the operator is working from, which decides what they may do.
+   *
+   * `station` — standing in front of a cabinet. Everything is available, including the two Move flows,
+   * because moving stock means opening doors and putting vials in bins.
+   * `clinic` — somewhere else in the building, with no cabinet in reach. Allocation only: assigning a
+   * product to a bin is a decision about where stock SHOULD live, which needs no hands on the hardware.
+   *
+   * Deliberately not persisted, so a reload returns to station level. That is the whole reset mechanism
+   * the demo needs and it comes free from the app holding all its state in memory (CLAUDE.md §4).
+   */
+  const [accessLevel, setAccessLevel] = useState<'station' | 'clinic'>('station');
 
   // Bin to scroll into view after a search-dropdown selection switches doors — set and
   // cleared in the same effect pass, once the target door's bins have actually rendered.
@@ -265,6 +280,47 @@ export default function App() {
   const handleStationSelect = useCallback((station: string) => {
     setCurrentStation(station);
   }, []);
+
+  /**
+   * Is any workflow mid-flight? Every surface that holds an uncommitted selection, in one place —
+   * the two allocation panels, the four move stages (steps ①–② live in changeAllocationMode, Review is
+   * its own flag, and step ④'s two screens are the quantity and serial pages).
+   *
+   * A new workflow must be added here, or switching level will strand it: its entry points disappear
+   * while its state survives.
+   */
+  const workflowInProgress =
+    inventoryState.changeAllocationMode ||
+    inventoryState.showChangeAllocationModal ||
+    inventoryState.showUnallocatedProducts ||
+    inventoryState.showAllocateProducts ||
+    showQuantityModal ||
+    showTargetBinScanPage;
+
+  /**
+   * Switch to clinic level.
+   *
+   * Refused while a workflow is open rather than closing it: an operator halfway through a move has a
+   * selection the app cannot rebuild, and discarding it as a side effect of tapping the clinic name
+   * would be a destructive act nobody asked for. It says so instead of doing nothing — a control that
+   * silently declines is indistinguishable from a broken one, the same reasoning as the pipeline's
+   * refused bin taps.
+   *
+   * One-way by design: refreshing is the way back to station level, which is what the demo asks for.
+   */
+  const handleClinicClick = useCallback(() => {
+    if (accessLevel === 'clinic') return;
+    if (workflowInProgress) {
+      toast.custom(
+        () => React.createElement(ValidationToast, {
+          message: 'Finish or cancel what you are working on before switching to clinic level.'
+        }),
+        { id: 'access-level-blocked', duration: 4000 }
+      );
+      return;
+    }
+    setAccessLevel('clinic');
+  }, [accessLevel, workflowInProgress]);
 
   const handleLogout = useCallback(() => {
     // Handle logout functionality here
@@ -750,6 +806,8 @@ export default function App() {
           unallocatedProducts={inventoryState.unallocatedProducts} // CRITICAL FIX: Pass unallocated products
           currentStation={currentStation}
           onStationClick={() => setShowStationModal(true)}
+          isClinicLevel={accessLevel === 'clinic'}
+          onClinicClick={handleClinicClick}
           onLogout={handleLogout}
           closeBinInventory={inventoryState.closeBinInventory}
           closeUnallocatedProducts={inventoryState.closeUnallocatedProducts}
@@ -760,6 +818,9 @@ export default function App() {
           handleConfirmAssignment={inventoryState.handleConfirmAssignment}
           topBar={
             <HeaderSection
+              isClinicLevel={accessLevel === 'clinic'}
+              currentStation={currentStation}
+              onStationClick={() => setShowStationModal(true)}
               searchQuery={inventoryState.searchQuery}
               highlightAvailableBins={inventoryState.highlightAvailableBins}
               allAvailableBins={allAvailableBins}

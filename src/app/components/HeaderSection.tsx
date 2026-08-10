@@ -12,6 +12,14 @@ import { DoorShelfConfig } from '../types';
 const MIN_SEARCH_LENGTH = 3;
 
 interface HeaderSectionProps {
+  /**
+   * Clinic level: no cabinet in reach, so the two Move entries are withheld and the station being
+   * worked on becomes a choice worth naming beside the title. Defaults to station level, so every
+   * caller that does not pass it keeps the behaviour it had.
+   */
+  isClinicLevel?: boolean;
+  currentStation?: string;
+  onStationClick?: () => void;
   searchQuery: string;
   highlightAvailableBins: boolean;
   allAvailableBins: number;
@@ -84,6 +92,9 @@ function WorkflowOption({
 }
 
 const HeaderSection = memo(function HeaderSection({
+  isClinicLevel = false,
+  currentStation,
+  onStationClick,
   searchQuery,
   highlightAvailableBins,
   allAvailableBins,
@@ -273,7 +284,31 @@ const HeaderSection = memo(function HeaderSection({
           it. Grouping it with them means the row's right edge is where the controls are, whichever of
           them are on screen. */}
       <div className="bg-white px-6 py-3 border-b border-gray-200 flex items-center justify-between gap-4">
-        <h1 className="text-2xl font-normal text-[24px]">Allocation</h1>
+        <div className="flex items-baseline gap-3 min-w-0">
+          <h1 className="text-2xl font-normal text-[24px]">Allocation</h1>
+
+          {/* Which station is being worked on — clinic level only.
+
+              At station level the operator is standing in front of one cabinet and the top bar already
+              names it; a second copy would restate the one thing that cannot change. At clinic level the
+              station is a CHOICE, because a clinic holds several, so it belongs next to the page title
+              where the thing being looked at is named.
+
+              It opens the same station modal the top bar's chip does — one list, one handler, so the two
+              cannot come to disagree about which station is current. */}
+          {isClinicLevel && (
+            <button
+              type="button"
+              data-demo="station-switcher"
+              onClick={onStationClick}
+              aria-label={`Current station: ${currentStation ?? 'Onco Station'}. Choose a different station.`}
+              className="flex items-center gap-1 text-[14px] leading-[20px] text-[#095192] hover:underline underline-offset-4 cursor-pointer whitespace-nowrap"
+            >
+              {currentStation ?? 'Onco Station'}
+              <ChevronDown className="w-4 h-4 shrink-0" />
+            </button>
+          )}
+        </div>
 
         <div className="flex items-center gap-2 h-full">
         {/* Always visible search bar with dropdown. First in the group: it is the one control that is
@@ -401,7 +436,11 @@ const HeaderSection = memo(function HeaderSection({
                     data-demo="workflow-trigger"
                     className="flex items-center gap-2 h-9 px-3 rounded-[4px] bg-[#095192] text-white text-[14px] leading-[20px] whitespace-nowrap cursor-pointer transition-colors hover:bg-[#074080]"
                   >
-                    Allocate/Move
+                    {/* Named for what the menu actually offers. At clinic level the two Move entries are
+                        withheld, so a trigger still promising "Move" would name a job the panel below it
+                        does not contain — the same rule the rest of the app follows, that a control says
+                        what it does. */}
+                    {isClinicLevel ? 'Allocate' : 'Allocate/Move'}
                     {/* Points up while the menu is open — the chevron says which way the panel will
                         go, so leaving it down while the panel is already down states the one thing
                         that is no longer true. Read from workflowMenuOpen, which is what the Popover
@@ -461,29 +500,38 @@ const HeaderSection = memo(function HeaderSection({
                       handleAllocateProductsClick();
                     }}
                   />
-                  <WorkflowOption
-                    title="Move from Bin"
-                    demoId="workflow-move-from-bin"
-                    // "one or more products" is the correction that matters: picking a bin does not commit
-                    // its whole contents — Review still asks which of its products are leaving. The old
-                    // "Tap whole bins on the shelves" promised something the flow then walks back.
-                    description="Move one or more products starting from a bin."
-                    onSelect={() => {
-                      setWorkflowMenuOpen(false);
-                      handleMoveBinClick?.();
-                    }}
-                  />
-                  <WorkflowOption
-                    title="Move from Product"
-                    demoId="workflow-move-from-product"
-                    // Deliberately the same sentence as the entry above bar its last word. The two flows
-                    // reach the same place, so the copy differs by exactly what differs: where you start.
-                    description="Move one or more products starting from a product."
-                    onSelect={() => {
-                      setWorkflowMenuOpen(false);
-                      handleMoveProductClick?.();
-                    }}
-                  />
+                  {/* Withheld at clinic level, rather than shown disabled. Moving stock is a physical act
+                      — open a door, take vials out of one bin, put them in another — so away from the
+                      cabinet it is not a job the operator could start and finish, and a greyed row would
+                      invite asking why. Allocation survives the distance because it decides where stock
+                      SHOULD live, which needs no hands on the hardware. */}
+                  {!isClinicLevel && (
+                    <>
+                      <WorkflowOption
+                        title="Move from Bin"
+                        demoId="workflow-move-from-bin"
+                        // "one or more products" is the correction that matters: picking a bin does not commit
+                        // its whole contents — Review still asks which of its products are leaving. The old
+                        // "Tap whole bins on the shelves" promised something the flow then walks back.
+                        description="Move one or more products starting from a bin."
+                        onSelect={() => {
+                          setWorkflowMenuOpen(false);
+                          handleMoveBinClick?.();
+                        }}
+                      />
+                      <WorkflowOption
+                        title="Move from Product"
+                        demoId="workflow-move-from-product"
+                        // Deliberately the same sentence as the entry above bar its last word. The two flows
+                        // reach the same place, so the copy differs by exactly what differs: where you start.
+                        description="Move one or more products starting from a product."
+                        onSelect={() => {
+                          setWorkflowMenuOpen(false);
+                          handleMoveProductClick?.();
+                        }}
+                      />
+                    </>
+                  )}
                 </PopoverContent>
               </Popover>
               {/* The Unallocated Products button stood here, revealed by pressing "/". The workflow menu's

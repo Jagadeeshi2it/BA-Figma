@@ -120,12 +120,27 @@ function MapMarker1() {
   );
 }
 
-function Frame1410084044() {
+/**
+ * The clinic. Tapping it switches the operator to clinic level, where there is no cabinet in reach and
+ * so no Move — see App's accessLevel. It was a static label until 2026-08-10, which is why making it a
+ * control could not affect anything that already worked.
+ *
+ * Underlined while active, not just recoloured: everything in this bar is already #095192, so colour
+ * alone says nothing here.
+ */
+function Frame1410084044({ isClinicLevel, onClick }: { isClinicLevel?: boolean; onClick?: () => void }) {
   return (
-    <div className="box-border content-stretch flex flex-row gap-2 items-center justify-start p-0 relative shrink-0">
+    <div
+      className={`box-border content-stretch flex flex-row gap-2 items-center justify-start p-0 relative shrink-0 ${
+        onClick ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''
+      }`}
+      onClick={onClick}
+      role={onClick ? 'button' : undefined}
+      aria-pressed={onClick ? !!isClinicLevel : undefined}
+    >
       <MapMarker1 />
       <div className="flex flex-col font-['Inter:Medium',_sans-serif] font-medium justify-end leading-[0] not-italic relative shrink-0 text-[#095192] text-[14px] text-left">
-        <p className="block leading-[18px] text-[14px]">
+        <p className={`block leading-[18px] text-[14px] ${isClinicLevel ? 'underline underline-offset-4' : ''}`}>
           Onco Clinic Center
         </p>
       </div>
@@ -181,7 +196,17 @@ function Frame1410084045({ currentStation, onClick }: { currentStation?: string;
   );
 }
 
-function Frame1410084048({ currentStation, onStationClick }: { currentStation?: string; onStationClick?: () => void }) {
+function Frame1410084048({
+  currentStation,
+  onStationClick,
+  isClinicLevel,
+  onClinicClick
+}: {
+  currentStation?: string;
+  onStationClick?: () => void;
+  isClinicLevel?: boolean;
+  onClinicClick?: () => void;
+}) {
   return (
     <div className="box-border content-stretch flex flex-row gap-4 items-center justify-start p-0 relative shrink-0">
       <Frame1410084043 />
@@ -189,7 +214,7 @@ function Frame1410084048({ currentStation, onStationClick }: { currentStation?: 
         className="bg-[#e0e0e0] h-10 opacity-80 shrink-0 w-[0.988px]"
         data-name="Horizonal Rule 1"
       />
-      <Frame1410084044 />
+      <Frame1410084044 isClinicLevel={isClinicLevel} onClick={onClinicClick} />
       <div
         className="bg-[#e0e0e0] h-10 opacity-80 shrink-0 w-[0.988px]"
         data-name="Horizontal Rule 2"
@@ -257,21 +282,30 @@ function Frame1410084047({ onLogout }: { onLogout?: () => void }) {
   );
 }
 
-export default function TopNav({ 
-  onLogout, 
-  currentStation, 
-  onStationClick 
-}: { 
-  onLogout?: () => void; 
-  currentStation?: string; 
-  onStationClick?: () => void; 
+export default function TopNav({
+  onLogout,
+  currentStation,
+  onStationClick,
+  isClinicLevel,
+  onClinicClick
+}: {
+  onLogout?: () => void;
+  currentStation?: string;
+  onStationClick?: () => void;
+  isClinicLevel?: boolean;
+  onClinicClick?: () => void;
 }) {
   return (
     <div className="bg-[#ffffff] relative size-full">
       <div className="absolute border-[#e0e0e0] border-[0px_0px_1px] border-solid inset-0 pointer-events-none" />
       <div className="flex flex-row items-center relative size-full">
         <div className="box-border content-stretch flex flex-row items-center justify-between px-4 py-[7px] relative size-full">
-          <Frame1410084048 currentStation={currentStation} onStationClick={onStationClick} />
+          <Frame1410084048
+            currentStation={currentStation}
+            onStationClick={onStationClick}
+            isClinicLevel={isClinicLevel}
+            onClinicClick={onClinicClick}
+          />
           <Frame1410084047 onLogout={onLogout} />
         </div>
       </div>

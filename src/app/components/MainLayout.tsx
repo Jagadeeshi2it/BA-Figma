@@ -44,6 +44,9 @@ interface MainLayoutProps {
   unallocatedProducts: any[]; // CRITICAL FIX: Add unallocated products as prop
   currentStation?: string;
   onStationClick?: () => void;
+  // Clinic level: the top bar's clinic label becomes the switch, and shows which level is active.
+  isClinicLevel?: boolean;
+  onClinicClick?: () => void;
   onLogout: () => void;
   closeBinInventory: () => void;
   closeUnallocatedProducts: () => void;
@@ -91,6 +94,8 @@ export default function MainLayout({
   unallocatedProducts,
   currentStation,
   onStationClick,
+  isClinicLevel,
+  onClinicClick,
   onLogout,
   closeBinInventory,
   closeUnallocatedProducts,
@@ -124,10 +129,12 @@ export default function MainLayout({
       >
         {/* Top Header */}
         <div className="h-[50px]">
-          <TopNav 
-            onLogout={onLogout} 
+          <TopNav
+            onLogout={onLogout}
             currentStation={currentStation}
             onStationClick={onStationClick}
+            isClinicLevel={isClinicLevel}
+            onClinicClick={onClinicClick}
           />
         </div>
 
