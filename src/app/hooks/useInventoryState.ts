@@ -397,14 +397,19 @@ export const useInventoryState = () => {
               // "Search and select a product before choosing a bin" said which act without saying in
               // which field — the header's search is the more prominent of the two and finds products
               // as well, so it is the one an operator reaches for first, and it cannot pick anything
-              // for an allocation. "this panel" and "the left canvas" are the panel's own words: its
-              // empty state already reads "…then select one or more bins on the left canvas".
+              // for an allocation.
+              //
+              // The panel is named, not pointed at: "this panel" still asks the operator to work out
+              // which of the two things on screen is meant, and the toast fires at the top right,
+              // nearer the panel's edge than to anything it is about. The title is the one label they
+              // can check it against, so it is the label used.
               //
               // "Search for" rather than the tray's "Select": this panel lists nothing until something
               // is typed, so searching genuinely is the first act here. The tray lists its products on
               // open, where telling the operator to search for one already in front of them would be
               // an instruction to do the wrong thing.
-              message: 'Search for a product in this panel, then tap a bin on the left canvas.'
+              message:
+                'Search for a product in the Multi Bin Assignment panel, then tap a bin on the left canvas.'
             }),
             { id: PICK_PRODUCT_FIRST_TOAST_ID, duration: 4000 }
           );
@@ -454,10 +459,13 @@ export const useInventoryState = () => {
           //
           // "Select", not "Search for": the tray lists every unallocated product on open, so the row
           // the operator wants is already on screen. Everything after the comma is word-for-word the
-          // other panel's, because the second half of the job is the same job.
+          // other panel's, because the second half of the job is the same job — and the panel is named
+          // by its own title for the same reason it is next door, so the sentence can be checked
+          // against something on screen rather than resolved by elimination.
           toast.custom(
             () => React.createElement(ValidationToast, {
-              message: 'Select a product in this panel, then tap a bin on the left canvas.'
+              message:
+                'Select a product in the Unallocated Products panel, then tap a bin on the left canvas.'
             }),
             { id: PICK_PRODUCT_FIRST_TOAST_ID, duration: 4000 }
           );

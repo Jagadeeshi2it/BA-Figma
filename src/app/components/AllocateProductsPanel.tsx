@@ -405,6 +405,13 @@ export default function AllocateProductsPanel({
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#676b74]" />
           <Input
             data-demo="allocate-search"
+            // Focused the moment the panel opens. Searching is not one way into this flow, it is the
+            // only one — the list below is empty until something is typed, so every visit begins with
+            // this box and the operator would otherwise have to click it first every single time. The
+            // tray deliberately does NOT do this: it lists its products on open, so the first act there
+            // is picking a row that is already on screen, and stealing focus would point at the wrong
+            // control (and, on a tablet, raise a keyboard nobody asked for).
+            autoFocus
             value={query}
             onChange={event => setSearch(event.target.value)}
             // "Search products", same as the tray's. "…in this cabinet" was scoping the search out loud,
@@ -496,9 +503,15 @@ export default function AllocateProductsPanel({
                 </div>
               </>
             ) : (
+              // The next action first, in its own sentence, naming the control it happens in — the
+              // cursor is already sitting in that box, so the line reads as a caption for the thing
+              // the operator is about to do rather than as a description of the flow. It ran as one
+              // sentence with three verbs in it ("Search for and select … then select …"), which
+              // buried the only step available right now behind two that are not, and said "select"
+              // for both products and bins where the panel's own controls are a tick and a tap.
               <div className="p-8 text-center text-[14px] text-[#676b74]">
-                Search for and select one or more products, then select one or more bins on the left
-                canvas to allocate them.
+                <p className="mb-1">Start typing in the search box above to find a product.</p>
+                <p>Tick one or more, then tap the bins on the left canvas to allocate them.</p>
               </div>
             )}
           </>
