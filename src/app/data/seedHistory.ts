@@ -5,6 +5,10 @@ import { AllocationHistoryEntry } from '../types';
 // entries, and unallocations. Dates are computed relative to load time so the "7 days" filter
 // always covers them regardless of when the demo is opened.
 //
+// Every entry carries the station it happened at, spread deterministically across the clinic's four
+// stations (Onco, Secondary, North, East) so the clinic-level Station filter has more than one answer.
+// Position-based rather than random: a seed that reshuffles on every load cannot be described in a doc.
+//
 // Nothing is seeded into TODAY. Today's list is where a walkthrough's own transaction lands, and it
 // reads as the record of what just happened — seed rows sitting there beforehand make the operator
 // hunt for their own entry among strangers.
@@ -27,7 +31,8 @@ export const generateSeedHistory = (): AllocationHistoryEntry[] => [
       { binId: 'seed-bin-d1-s1-c', binName: 'Bin C', shelfName: 'Shelf 1', doorNumber: '1', cabinetNumber: '1', quantity: 12, existingQuantity: 0 }
     ],
     action: 'allocation',
-    transactionType: 'New Bin Allocation'
+    transactionType: 'New Bin Allocation',
+    station: 'Onco Station'
   },
 
   // 2. New Bin Allocation — several products allocated together in one transaction.
@@ -42,7 +47,8 @@ export const generateSeedHistory = (): AllocationHistoryEntry[] => [
       { binId: 'seed-bin-d2-s1-a', binName: 'Bin A', shelfName: 'Shelf 1', doorNumber: '2', cabinetNumber: '1', quantity: 8, existingQuantity: 0 }
     ],
     action: 'allocation',
-    transactionType: 'New Bin Allocation'
+    transactionType: 'New Bin Allocation',
+    station: 'Secondary Station'
   },
 
   // 3. New Bin Allocation — one product spread across multiple bins.
@@ -57,7 +63,8 @@ export const generateSeedHistory = (): AllocationHistoryEntry[] => [
       { binId: 'seed-bin-d2-s2-c', binName: 'Bin C', shelfName: 'Shelf 2', doorNumber: '2', cabinetNumber: '1', quantity: 15, existingQuantity: 5 }
     ],
     action: 'allocation',
-    transactionType: 'New Bin Allocation'
+    transactionType: 'New Bin Allocation',
+    station: 'North Station'
   },
 
   // 4. Product moved — full move (source emptied), single target bin.
@@ -75,7 +82,8 @@ export const generateSeedHistory = (): AllocationHistoryEntry[] => [
       quantity: 25, remainingQuantity: 0
     },
     action: 'move',
-    transactionType: 'Product moved'
+    transactionType: 'Product moved',
+    station: 'East Station'
   },
 
   // 5. Product moved — partial move, source keeps a remainder.
@@ -93,7 +101,8 @@ export const generateSeedHistory = (): AllocationHistoryEntry[] => [
       quantity: 40, remainingQuantity: 63
     },
     action: 'move',
-    transactionType: 'Product moved'
+    transactionType: 'Product moved',
+    station: 'Onco Station'
   },
 
   // 6. Product moved — one source split across two target bins.
@@ -112,7 +121,8 @@ export const generateSeedHistory = (): AllocationHistoryEntry[] => [
       quantity: 100, remainingQuantity: 0
     },
     action: 'move',
-    transactionType: 'Product moved'
+    transactionType: 'Product moved',
+    station: 'Secondary Station'
   },
 
   // 7. Product moved — multiple products moved out of the same source bin together.
@@ -131,7 +141,8 @@ export const generateSeedHistory = (): AllocationHistoryEntry[] => [
       quantity: 55, remainingQuantity: 110
     },
     action: 'move',
-    transactionType: 'Product moved'
+    transactionType: 'Product moved',
+    station: 'North Station'
   },
 
   // 8. Product moved — across cabinets (Cabinet 1 → Cabinet 2).
@@ -149,7 +160,8 @@ export const generateSeedHistory = (): AllocationHistoryEntry[] => [
       quantity: 12, remainingQuantity: 0
     },
     action: 'move',
-    transactionType: 'Product moved'
+    transactionType: 'Product moved',
+    station: 'East Station'
   },
 
   // 9. Product moved — gathered from MULTIPLE source bins into a single target bin.
@@ -172,7 +184,8 @@ export const generateSeedHistory = (): AllocationHistoryEntry[] => [
       { binId: 'seed-bin-d3-s1-c', binName: 'Bin C', shelfName: 'Shelf 1', doorNumber: '3', cabinetNumber: '1', quantity: 10, remainingQuantity: 12 }
     ],
     action: 'move',
-    transactionType: 'Product moved'
+    transactionType: 'Product moved',
+    station: 'Onco Station'
   },
 
   // 10. Product moved — the full matrix: gathered from MULTIPLE source bins AND dispersed
@@ -198,7 +211,8 @@ export const generateSeedHistory = (): AllocationHistoryEntry[] => [
       { binId: 'seed-bin-d5-s1-c', binName: 'Bin C', shelfName: 'Shelf 1', doorNumber: '5', cabinetNumber: '2', quantity: 20, remainingQuantity: 0 }
     ],
     action: 'move',
-    transactionType: 'Product moved'
+    transactionType: 'Product moved',
+    station: 'Secondary Station'
   },
 
   // 11. Unallocated — single product removed from its bin.
@@ -213,7 +227,8 @@ export const generateSeedHistory = (): AllocationHistoryEntry[] => [
       binId: 'seed-bin-d1-s1-c', binName: 'Bin C', shelfName: 'Shelf 1', doorNumber: '1', cabinetNumber: '1'
     },
     action: 'unallocate',
-    transactionType: 'Unallocated'
+    transactionType: 'Unallocated',
+    station: 'North Station'
   }
 
   // There was a 13th entry here: a multi-product unallocation stamped today at 08:40, which is the

@@ -19,6 +19,12 @@ interface HistoryPageProps {
   doorShelfConfig?: any;
   currentStation?: string;
   onStationClick?: () => void;
+  /**
+   * Clinic level. A clinic holds several stations, so the ledger is read across all of them: each row
+   * names the station its transaction happened at, and a Station filter narrows to one. At station
+   * level the operator works a single cabinet, so both would restate the only station there is.
+   */
+  isClinicLevel?: boolean;
   onLogout?: () => void;
   onBack: () => void;
 }
@@ -58,6 +64,9 @@ interface HistoryRow {
   isUnallocate: boolean;
   timestamp: Date;
   createdBy: string;
+  // Where it happened. Undefined on entries written before stations were stamped — rendered as an
+  // em dash rather than assumed to be the current station.
+  station?: string;
 }
 
 export default function HistoryPage({
@@ -65,6 +74,7 @@ export default function HistoryPage({
   doorShelfConfig,
   currentStation,
   onStationClick,
+  isClinicLevel = false,
   onLogout,
   onBack
 }: HistoryPageProps) {
@@ -74,6 +84,9 @@ export default function HistoryPage({
   const [showBinAllocation, setShowBinAllocation] = useState(true);
   const [showUnallocated, setShowUnallocated] = useState(true);
   const [dateFilter, setDateFilter] = useState('today');
+  // 'all' or one station name. Only rendered at clinic level, but held unconditionally so the value
+  // cannot be stale from a previous level.
+  const [stationFilter, setStationFilter] = useState('all');
 
   const binChangesCount = useMemo(
     () => (history || []).filter(e => e?.transactionType === 'Product moved').length,
@@ -154,6 +167,9 @@ export default function HistoryPage({
       if (isAllocation && !showBinAllocation) return;
       if (isUnallocate && !showUnallocated) return;
       if (!passesDate(entry.timestamp)) return;
+      // Composed as AND with the rest, and only ever narrowed at clinic level — the control that sets it
+      // is not rendered at station level, so 'all' is the only reachable value there.
+      if (stationFilter !== 'all' && entry.station !== stationFilter) return;
 
       // consolidate duplicate products within an entry
       const uniq = (entry.products || []).reduce((acc: any[], p: any) => {
@@ -263,14 +279,27 @@ export default function HistoryPage({
           isMove,
           isUnallocate,
           timestamp: entry.timestamp,
-          createdBy: 'John Doe'
+          createdBy: 'John Doe',
+          station: entry.station
         });
       });
     });
 
     // Newest activity first, regardless of the order entries arrive in.
     return out.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
-  }, [history, searchQuery, showBinChanges, showBinAllocation, showUnallocated, dateFilter, enhance, doorConfig]);
+  }, [history, searchQuery, showBinChanges, showBinAllocation, showUnallocated, dateFilter, stationFilter, enhance, doorConfig]);
+
+  /**
+   * The stations the ledger actually mentions, for the filter's options.
+   *
+   * Read from the entries rather than from a station list: a filter offering a station with no
+   * transactions is a dead end, and one missing a station that HAS transactions hides rows with no way
+   * to reach them. Sorted so the order does not shift as entries arrive.
+   */
+  const stationsInHistory = useMemo(
+    () => Array.from(new Set((history || []).map(e => e?.station).filter(Boolean) as string[])).sort(),
+    [history]
+  );
 
   const handleReset = () => {
     setSearchQuery('');
@@ -278,6 +307,7 @@ export default function HistoryPage({
     setShowBinChanges(true);
     setShowBinAllocation(true);
     setShowUnallocated(true);
+    setStationFilter('all');
   };
 
   /**
@@ -380,6 +410,26 @@ export default function HistoryPage({
                   </Select>
                 </div>
 
+                {/* Clinic level only: a clinic reads several stations' ledgers in one table, so "which
+                    station" is both a column and a filter. Its options come from the entries themselves,
+                    so it can neither offer a station with nothing behind it nor hide one that has rows. */}
+                {isClinicLevel && stationsInHistory.length > 0 && (
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[13px] text-[#020817]">Station</label>
+                    <Select value={stationFilter} onValueChange={setStationFilter}>
+                      <SelectTrigger className="w-[170px] h-9 bg-white border border-[#bcc3cd] rounded px-3 text-[14px] font-normal">
+                        <SelectValue placeholder="Station" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All stations</SelectItem>
+                        {stationsInHistory.map(station => (
+                          <SelectItem key={station} value={station}>{station}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
                 {/* The three type checkboxes collapse into one dropdown so the filter row reads as
                     three controls (Product / Date / Type) instead of a spread-out checkbox strip. */}
                 <div className="flex flex-col gap-1">
@@ -448,7 +498,17 @@ export default function HistoryPage({
                       <tr className="bg-[#f9fafb] border-b border-[#e5e7eb]">
                         {/* Past tense: this is a ledger of moves that happened, not the task. Same
                             vocabulary as the move flow's "Move From" / "Move To", one tense back. */}
-                        {['Product', 'NDC', 'Inventory Type', 'Moved From', 'Moved To', 'Status', 'Created By'].map(h => (
+                        {[
+                          'Product',
+                          'NDC',
+                          'Inventory Type',
+                          // Where it happened, ahead of the two bin columns that say where within it.
+                          ...(isClinicLevel ? ['Station'] : []),
+                          'Moved From',
+                          'Moved To',
+                          'Status',
+                          'Created By'
+                        ].map(h => (
                           <th key={h} className="text-left px-4 py-3 text-[13px] font-semibold text-[#475569] whitespace-nowrap">{h}</th>
                         ))}
                       </tr>
@@ -469,6 +529,14 @@ export default function HistoryPage({
                           </td>
                           <td className="px-4 py-4 text-[14px] text-[#020817] whitespace-nowrap">{row.ndc}</td>
                           <td className="px-4 py-4 text-[14px] text-[#020817] whitespace-nowrap">{row.inventoryType}</td>
+                          {/* An em dash where the entry predates stations, rather than filling in the
+                              current one: a ledger that guesses where something happened is worse than
+                              one that admits it does not know. */}
+                          {isClinicLevel && (
+                            <td className="px-4 py-4 text-[14px] whitespace-nowrap">
+                              {row.station ?? <span className="text-[#94a3b8]">—</span>}
+                            </td>
+                          )}
                           <td className="px-4 py-4 min-w-[180px]">
                             {row.sources.map((s, i) => (
                               <div key={i} className={i > 0 ? 'mt-2 pt-2 border-t border-[#f1f3f5]' : ''}>

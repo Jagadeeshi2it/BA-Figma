@@ -125,8 +125,10 @@ function MapMarker1() {
  * so no Move — see App's accessLevel. It was a static label until 2026-08-10, which is why making it a
  * control could not affect anything that already worked.
  *
- * Underlined while active, not just recoloured: everything in this bar is already #095192, so colour
- * alone says nothing here.
+ * Carries no active styling. It was underlined at clinic level for a day, which competed with the two
+ * signals that actually say where you are: the station name moves out of this bar and onto the page
+ * title, and the workflow trigger drops "Move" from its label. Three marks for one fact is two too many.
+ * aria-pressed still reports the state for anyone not reading the layout.
  */
 function Frame1410084044({ isClinicLevel, onClick }: { isClinicLevel?: boolean; onClick?: () => void }) {
   return (
@@ -140,7 +142,7 @@ function Frame1410084044({ isClinicLevel, onClick }: { isClinicLevel?: boolean; 
     >
       <MapMarker1 />
       <div className="flex flex-col font-['Inter:Medium',_sans-serif] font-medium justify-end leading-[0] not-italic relative shrink-0 text-[#095192] text-[14px] text-left">
-        <p className={`block leading-[18px] text-[14px] ${isClinicLevel ? 'underline underline-offset-4' : ''}`}>
+        <p className="block leading-[18px] text-[14px]">
           Onco Clinic Center
         </p>
       </div>
@@ -219,7 +221,10 @@ function Frame1410084048({
         className="bg-[#e0e0e0] h-10 opacity-80 shrink-0 w-[0.988px]"
         data-name="Horizontal Rule 2"
       />
-      <Frame1410084045 currentStation={currentStation} onClick={onStationClick} />
+      {/* Withheld at clinic level: the station is named beside the page title there, where it is a
+          choice rather than a fixed fact, and two copies of one name invite wondering whether they can
+          disagree. At station level this bar is the only place it appears. */}
+      {!isClinicLevel && <Frame1410084045 currentStation={currentStation} onClick={onStationClick} />}
     </div>
   );
 }

@@ -124,6 +124,17 @@ export interface AllocationHistoryEntry {
   }[];
   action: 'allocation' | 'move' | 'change-allocation' | 'unallocate';
   transactionType: 'New Bin Allocation' | 'Product moved' | 'Unallocated';
+  /**
+   * The station the transaction happened at, stamped when the entry is written.
+   *
+   * A station-level operator works one cabinet and never needs telling which. A clinic-level one is
+   * looking at several stations' ledgers in one table, where "which cabinet did this happen in" is the
+   * first question — so History names it and filters by it at that level (see HistoryPage).
+   *
+   * Optional because entries written before this existed carry no station; History renders those as an
+   * em dash rather than guessing they belong to whichever station is current.
+   */
+  station?: string;
 }
 
 export interface ProductTransfer {

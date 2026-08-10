@@ -47,12 +47,13 @@ import { emergencyKitService } from "./services/EmergencyKitService";
 import { productDataService } from "./services/ProductDataService";
 
 export default function App() {
-  const inventoryState = useInventoryState();
-  const serialNumberModal = useSerialNumberModal(inventoryState.doorShelfConfig);
-
-  // Station selection state
+  // Declared before useInventoryState because the hook stamps every history entry with the station it
+  // happened at, so it has to be handed the current one.
   const [currentStation, setCurrentStation] = useState("Onco Station");
   const [showStationModal, setShowStationModal] = useState(false);
+
+  const inventoryState = useInventoryState(currentStation);
+  const serialNumberModal = useSerialNumberModal(inventoryState.doorShelfConfig);
 
   /**
    * Where the operator is working from, which decides what they may do.
@@ -729,6 +730,7 @@ export default function App() {
           history={inventoryState.allocationHistory}
           doorShelfConfig={inventoryState.doorShelfConfig}
           currentStation={currentStation}
+          isClinicLevel={accessLevel === 'clinic'}
           onStationClick={() => setShowStationModal(true)}
           onLogout={handleLogout}
           onBack={() => inventoryState.setShowHistoryModal(false)}

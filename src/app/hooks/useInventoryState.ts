@@ -130,7 +130,13 @@ const pruneQueryToBins = (query: string, binIds: string[], config: DoorShelfConf
     )
     .join(' | ');
 
-export const useInventoryState = () => {
+/**
+ * @param activeStation The station the operator is working at, stamped onto every history entry this
+ *   hook writes. Passed in rather than held here because App owns the station picker — and it is a
+ *   plain argument rather than state so a station change is reflected by the next entry without an
+ *   effect to keep in sync.
+ */
+export const useInventoryState = (activeStation: string = 'Onco Station') => {
   const [selectedCabinet, setSelectedCabinet] = useState<string>("Cabinet 1");
   const [selectedDoor, setSelectedDoor] = useState<string>("Door 1");
   const [selectedBin, setSelectedBin] = useState<string | null>(null);
@@ -996,7 +1002,8 @@ export const useInventoryState = () => {
           }, 0)
         })),
         action: 'allocation',
-        transactionType: 'New Bin Allocation'
+        transactionType: 'New Bin Allocation',
+        station: activeStation
       };
 
       // Add to history
@@ -1320,7 +1327,8 @@ export const useInventoryState = () => {
           .map(binId => binLocationForHistory(binId, doorShelfConfig))
           .filter(Boolean) as any[],
         action: 'allocation',
-        transactionType: 'New Bin Allocation'
+        transactionType: 'New Bin Allocation',
+        station: activeStation
       };
 
       setAllocationHistory(prev => [historyEntry, ...prev]);
@@ -1552,7 +1560,8 @@ export const useInventoryState = () => {
       bins: [],
       sourceBin: { binId, binName, shelfName, doorNumber, cabinetNumber },
       action: 'unallocate',
-      transactionType: 'Unallocated'
+      transactionType: 'Unallocated',
+      station: activeStation
     };
   };
 
@@ -2162,7 +2171,8 @@ export const useInventoryState = () => {
         // CRITICAL FIX: Add source bin information to history entry
         sourceBin: sourceBinDetails,
         action: 'move',
-        transactionType: 'Product moved'
+        transactionType: 'Product moved',
+        station: activeStation
       };
       
       // Enhanced debug logging to verify source bin information for cross-door moves
@@ -2222,7 +2232,8 @@ export const useInventoryState = () => {
           return null;
           }).filter(Boolean) as any[],
           action: 'allocation',
-          transactionType: 'New Bin Allocation'
+          transactionType: 'New Bin Allocation',
+          station: activeStation
         };
         
         historyEntries.push(allocationEntry);
