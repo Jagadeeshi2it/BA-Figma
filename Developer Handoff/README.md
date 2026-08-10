@@ -22,13 +22,16 @@ which renders CLAUDE.md, DEMO.md and UX-AUDIT.md.
 
 ## Screenshots
 
-**Two per feature, both page-level**, captured from the running prototype (`pnpm run dev`) at 1440×900,
-2× device pixel ratio, in `screenshots/<feature>/`:
+**Page-level, at 1512×908** (2× device pixel ratio), captured from the running prototype
+(`pnpm run dev`) into `screenshots/<feature>/`. Two per feature:
 
 | | Shows |
 |---|---|
 | `01-default-state.png` | The page as it stands before the feature is used. |
 | `02-interaction-state.png` | The same page after the operator acts on it — same door, same scroll position, so the only difference visible is the feature's own. |
+
+The introduction carries three, because it covers three separate surfaces rather than one feature's two
+states: the cabinet browse, the search dropdown, and a product's detail page.
 
 They exist for **visual context only**. Every behaviour, edge case, colour value and interaction rule
 belongs in the notes, not in a screenshot — a doc that documents through images needs a new image
@@ -37,8 +40,13 @@ states and intermediate steps are deliberately not included.
 
 ## Features
 
+**Start with the introduction.** It covers the model every feature document assumes — cabinets, doors,
+shelves, bins and product rows, what each tap does, how search behaves, and which parts of the screen
+are placeholder rather than behaviour.
+
 | # | Feature | Document | Status |
 |---|---|---|---|
+| 00 | Introduction — the module as a whole | [00-Introduction.md](00-Introduction.md) | Complete |
 | 01 | Bins Available (availability filter + count) | [01-Bins-Available.md](01-Bins-Available.md) | Complete |
 
 Further flows (Allocate Product, Multi Bin Assignment, Move from Bin, Move from Product, History) to be

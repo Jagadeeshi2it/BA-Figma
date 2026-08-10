@@ -88,6 +88,7 @@
     <div class="brand">Developer Handoff</div>
     <div class="docs">
       <a href="index.html" class="current">Developer Handoff — Bin Allocation 2.0</a>
+      <a href="00-Introduction.html">00 — Introduction</a>
       <a href="01-Bins-Available.html">01 — Bins Available</a>
     </div>
     <h2>On this page</h2>
@@ -130,13 +131,16 @@ which renders CLAUDE.md, DEMO.md and UX-AUDIT.md.
 
 ## Screenshots
 
-**Two per feature, both page-level**, captured from the running prototype (`pnpm run dev`) at 1440×900,
-2× device pixel ratio, in `screenshots/&lt;feature&gt;/`:
+**Page-level, at 1512×908** (2× device pixel ratio), captured from the running prototype
+(`pnpm run dev`) into `screenshots/&lt;feature&gt;/`. Two per feature:
 
 | | Shows |
 |---|---|
 | `01-default-state.png` | The page as it stands before the feature is used. |
 | `02-interaction-state.png` | The same page after the operator acts on it — same door, same scroll position, so the only difference visible is the feature's own. |
+
+The introduction carries three, because it covers three separate surfaces rather than one feature's two
+states: the cabinet browse, the search dropdown, and a product's detail page.
 
 They exist for **visual context only**. Every behaviour, edge case, colour value and interaction rule
 belongs in the notes, not in a screenshot — a doc that documents through images needs a new image
@@ -145,8 +149,13 @@ states and intermediate steps are deliberately not included.
 
 ## Features
 
+**Start with the introduction.** It covers the model every feature document assumes — cabinets, doors,
+shelves, bins and product rows, what each tap does, how search behaves, and which parts of the screen
+are placeholder rather than behaviour.
+
 | # | Feature | Document | Status |
 |---|---|---|---|
+| 00 | Introduction — the module as a whole | [00-Introduction.md](00-Introduction.md) | Complete |
 | 01 | Bins Available (availability filter + count) | [01-Bins-Available.md](01-Bins-Available.md) | Complete |
 
 Further flows (Allocate Product, Multi Bin Assignment, Move from Bin, Move from Product, History) to be
@@ -185,7 +194,7 @@ names do not.</pre>
     <h2 id="screenshots"><a class="anchor" href="#screenshots">Screenshots</a></h2>
     
   </div>
-  <p><strong>Two per feature, both page-level</strong>, captured from the running prototype (<code>pnpm run dev</code>) at 1440×900, 2× device pixel ratio, in <code>screenshots/&lt;feature&gt;/</code>:</p>
+  <p><strong>Page-level, at 1512×908</strong> (2× device pixel ratio), captured from the running prototype (<code>pnpm run dev</code>) into <code>screenshots/&lt;feature&gt;/</code>. Two per feature:</p>
 <div class="table-scroll"><table><thead><tr>
 <th></th>
 <th>Shows</th>
@@ -199,6 +208,7 @@ names do not.</pre>
 <td>The same page after the operator acts on it — same door, same scroll position, so the only difference visible is the feature's own.</td>
 </tr>
 </tbody></table></div>
+<p>The introduction carries three, because it covers three separate surfaces rather than one feature's two states: the cabinet browse, the search dropdown, and a product's detail page.</p>
 <p>They exist for <strong>visual context only</strong>. Every behaviour, edge case, colour value and interaction rule belongs in the notes, not in a screenshot — a doc that documents through images needs a new image every time a rule changes, and the images fall out of date silently. Component-level crops, hover states and intermediate steps are deliberately not included.</p>
   
 </section>
@@ -208,12 +218,19 @@ names do not.</pre>
     <h2 id="features"><a class="anchor" href="#features">Features</a></h2>
     
   </div>
-  <div class="table-scroll"><table><thead><tr>
+  <p><strong>Start with the introduction.</strong> It covers the model every feature document assumes — cabinets, doors, shelves, bins and product rows, what each tap does, how search behaves, and which parts of the screen are placeholder rather than behaviour.</p>
+<div class="table-scroll"><table><thead><tr>
 <th>#</th>
 <th>Feature</th>
 <th>Document</th>
 <th>Status</th>
 </tr></thead><tbody>
+<tr>
+<td>00</td>
+<td>Introduction — the module as a whole</td>
+<td><a href="00-Introduction.html">00-Introduction.md</a></td>
+<td>Complete</td>
+</tr>
 <tr>
 <td>01</td>
 <td>Bins Available (availability filter + count)</td>
