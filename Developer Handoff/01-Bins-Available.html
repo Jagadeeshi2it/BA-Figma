@@ -1,0 +1,1061 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>01 — Bins Available — Developer Handoff</title>
+<style>
+  :root {
+    --bg: #ffffff; --panel: #f7f8fa; --text: #1b1f24; --muted: #5c6672; --rule: #e3e7ec;
+    --link: #095192; --code-bg: #f2f4f7; --accent: #095192; --ok: #15803d;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14171a; --panel: #1b1f23; --text: #e6e9ec; --muted: #9aa4af; --rule: #2b3137;
+      --link: #7fb2e5; --code-bg: #22272c; --accent: #7fb2e5; --ok: #6fcf8e;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 16px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .shell { display: grid; grid-template-columns: 280px minmax(0, 1fr); }
+  nav {
+    position: sticky; top: 0; align-self: start; height: 100vh; overflow-y: auto;
+    background: var(--panel); border-right: 1px solid var(--rule); padding: 24px 18px 48px;
+  }
+  nav .brand { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-bottom: 14px; }
+  nav .docs { display: flex; flex-direction: column; gap: 2px; margin-bottom: 22px; }
+  nav .docs a { padding: 6px 8px; border-radius: 4px; font-size: 13px; text-decoration: none; color: var(--muted); }
+  nav .docs a.current { background: var(--accent); color: #fff; font-weight: 500; }
+  nav h2 { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0 8px 8px; font-weight: 600; }
+  nav ol { list-style: none; margin: 0; padding: 0; }
+  nav ol a { display: block; padding: 4px 8px; border-radius: 4px; font-size: 13px; color: var(--muted); text-decoration: none; }
+  nav ol a:hover { background: rgba(127,127,127,.12); color: var(--text); }
+  nav ol a.active { color: var(--link); font-weight: 600; }
+  nav li.sub a { padding-left: 20px; font-size: 12.5px; }
+  main { padding: 40px 48px 120px; max-width: 980px; }
+  header.page { border-bottom: 1px solid var(--rule); padding-bottom: 20px; margin-bottom: 28px; }
+  header.page h1 { margin: 0 0 6px; font-size: 30px; letter-spacing: -.01em; }
+  header.page .meta { color: var(--muted); font-size: 14px; }
+  header.page .actions { margin-top: 14px; }
+  h2, h3, h4 { line-height: 1.3; letter-spacing: -.01em; margin: 0; }
+  h2 { font-size: 22px; } h3 { font-size: 17px; } h4 { font-size: 15px; }
+  .anchor { color: inherit; text-decoration: none; }
+  .anchor:hover::after { content: " #"; color: var(--muted); font-weight: 400; }
+  .note { scroll-margin-top: 24px; }
+  .note.level-2 { margin-top: 40px; padding-top: 8px; border-top: 1px solid var(--rule); }
+  .note.level-3 { margin-top: 26px; }
+  .note-head { display: flex; align-items: baseline; gap: 12px; }
+  .note-head h2, .note-head h3 { flex: 1; min-width: 0; }
+  .copy {
+    flex: none; font: inherit; font-size: 12px; line-height: 1; padding: 6px 10px; cursor: pointer;
+    border-radius: 4px; border: 1px solid var(--rule); background: var(--bg); color: var(--muted);
+    transition: color .12s, border-color .12s;
+  }
+  .copy:hover { color: var(--link); border-color: var(--link); }
+  .copy.done { color: var(--ok); border-color: var(--ok); }
+  .copy.wide { font-size: 13px; padding: 8px 14px; }
+  p, ul, ol, table { margin: 14px 0; }
+  li { margin: 4px 0; }
+  code { background: var(--code-bg); padding: 1px 5px; border-radius: 3px; font-size: 13.5px; }
+  pre { background: var(--code-bg); padding: 14px 16px; border-radius: 6px; overflow-x: auto; }
+  pre code { background: none; padding: 0; }
+  pre.src { display: none; }
+  a { color: var(--link); }
+  img {
+    display: block; max-width: 100%; height: auto; margin: 18px 0;
+    border: 1px solid var(--rule); border-radius: 6px;
+  }
+  .table-scroll { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: 14.5px; }
+  th, td { border: 1px solid var(--rule); padding: 8px 10px; text-align: left; vertical-align: top; }
+  th { background: var(--panel); font-weight: 600; }
+  blockquote { margin: 14px 0; padding: 2px 16px; border-left: 3px solid var(--rule); color: var(--muted); }
+  hr { border: 0; border-top: 1px solid var(--rule); margin: 28px 0; }
+  @media (max-width: 900px) {
+    .shell { grid-template-columns: 1fr; }
+    nav { position: static; height: auto; border-right: 0; border-bottom: 1px solid var(--rule); }
+    main { padding: 28px 20px 80px; }
+  }
+</style>
+</head>
+<body>
+<div class="shell">
+  <nav>
+    <div class="brand">Developer Handoff</div>
+    <div class="docs">
+      <a href="index.html">Developer Handoff — Bin Allocation 2.0</a>
+      <a href="01-Bins-Available.html" class="current">01 — Bins Available</a>
+    </div>
+    <h2>On this page</h2>
+    <ol>
+      <li><a href="#default-state">Default state</a></li>
+      <li><a href="#interaction-state">Interaction state</a></li>
+      <li><a href="#1-what-the-feature-is">1. What the feature is</a></li>
+      <li><a href="#2-behaviour">2. Behaviour</a></li>
+      <li class="sub"><a href="#2-1-the-control">2.1 The control</a></li>
+      <li class="sub"><a href="#2-2-the-count">2.2 The count</a></li>
+      <li class="sub"><a href="#2-3-door-dots-cabinet-level">2.3 Door dots (cabinet level)</a></li>
+      <li class="sub"><a href="#2-4-bin-outlines-door-level">2.4 Bin outlines (door level)</a></li>
+      <li class="sub"><a href="#2-5-the-control-stays-visible-inside-every-workflow">2.5 The control stays visible inside every workflow</a></li>
+      <li class="sub"><a href="#2-6-what-the-filter-does-not-do">2.6 What the filter does not do</a></li>
+      <li><a href="#3-implementation-in-the-prototype">3. Implementation in the prototype</a></li>
+      <li class="sub"><a href="#3-1-where-bin-available-comes-from">3.1 Where <code>bin.available</code> comes from</a></li>
+      <li class="sub"><a href="#3-2-available-zero-quantity">3.2 Available ≠ zero quantity</a></li>
+      <li><a href="#4-data-and-persistence">4. Data and persistence</a></li>
+      <li><a href="#5-notes-and-open-questions">5. Notes and open questions</a></li>
+      <li class="sub"><a href="#5-1-fridges-never-show-availability-confirmed-as-expected">5.1 Fridges never show availability — confirmed as expected</a></li>
+      <li class="sub"><a href="#5-2-no-capacity-model-behind-the-word-available">5.2 No capacity model behind the word "available"</a></li>
+      <li class="sub"><a href="#5-3-accessibility">5.3 Accessibility</a></li>
+      <li class="sub"><a href="#5-4-test-assertions-worth-writing">5.4 Test assertions worth writing</a></li>
+    </ol>
+  </nav>
+  <main>
+    <header class="page">
+      <h1>01 — Bins Available</h1>
+      <div class="meta">Generated from 01-Bins-Available.md — edit the markdown, then re-run <code>node scripts/build-handoff-html.mjs</code>.</div>
+      <div class="actions">
+        <button type="button" class="copy wide" data-copy="whole-doc">Copy whole document</button>
+      </div>
+    </header>
+    <pre class="src" id="whole-doc" hidden># 01 — Bins Available
+
+**Surface:** Allocation page header (right-aligned control group)
+**Control:** `Bins Available(n)` — a toggle button
+**Prototype files:** `HeaderSection.tsx`, `DoorIndicators.tsx`, `BinCard.tsx`, `doorUtils.ts`, `useInventoryState.ts`
+**Captured:** 2026-08-10 · prototype at `bins-available-visible-in-workflows`, seed data unmodified
+
+---
+
+## Default state
+
+![Allocation page, Bins Available off](screenshots/bins-available/01-default-state.png)
+
+The page as it loads. The count is already there — `Bins Available(16)` — because the number is not
+gated on the toggle. Nothing on the canvas is marked: Bin 1D and Bin 1E are empty and say so in their
+body text, but that text is a property of the bin, not of this feature.
+
+## Interaction state
+
+![The same page with Bins Available on](screenshots/bins-available/02-interaction-state.png)
+
+The same door, after one tap on the control. Three things changed and nothing else did: the button
+turned green, every door with at least one free bin gained a green dot, and every empty bin card gained
+a 2px green outline. No bin, door or cabinet is hidden — this marks, it does not filter down.
+
+---
+
+## 1. What the feature is
+
+One control doing two jobs:
+
+1. **It reports a number** — how many bins across the whole cabinet estate are empty and therefore able
+   to take an allocation. Always visible, independent of the toggle.
+2. **It is a view filter** — pressed, it marks those bins on the canvas.
+
+It is **not** a workflow. It starts nothing, commits nothing, and mutates no inventory. It answers
+"where can I put something?" — before opening `Allocate/Move`, and increasingly *during* it (§2.5).
+
+---
+
+## 2. Behaviour
+
+### 2.1 The control
+
+| State | Border | Label | `aria-pressed` |
+|---|---|---|---|
+| Off (default) | `#095192` (app blue) | `#095192` | `false` |
+| On | `#22C55E` (`border-green-500`) | `#15803D` | `true` |
+
+- Outlined in both states, never filled. Filled-green was tried and read as a pressed button rather
+  than a live filter.
+- The green stroke is **exactly** the stroke an available bin card gets, so the control and its effect
+  read as one thing.
+- The label green is deliberately one step darker than the stroke: `#22C55E` is 2.3:1 as 14px text on
+  white, under the ~4.5:1 this app holds text to; `#15803D` is 5.02:1. **Do not collapse the two greens
+  into one value.**
+- `h-9`, radius 4px, matching the `Allocate/Move` primary beside it.
+- `aria-pressed` carries the state for anyone not reading colour.
+
+### 2.2 The count
+
+- Format `Bins Available(16)` — no space before the parenthesis.
+- Counts every bin with `available === true` across **all doors of all cabinets**, including the six
+  Virtual/fridge doors.
+- Live: allocating into an empty bin decrements it; a move or unallocation that empties a bin and is
+  then unallocated increments it.
+- Current seed: **16** — Door 1 has 1, Door 5 has 3, the other six cabinet doors 2 each, fridges 0.
+
+### 2.3 Door dots (cabinet level)
+
+- A 6px `#00C951` dot at the tile's top-right, on any door with at least one free bin.
+- **Binary, not a count.** A number was built and withdrawn: at cabinet level the question is which
+  doors to walk to, and a door with room is a door with room. The count survives as the dot's
+  accessible name — `aria-label="3 bins available"` — so the indicator is not colour-and-shape only.
+- Persists on the currently selected door.
+- **Suppressed while a bin-assignment flow has bins selected on that door** — the purple allocation
+  indicator wins, because that door is showing a live selection.
+- The search-match dot and this dot can show together; search sits left, availability right.
+- All four door shapes (three in `CabinetComponent`, the fridge in `VirtualCabinetComponent`) render
+  one `DoorIndicators` component. They previously hand-rolled the same SVG at four different offsets,
+  which is why they had drifted apart.
+
+### 2.4 Bin outlines (door level)
+
+- 2px solid `border-green-500`, on bins with `available === true` only.
+- The empty bin's `Available Bin` body text renders with the filter off too. **The filter adds the
+  stroke, nothing else.**
+- Stocked bins are untouched in both states.
+
+**Stroke precedence.** A card carries one stroke. Strongest first:
+
+1. Move source (blue) / move target (green `border-green-600`)
+2. Assignment selection (purple `#8F48D2`)
+3. Selected bin (blue)
+4. **Availability outline (this feature)**
+5. Search highlight (amber `#A16207`)
+
+The availability outline yields to 1–3 explicitly in `BinCard`. This matters because both it and the
+move-target stroke are green: without the guard, which one wins comes down to stylesheet order, and a
+bin the operator had already committed as a Move To would still read as free.
+
+### 2.5 The control stays visible inside every workflow
+
+`Allocate/Move` and `History` hide while the Unallocated tray, an assignment panel, or a move pipeline
+is open. **This control does not.**
+
+That is a deliberate reversal (2026-08-10). The hide-everything rule is about *entry points* — a second
+door into a workflow invites abandoning a half-built selection — and this control opens nothing. "Where
+is there room?" is at its most useful precisely while allocating or picking a Move To. Hiding it did
+not even turn the filter off: the outlines stayed on the canvas with no way to clear them until the
+workflow was cancelled.
+
+Two consequences an implementer must preserve:
+
+- The filter is togglable mid-workflow, so an available bin can be marked *and* picked as a Move To in
+  the same breath. That is what §2.4's precedence guard exists for.
+- With `Allocate/Move` and `History` hidden, the header has room for this control even against an open
+  440px side panel at 1440px wide. Check that at narrower widths if the header gains anything.
+
+### 2.6 What the filter does not do
+
+- Does not hide anything, at any level.
+- Does not change what a bin tap does. An outlined bin behaves exactly as it would with the filter off.
+- Does not survive a reload (§4).
+- Has no keyboard shortcut.
+
+---
+
+## 3. Implementation in the prototype
+
+| Concern | Where |
+|---|---|
+| Toggle state | `highlightAvailableBins` — `useInventoryState.ts` |
+| Toggle handler | `handleAvailableBinsClick` — `useInventoryState.ts` |
+| Count | `getAllAvailableBins(doorShelfConfig)` — `utils/doorUtils.ts`, memoised in `App.tsx` |
+| Doors with room | `getDoorsWithAvailableBins` — `utils/doorUtils.ts` |
+| Per-door counts | `getFreeBinCountByDoor` — `utils/doorUtils.ts` (feeds the dot's `aria-label` and Demo Mode's door anchors) |
+| Button | `HeaderSection.tsx` — outside the workflow guard, unlike `Allocate/Move` and `History` |
+| Door dot | `DoorIndicators.tsx`, used by `CabinetComponent` and `VirtualCabinetComponent` |
+| Bin outline | `BinCard.tsx`, prop `highlightAvailable`, threaded `ShelvesSection → ShelfLayout → BinCard` |
+
+### 3.1 Where `bin.available` comes from
+
+Derived from emptiness, always — there is no separate "reserve a bin" concept:
+
+- set `false` when products are added to a bin
+- recomputed as `updatedProducts.length === 0` when products are removed
+
+A bin is available exactly when it holds zero product rows.
+
+### 3.2 Available ≠ zero quantity
+
+A bin holding a product row with `quantity: 0` is **not** available — the product still occupies it.
+This is what the zero-inventory banner exists to resolve: after a move empties a product, the operator
+is offered the chance to unallocate it, and only then does the bin become available and the count
+increment.
+
+Two consequences:
+
+- The count must be derived from **allocation**, not stock on hand. A backend returning "bins with 0
+  quantity" gives a different, wrong number.
+- Multi Bin Assignment opens a new location at `quantity: 0`, so that bin is immediately unavailable
+  even though nothing has physically arrived in it.
+
+---
+
+## 4. Data and persistence
+
+No backend. `doorShelfConfig` is React state seeded from a static file, so the count and every
+allocation are in-memory and **a reload discards them**. `highlightAvailableBins` is component state —
+off on every fresh load, not deep-linkable.
+
+For the real build:
+
+- The count should come from the same source of truth as the cabinet contents — derived from the loaded
+  configuration or computed server-side, not fetched separately, or the badge and the canvas can
+  disagree.
+- The toggle is a pure view preference. Persisting it per user is optional; if persisted, not per door.
+
+---
+
+## 5. Notes and open questions
+
+### 5.1 Fridges never show availability — confirmed as expected
+
+Each fridge door holds one pooled bin, and in this seed that bin is stocked, so no fridge shows a dot.
+Confirmed correct by the product owner (2026-08-10). The per-door counts are threaded into
+`VirtualCabinetComponent` anyway, so emptying a fridge lights its door properly rather than silently.
+
+Still worth settling against real data: if fridges stay a **pool** rather than a set of slots,
+"available" may be the wrong question for them, and they should arguably be excluded from the count
+with the label saying so. Today they are counted and simply always contribute 0.
+
+### 5.2 No capacity model behind the word "available"
+
+"Available" means **empty**, nothing more. The domain models no par levels, no bin capacity, no product
+footprint, and no door-type routing (`isFridgeDoor` only picks a layout). A bin holding one vial is
+"unavailable", while a large empty bin and a small empty bin are indistinguishable to this control. If
+the real system has capacity, restate this control's meaning before reusing it — likely as "bins with
+room", with a different derivation.
+
+### 5.3 Accessibility
+
+- `aria-pressed` on the toggle — correct, keep it.
+- The door dot carries `aria-label="N bins available"`, so cabinet-level availability is not
+  colour-and-shape only.
+- The bin outline is colour-only, but the card already reads "Available Bin" as text, so nothing is
+  lost.
+- Contrast: label `#15803D` on white is 5.02:1 (AA for normal text). The `#22C55E` stroke and `#00C951`
+  dot are non-text and pass the 3:1 requirement.
+
+### 5.4 Test assertions worth writing
+
+1. Count equals the number of bins with zero product rows, across every door of every cabinet,
+   including virtual.
+2. Allocating into an empty bin decrements the count by one; unallocating the last product from a bin
+   increments it by one.
+3. A move that empties a source bin does **not** increment the count until the product is unallocated.
+4. A bin holding only `quantity: 0` rows is not counted.
+5. Toggling the filter mutates no inventory — the config object is identical before and after.
+6. Every bin outlined green has `available === true`, and no bin with `available === false` is outlined.
+7. Every door showing a dot has at least one available bin behind it, and vice versa.
+8. An available bin picked as a move target carries the target stroke only, not the availability one.</pre>
+    <p><strong>Surface:</strong> Allocation page header (right-aligned control group) <strong>Control:</strong> <code>Bins Available(n)</code> — a toggle button <strong>Prototype files:</strong> <code>HeaderSection.tsx</code>, <code>DoorIndicators.tsx</code>, <code>BinCard.tsx</code>, <code>doorUtils.ts</code>, <code>useInventoryState.ts</code> <strong>Captured:</strong> 2026-08-10 · prototype at <code>bins-available-visible-in-workflows</code>, seed data unmodified</p>
+<hr />
+    
+<section class="note level-2">
+  <div class="note-head">
+    <h2 id="default-state"><a class="anchor" href="#default-state">Default state</a></h2>
+    <button type="button" class="copy" data-copy="src-5" title="Copy this note as markdown">Copy</button>
+  </div>
+  <pre class="src" id="src-5" hidden>## Default state
+
+![Allocation page, Bins Available off](screenshots/bins-available/01-default-state.png)
+
+The page as it loads. The count is already there — `Bins Available(16)` — because the number is not
+gated on the toggle. Nothing on the canvas is marked: Bin 1D and Bin 1E are empty and say so in their
+body text, but that text is a property of the bin, not of this feature.</pre>
+  <p><img src="screenshots/bins-available/01-default-state.png" alt="Allocation page, Bins Available off" /></p>
+<p>The page as it loads. The count is already there — <code>Bins Available(16)</code> — because the number is not gated on the toggle. Nothing on the canvas is marked: Bin 1D and Bin 1E are empty and say so in their body text, but that text is a property of the bin, not of this feature.</p>
+  
+</section>
+
+<section class="note level-2">
+  <div class="note-head">
+    <h2 id="interaction-state"><a class="anchor" href="#interaction-state">Interaction state</a></h2>
+    <button type="button" class="copy" data-copy="src-6" title="Copy this note as markdown">Copy</button>
+  </div>
+  <pre class="src" id="src-6" hidden>## Interaction state
+
+![The same page with Bins Available on](screenshots/bins-available/02-interaction-state.png)
+
+The same door, after one tap on the control. Three things changed and nothing else did: the button
+turned green, every door with at least one free bin gained a green dot, and every empty bin card gained
+a 2px green outline. No bin, door or cabinet is hidden — this marks, it does not filter down.
+
+---</pre>
+  <p><img src="screenshots/bins-available/02-interaction-state.png" alt="The same page with Bins Available on" /></p>
+<p>The same door, after one tap on the control. Three things changed and nothing else did: the button turned green, every door with at least one free bin gained a green dot, and every empty bin card gained a 2px green outline. No bin, door or cabinet is hidden — this marks, it does not filter down.</p>
+<hr />
+  
+</section>
+
+<section class="note level-2">
+  <div class="note-head">
+    <h2 id="1-what-the-feature-is"><a class="anchor" href="#1-what-the-feature-is">1. What the feature is</a></h2>
+    <button type="button" class="copy" data-copy="src-7" title="Copy this note as markdown">Copy</button>
+  </div>
+  <pre class="src" id="src-7" hidden>## 1. What the feature is
+
+One control doing two jobs:
+
+1. **It reports a number** — how many bins across the whole cabinet estate are empty and therefore able
+   to take an allocation. Always visible, independent of the toggle.
+2. **It is a view filter** — pressed, it marks those bins on the canvas.
+
+It is **not** a workflow. It starts nothing, commits nothing, and mutates no inventory. It answers
+"where can I put something?" — before opening `Allocate/Move`, and increasingly *during* it (§2.5).
+
+---</pre>
+  <p>One control doing two jobs:</p>
+<ol>
+<li><strong>It reports a number</strong> — how many bins across the whole cabinet estate are empty and therefore able to take an allocation. Always visible, independent of the toggle.</li>
+<li><strong>It is a view filter</strong> — pressed, it marks those bins on the canvas.</li>
+</ol>
+<p>It is <strong>not</strong> a workflow. It starts nothing, commits nothing, and mutates no inventory. It answers "where can I put something?" — before opening <code>Allocate/Move</code>, and increasingly <em>during</em> it (§2.5).</p>
+<hr />
+  
+</section>
+
+<section class="note level-2">
+  <div class="note-head">
+    <h2 id="2-behaviour"><a class="anchor" href="#2-behaviour">2. Behaviour</a></h2>
+    <button type="button" class="copy" data-copy="src-8" title="Copy this note as markdown">Copy</button>
+  </div>
+  <pre class="src" id="src-8" hidden>## 2. Behaviour
+
+### 2.1 The control
+
+| State | Border | Label | `aria-pressed` |
+|---|---|---|---|
+| Off (default) | `#095192` (app blue) | `#095192` | `false` |
+| On | `#22C55E` (`border-green-500`) | `#15803D` | `true` |
+
+- Outlined in both states, never filled. Filled-green was tried and read as a pressed button rather
+  than a live filter.
+- The green stroke is **exactly** the stroke an available bin card gets, so the control and its effect
+  read as one thing.
+- The label green is deliberately one step darker than the stroke: `#22C55E` is 2.3:1 as 14px text on
+  white, under the ~4.5:1 this app holds text to; `#15803D` is 5.02:1. **Do not collapse the two greens
+  into one value.**
+- `h-9`, radius 4px, matching the `Allocate/Move` primary beside it.
+- `aria-pressed` carries the state for anyone not reading colour.
+### 2.2 The count
+
+- Format `Bins Available(16)` — no space before the parenthesis.
+- Counts every bin with `available === true` across **all doors of all cabinets**, including the six
+  Virtual/fridge doors.
+- Live: allocating into an empty bin decrements it; a move or unallocation that empties a bin and is
+  then unallocated increments it.
+- Current seed: **16** — Door 1 has 1, Door 5 has 3, the other six cabinet doors 2 each, fridges 0.
+### 2.3 Door dots (cabinet level)
+
+- A 6px `#00C951` dot at the tile's top-right, on any door with at least one free bin.
+- **Binary, not a count.** A number was built and withdrawn: at cabinet level the question is which
+  doors to walk to, and a door with room is a door with room. The count survives as the dot's
+  accessible name — `aria-label="3 bins available"` — so the indicator is not colour-and-shape only.
+- Persists on the currently selected door.
+- **Suppressed while a bin-assignment flow has bins selected on that door** — the purple allocation
+  indicator wins, because that door is showing a live selection.
+- The search-match dot and this dot can show together; search sits left, availability right.
+- All four door shapes (three in `CabinetComponent`, the fridge in `VirtualCabinetComponent`) render
+  one `DoorIndicators` component. They previously hand-rolled the same SVG at four different offsets,
+  which is why they had drifted apart.
+### 2.4 Bin outlines (door level)
+
+- 2px solid `border-green-500`, on bins with `available === true` only.
+- The empty bin's `Available Bin` body text renders with the filter off too. **The filter adds the
+  stroke, nothing else.**
+- Stocked bins are untouched in both states.
+
+**Stroke precedence.** A card carries one stroke. Strongest first:
+
+1. Move source (blue) / move target (green `border-green-600`)
+2. Assignment selection (purple `#8F48D2`)
+3. Selected bin (blue)
+4. **Availability outline (this feature)**
+5. Search highlight (amber `#A16207`)
+
+The availability outline yields to 1–3 explicitly in `BinCard`. This matters because both it and the
+move-target stroke are green: without the guard, which one wins comes down to stylesheet order, and a
+bin the operator had already committed as a Move To would still read as free.
+### 2.5 The control stays visible inside every workflow
+
+`Allocate/Move` and `History` hide while the Unallocated tray, an assignment panel, or a move pipeline
+is open. **This control does not.**
+
+That is a deliberate reversal (2026-08-10). The hide-everything rule is about *entry points* — a second
+door into a workflow invites abandoning a half-built selection — and this control opens nothing. "Where
+is there room?" is at its most useful precisely while allocating or picking a Move To. Hiding it did
+not even turn the filter off: the outlines stayed on the canvas with no way to clear them until the
+workflow was cancelled.
+
+Two consequences an implementer must preserve:
+
+- The filter is togglable mid-workflow, so an available bin can be marked *and* picked as a Move To in
+  the same breath. That is what §2.4's precedence guard exists for.
+- With `Allocate/Move` and `History` hidden, the header has room for this control even against an open
+  440px side panel at 1440px wide. Check that at narrower widths if the header gains anything.
+### 2.6 What the filter does not do
+
+- Does not hide anything, at any level.
+- Does not change what a bin tap does. An outlined bin behaves exactly as it would with the filter off.
+- Does not survive a reload (§4).
+- Has no keyboard shortcut.
+
+---</pre>
+  
+  
+<section class="note level-3">
+  <div class="note-head">
+    <h3 id="2-1-the-control"><a class="anchor" href="#2-1-the-control">2.1 The control</a></h3>
+    <button type="button" class="copy" data-copy="src-9" title="Copy this note as markdown">Copy</button>
+  </div>
+  <pre class="src" id="src-9" hidden>### 2.1 The control
+
+| State | Border | Label | `aria-pressed` |
+|---|---|---|---|
+| Off (default) | `#095192` (app blue) | `#095192` | `false` |
+| On | `#22C55E` (`border-green-500`) | `#15803D` | `true` |
+
+- Outlined in both states, never filled. Filled-green was tried and read as a pressed button rather
+  than a live filter.
+- The green stroke is **exactly** the stroke an available bin card gets, so the control and its effect
+  read as one thing.
+- The label green is deliberately one step darker than the stroke: `#22C55E` is 2.3:1 as 14px text on
+  white, under the ~4.5:1 this app holds text to; `#15803D` is 5.02:1. **Do not collapse the two greens
+  into one value.**
+- `h-9`, radius 4px, matching the `Allocate/Move` primary beside it.
+- `aria-pressed` carries the state for anyone not reading colour.</pre>
+  <div class="table-scroll"><table><thead><tr>
+<th>State</th>
+<th>Border</th>
+<th>Label</th>
+<th><code>aria-pressed</code></th>
+</tr></thead><tbody>
+<tr>
+<td>Off (default)</td>
+<td><code>#095192</code> (app blue)</td>
+<td><code>#095192</code></td>
+<td><code>false</code></td>
+</tr>
+<tr>
+<td>On</td>
+<td><code>#22C55E</code> (<code>border-green-500</code>)</td>
+<td><code>#15803D</code></td>
+<td><code>true</code></td>
+</tr>
+</tbody></table></div>
+<ul>
+<li>Outlined in both states, never filled. Filled-green was tried and read as a pressed button rather than a live filter.</li>
+<li>The green stroke is <strong>exactly</strong> the stroke an available bin card gets, so the control and its effect read as one thing.</li>
+<li>The label green is deliberately one step darker than the stroke: <code>#22C55E</code> is 2.3:1 as 14px text on white, under the ~4.5:1 this app holds text to; <code>#15803D</code> is 5.02:1. <strong>Do not collapse the two greens into one value.</strong></li>
+<li><code>h-9</code>, radius 4px, matching the <code>Allocate/Move</code> primary beside it.</li>
+<li><code>aria-pressed</code> carries the state for anyone not reading colour.</li>
+</ul>
+  
+</section>
+
+<section class="note level-3">
+  <div class="note-head">
+    <h3 id="2-2-the-count"><a class="anchor" href="#2-2-the-count">2.2 The count</a></h3>
+    <button type="button" class="copy" data-copy="src-10" title="Copy this note as markdown">Copy</button>
+  </div>
+  <pre class="src" id="src-10" hidden>### 2.2 The count
+
+- Format `Bins Available(16)` — no space before the parenthesis.
+- Counts every bin with `available === true` across **all doors of all cabinets**, including the six
+  Virtual/fridge doors.
+- Live: allocating into an empty bin decrements it; a move or unallocation that empties a bin and is
+  then unallocated increments it.
+- Current seed: **16** — Door 1 has 1, Door 5 has 3, the other six cabinet doors 2 each, fridges 0.</pre>
+  <ul>
+<li>Format <code>Bins Available(16)</code> — no space before the parenthesis.</li>
+<li>Counts every bin with <code>available === true</code> across <strong>all doors of all cabinets</strong>, including the six Virtual/fridge doors.</li>
+<li>Live: allocating into an empty bin decrements it; a move or unallocation that empties a bin and is then unallocated increments it.</li>
+<li>Current seed: <strong>16</strong> — Door 1 has 1, Door 5 has 3, the other six cabinet doors 2 each, fridges 0.</li>
+</ul>
+  
+</section>
+
+<section class="note level-3">
+  <div class="note-head">
+    <h3 id="2-3-door-dots-cabinet-level"><a class="anchor" href="#2-3-door-dots-cabinet-level">2.3 Door dots (cabinet level)</a></h3>
+    <button type="button" class="copy" data-copy="src-11" title="Copy this note as markdown">Copy</button>
+  </div>
+  <pre class="src" id="src-11" hidden>### 2.3 Door dots (cabinet level)
+
+- A 6px `#00C951` dot at the tile's top-right, on any door with at least one free bin.
+- **Binary, not a count.** A number was built and withdrawn: at cabinet level the question is which
+  doors to walk to, and a door with room is a door with room. The count survives as the dot's
+  accessible name — `aria-label="3 bins available"` — so the indicator is not colour-and-shape only.
+- Persists on the currently selected door.
+- **Suppressed while a bin-assignment flow has bins selected on that door** — the purple allocation
+  indicator wins, because that door is showing a live selection.
+- The search-match dot and this dot can show together; search sits left, availability right.
+- All four door shapes (three in `CabinetComponent`, the fridge in `VirtualCabinetComponent`) render
+  one `DoorIndicators` component. They previously hand-rolled the same SVG at four different offsets,
+  which is why they had drifted apart.</pre>
+  <ul>
+<li>A 6px <code>#00C951</code> dot at the tile's top-right, on any door with at least one free bin.</li>
+<li><strong>Binary, not a count.</strong> A number was built and withdrawn: at cabinet level the question is which doors to walk to, and a door with room is a door with room. The count survives as the dot's accessible name — <code>aria-label="3 bins available"</code> — so the indicator is not colour-and-shape only.</li>
+<li>Persists on the currently selected door.</li>
+<li><strong>Suppressed while a bin-assignment flow has bins selected on that door</strong> — the purple allocation indicator wins, because that door is showing a live selection.</li>
+<li>The search-match dot and this dot can show together; search sits left, availability right.</li>
+<li>All four door shapes (three in <code>CabinetComponent</code>, the fridge in <code>VirtualCabinetComponent</code>) render one <code>DoorIndicators</code> component. They previously hand-rolled the same SVG at four different offsets, which is why they had drifted apart.</li>
+</ul>
+  
+</section>
+
+<section class="note level-3">
+  <div class="note-head">
+    <h3 id="2-4-bin-outlines-door-level"><a class="anchor" href="#2-4-bin-outlines-door-level">2.4 Bin outlines (door level)</a></h3>
+    <button type="button" class="copy" data-copy="src-12" title="Copy this note as markdown">Copy</button>
+  </div>
+  <pre class="src" id="src-12" hidden>### 2.4 Bin outlines (door level)
+
+- 2px solid `border-green-500`, on bins with `available === true` only.
+- The empty bin's `Available Bin` body text renders with the filter off too. **The filter adds the
+  stroke, nothing else.**
+- Stocked bins are untouched in both states.
+
+**Stroke precedence.** A card carries one stroke. Strongest first:
+
+1. Move source (blue) / move target (green `border-green-600`)
+2. Assignment selection (purple `#8F48D2`)
+3. Selected bin (blue)
+4. **Availability outline (this feature)**
+5. Search highlight (amber `#A16207`)
+
+The availability outline yields to 1–3 explicitly in `BinCard`. This matters because both it and the
+move-target stroke are green: without the guard, which one wins comes down to stylesheet order, and a
+bin the operator had already committed as a Move To would still read as free.</pre>
+  <ul>
+<li>2px solid <code>border-green-500</code>, on bins with <code>available === true</code> only.</li>
+<li>The empty bin's <code>Available Bin</code> body text renders with the filter off too. <strong>The filter adds the stroke, nothing else.</strong></li>
+<li>Stocked bins are untouched in both states.</li>
+</ul>
+<p><strong>Stroke precedence.</strong> A card carries one stroke. Strongest first:</p>
+<ol>
+<li>Move source (blue) / move target (green <code>border-green-600</code>)</li>
+<li>Assignment selection (purple <code>#8F48D2</code>)</li>
+<li>Selected bin (blue)</li>
+<li><strong>Availability outline (this feature)</strong></li>
+<li>Search highlight (amber <code>#A16207</code>)</li>
+</ol>
+<p>The availability outline yields to 1–3 explicitly in <code>BinCard</code>. This matters because both it and the move-target stroke are green: without the guard, which one wins comes down to stylesheet order, and a bin the operator had already committed as a Move To would still read as free.</p>
+  
+</section>
+
+<section class="note level-3">
+  <div class="note-head">
+    <h3 id="2-5-the-control-stays-visible-inside-every-workflow"><a class="anchor" href="#2-5-the-control-stays-visible-inside-every-workflow">2.5 The control stays visible inside every workflow</a></h3>
+    <button type="button" class="copy" data-copy="src-13" title="Copy this note as markdown">Copy</button>
+  </div>
+  <pre class="src" id="src-13" hidden>### 2.5 The control stays visible inside every workflow
+
+`Allocate/Move` and `History` hide while the Unallocated tray, an assignment panel, or a move pipeline
+is open. **This control does not.**
+
+That is a deliberate reversal (2026-08-10). The hide-everything rule is about *entry points* — a second
+door into a workflow invites abandoning a half-built selection — and this control opens nothing. "Where
+is there room?" is at its most useful precisely while allocating or picking a Move To. Hiding it did
+not even turn the filter off: the outlines stayed on the canvas with no way to clear them until the
+workflow was cancelled.
+
+Two consequences an implementer must preserve:
+
+- The filter is togglable mid-workflow, so an available bin can be marked *and* picked as a Move To in
+  the same breath. That is what §2.4's precedence guard exists for.
+- With `Allocate/Move` and `History` hidden, the header has room for this control even against an open
+  440px side panel at 1440px wide. Check that at narrower widths if the header gains anything.</pre>
+  <p><code>Allocate/Move</code> and <code>History</code> hide while the Unallocated tray, an assignment panel, or a move pipeline is open. <strong>This control does not.</strong></p>
+<p>That is a deliberate reversal (2026-08-10). The hide-everything rule is about <em>entry points</em> — a second door into a workflow invites abandoning a half-built selection — and this control opens nothing. "Where is there room?" is at its most useful precisely while allocating or picking a Move To. Hiding it did not even turn the filter off: the outlines stayed on the canvas with no way to clear them until the workflow was cancelled.</p>
+<p>Two consequences an implementer must preserve:</p>
+<ul>
+<li>The filter is togglable mid-workflow, so an available bin can be marked <em>and</em> picked as a Move To in the same breath. That is what §2.4's precedence guard exists for.</li>
+<li>With <code>Allocate/Move</code> and <code>History</code> hidden, the header has room for this control even against an open 440px side panel at 1440px wide. Check that at narrower widths if the header gains anything.</li>
+</ul>
+  
+</section>
+
+<section class="note level-3">
+  <div class="note-head">
+    <h3 id="2-6-what-the-filter-does-not-do"><a class="anchor" href="#2-6-what-the-filter-does-not-do">2.6 What the filter does not do</a></h3>
+    <button type="button" class="copy" data-copy="src-14" title="Copy this note as markdown">Copy</button>
+  </div>
+  <pre class="src" id="src-14" hidden>### 2.6 What the filter does not do
+
+- Does not hide anything, at any level.
+- Does not change what a bin tap does. An outlined bin behaves exactly as it would with the filter off.
+- Does not survive a reload (§4).
+- Has no keyboard shortcut.
+
+---</pre>
+  <ul>
+<li>Does not hide anything, at any level.</li>
+<li>Does not change what a bin tap does. An outlined bin behaves exactly as it would with the filter off.</li>
+<li>Does not survive a reload (§4).</li>
+<li>Has no keyboard shortcut.</li>
+</ul>
+<hr />
+  
+</section>
+</section>
+
+<section class="note level-2">
+  <div class="note-head">
+    <h2 id="3-implementation-in-the-prototype"><a class="anchor" href="#3-implementation-in-the-prototype">3. Implementation in the prototype</a></h2>
+    <button type="button" class="copy" data-copy="src-15" title="Copy this note as markdown">Copy</button>
+  </div>
+  <pre class="src" id="src-15" hidden>## 3. Implementation in the prototype
+
+| Concern | Where |
+|---|---|
+| Toggle state | `highlightAvailableBins` — `useInventoryState.ts` |
+| Toggle handler | `handleAvailableBinsClick` — `useInventoryState.ts` |
+| Count | `getAllAvailableBins(doorShelfConfig)` — `utils/doorUtils.ts`, memoised in `App.tsx` |
+| Doors with room | `getDoorsWithAvailableBins` — `utils/doorUtils.ts` |
+| Per-door counts | `getFreeBinCountByDoor` — `utils/doorUtils.ts` (feeds the dot's `aria-label` and Demo Mode's door anchors) |
+| Button | `HeaderSection.tsx` — outside the workflow guard, unlike `Allocate/Move` and `History` |
+| Door dot | `DoorIndicators.tsx`, used by `CabinetComponent` and `VirtualCabinetComponent` |
+| Bin outline | `BinCard.tsx`, prop `highlightAvailable`, threaded `ShelvesSection → ShelfLayout → BinCard` |
+
+### 3.1 Where `bin.available` comes from
+
+Derived from emptiness, always — there is no separate "reserve a bin" concept:
+
+- set `false` when products are added to a bin
+- recomputed as `updatedProducts.length === 0` when products are removed
+
+A bin is available exactly when it holds zero product rows.
+### 3.2 Available ≠ zero quantity
+
+A bin holding a product row with `quantity: 0` is **not** available — the product still occupies it.
+This is what the zero-inventory banner exists to resolve: after a move empties a product, the operator
+is offered the chance to unallocate it, and only then does the bin become available and the count
+increment.
+
+Two consequences:
+
+- The count must be derived from **allocation**, not stock on hand. A backend returning "bins with 0
+  quantity" gives a different, wrong number.
+- Multi Bin Assignment opens a new location at `quantity: 0`, so that bin is immediately unavailable
+  even though nothing has physically arrived in it.
+
+---</pre>
+  <div class="table-scroll"><table><thead><tr>
+<th>Concern</th>
+<th>Where</th>
+</tr></thead><tbody>
+<tr>
+<td>Toggle state</td>
+<td><code>highlightAvailableBins</code> — <code>useInventoryState.ts</code></td>
+</tr>
+<tr>
+<td>Toggle handler</td>
+<td><code>handleAvailableBinsClick</code> — <code>useInventoryState.ts</code></td>
+</tr>
+<tr>
+<td>Count</td>
+<td><code>getAllAvailableBins(doorShelfConfig)</code> — <code>utils/doorUtils.ts</code>, memoised in <code>App.tsx</code></td>
+</tr>
+<tr>
+<td>Doors with room</td>
+<td><code>getDoorsWithAvailableBins</code> — <code>utils/doorUtils.ts</code></td>
+</tr>
+<tr>
+<td>Per-door counts</td>
+<td><code>getFreeBinCountByDoor</code> — <code>utils/doorUtils.ts</code> (feeds the dot's <code>aria-label</code> and Demo Mode's door anchors)</td>
+</tr>
+<tr>
+<td>Button</td>
+<td><code>HeaderSection.tsx</code> — outside the workflow guard, unlike <code>Allocate/Move</code> and <code>History</code></td>
+</tr>
+<tr>
+<td>Door dot</td>
+<td><code>DoorIndicators.tsx</code>, used by <code>CabinetComponent</code> and <code>VirtualCabinetComponent</code></td>
+</tr>
+<tr>
+<td>Bin outline</td>
+<td><code>BinCard.tsx</code>, prop <code>highlightAvailable</code>, threaded <code>ShelvesSection → ShelfLayout → BinCard</code></td>
+</tr>
+</tbody></table></div>
+  
+<section class="note level-3">
+  <div class="note-head">
+    <h3 id="3-1-where-bin-available-comes-from"><a class="anchor" href="#3-1-where-bin-available-comes-from">3.1 Where <code>bin.available</code> comes from</a></h3>
+    <button type="button" class="copy" data-copy="src-16" title="Copy this note as markdown">Copy</button>
+  </div>
+  <pre class="src" id="src-16" hidden>### 3.1 Where `bin.available` comes from
+
+Derived from emptiness, always — there is no separate "reserve a bin" concept:
+
+- set `false` when products are added to a bin
+- recomputed as `updatedProducts.length === 0` when products are removed
+
+A bin is available exactly when it holds zero product rows.</pre>
+  <p>Derived from emptiness, always — there is no separate "reserve a bin" concept:</p>
+<ul>
+<li>set <code>false</code> when products are added to a bin</li>
+<li>recomputed as <code>updatedProducts.length === 0</code> when products are removed</li>
+</ul>
+<p>A bin is available exactly when it holds zero product rows.</p>
+  
+</section>
+
+<section class="note level-3">
+  <div class="note-head">
+    <h3 id="3-2-available-zero-quantity"><a class="anchor" href="#3-2-available-zero-quantity">3.2 Available ≠ zero quantity</a></h3>
+    <button type="button" class="copy" data-copy="src-17" title="Copy this note as markdown">Copy</button>
+  </div>
+  <pre class="src" id="src-17" hidden>### 3.2 Available ≠ zero quantity
+
+A bin holding a product row with `quantity: 0` is **not** available — the product still occupies it.
+This is what the zero-inventory banner exists to resolve: after a move empties a product, the operator
+is offered the chance to unallocate it, and only then does the bin become available and the count
+increment.
+
+Two consequences:
+
+- The count must be derived from **allocation**, not stock on hand. A backend returning "bins with 0
+  quantity" gives a different, wrong number.
+- Multi Bin Assignment opens a new location at `quantity: 0`, so that bin is immediately unavailable
+  even though nothing has physically arrived in it.
+
+---</pre>
+  <p>A bin holding a product row with <code>quantity: 0</code> is <strong>not</strong> available — the product still occupies it. This is what the zero-inventory banner exists to resolve: after a move empties a product, the operator is offered the chance to unallocate it, and only then does the bin become available and the count increment.</p>
+<p>Two consequences:</p>
+<ul>
+<li>The count must be derived from <strong>allocation</strong>, not stock on hand. A backend returning "bins with 0 quantity" gives a different, wrong number.</li>
+<li>Multi Bin Assignment opens a new location at <code>quantity: 0</code>, so that bin is immediately unavailable even though nothing has physically arrived in it.</li>
+</ul>
+<hr />
+  
+</section>
+</section>
+
+<section class="note level-2">
+  <div class="note-head">
+    <h2 id="4-data-and-persistence"><a class="anchor" href="#4-data-and-persistence">4. Data and persistence</a></h2>
+    <button type="button" class="copy" data-copy="src-18" title="Copy this note as markdown">Copy</button>
+  </div>
+  <pre class="src" id="src-18" hidden>## 4. Data and persistence
+
+No backend. `doorShelfConfig` is React state seeded from a static file, so the count and every
+allocation are in-memory and **a reload discards them**. `highlightAvailableBins` is component state —
+off on every fresh load, not deep-linkable.
+
+For the real build:
+
+- The count should come from the same source of truth as the cabinet contents — derived from the loaded
+  configuration or computed server-side, not fetched separately, or the badge and the canvas can
+  disagree.
+- The toggle is a pure view preference. Persisting it per user is optional; if persisted, not per door.
+
+---</pre>
+  <p>No backend. <code>doorShelfConfig</code> is React state seeded from a static file, so the count and every allocation are in-memory and <strong>a reload discards them</strong>. <code>highlightAvailableBins</code> is component state — off on every fresh load, not deep-linkable.</p>
+<p>For the real build:</p>
+<ul>
+<li>The count should come from the same source of truth as the cabinet contents — derived from the loaded configuration or computed server-side, not fetched separately, or the badge and the canvas can disagree.</li>
+<li>The toggle is a pure view preference. Persisting it per user is optional; if persisted, not per door.</li>
+</ul>
+<hr />
+  
+</section>
+
+<section class="note level-2">
+  <div class="note-head">
+    <h2 id="5-notes-and-open-questions"><a class="anchor" href="#5-notes-and-open-questions">5. Notes and open questions</a></h2>
+    <button type="button" class="copy" data-copy="src-19" title="Copy this note as markdown">Copy</button>
+  </div>
+  <pre class="src" id="src-19" hidden>## 5. Notes and open questions
+
+### 5.1 Fridges never show availability — confirmed as expected
+
+Each fridge door holds one pooled bin, and in this seed that bin is stocked, so no fridge shows a dot.
+Confirmed correct by the product owner (2026-08-10). The per-door counts are threaded into
+`VirtualCabinetComponent` anyway, so emptying a fridge lights its door properly rather than silently.
+
+Still worth settling against real data: if fridges stay a **pool** rather than a set of slots,
+"available" may be the wrong question for them, and they should arguably be excluded from the count
+with the label saying so. Today they are counted and simply always contribute 0.
+### 5.2 No capacity model behind the word "available"
+
+"Available" means **empty**, nothing more. The domain models no par levels, no bin capacity, no product
+footprint, and no door-type routing (`isFridgeDoor` only picks a layout). A bin holding one vial is
+"unavailable", while a large empty bin and a small empty bin are indistinguishable to this control. If
+the real system has capacity, restate this control's meaning before reusing it — likely as "bins with
+room", with a different derivation.
+### 5.3 Accessibility
+
+- `aria-pressed` on the toggle — correct, keep it.
+- The door dot carries `aria-label="N bins available"`, so cabinet-level availability is not
+  colour-and-shape only.
+- The bin outline is colour-only, but the card already reads "Available Bin" as text, so nothing is
+  lost.
+- Contrast: label `#15803D` on white is 5.02:1 (AA for normal text). The `#22C55E` stroke and `#00C951`
+  dot are non-text and pass the 3:1 requirement.
+### 5.4 Test assertions worth writing
+
+1. Count equals the number of bins with zero product rows, across every door of every cabinet,
+   including virtual.
+2. Allocating into an empty bin decrements the count by one; unallocating the last product from a bin
+   increments it by one.
+3. A move that empties a source bin does **not** increment the count until the product is unallocated.
+4. A bin holding only `quantity: 0` rows is not counted.
+5. Toggling the filter mutates no inventory — the config object is identical before and after.
+6. Every bin outlined green has `available === true`, and no bin with `available === false` is outlined.
+7. Every door showing a dot has at least one available bin behind it, and vice versa.
+8. An available bin picked as a move target carries the target stroke only, not the availability one.</pre>
+  
+  
+<section class="note level-3">
+  <div class="note-head">
+    <h3 id="5-1-fridges-never-show-availability-confirmed-as-expected"><a class="anchor" href="#5-1-fridges-never-show-availability-confirmed-as-expected">5.1 Fridges never show availability — confirmed as expected</a></h3>
+    <button type="button" class="copy" data-copy="src-20" title="Copy this note as markdown">Copy</button>
+  </div>
+  <pre class="src" id="src-20" hidden>### 5.1 Fridges never show availability — confirmed as expected
+
+Each fridge door holds one pooled bin, and in this seed that bin is stocked, so no fridge shows a dot.
+Confirmed correct by the product owner (2026-08-10). The per-door counts are threaded into
+`VirtualCabinetComponent` anyway, so emptying a fridge lights its door properly rather than silently.
+
+Still worth settling against real data: if fridges stay a **pool** rather than a set of slots,
+"available" may be the wrong question for them, and they should arguably be excluded from the count
+with the label saying so. Today they are counted and simply always contribute 0.</pre>
+  <p>Each fridge door holds one pooled bin, and in this seed that bin is stocked, so no fridge shows a dot. Confirmed correct by the product owner (2026-08-10). The per-door counts are threaded into <code>VirtualCabinetComponent</code> anyway, so emptying a fridge lights its door properly rather than silently.</p>
+<p>Still worth settling against real data: if fridges stay a <strong>pool</strong> rather than a set of slots, "available" may be the wrong question for them, and they should arguably be excluded from the count with the label saying so. Today they are counted and simply always contribute 0.</p>
+  
+</section>
+
+<section class="note level-3">
+  <div class="note-head">
+    <h3 id="5-2-no-capacity-model-behind-the-word-available"><a class="anchor" href="#5-2-no-capacity-model-behind-the-word-available">5.2 No capacity model behind the word "available"</a></h3>
+    <button type="button" class="copy" data-copy="src-21" title="Copy this note as markdown">Copy</button>
+  </div>
+  <pre class="src" id="src-21" hidden>### 5.2 No capacity model behind the word "available"
+
+"Available" means **empty**, nothing more. The domain models no par levels, no bin capacity, no product
+footprint, and no door-type routing (`isFridgeDoor` only picks a layout). A bin holding one vial is
+"unavailable", while a large empty bin and a small empty bin are indistinguishable to this control. If
+the real system has capacity, restate this control's meaning before reusing it — likely as "bins with
+room", with a different derivation.</pre>
+  <p>"Available" means <strong>empty</strong>, nothing more. The domain models no par levels, no bin capacity, no product footprint, and no door-type routing (<code>isFridgeDoor</code> only picks a layout). A bin holding one vial is "unavailable", while a large empty bin and a small empty bin are indistinguishable to this control. If the real system has capacity, restate this control's meaning before reusing it — likely as "bins with room", with a different derivation.</p>
+  
+</section>
+
+<section class="note level-3">
+  <div class="note-head">
+    <h3 id="5-3-accessibility"><a class="anchor" href="#5-3-accessibility">5.3 Accessibility</a></h3>
+    <button type="button" class="copy" data-copy="src-22" title="Copy this note as markdown">Copy</button>
+  </div>
+  <pre class="src" id="src-22" hidden>### 5.3 Accessibility
+
+- `aria-pressed` on the toggle — correct, keep it.
+- The door dot carries `aria-label="N bins available"`, so cabinet-level availability is not
+  colour-and-shape only.
+- The bin outline is colour-only, but the card already reads "Available Bin" as text, so nothing is
+  lost.
+- Contrast: label `#15803D` on white is 5.02:1 (AA for normal text). The `#22C55E` stroke and `#00C951`
+  dot are non-text and pass the 3:1 requirement.</pre>
+  <ul>
+<li><code>aria-pressed</code> on the toggle — correct, keep it.</li>
+<li>The door dot carries <code>aria-label="N bins available"</code>, so cabinet-level availability is not colour-and-shape only.</li>
+<li>The bin outline is colour-only, but the card already reads "Available Bin" as text, so nothing is lost.</li>
+<li>Contrast: label <code>#15803D</code> on white is 5.02:1 (AA for normal text). The <code>#22C55E</code> stroke and <code>#00C951</code> dot are non-text and pass the 3:1 requirement.</li>
+</ul>
+  
+</section>
+
+<section class="note level-3">
+  <div class="note-head">
+    <h3 id="5-4-test-assertions-worth-writing"><a class="anchor" href="#5-4-test-assertions-worth-writing">5.4 Test assertions worth writing</a></h3>
+    <button type="button" class="copy" data-copy="src-23" title="Copy this note as markdown">Copy</button>
+  </div>
+  <pre class="src" id="src-23" hidden>### 5.4 Test assertions worth writing
+
+1. Count equals the number of bins with zero product rows, across every door of every cabinet,
+   including virtual.
+2. Allocating into an empty bin decrements the count by one; unallocating the last product from a bin
+   increments it by one.
+3. A move that empties a source bin does **not** increment the count until the product is unallocated.
+4. A bin holding only `quantity: 0` rows is not counted.
+5. Toggling the filter mutates no inventory — the config object is identical before and after.
+6. Every bin outlined green has `available === true`, and no bin with `available === false` is outlined.
+7. Every door showing a dot has at least one available bin behind it, and vice versa.
+8. An available bin picked as a move target carries the target stroke only, not the availability one.</pre>
+  <ol>
+<li>Count equals the number of bins with zero product rows, across every door of every cabinet, including virtual.</li>
+<li>Allocating into an empty bin decrements the count by one; unallocating the last product from a bin increments it by one.</li>
+<li>A move that empties a source bin does <strong>not</strong> increment the count until the product is unallocated.</li>
+<li>A bin holding only <code>quantity: 0</code> rows is not counted.</li>
+<li>Toggling the filter mutates no inventory — the config object is identical before and after.</li>
+<li>Every bin outlined green has <code>available === true</code>, and no bin with <code>available === false</code> is outlined.</li>
+<li>Every door showing a dot has at least one available bin behind it, and vice versa.</li>
+<li>An available bin picked as a move target carries the target stroke only, not the availability one.</li>
+</ol>
+  
+</section>
+</section>
+  </main>
+</div>
+<script>
+  // execCommand is the fallback, not the relic it looks like: these pages are opened straight off
+  // disk as often as they are served, and navigator.clipboard is unavailable on a file:// origin.
+  function put(text) {
+    if (navigator.clipboard?.writeText) return navigator.clipboard.writeText(text);
+    return new Promise((done, fail) => {
+      const area = document.createElement('textarea');
+      area.value = text;
+      area.style.position = 'fixed';
+      area.style.opacity = '0';
+      document.body.appendChild(area);
+      area.select();
+      const ok = document.execCommand('copy');
+      area.remove();
+      ok ? done() : fail(new Error('copy refused'));
+    });
+  }
+
+  addEventListener('click', event => {
+    const button = event.target.closest('.copy');
+    if (!button) return;
+    const source = document.getElementById(button.dataset.copy);
+    if (!source) return;
+    const label = button.dataset.label ?? button.textContent;
+    button.dataset.label = label;
+    put(source.textContent).then(
+      () => {
+        button.textContent = 'Copied';
+        button.classList.add('done');
+      },
+      () => {
+        // Says what happened rather than pretending it worked — a button that reports success and
+        // leaves the clipboard untouched is worse than one that fails out loud.
+        button.textContent = 'Press ⌘C';
+        const range = document.createRange();
+        source.hidden = false;
+        range.selectNodeContents(source);
+        getSelection().removeAllRanges();
+        getSelection().addRange(range);
+      }
+    );
+    setTimeout(() => {
+      button.textContent = label;
+      button.classList.remove('done');
+      source.hidden = true;
+    }, 1600);
+  });
+
+  // Scroll-spy, so the sidebar says where you are.
+  let queued = false;
+  function spy() {
+    queued = false;
+    const links = [...document.querySelectorAll('nav ol a')];
+    let active = 0;
+    links.forEach((link, index) => {
+      const target = document.getElementById(decodeURIComponent(link.hash.slice(1)));
+      if (target && target.getBoundingClientRect().top < 120) active = index;
+    });
+    links.forEach((link, index) => link.classList.toggle('active', index === active));
+  }
+  addEventListener('scroll', () => { if (!queued) { queued = true; requestAnimationFrame(spy); } }, { passive: true });
+  spy();
+</script>
+</body>
+</html>
