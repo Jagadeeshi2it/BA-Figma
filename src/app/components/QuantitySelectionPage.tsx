@@ -963,7 +963,7 @@ export default function QuantitySelectionPage({
               variant="primary"
               enabled={!isSaving}
               onClick={handleSave}
-              trailingIcon={!isSaving ? <ArrowRight className="w-4 h-4" /> : undefined}
+              trailingIcon={<ArrowRight className="w-4 h-4" />}
               demoId="pipeline-primary"
             />
           </FooterActions>

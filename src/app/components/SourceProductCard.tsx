@@ -96,7 +96,9 @@ export default function SourceProductCard({
           {/* Main content section with product info and quantity */}
           <div className="flex items-start justify-between w-full">
             {/* Left side - Product details with enhanced data */}
-            <div className="flex flex-col space-y-1.5 flex-1 min-w-0">
+            {/* No space-y — the NDC line sits directly under the generic name, as in the Review header
+                and TargetProductCard. All three are one identity block, not two facts to separate. */}
+            <div className="flex flex-col flex-1 min-w-0">
               {/* Name and generic name are one block, with the badges below both — the same shape the
                   search list and the side panels use, so a product reads the same wherever it turns
                   up. The badge markup and colours are the shared set too; the black pill this used

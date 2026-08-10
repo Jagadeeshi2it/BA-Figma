@@ -1168,7 +1168,7 @@ export default function TargetBinSerialScanPage({
               variant="primary"
               enabled={canSave}
               onClick={handleSave}
-              trailingIcon={canSave ? <ArrowRight className="w-4 h-4" /> : undefined}
+              trailingIcon={<ArrowRight className="w-4 h-4" />}
               demoId="pipeline-primary"
             />
           </FooterActions>

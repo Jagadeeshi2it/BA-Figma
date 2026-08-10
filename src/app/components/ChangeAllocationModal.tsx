@@ -123,14 +123,20 @@ export default function ChangeAllocationModal({
         toDoor: toBin ? getDoorName(toBin) : undefined,
         // Nothing is settled on Review: no quantity has been taken and no bin is being handled, so
         // neither side carries a figure and neither is marked as the one in hand.
+        //
+        // status is 'pending' for every row, and that includes not marking one 'current'. It used to
+        // be "does this row's pair match the two bins the columns are pointed at", which is a VIEW
+        // POSITION, not progress — and the panel's blue card / bold bin mean "this is the bin in your
+        // hands", which is step ④'s signal and has no meaning here. It also said nothing where it was
+        // seen most: with one source and one target every row matched, so the whole panel went blue.
+        // Where it did discriminate it only repeated what the column pagers already state in words
+        // ("Bin 1 of 3", named), in a colour that means something else one step later.
         sourceQuantity: null as number | null,
         quantity: null as number | null,
         unit: (product as any)?.unit,
         isCurrentSource: false,
         isCurrentTarget: false,
-        status: (fromBin?.id === sourceBin?.id && toBin?.id === targetBin?.id
-          ? 'current'
-          : 'pending') as MoveSummaryRow['status']
+        status: 'pending' as MoveSummaryRow['status']
       };
     });
     // Left in pendingTransfers' own order — the order the operator built the selection in — rather
@@ -138,7 +144,9 @@ export default function ChangeAllocationModal({
     // contiguous, so there's nothing left for a sort to fix, and the panel now reads in the same
     // order the operator picked things in.
     return rows;
-  }, [pendingTransfers, sourceBins, targetBins, sourceBin, targetBin]);
+    // sourceBin/targetBin are deliberately not deps: the rows no longer depend on which bin the
+    // columns are pointed at, so paging the columns must not rebuild them.
+  }, [pendingTransfers, sourceBins, targetBins]);
 
   // Distinct products in the summary — the footer's counter reports this, matching the panel's own
   // "N products" header rather than a count of bin pairings (a product spanning two bins is one
@@ -1015,7 +1023,10 @@ export default function ChangeAllocationModal({
                         
                         {/* The same block the source and target cards use — this header names one of
                             the products those cards list, so it shouldn't present it differently. */}
-                        <div className="flex-1 flex flex-col space-y-1.5 min-w-0">
+                        {/* No space-y: the NDC line sits directly under the generic name. The 6px gap
+                            read as a break between two facts about one product, when the three lines
+                            are one identity block. Kept in step with the two cards below. */}
+                        <div className="flex-1 flex flex-col min-w-0">
                           <div>
                             {/* Badges beside the display name, as on both step-④ screens. On their own
                                 line under the generic name they sat two rows from the NDC they help
@@ -1460,7 +1471,7 @@ export default function ChangeAllocationModal({
               variant="primary"
               enabled={validateTransfers()}
               onClick={handleConfirm}
-              trailingIcon={validateTransfers() ? <ArrowRight className="w-4 h-4" /> : undefined}
+              trailingIcon={<ArrowRight className="w-4 h-4" />}
               demoId="pipeline-primary"
             />
           </FooterActions>

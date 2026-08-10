@@ -78,7 +78,9 @@ export default function TargetProductCard({
           {/* Top row - Product name, badge, and quantity */}
           <div className="flex items-start justify-between w-full">
             {/* Left side - Product name and badge */}
-            <div className="flex flex-col space-y-1.5 flex-1 min-w-0">
+            {/* No space-y, matching the source card and the Review header — the NDC sits directly
+                under the generic name. */}
+            <div className="flex flex-col flex-1 min-w-0">
               {/* Same block as the source card: name, generic name directly beneath it, shared badges
                   below both. The two cards sit side by side in this modal, so any difference in how
                   they present the same product reads as a difference in the product. */}

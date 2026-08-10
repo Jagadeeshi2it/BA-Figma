@@ -193,8 +193,19 @@ export function FooterButton({
    * re-read it to find out what the button even was.
    */
   onBlockedClick?: () => void;
-  // Which side an arrow sits on is the whole message on the step buttons: leading points back to the
-  // step you came from, trailing points on to the next one.
+  /**
+   * Which side an arrow sits on is the whole message on the step buttons: leading points back to the
+   * step you came from, trailing points on to the next one.
+   *
+   * An icon given here is rendered in BOTH states — do not pass it conditionally on `enabled`. Every
+   * primary in the pipeline used to drop its arrow while blocked, on the reasoning that the arrow
+   * promises a next step that cannot happen. What it actually produced was the button changing shape
+   * as its requirement was met: the label already swaps ("Select Bin to move" → "Build Move List"),
+   * and losing the arrow on top of that made the control jump at the moment the operator was reading
+   * it. The label is what carries the requirement, which is the app's convention anyway; the icon
+   * belongs to the button's identity, the same as `Cancel` keeping its name when it is unavailable.
+   * `opacity-50` is what says unavailable, and it dims the arrow along with everything else.
+   */
   leadingIcon?: React.ReactNode;
   trailingIcon?: React.ReactNode;
 }) {

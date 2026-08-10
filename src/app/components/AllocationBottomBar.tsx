@@ -115,7 +115,7 @@ export default function AllocationBottomBar({
           // Disabled, the button says what it's waiting for rather than greying out mutely. A bare
           // disabled `Target Selection →` was the app's sharpest flaw — the user could see the control
           // they needed and was told nothing about why it wouldn't work (UX-AUDIT H6-2). The forward
-          // arrow is dropped while blocked: it promises a next step that can't happen.
+          // arrow stays in both states — see FooterButton's trailingIcon.
           <FooterButton
             label={
               sourceBinCount > 0
@@ -130,7 +130,7 @@ export default function AllocationBottomBar({
             variant="primary"
             enabled={sourceBinCount > 0}
             onClick={onNext}
-            trailingIcon={sourceBinCount > 0 ? <ArrowRight className="w-4 h-4" /> : undefined}
+            trailingIcon={<ArrowRight className="w-4 h-4" />}
             demoId="pipeline-primary"
           />
         ) : (
@@ -148,7 +148,7 @@ export default function AllocationBottomBar({
             // left bare while it said "Confirm", on the grounds that it opens a panel rather than
             // advancing — but that was the misleading part: it does advance, and the commit is two
             // screens further on.
-            trailingIcon={targetBinCount > 0 ? <ArrowRight className="w-4 h-4" /> : undefined}
+            trailingIcon={<ArrowRight className="w-4 h-4" />}
             demoId="pipeline-primary"
           />
         )}

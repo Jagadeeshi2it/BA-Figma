@@ -400,7 +400,13 @@ Every stage renders `PipelineFooterShell` from `PipelineFooter.tsx`, left to rig
   read-only confirmation of work already finished. The panel it opens and the footer cell that toggles
   it are `Move List` for the same reason.
 - **A disabled primary states its requirement** rather than greying silently:
-  `Select a source bin` → `Target Selection →` once satisfied. The arrow is dropped while blocked.
+  `Select a source bin` → `Target Selection →` once satisfied. **The arrow stays in both states**, and
+  every stage's primary passes `trailingIcon` unconditionally. It used to be dropped while blocked, on
+  the reasoning that an arrow promises a next step that cannot happen — but the label already swaps as
+  the requirement is met, and losing the icon on top of that made the button change shape under the
+  operator at the moment they were reading it. The label carries the requirement; the icon belongs to
+  the button's identity, the same way step ④'s `Cancel` keeps its name when unavailable. `opacity-50`
+  is what says unavailable, and it dims the arrow with everything else.
 - The shell is `min-h-[60px]`, not a fixed height: the instruction wraps to two lines on some steps.
   Buttons are `h-9` so all four stages line up.
 
@@ -895,6 +901,13 @@ get the nesting. Four things about it are load-bearing:
   current product at once, so the panel could not say which bin was in the operator's hands.
 - **`stage`** (`'review' | 'source' | 'target'`) is passed by the screen, not inferred. It decides the
   header banner, which end gets the bold, and which badges can appear.
+- **On Review nothing is marked at all** — every row is `status: 'pending'`, and both `isCurrent*` flags
+  are false. The blue card and the bold bin mean "this is the bin in your hands", which exists only on
+  step ④, where it comes from real progress (`groupIndex === currentIndex`). Review's rows used to take
+  `status: 'current'` when their pair matched the bins its two columns were paged to — a **view
+  position**, not progress. It said nothing where it was seen most: with one source and one target every
+  row matched, so all four cards went blue at once. Where it did discriminate it only repeated the
+  column pagers' own `Bin n of N`, in a colour that means something else one step later.
 
 ### Review's target column: arrivals vs what the bin already held
 
