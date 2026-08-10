@@ -48,7 +48,7 @@ export default function AddMoveToBinOverlay({
   /** The door the operator has open, so the overlay opens on it rather than wherever they last were. */
   currentDoorName,
   onCancel,
-  onPickBin
+  onConfirm
 }: {
   open: boolean;
   doorShelfConfig: DoorShelfConfig;
@@ -58,7 +58,8 @@ export default function AddMoveToBinOverlay({
   existingTargetBinIds: string[];
   currentDoorName?: string;
   onCancel: () => void;
-  onPickBin: (binId: string) => void;
+  /** Every bin picked in this visit, committed in one go. */
+  onConfirm: (binIds: string[]) => void;
 }) {
   // Opens on the door already unlocked, since that is where the operator is standing and one door opens
   // at a time. They can still walk to another; the door dots say which hold free bins.
@@ -66,14 +67,24 @@ export default function AddMoveToBinOverlay({
   const [selectedCabinet, setSelectedCabinet] = useState<string>(
     () => cabinets.find(cabinet => cabinet.doors.includes(currentDoorName ?? 'Door 1'))?.name ?? 'Cabinet 1'
   );
+  /**
+   * Bins picked in this visit, committed together when the operator is done.
+   *
+   * Multi-select rather than pick-one-and-close, because the question being answered is "where is the
+   * rest of this going", and the answer can be several bins — the same way step ② takes as many targets
+   * as the operator wants before moving on. Closing on the first tap would make them reopen the cabinet
+   * once per bin, and each reopen is another walk back to the door they were already standing at.
+   */
+  const [selectedBinIds, setSelectedBinIds] = useState<string[]>([]);
 
   // Reset to the open door each time it opens — a door left selected from a previous visit is a walk the
-  // operator did not ask for.
+  // operator did not ask for, and a bin still ticked from last time is a commitment they did not make.
   React.useEffect(() => {
     if (!open) return;
     const door = currentDoorName ?? 'Door 1';
     setSelectedDoor(door);
     setSelectedCabinet(cabinets.find(cabinet => cabinet.doors.includes(door))?.name ?? 'Cabinet 1');
+    setSelectedBinIds([]);
   }, [open, currentDoorName]);
 
   /**
@@ -136,7 +147,11 @@ export default function AddMoveToBinOverlay({
       });
       return;
     }
-    onPickBin(binId);
+    // Toggles, as a bin tap does at step ②. A tap that could only ever add would leave a mis-tap
+    // uncorrectable without cancelling the whole visit.
+    setSelectedBinIds(prev =>
+      prev.includes(binId) ? prev.filter(id => id !== binId) : [...prev, binId]
+    );
   };
 
   return (
@@ -149,7 +164,8 @@ export default function AddMoveToBinOverlay({
           <h2 className="text-[16px] font-medium text-[#020817]">Add another Move To bin</h2>
         </div>
         <p className="text-[14px] text-[#4a5565] mt-0.5">
-          {productName} — tap the bin to move the rest into.
+          {productName} — tap the bins to move the rest into. No quantities here; the split is decided
+          bin by bin when you get back.
         </p>
       </div>
 
@@ -185,7 +201,11 @@ export default function AddMoveToBinOverlay({
           changeAllocationMode={true}
           changeAllocationStep={2}
           changeAllocationSourceBins={sourceBinIds}
-          changeAllocationTargetBins={existingTargetBinIds}
+          // Bins picked in this visit wear the same green Move To treatment as the ones already in the
+          // move, because that is what they are about to become. Nothing distinguishes "already a
+          // target" from "picked just now" — the operator is looking at where this product will end up,
+          // and how recently a bin joined that list is not a fact about the cabinet.
+          changeAllocationTargetBins={[...existingTargetBinIds, ...selectedBinIds]}
           showUnallocatedProducts={false}
           onBinClick={handleBinClick}
           onProductClick={() => {}}
@@ -200,6 +220,20 @@ export default function AddMoveToBinOverlay({
       <PipelineFooterShell>
         <FooterActions>
           <FooterButton label="Cancel" variant="secondary" onClick={onCancel} />
+          {/* States its requirement while there is nothing picked, the same as the bin-picking steps —
+              here the label's job IS to name what happens next, so the rule applies rather than the
+              keep-your-own-name exception the save primary follows. */}
+          <FooterButton
+            label={
+              selectedBinIds.length === 0
+                ? 'Tap a bin to add'
+                : `Add ${selectedBinIds.length} ${selectedBinIds.length === 1 ? 'Bin' : 'Bins'}`
+            }
+            variant="primary"
+            enabled={selectedBinIds.length > 0}
+            onClick={() => onConfirm(selectedBinIds)}
+            demoId="add-move-to-bin-confirm"
+          />
         </FooterActions>
       </PipelineFooterShell>
     </div>

@@ -160,12 +160,12 @@ export default function App() {
    * re-charge the first source for its whole amount a second time
    * (`scripts/verify-source-attribution.mjs`).
    *
-   * `placedInCurrentBin` is not applied to any transfer. It is the operator's statement about the bin
-   * they are standing at, and the placement screen has already recorded it by trimming that bin's
-   * scanned list — which is what creates the remainder this new bin exists to take.
+   * No quantity comes in with the bin, and none is stored against it. How much lands where is decided
+   * bin by bin on the placement screen afterwards, by scanning — which is where that decision has always
+   * belonged. Called once per bin when the operator picks several.
    */
   const handleAddMoveTargetBin = useCallback(
-    (productId: string, binId: string, _placedInCurrentBin: number) => {
+    (productId: string, binId: string) => {
       setPendingSerialTransfers(prev => {
         const productTransfers = prev.filter(transfer => transfer.productId === productId);
         if (productTransfers.length === 0) return prev;

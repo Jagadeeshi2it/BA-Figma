@@ -23,7 +23,6 @@ import ProductBadges from './ProductBadges';
 import { SkippedProduct, CANNOT_CANCEL_REASON } from './QuantitySelectionPage';
 import { CabinetAccess } from '../hooks/useCabinetAccess';
 import AddMoveToBinOverlay from './AddMoveToBinOverlay';
-import ConfirmDialog from './ConfirmDialog';
 import {
   moveToBinCandidates,
   selectableMoveToBins,
@@ -60,15 +59,14 @@ interface TargetBinSerialScanPageProps {
   /** Target bin ids in the order the route says to fill them. Undefined keeps the arrival order. */
   placeBinOrder?: string[];
   /**
-   * Give the product currently being placed another Move To bin, because the one in front of the
-   * operator has run out of room. `placedInCurrentBin` is what actually fit in the bin they are at —
-   * the remainder is what the new bin is for.
+   * Give the product currently being placed another Move To bin. Called once per bin when the operator
+   * picks several, so the caller need not know how many were chosen.
    *
    * Owned by App rather than this screen: the transfers are App's state, and the route, the footer's
    * counters and the Move List all derive from them, so appending there keeps every one of those in
    * step. A bin added into local state here would show up on this screen and nowhere else.
    */
-  onAddTargetBin?: (productId: string, binId: string, placedInCurrentBin: number) => void;
+  onAddTargetBin?: (productId: string, binId: string) => void;
 }
 
 interface TransferWithInfo extends ProductTransfer {
@@ -210,19 +208,14 @@ export default function TargetBinSerialScanPage({
   const [activeSheet, setActiveSheet] = useState<null | 'product' | 'targetBin'>(null);
   const [addBinOpen, setAddBinOpen] = useState(false);
   /**
-   * A bin just added because the one in hand ran out of room. Held until the appended transfers come
-   * back down through props — App owns them, so there is a render between asking and having — and then
-   * the walk jumps to it. Without this the operator would be left standing at the full bin, having to
-   * find the bin they just asked for.
+   * The bin the operator was working on when they went off to add more, held by ID so they can be put
+   * back on it.
+   *
+   * `currentTargetBinIndex` is a position in `productGroups[].targetBins`, and that array is sorted into
+   * the route's order — so adding bins re-plans the route and the same index can land on a different
+   * bin. It did: standing at Bin 3D, adding two bins, and coming back to Bin 1A.
    */
-  const [pendingNewTargetBinId, setPendingNewTargetBinId] = useState<string | null>(null);
-  /**
-   * A bin has been chosen on the shelves, but the move is not scanning serials, so how much actually fit
-   * in the bin the operator is standing at is still unknown — and the remainder cannot be worked out
-   * without it. Holds the chosen bin while that one figure is asked for.
-   */
-  const [pendingSplitBinId, setPendingSplitBinId] = useState<string | null>(null);
-  const [splitFitHere, setSplitFitHere] = useState<number | null>(null);
+  const [resumeTargetBinId, setResumeTargetBinId] = useState<string | null>(null);
   const [summaryOpen, setSummaryOpen] = useState(true);
 
   // CRITICAL: Determine if serial scanning is needed
@@ -857,20 +850,6 @@ export default function TargetBinSerialScanPage({
     }));
   }, [currentProduct, currentTargetBin, currentTargetBinIndex, remainingQtyToMove, scannedItems]);
 
-  /**
-   * The bin the operator asked for has arrived in `transfers`, so walk them to it.
-   *
-   * Keyed on the id rather than on the target bin count, because the route decides where a new bin
-   * lands in the order — appending a transfer re-plans it (App's moveRoute memo), so the bin added
-   * last is not necessarily last in the walk. Looking it up by id lands on it wherever it sits.
-   */
-  useEffect(() => {
-    if (!pendingNewTargetBinId || !currentProduct) return;
-    const index = currentProduct.targetBins.findIndex(tb => tb.toBinId === pendingNewTargetBinId);
-    if (index === -1) return;
-    setCurrentTargetBinIndex(index);
-    setPendingNewTargetBinId(null);
-  }, [pendingNewTargetBinId, currentProduct]);
 
   /**
    * Take the operator's word for how much fit in the bin they are at, then ask for the new one.
@@ -886,58 +865,46 @@ export default function TargetBinSerialScanPage({
    * in, and overwriting it with a typed figure would let the two disagree.
    */
   /**
-   * A bin was tapped on the shelves. Whether anything else needs asking depends on how the move records
-   * quantities.
+   * Commit every bin picked in the overlay, and leave the operator exactly where they were.
    *
-   * When serials are being scanned, the scan lists already say what went where, so the pick is the whole
-   * decision and the overlay closes straight into the new bin. When they are not — the whole quantity
-   * going to one bin, so the count was filled in for the operator — the app still has no idea how much
-   * actually fit in the bin they are standing at, and cannot work the remainder out without being told.
-   * That is the one case that still asks a question, and it asks it after the bin is chosen rather than
-   * before, so the tap on the cabinet is never gated behind a form.
+   * **No quantities are asked for here**, which is the point of the detour being a bin pick and nothing
+   * else. How much goes into each bin is decided bin by bin on the placement screen afterwards, by
+   * scanning into them — which is what the app already holds as the operator's decision to make
+   * (§ Transfers). A prompt at this stage asked them to commit to a split before they had seen the bins
+   * they were splitting across.
+   *
+   * **The walk does not jump to a new bin either.** The operator opened the cabinet to record where the
+   * rest can go, not to be moved somewhere; they come back to the bin they were working on and carry
+   * on. The new bins are in the walk ahead of them, and reachable immediately by tapping them in the
+   * Move List.
+   *
+   * Adding bins flips serial scanning on for the product (one source now feeds several targets), so a
+   * move that was not scanning becomes one that is. That is the correct consequence — a split has to be
+   * declared somehow — and it is why the current bin keeps whatever it was credited with rather than
+   * being cleared: taking that away would discard a figure the operator can now see and adjust.
    */
-  const handleOverlayPickBin = (binId: string) => {
+  const handleOverlayConfirm = (binIds: string[]) => {
     setAddBinOpen(false);
-    if (serialScanningRequired) {
-      applyAddTargetBin(binId, currentScannedItems.length);
-      return;
-    }
-    setPendingSplitBinId(binId);
+    if (!currentProduct || !onAddTargetBin || !currentTargetBin) return;
+    // Held before the transfers change, because the walk is re-planned as soon as they do.
+    setResumeTargetBinId(currentTargetBin.toBinId);
+    binIds.forEach(binId => onAddTargetBin(currentProduct.productId, binId));
   };
 
-  const applyAddTargetBin = (binId: string, placedInCurrentBin: number) => {
-    if (!currentProduct || !currentTargetBin || !onAddTargetBin) return;
-
-    if (!serialScanningRequired) {
-      const currentKey = getTargetBinKey(currentTargetBin);
-      const newBinKey = scanKey(currentProduct.productId, binId);
-      const remainder = Math.max(0, currentProductTotalQuantity - placedInCurrentBin);
-
-      setScannedItems(prev => ({
-        ...prev,
-        [currentKey]: (prev[currentKey] || []).slice(0, placedInCurrentBin),
-        // The remainder goes straight into the new bin rather than waiting to be scanned in.
-        //
-        // Same reasoning as the effect that fills the last bin of a split: there is nowhere else for it
-        // to go. The operator has just said 100 of 150 fit, and the bin they picked is the only other
-        // place the move has — so asking them to scan the other 50 one at a time is asking them to
-        // restate a decision they already made. It also matters that they were NOT scanning
-        // before this: adding a second bin flips serial scanning on (one source now feeds two bins), and
-        // without this the flip would land them in a scan they never opted into, holding stock, with the
-        // primary blocked on 50 more.
-        //
-        // When they were already scanning, none of this applies and neither branch runs: the scan list
-        // is the record of what went where, and seeding it would be putting words in their mouth.
-        [newBinKey]: remainder > 0 ? synthesizeScannedItems(remainder, currentProduct.unit) : []
-      }));
-    }
-
-    onAddTargetBin(currentProduct.productId, binId, placedInCurrentBin);
-    setPendingNewTargetBinId(binId);
-    setAddBinOpen(false);
-    setPendingSplitBinId(null);
-    setSplitFitHere(null);
-  };
+  /**
+   * Put the operator back on the bin they were working on, once the added bins have come down through
+   * props — App owns the transfers, so there is a render between asking and having.
+   *
+   * By ID, never by index: the new bins are slotted into the route's order, which can push the bin in
+   * hand anywhere in the list.
+   */
+  useEffect(() => {
+    if (!resumeTargetBinId || !currentProduct) return;
+    const index = currentProduct.targetBins.findIndex(tb => tb.toBinId === resumeTargetBinId);
+    if (index === -1) return;
+    if (index !== currentTargetBinIndex) setCurrentTargetBinIndex(index);
+    setResumeTargetBinId(null);
+  }, [resumeTargetBinId, currentProduct, currentTargetBinIndex]);
 
   /**
    * Walk to one of this product's target bins by tapping it in the Move List.
@@ -1188,24 +1155,27 @@ export default function TargetBinSerialScanPage({
   })();
 
   /**
-   * Whether to offer another Move To bin.
+   * Whether to offer more Move To bins.
    *
-   * Only on this product's LAST bin: anywhere earlier, the next bin in the walk is already the place
-   * for whatever did not fit, and offering to add one there would invite splitting a move for no
-   * reason. Withheld for a zero-quantity move, which carries nothing to run out of room for, and when
-   * every bin in the cabinet is refused — a control that opens an empty list is worse than no control.
+   * Offered on any of the product's bins, not only its last. It was last-bin-only on the reasoning that
+   * anywhere earlier the next bin in the walk is already the place for whatever did not fit — true, but
+   * it made a general question ("where else can this product go?") answerable only from one position in
+   * the walk. Since picking bins here neither asks for quantities nor moves the operator, there is
+   * nothing to protect them from by withholding it.
    *
-   * NOT gated on `remainingQtyToMove > 0`, which is the tempting version and would make the button
-   * appear exactly when it cannot help. In the common case — the whole quantity going to one bin, so no
-   * serials are scanned — the count is filled in for the operator at the full amount, so the remainder
-   * reads as 0 right up until they say how much actually fit. That figure is what the dialog collects.
+   * Withheld for a zero-quantity move, which carries nothing to run out of room for, and when every bin
+   * in the cabinet is refused — a control that opens onto nothing selectable is worse than no control.
+   *
+   * NOT gated on `remainingQtyToMove > 0`. That is the tempting version and would hide the button in
+   * exactly the case it was built for: with the whole quantity going to one bin no serials are scanned,
+   * so the count is filled in at the full amount and the remainder reads as 0 while the bin in front of
+   * the operator is physically full.
    */
   const canAddTargetBin =
     !!onAddTargetBin &&
-    currentTargetBinIndex === currentProduct.targetBins.length - 1 &&
     currentProductTotalQuantity > 0 &&
-    // Asked of the bins the dialog will actually list, not of every bin in the cabinet — otherwise the
-    // button can be offered on the strength of bins the operator is then not shown.
+    // Asked of the bins the overlay will actually accept, not of every bin in the cabinet — otherwise
+    // the button can be offered on the strength of bins that would all be refused.
     selectableMoveToBins(reachableMoveToBins(addTargetBinCandidates).listed).length > 0;
 
   /**
@@ -1668,81 +1638,9 @@ export default function TargetBinSerialScanPage({
         existingTargetBinIds={currentProduct.targetBins.map(tb => tb.toBinId)}
         currentDoorName={currentTargetBin.targetDoorName}
         onCancel={() => setAddBinOpen(false)}
-        onPickBin={handleOverlayPickBin}
+        onConfirm={handleOverlayConfirm}
       />
 
-      {/* The one question the cabinet cannot answer, and only when the move was not already scanning:
-          how much of the amount taken actually fit in the bin the operator is standing at. Asked after
-          the bin is chosen, so tapping a bin is never gated behind a form. */}
-      <ConfirmDialog
-        open={!!pendingSplitBinId}
-        onOpenChange={open => {
-          if (!open) {
-            setPendingSplitBinId(null);
-            setSplitFitHere(null);
-          }
-        }}
-        title="How much fit in this bin?"
-        dismissLabel="Cancel"
-        onDismiss={() => {
-          setPendingSplitBinId(null);
-          setSplitFitHere(null);
-        }}
-        confirmLabel={
-          splitFitHere == null
-            ? 'Enter how many fit'
-            : `Move ${Math.max(0, currentProductTotalQuantity - splitFitHere)} ${pluralizeUnit(
-                currentProduct.unit || 'vial',
-                Math.max(0, currentProductTotalQuantity - splitFitHere)
-              )} to the new bin`
-        }
-        onConfirm={() => {
-          if (splitFitHere == null || !pendingSplitBinId) return;
-          if (currentProductTotalQuantity - splitFitHere <= 0) return;
-          applyAddTargetBin(pendingSplitBinId, splitFitHere);
-        }}
-      >
-        <div className="space-y-3">
-          <p className="text-[14px] text-[#4a5565]">
-            {currentProductTotalQuantity}{' '}
-            {pluralizeUnit(currentProduct.unit || 'vial', currentProductTotalQuantity)} were taken from
-            the source. How many of them fit in {currentTargetBin.targetDoorName} -{' '}
-            {currentTargetBin.targetBinName}?
-          </p>
-          <div className="flex items-center gap-3">
-            {/* Empty until they type it. Anything seeded here is a guess at a bin the app cannot see, and
-                a number already in the field is a number that gets accepted. */}
-            <input
-              type="number"
-              min={0}
-              max={currentProductTotalQuantity}
-              value={splitFitHere ?? ''}
-              placeholder="0"
-              onChange={event => {
-                const raw = event.target.value;
-                if (raw === '') {
-                  setSplitFitHere(null);
-                  return;
-                }
-                const next = Number(raw);
-                if (Number.isNaN(next)) return;
-                setSplitFitHere(Math.max(0, Math.min(currentProductTotalQuantity, Math.floor(next))));
-              }}
-              className="w-24 h-9 px-3 border border-gray-300 rounded-[4px] text-[14px] text-[#020817]"
-            />
-            <span className="text-[13px] text-[#4a5565]">
-              {splitFitHere == null
-                ? `of ${currentProductTotalQuantity}`
-                : currentProductTotalQuantity - splitFitHere <= 0
-                  ? 'all of it fit — nothing to move on'
-                  : `${currentProductTotalQuantity - splitFitHere} ${pluralizeUnit(
-                      currentProduct.unit || 'vial',
-                      currentProductTotalQuantity - splitFitHere
-                    )} go to the new bin`}
-            </span>
-          </div>
-        </div>
-      </ConfirmDialog>
     </div>
   );
 }
