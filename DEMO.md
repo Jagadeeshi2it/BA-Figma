@@ -69,7 +69,7 @@ the page carrying no state and answering no question mid-demo.
 
 ```
 at rest (90px)      ● ↺ ✕
-hovered (~285px)    ● ↺ ✕ │ ‹ ▷ ›  Tick the product  6/13
+hovered (~285px)    ● ↺ ✕ │ ‹ ▷ ›  Tick the product  6/30
 ```
 
 | Control | Always visible | What it does |
@@ -278,6 +278,7 @@ Targets are `data-demo` attributes. Never text, never structure.
 | `unallocated-product` | A tray product row (first match) |
 | `unallocated-select-all` | The tray's Select All checkbox row |
 | `unallocated-badge-filter` | The tray's badge filter trigger |
+| `unallocated-review-selection` | The tray's footer counter — a toggle into the ticked products |
 | `allocate-search` | Multi Bin Assignment's search box |
 | `allocate-product` | A Multi Bin result row — and a `Selected products` row, since it is one row |
 | `allocate-select-all` | Multi Bin Assignment's Select All |
@@ -296,6 +297,11 @@ Targets are `data-demo` attributes. Never text, never structure.
 | `review-select-product` | A Review card's `Select`, on the rows not yet taken |
 | `step4-quantity` | The take half of step ④ |
 | `step4-placement` | The place half of step ④ |
+| `source-product-row` | A product row that answers the tap — only in a Product move's step ① |
+| `door` | A door button, on both cabinets and the fridges |
+
+`door` is the exception that proves the rule about naming: a walk never wants *a* door, it wants one
+with room or one that is cold, so it is always paired with the attributes below rather than used alone.
 
 Plus the data attributes a scenario resolves against rather than naming a specific element:
 `data-bin-id`, `data-bin-available`, `data-bin-product-count` and `data-product-quantity` on `BinCard`,
@@ -672,6 +678,12 @@ Checklist:
 4. Set `settleMs` above the default wherever the viewer needs to find something.
 5. Check the scenario cannot trip the E-Kit rule, which is the only thing in the app that can refuse
    an action outright.
+6. **Group the steps by surface.** Do everything on one surface before moving to the next — both
+   allocation walks pick their products in the panel and only then open a door. A step that sends the
+   cursor away and straight back reads as the walk changing its mind, and the `await` step after a
+   panel opens already parks the cursor there.
+7. Verify by watching it, or by driving the steps through `dom.ts`'s own `dispatchRealClick` — never a
+   hand-rolled click (§12).
 
 ---
 

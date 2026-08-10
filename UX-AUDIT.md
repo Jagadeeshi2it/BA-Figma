@@ -143,9 +143,12 @@ abandoning an uncommitted selection is a step back, not a deletion, and the red 
 - [~] **H4-1** Two multi-select idioms coexist. The allocate panel and unallocated tray use a
   tappable row with a custom tick square; the search dropdown uses per-row buttons with a coloured
   product name and no checkbox at all. **Half-closed 2026-08-06:** the two *panels* were themselves
-  drifting apart and are now one design — same header, search box, clear button, empty state and
-  withheld `Select All` — which matters more than before, since they are the menu's two adjacent
-  allocation entries. The dropdown is still the odd one out, and deliberately: its rows act rather than
+  drifting apart and are now one design — same header, search box, clear button, empty state, badge
+  filter and `Select All` — which matters more than before, since they are the menu's two adjacent
+  allocation entries. **Hardened 2026-08-08:** the two shared controls are now one module
+  (`ProductListControls`, as `BadgeFilterSelect` + `SelectAllToggle`) rather than the same markup twice,
+  so the agreement is enforced rather than inspected. `Select All` is visible-and-dimmed now, not
+  withheld — a control that appears and disappears as the list fills shifts the layout mid-task. The dropdown is still the odd one out, and deliberately: its rows act rather than
   accumulate (`Highlight`, `Move`), so a tick square would promise a selection it does not keep.
 - [~] **H4-2** Three bin-selection states look alike and mean different things — source (blue
   border), target (green), assignment (purple) — and nothing on screen decodes them. Learnable, but
