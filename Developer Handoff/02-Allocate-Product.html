@@ -1,0 +1,682 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>02 — Allocate Product — Developer Handoff</title>
+<style>
+  :root {
+    --bg: #ffffff; --panel: #f7f8fa; --text: #1b1f24; --muted: #5c6672; --rule: #e3e7ec;
+    --link: #095192; --code-bg: #f2f4f7; --accent: #095192; --ok: #15803d;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14171a; --panel: #1b1f23; --text: #e6e9ec; --muted: #9aa4af; --rule: #2b3137;
+      --link: #7fb2e5; --code-bg: #22272c; --accent: #7fb2e5; --ok: #6fcf8e;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 16px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .shell { display: grid; grid-template-columns: 280px minmax(0, 1fr); }
+  nav {
+    position: sticky; top: 0; align-self: start; height: 100vh; overflow-y: auto;
+    background: var(--panel); border-right: 1px solid var(--rule); padding: 24px 18px 48px;
+  }
+  nav .brand { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-bottom: 14px; }
+  nav .docs { display: flex; flex-direction: column; gap: 2px; margin-bottom: 22px; }
+  nav .docs a { padding: 6px 8px; border-radius: 4px; font-size: 13px; text-decoration: none; color: var(--muted); }
+  nav .docs a.current { background: var(--accent); color: #fff; font-weight: 500; }
+  nav h2 { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0 8px 8px; font-weight: 600; }
+  nav ol { list-style: none; margin: 0; padding: 0; }
+  nav ol a { display: block; padding: 4px 8px; border-radius: 4px; font-size: 13px; color: var(--muted); text-decoration: none; }
+  nav ol a:hover { background: rgba(127,127,127,.12); color: var(--text); }
+  nav ol a.active { color: var(--link); font-weight: 600; }
+  nav li.sub a { padding-left: 20px; font-size: 12.5px; }
+  main { padding: 40px 48px 120px; max-width: 980px; }
+  header.page { border-bottom: 1px solid var(--rule); padding-bottom: 20px; margin-bottom: 28px; }
+  header.page h1 { margin: 0 0 6px; font-size: 30px; letter-spacing: -.01em; }
+  header.page .meta { color: var(--muted); font-size: 14px; }
+  header.page .actions { margin-top: 14px; }
+  h2, h3, h4 { line-height: 1.3; letter-spacing: -.01em; margin: 0; }
+  h2 { font-size: 22px; } h3 { font-size: 17px; } h4 { font-size: 15px; }
+  .anchor { color: inherit; text-decoration: none; }
+  .anchor:hover::after { content: " #"; color: var(--muted); font-weight: 400; }
+  .note { scroll-margin-top: 24px; }
+  .note.level-2 { margin-top: 40px; padding-top: 8px; border-top: 1px solid var(--rule); }
+  .note.level-3 { margin-top: 26px; }
+  .note-head { display: flex; align-items: baseline; gap: 12px; }
+  .note-head h2, .note-head h3 { flex: 1; min-width: 0; }
+  .copy {
+    flex: none; font: inherit; font-size: 12px; line-height: 1; padding: 6px 10px; cursor: pointer;
+    border-radius: 4px; border: 1px solid var(--rule); background: var(--bg); color: var(--muted);
+    transition: color .12s, border-color .12s;
+  }
+  .copy:hover { color: var(--link); border-color: var(--link); }
+  .copy.done { color: var(--ok); border-color: var(--ok); }
+  .copy.wide { font-size: 13px; padding: 8px 14px; }
+  p, ul, ol, table { margin: 14px 0; }
+  li { margin: 4px 0; }
+  code { background: var(--code-bg); padding: 1px 5px; border-radius: 3px; font-size: 13.5px; }
+  pre { background: var(--code-bg); padding: 14px 16px; border-radius: 6px; overflow-x: auto; }
+  pre code { background: none; padding: 0; }
+  pre.src { display: none; }
+  a { color: var(--link); }
+  img {
+    display: block; max-width: 100%; height: auto; margin: 18px 0;
+    border: 1px solid var(--rule); border-radius: 6px;
+  }
+  .table-scroll { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: 14.5px; }
+  th, td { border: 1px solid var(--rule); padding: 8px 10px; text-align: left; vertical-align: top; }
+  th { background: var(--panel); font-weight: 600; }
+  blockquote { margin: 14px 0; padding: 2px 16px; border-left: 3px solid var(--rule); color: var(--muted); }
+  hr { border: 0; border-top: 1px solid var(--rule); margin: 28px 0; }
+  @media (max-width: 900px) {
+    .shell { grid-template-columns: 1fr; }
+    nav { position: static; height: auto; border-right: 0; border-bottom: 1px solid var(--rule); }
+    main { padding: 28px 20px 80px; }
+  }
+</style>
+</head>
+<body>
+<div class="shell">
+  <nav>
+    <div class="brand">Developer Handoff</div>
+    <div class="docs">
+      <a href="index.html">Developer Handoff — Bin Allocation 2.0</a>
+      <a href="00-Introduction.html">00 — Introduction</a>
+      <a href="01-Bins-Available.html">01 — Bins Available</a>
+      <a href="02-Allocate-Product.html" class="current">02 — Allocate Product</a>
+      <a href="03-Multi-Bin-Assignment.html">03 — Multi Bin Assignment</a>
+    </div>
+    <h2>On this page</h2>
+    <ol>
+      <li><a href="#default-state">Default state</a></li>
+      <li><a href="#interaction-state">Interaction state</a></li>
+      <li><a href="#1-what-the-feature-is">1. What the feature is</a></li>
+      <li><a href="#2-behaviour">2. Behaviour</a></li>
+      <li class="sub"><a href="#2-1-what-the-tray-holds">2.1 What the tray holds</a></li>
+      <li class="sub"><a href="#2-2-narrowing-the-list">2.2 Narrowing the list</a></li>
+      <li class="sub"><a href="#2-3-choosing-bins">2.3 Choosing bins</a></li>
+      <li class="sub"><a href="#2-4-allocating">2.4 Allocating</a></li>
+      <li><a href="#3-implementation-in-the-prototype">3. Implementation in the prototype</a></li>
+      <li><a href="#4-data-and-persistence">4. Data and persistence</a></li>
+      <li><a href="#5-notes-and-open-questions">5. Notes and open questions</a></li>
+      <li class="sub"><a href="#5-1-nothing-ever-returns-a-product-to-the-tray">5.1 Nothing ever returns a product to the tray</a></li>
+      <li class="sub"><a href="#5-2-history-records-an-invented-quantity">5.2 History records an invented quantity</a></li>
+      <li class="sub"><a href="#5-3-the-cross-product-is-not-stated-anywhere-on-screen">5.3 The cross product is not stated anywhere on screen</a></li>
+      <li class="sub"><a href="#5-4-a-hidden-selection-is-only-findable-on-demand">5.4 A hidden selection is only findable on demand</a></li>
+      <li class="sub"><a href="#5-5-test-assertions-worth-writing">5.5 Test assertions worth writing</a></li>
+    </ol>
+  </nav>
+  <main>
+    <header class="page">
+      <h1>02 — Allocate Product</h1>
+      <div class="meta">Generated from 02-Allocate-Product.md — edit the markdown, then re-run <code>node scripts/build-handoff-html.mjs</code>.</div>
+      <div class="actions">
+        <button type="button" class="copy wide" data-copy="whole-doc">Copy whole document</button>
+      </div>
+    </header>
+    <pre class="src" id="whole-doc" hidden># 02 — Allocate Product
+
+**Surface:** `Allocate/Move` › **Allocate Product** — the Unallocated Products tray (440px, right)
+**Job:** give a bin to a product that has **no bin at all**
+**Prototype files:** `UnallocatedProductsPanel.tsx`, `ProductListControls.tsx`, `useInventoryState.ts`, `utils/unallocatedFilter.ts`, `utils/badgeFilter.ts`
+**Captured:** 2026-08-10 · seed data unmodified · screenshots at 1512×908
+
+Read [00-Introduction.md](00-Introduction.md) first — this document assumes the cabinet model, the tap
+rules and the identity triple described there.
+
+---
+
+## Default state {copy}
+
+![The Unallocated Products tray as it opens](screenshots/allocate-product/01-default-state.png)
+
+`Allocate/Move` › **Allocate Product** opens the Unallocated Products tray on the right, listing every
+product in the catalogue that currently holds no bin — 8 in this seed. The title states that whole
+count, and the cabinet stays live behind the panel, because the bins are picked on it rather than in
+the panel.
+
+From here the operator can search the tray by name, generic name, NDC or source; narrow it to
+`Climate`, `CIV`, `SDV` or `MDV` with the badge filter; tick products individually or use `Select All`
+to take everything currently listed; and tap bins on any door or fridge to choose where the ticked
+products should go. `Allocate` stays disabled until **both** a product and a bin are chosen — the
+footer says which half is missing. Tapping a bin before any product is ticked is refused with a message
+naming the panel to pick in.
+
+## Interaction state {copy}
+
+![Two climate products selected and a fridge bin picked](screenshots/allocate-product/02-interaction-state.png)
+
+The workflow this tray is built for, in three taps: filter to `Climate`, `Select All`, then tap a
+fridge — climate-sensitive stock belongs in a fridge, so every product the filter finds shares one
+destination, which is exactly when `Select All` is the right control.
+
+Ticked rows are tinted, the filter trigger turns green while it is narrowing, and `Select All` becomes
+`Unselect All` once everything listed is ticked. Each ticked product lists the bins it is about to be
+assigned to in purple, and each chosen bin is outlined purple on the canvas — one colour for "picked
+for assignment", in both places. The footer counts both halves, and tapping that counter switches the
+list to just the ticked products so the operator can check what they hold without losing it.
+
+Pressing `Allocate` writes the products into **every** chosen bin at once, removes them from the tray,
+records the allocation in History, and clears the selection ready for the next round — the panel stays
+open, because allocating one batch is rarely the whole job.
+
+---
+
+## 1. What the feature is
+
+The tray is the module's most basic allocation job: **getting a product into the cabinet at all.** It
+is the first entry in the workflow menu for that reason.
+
+Its counterpart, [Multi Bin Assignment](03-Multi-Bin-Assignment.md), gives an *additional* bin to a
+product that already has one. The two entries are the same sentence bar two words — "Assign bins to
+unallocated products" / "Assign additional bins to allocated products" — and they share the bin-picking
+channel, so a bin tap means the same thing in both.
+
+---
+
+## 2. Behaviour
+
+### 2.1 What the tray holds
+
+- Seeded once on mount: every catalogue product not already in a bin (8 in this seed).
+- The title count — `Unallocated Products (8)` — is **the whole tray, never the filtered view**. It was
+  briefly the filtered count, which made searching look like products had disappeared.
+- Allocating removes those products from the tray. Nothing puts products back into it: unallocating a
+  product elsewhere does **not** return it here (§5.1).
+
+### 2.2 Narrowing the list
+
+Three independent narrowings, composed as **AND**:
+
+| Narrowing | Notes |
+|---|---|
+| Search | Plain substring over four fields: name, generic name, NDC, source. Not the header's query grammar — the tray holds eight products, so there is nothing to compose against. |
+| Badge filter | `All products` (default), `Climate`, `CIV`, `SDV`, `MDV`. Single-select by design: `SDV`/`MDV` are two halves of one property, and a multi-select would have to decide whether `Climate + CIV` means both badges or either. |
+| Review selection | The footer counter scopes the list to the ticked products. |
+
+Rules that follow, and each of them has been a bug at some point:
+
+- **`Select All` acts on exactly what is listed** — the same predicate the list renders from
+  (`filterUnallocatedProducts`). A control labelled "all" must never tick a product the operator cannot
+  see.
+- **It completes a partial selection rather than clearing it**, and the label follows: `Select All`
+  until everything listed is ticked, `Unselect All` after.
+- **The badge filter survives a cleared search box.** Here the filter *produces* the list, so resetting
+  it when the query empties would undo the narrowing at the moment it is doing the work. (Multi Bin does
+  the opposite — see §2.2 of that document.)
+- **The filter is cleared when the tray opens and when it closes**, unlike the search box: a stale
+  `Climate` would make the tray look like it holds two products.
+- **The selection is independent of both narrowings.** A ticked product that a later search hides stays
+  ticked and still counts in the footer.
+
+Three distinct empty states, checked in this order — the filter's first, because a filter set at the
+top of the panel outlives whatever the operator does in the search box:
+
+1. `No Climate products match that search.`
+2. `No products match that search.`
+3. `Nothing to allocate — every product already has a bin.`
+
+### 2.3 Choosing bins
+
+- A bin tap toggles it in or out of the selection, on **any** door or fridge, and doors can be switched
+  freely mid-selection.
+- Chosen bins are outlined purple (`#8F48D2`) on the canvas and listed in purple under every ticked
+  product row.
+- **A bin tap before any product is ticked is refused**, with a toast naming where to pick:
+  *"Select a product in the Unallocated Products panel, then tap a bin on the left canvas."*
+- **A bin already holding one of the ticked products is refused** — *"One of the selected products is
+  already in that bin. Choose a different bin."* The whole bin is refused while **any** ticked product
+  sits there, rather than silently dropping that one pairing at confirm.
+- While the tray is open, product rows inside bin cards are **not** tappable: a tap has to mean the bin.
+
+### 2.4 Allocating
+
+`Allocate` is enabled only with at least one product and one bin. On confirm:
+
+1. **Every ticked product is written into every chosen bin** — a 2 × 3 selection produces six rows. The
+   pairing is a cross product, not a matching.
+2. **Each new row opens at `quantity: 0`.** The allocation is the act; stock arrives later by moving it
+   in. This is intended, and it is why repeatedly allocating during exploration accumulates 0-quantity
+   rows.
+3. **Rows are prepended, not appended.** A bin card shows only as many rows as its footprint fits and
+   hides the rest behind `+N more`, so a product added to the end of a full bin would land straight in
+   the hidden remainder — allocated, toasted, and invisible.
+4. The bin's `available` flag flips to `false`, so `Bins Available(n)` drops accordingly.
+5. The products are removed from the tray and the title count drops.
+6. A `New Bin Allocation` entry is written to History, naming the products and the bins.
+7. A toast lists the product names, and both selections are cleared. **The panel stays open** for the
+   next round.
+
+---
+
+## 3. Implementation in the prototype
+
+| Concern | Where |
+|---|---|
+| Tray contents | `generateUnallocatedProducts`, seeded into `unallocatedProducts` on mount |
+| What is visible | `filterUnallocatedProducts` — `utils/unallocatedFilter.ts`, the single source for both the list and `Select All` |
+| Badge rule | `utils/badgeFilter.ts`, shared with Multi Bin Assignment |
+| Filter + Select All UI | `ProductListControls.tsx` (`BadgeFilterSelect`, `SelectAllToggle`), composed identically by both panels |
+| Bin taps | `handleBinClick`'s `showUnallocatedProducts` branch → `selectedBinsForAssignment` |
+| Confirm | `handleConfirmAssignment` in `useInventoryState.ts` |
+| Panel | `UnallocatedProductsPanel.tsx` |
+
+The tray's filter state and its review flag live in the **hook**, not the panel, because `Select All`
+is a hook handler and has to tick exactly what the panel is listing. `node scripts/verify-unallocated-filter.mjs`
+(101 assertions) pins that agreement, including that all three narrowings compose as AND in both
+directions.
+
+---
+
+## 4. Data and persistence
+
+In-memory only; a reload restores the original eight and discards every allocation. Two things a real
+build has to supply that the prototype fakes:
+
+- **What "unallocated" means.** Here it is "a catalogue product not currently in any bin", computed once
+  at mount. A real system needs a defined source for this list and a rule for when a product enters it.
+- **The opening quantity.** New rows open at 0 by design, so restocking is a separate act. If the real
+  flow allocates *and* stocks in one step, that is a different workflow, not a parameter of this one.
+
+---
+
+## 5. Notes and open questions
+
+### 5.1 Nothing ever returns a product to the tray
+
+The tray is seeded once. Unallocating a product from the product detail page removes it from its bin but
+does **not** put it back here, so it becomes reachable only by searching the catalogue in Multi Bin
+Assignment. Whether unallocating should return a product to the tray is an open product question — the
+prototype's answer looks more like an oversight than a decision.
+
+### 5.2 History records an invented quantity
+
+The bin rows open at 0, but the History entry this workflow writes fabricates a starting quantity per
+product (10 for SDV, 5 otherwise, plus a random 0–4) and divides it across the chosen bins. History
+renders no quantity line for an allocation, so the figure is invisible today — but it is wrong in the
+record, and any report built on that data would inherit it. The sibling workflow deliberately does not
+do this. **Do not port this behaviour.**
+
+### 5.3 The cross product is not stated anywhere on screen
+
+Two products and three bins produce six rows, and nothing in the panel says so before `Allocate` is
+pressed — the footer counts "2 Products selected / 3 Bins selected", which reads equally like a pairing.
+Worth a confirmation summary in a real build, particularly since there is no undo beyond unallocating
+each row individually.
+
+### 5.4 A hidden selection is only findable on demand
+
+A ticked product that a later search or filter hides stays ticked and still counts in the footer. The
+footer counter reveals it, and the empty states name whichever narrowing is hiding things — but nothing
+*announces* the moment a pick becomes hidden.
+
+### 5.5 Test assertions worth writing
+
+1. `Select All` ticks exactly the products the list renders, under every combination of search and badge
+   filter.
+2. Allocating N products into M bins produces N × M rows, each at quantity 0, and removes N products
+   from the tray.
+3. Every affected bin's `available` becomes false, and `Bins Available(n)` drops by the number of bins
+   that were previously empty.
+4. A bin already holding a ticked product is refused, and no partial allocation is written.
+5. Conservation: for every product identity, total quantity across all bins is unchanged by an allocation
+   (all new rows are 0).
+6. The tray's title count always equals the unfiltered tray length, whatever the search and filter say.</pre>
+    <p><strong>Surface:</strong> <code>Allocate/Move</code> › <strong>Allocate Product</strong> — the Unallocated Products tray (440px, right) <strong>Job:</strong> give a bin to a product that has <strong>no bin at all</strong> <strong>Prototype files:</strong> <code>UnallocatedProductsPanel.tsx</code>, <code>ProductListControls.tsx</code>, <code>useInventoryState.ts</code>, <code>utils/unallocatedFilter.ts</code>, <code>utils/badgeFilter.ts</code> <strong>Captured:</strong> 2026-08-10 · seed data unmodified · screenshots at 1512×908</p>
+<p>Read <a href="00-Introduction.html">00-Introduction.md</a> first — this document assumes the cabinet model, the tap rules and the identity triple described there.</p>
+<hr />
+    
+<section class="note level-2 copyable">
+  <div class="note-head">
+    <h2 id="default-state"><a class="anchor" href="#default-state">Default state</a></h2>
+    <button type="button" class="copy" data-copy="src-40" title="Copy this note as markdown">Copy</button>
+  </div>
+  <pre class="src" id="src-40" hidden>## Default state
+
+![The Unallocated Products tray as it opens](screenshots/allocate-product/01-default-state.png)
+
+`Allocate/Move` › **Allocate Product** opens the Unallocated Products tray on the right, listing every
+product in the catalogue that currently holds no bin — 8 in this seed. The title states that whole
+count, and the cabinet stays live behind the panel, because the bins are picked on it rather than in
+the panel.
+
+From here the operator can search the tray by name, generic name, NDC or source; narrow it to
+`Climate`, `CIV`, `SDV` or `MDV` with the badge filter; tick products individually or use `Select All`
+to take everything currently listed; and tap bins on any door or fridge to choose where the ticked
+products should go. `Allocate` stays disabled until **both** a product and a bin are chosen — the
+footer says which half is missing. Tapping a bin before any product is ticked is refused with a message
+naming the panel to pick in.</pre>
+  <p><img src="screenshots/allocate-product/01-default-state.png" alt="The Unallocated Products tray as it opens" /></p>
+<p><code>Allocate/Move</code> › <strong>Allocate Product</strong> opens the Unallocated Products tray on the right, listing every product in the catalogue that currently holds no bin — 8 in this seed. The title states that whole count, and the cabinet stays live behind the panel, because the bins are picked on it rather than in the panel.</p>
+<p>From here the operator can search the tray by name, generic name, NDC or source; narrow it to <code>Climate</code>, <code>CIV</code>, <code>SDV</code> or <code>MDV</code> with the badge filter; tick products individually or use <code>Select All</code> to take everything currently listed; and tap bins on any door or fridge to choose where the ticked products should go. <code>Allocate</code> stays disabled until <strong>both</strong> a product and a bin are chosen — the footer says which half is missing. Tapping a bin before any product is ticked is refused with a message naming the panel to pick in.</p>
+  
+</section>
+
+<section class="note level-2 copyable">
+  <div class="note-head">
+    <h2 id="interaction-state"><a class="anchor" href="#interaction-state">Interaction state</a></h2>
+    <button type="button" class="copy" data-copy="src-41" title="Copy this note as markdown">Copy</button>
+  </div>
+  <pre class="src" id="src-41" hidden>## Interaction state
+
+![Two climate products selected and a fridge bin picked](screenshots/allocate-product/02-interaction-state.png)
+
+The workflow this tray is built for, in three taps: filter to `Climate`, `Select All`, then tap a
+fridge — climate-sensitive stock belongs in a fridge, so every product the filter finds shares one
+destination, which is exactly when `Select All` is the right control.
+
+Ticked rows are tinted, the filter trigger turns green while it is narrowing, and `Select All` becomes
+`Unselect All` once everything listed is ticked. Each ticked product lists the bins it is about to be
+assigned to in purple, and each chosen bin is outlined purple on the canvas — one colour for "picked
+for assignment", in both places. The footer counts both halves, and tapping that counter switches the
+list to just the ticked products so the operator can check what they hold without losing it.
+
+Pressing `Allocate` writes the products into **every** chosen bin at once, removes them from the tray,
+records the allocation in History, and clears the selection ready for the next round — the panel stays
+open, because allocating one batch is rarely the whole job.
+
+---</pre>
+  <p><img src="screenshots/allocate-product/02-interaction-state.png" alt="Two climate products selected and a fridge bin picked" /></p>
+<p>The workflow this tray is built for, in three taps: filter to <code>Climate</code>, <code>Select All</code>, then tap a fridge — climate-sensitive stock belongs in a fridge, so every product the filter finds shares one destination, which is exactly when <code>Select All</code> is the right control.</p>
+<p>Ticked rows are tinted, the filter trigger turns green while it is narrowing, and <code>Select All</code> becomes <code>Unselect All</code> once everything listed is ticked. Each ticked product lists the bins it is about to be assigned to in purple, and each chosen bin is outlined purple on the canvas — one colour for "picked for assignment", in both places. The footer counts both halves, and tapping that counter switches the list to just the ticked products so the operator can check what they hold without losing it.</p>
+<p>Pressing <code>Allocate</code> writes the products into <strong>every</strong> chosen bin at once, removes them from the tray, records the allocation in History, and clears the selection ready for the next round — the panel stays open, because allocating one batch is rarely the whole job.</p>
+<hr />
+  
+</section>
+
+<section class="note level-2">
+  <div class="note-head">
+    <h2 id="1-what-the-feature-is"><a class="anchor" href="#1-what-the-feature-is">1. What the feature is</a></h2>
+    
+  </div>
+  <p>The tray is the module's most basic allocation job: <strong>getting a product into the cabinet at all.</strong> It is the first entry in the workflow menu for that reason.</p>
+<p>Its counterpart, <a href="03-Multi-Bin-Assignment.html">Multi Bin Assignment</a>, gives an <em>additional</em> bin to a product that already has one. The two entries are the same sentence bar two words — "Assign bins to unallocated products" / "Assign additional bins to allocated products" — and they share the bin-picking channel, so a bin tap means the same thing in both.</p>
+<hr />
+  
+</section>
+
+<section class="note level-2">
+  <div class="note-head">
+    <h2 id="2-behaviour"><a class="anchor" href="#2-behaviour">2. Behaviour</a></h2>
+    
+  </div>
+  
+  
+<section class="note level-3">
+  <div class="note-head">
+    <h3 id="2-1-what-the-tray-holds"><a class="anchor" href="#2-1-what-the-tray-holds">2.1 What the tray holds</a></h3>
+    
+  </div>
+  <ul>
+<li>Seeded once on mount: every catalogue product not already in a bin (8 in this seed).</li>
+<li>The title count — <code>Unallocated Products (8)</code> — is <strong>the whole tray, never the filtered view</strong>. It was briefly the filtered count, which made searching look like products had disappeared.</li>
+<li>Allocating removes those products from the tray. Nothing puts products back into it: unallocating a product elsewhere does <strong>not</strong> return it here (§5.1).</li>
+</ul>
+  
+</section>
+
+<section class="note level-3">
+  <div class="note-head">
+    <h3 id="2-2-narrowing-the-list"><a class="anchor" href="#2-2-narrowing-the-list">2.2 Narrowing the list</a></h3>
+    
+  </div>
+  <p>Three independent narrowings, composed as <strong>AND</strong>:</p>
+<div class="table-scroll"><table><thead><tr>
+<th>Narrowing</th>
+<th>Notes</th>
+</tr></thead><tbody>
+<tr>
+<td>Search</td>
+<td>Plain substring over four fields: name, generic name, NDC, source. Not the header's query grammar — the tray holds eight products, so there is nothing to compose against.</td>
+</tr>
+<tr>
+<td>Badge filter</td>
+<td><code>All products</code> (default), <code>Climate</code>, <code>CIV</code>, <code>SDV</code>, <code>MDV</code>. Single-select by design: <code>SDV</code>/<code>MDV</code> are two halves of one property, and a multi-select would have to decide whether <code>Climate + CIV</code> means both badges or either.</td>
+</tr>
+<tr>
+<td>Review selection</td>
+<td>The footer counter scopes the list to the ticked products.</td>
+</tr>
+</tbody></table></div>
+<p>Rules that follow, and each of them has been a bug at some point:</p>
+<ul>
+<li><strong><code>Select All</code> acts on exactly what is listed</strong> — the same predicate the list renders from (<code>filterUnallocatedProducts</code>). A control labelled "all" must never tick a product the operator cannot see.</li>
+<li><strong>It completes a partial selection rather than clearing it</strong>, and the label follows: <code>Select All</code> until everything listed is ticked, <code>Unselect All</code> after.</li>
+<li><strong>The badge filter survives a cleared search box.</strong> Here the filter <em>produces</em> the list, so resetting it when the query empties would undo the narrowing at the moment it is doing the work. (Multi Bin does the opposite — see §2.2 of that document.)</li>
+<li><strong>The filter is cleared when the tray opens and when it closes</strong>, unlike the search box: a stale <code>Climate</code> would make the tray look like it holds two products.</li>
+<li><strong>The selection is independent of both narrowings.</strong> A ticked product that a later search hides stays ticked and still counts in the footer.</li>
+</ul>
+<p>Three distinct empty states, checked in this order — the filter's first, because a filter set at the top of the panel outlives whatever the operator does in the search box:</p>
+<ol>
+<li><code>No Climate products match that search.</code></li>
+<li><code>No products match that search.</code></li>
+<li><code>Nothing to allocate — every product already has a bin.</code></li>
+</ol>
+  
+</section>
+
+<section class="note level-3">
+  <div class="note-head">
+    <h3 id="2-3-choosing-bins"><a class="anchor" href="#2-3-choosing-bins">2.3 Choosing bins</a></h3>
+    
+  </div>
+  <ul>
+<li>A bin tap toggles it in or out of the selection, on <strong>any</strong> door or fridge, and doors can be switched freely mid-selection.</li>
+<li>Chosen bins are outlined purple (<code>#8F48D2</code>) on the canvas and listed in purple under every ticked product row.</li>
+<li><strong>A bin tap before any product is ticked is refused</strong>, with a toast naming where to pick: <em>"Select a product in the Unallocated Products panel, then tap a bin on the left canvas."</em></li>
+<li><strong>A bin already holding one of the ticked products is refused</strong> — <em>"One of the selected products is already in that bin. Choose a different bin."</em> The whole bin is refused while <strong>any</strong> ticked product sits there, rather than silently dropping that one pairing at confirm.</li>
+<li>While the tray is open, product rows inside bin cards are <strong>not</strong> tappable: a tap has to mean the bin.</li>
+</ul>
+  
+</section>
+
+<section class="note level-3">
+  <div class="note-head">
+    <h3 id="2-4-allocating"><a class="anchor" href="#2-4-allocating">2.4 Allocating</a></h3>
+    
+  </div>
+  <p><code>Allocate</code> is enabled only with at least one product and one bin. On confirm:</p>
+<ol>
+<li><strong>Every ticked product is written into every chosen bin</strong> — a 2 × 3 selection produces six rows. The pairing is a cross product, not a matching.</li>
+<li><strong>Each new row opens at <code>quantity: 0</code>.</strong> The allocation is the act; stock arrives later by moving it in. This is intended, and it is why repeatedly allocating during exploration accumulates 0-quantity rows.</li>
+<li><strong>Rows are prepended, not appended.</strong> A bin card shows only as many rows as its footprint fits and hides the rest behind <code>+N more</code>, so a product added to the end of a full bin would land straight in the hidden remainder — allocated, toasted, and invisible.</li>
+<li>The bin's <code>available</code> flag flips to <code>false</code>, so <code>Bins Available(n)</code> drops accordingly.</li>
+<li>The products are removed from the tray and the title count drops.</li>
+<li>A <code>New Bin Allocation</code> entry is written to History, naming the products and the bins.</li>
+<li>A toast lists the product names, and both selections are cleared. <strong>The panel stays open</strong> for the next round.</li>
+</ol>
+<hr />
+  
+</section>
+</section>
+
+<section class="note level-2">
+  <div class="note-head">
+    <h2 id="3-implementation-in-the-prototype"><a class="anchor" href="#3-implementation-in-the-prototype">3. Implementation in the prototype</a></h2>
+    
+  </div>
+  <div class="table-scroll"><table><thead><tr>
+<th>Concern</th>
+<th>Where</th>
+</tr></thead><tbody>
+<tr>
+<td>Tray contents</td>
+<td><code>generateUnallocatedProducts</code>, seeded into <code>unallocatedProducts</code> on mount</td>
+</tr>
+<tr>
+<td>What is visible</td>
+<td><code>filterUnallocatedProducts</code> — <code>utils/unallocatedFilter.ts</code>, the single source for both the list and <code>Select All</code></td>
+</tr>
+<tr>
+<td>Badge rule</td>
+<td><code>utils/badgeFilter.ts</code>, shared with Multi Bin Assignment</td>
+</tr>
+<tr>
+<td>Filter + Select All UI</td>
+<td><code>ProductListControls.tsx</code> (<code>BadgeFilterSelect</code>, <code>SelectAllToggle</code>), composed identically by both panels</td>
+</tr>
+<tr>
+<td>Bin taps</td>
+<td><code>handleBinClick</code>'s <code>showUnallocatedProducts</code> branch → <code>selectedBinsForAssignment</code></td>
+</tr>
+<tr>
+<td>Confirm</td>
+<td><code>handleConfirmAssignment</code> in <code>useInventoryState.ts</code></td>
+</tr>
+<tr>
+<td>Panel</td>
+<td><code>UnallocatedProductsPanel.tsx</code></td>
+</tr>
+</tbody></table></div>
+<p>The tray's filter state and its review flag live in the <strong>hook</strong>, not the panel, because <code>Select All</code> is a hook handler and has to tick exactly what the panel is listing. <code>node scripts/verify-unallocated-filter.mjs</code> (101 assertions) pins that agreement, including that all three narrowings compose as AND in both directions.</p>
+<hr />
+  
+</section>
+
+<section class="note level-2">
+  <div class="note-head">
+    <h2 id="4-data-and-persistence"><a class="anchor" href="#4-data-and-persistence">4. Data and persistence</a></h2>
+    
+  </div>
+  <p>In-memory only; a reload restores the original eight and discards every allocation. Two things a real build has to supply that the prototype fakes:</p>
+<ul>
+<li><strong>What "unallocated" means.</strong> Here it is "a catalogue product not currently in any bin", computed once at mount. A real system needs a defined source for this list and a rule for when a product enters it.</li>
+<li><strong>The opening quantity.</strong> New rows open at 0 by design, so restocking is a separate act. If the real flow allocates <em>and</em> stocks in one step, that is a different workflow, not a parameter of this one.</li>
+</ul>
+<hr />
+  
+</section>
+
+<section class="note level-2">
+  <div class="note-head">
+    <h2 id="5-notes-and-open-questions"><a class="anchor" href="#5-notes-and-open-questions">5. Notes and open questions</a></h2>
+    
+  </div>
+  
+  
+<section class="note level-3">
+  <div class="note-head">
+    <h3 id="5-1-nothing-ever-returns-a-product-to-the-tray"><a class="anchor" href="#5-1-nothing-ever-returns-a-product-to-the-tray">5.1 Nothing ever returns a product to the tray</a></h3>
+    
+  </div>
+  <p>The tray is seeded once. Unallocating a product from the product detail page removes it from its bin but does <strong>not</strong> put it back here, so it becomes reachable only by searching the catalogue in Multi Bin Assignment. Whether unallocating should return a product to the tray is an open product question — the prototype's answer looks more like an oversight than a decision.</p>
+  
+</section>
+
+<section class="note level-3">
+  <div class="note-head">
+    <h3 id="5-2-history-records-an-invented-quantity"><a class="anchor" href="#5-2-history-records-an-invented-quantity">5.2 History records an invented quantity</a></h3>
+    
+  </div>
+  <p>The bin rows open at 0, but the History entry this workflow writes fabricates a starting quantity per product (10 for SDV, 5 otherwise, plus a random 0–4) and divides it across the chosen bins. History renders no quantity line for an allocation, so the figure is invisible today — but it is wrong in the record, and any report built on that data would inherit it. The sibling workflow deliberately does not do this. <strong>Do not port this behaviour.</strong></p>
+  
+</section>
+
+<section class="note level-3">
+  <div class="note-head">
+    <h3 id="5-3-the-cross-product-is-not-stated-anywhere-on-screen"><a class="anchor" href="#5-3-the-cross-product-is-not-stated-anywhere-on-screen">5.3 The cross product is not stated anywhere on screen</a></h3>
+    
+  </div>
+  <p>Two products and three bins produce six rows, and nothing in the panel says so before <code>Allocate</code> is pressed — the footer counts "2 Products selected / 3 Bins selected", which reads equally like a pairing. Worth a confirmation summary in a real build, particularly since there is no undo beyond unallocating each row individually.</p>
+  
+</section>
+
+<section class="note level-3">
+  <div class="note-head">
+    <h3 id="5-4-a-hidden-selection-is-only-findable-on-demand"><a class="anchor" href="#5-4-a-hidden-selection-is-only-findable-on-demand">5.4 A hidden selection is only findable on demand</a></h3>
+    
+  </div>
+  <p>A ticked product that a later search or filter hides stays ticked and still counts in the footer. The footer counter reveals it, and the empty states name whichever narrowing is hiding things — but nothing <em>announces</em> the moment a pick becomes hidden.</p>
+  
+</section>
+
+<section class="note level-3">
+  <div class="note-head">
+    <h3 id="5-5-test-assertions-worth-writing"><a class="anchor" href="#5-5-test-assertions-worth-writing">5.5 Test assertions worth writing</a></h3>
+    
+  </div>
+  <ol>
+<li><code>Select All</code> ticks exactly the products the list renders, under every combination of search and badge filter.</li>
+<li>Allocating N products into M bins produces N × M rows, each at quantity 0, and removes N products from the tray.</li>
+<li>Every affected bin's <code>available</code> becomes false, and <code>Bins Available(n)</code> drops by the number of bins that were previously empty.</li>
+<li>A bin already holding a ticked product is refused, and no partial allocation is written.</li>
+<li>Conservation: for every product identity, total quantity across all bins is unchanged by an allocation (all new rows are 0).</li>
+<li>The tray's title count always equals the unfiltered tray length, whatever the search and filter say.</li>
+</ol>
+  
+</section>
+</section>
+  </main>
+</div>
+<script>
+  // execCommand is the fallback, not the relic it looks like: these pages are opened straight off
+  // disk as often as they are served, and navigator.clipboard is unavailable on a file:// origin.
+  function put(text) {
+    if (navigator.clipboard?.writeText) return navigator.clipboard.writeText(text);
+    return new Promise((done, fail) => {
+      const area = document.createElement('textarea');
+      area.value = text;
+      area.style.position = 'fixed';
+      area.style.opacity = '0';
+      document.body.appendChild(area);
+      area.select();
+      const ok = document.execCommand('copy');
+      area.remove();
+      ok ? done() : fail(new Error('copy refused'));
+    });
+  }
+
+  addEventListener('click', event => {
+    const button = event.target.closest('.copy');
+    if (!button) return;
+    const source = document.getElementById(button.dataset.copy);
+    if (!source) return;
+    const label = button.dataset.label ?? button.textContent;
+    button.dataset.label = label;
+    put(source.textContent).then(
+      () => {
+        button.textContent = 'Copied';
+        button.classList.add('done');
+      },
+      () => {
+        // Says what happened rather than pretending it worked — a button that reports success and
+        // leaves the clipboard untouched is worse than one that fails out loud.
+        button.textContent = 'Press ⌘C';
+        const range = document.createRange();
+        source.hidden = false;
+        range.selectNodeContents(source);
+        getSelection().removeAllRanges();
+        getSelection().addRange(range);
+      }
+    );
+    setTimeout(() => {
+      button.textContent = label;
+      button.classList.remove('done');
+      source.hidden = true;
+    }, 1600);
+  });
+
+  // Scroll-spy, so the sidebar says where you are.
+  let queued = false;
+  function spy() {
+    queued = false;
+    const links = [...document.querySelectorAll('nav ol a')];
+    let active = 0;
+    links.forEach((link, index) => {
+      const target = document.getElementById(decodeURIComponent(link.hash.slice(1)));
+      if (target && target.getBoundingClientRect().top < 120) active = index;
+    });
+    links.forEach((link, index) => link.classList.toggle('active', index === active));
+  }
+  addEventListener('scroll', () => { if (!queued) { queued = true; requestAnimationFrame(spy); } }, { passive: true });
+  spy();
+</script>
+</body>
+</html>

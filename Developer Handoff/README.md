@@ -49,10 +49,13 @@ are placeholder rather than behaviour.
 | # | Feature | Document | Status |
 |---|---|---|---|
 | 00 | Introduction — the module as a whole | [00-Introduction.md](00-Introduction.md) | Complete |
-| 01 | Bins Available (availability filter + count) | [01-Bins-Available.md](01-Bins-Available.md) | Complete |
+| 01 | Bins Available — availability filter and count | [01-Bins-Available.md](01-Bins-Available.md) | Complete |
+| 02 | Allocate Product — the Unallocated Products tray | [02-Allocate-Product.md](02-Allocate-Product.md) | Complete |
+| 03 | Multi Bin Assignment — an additional bin for a stocked product | [03-Multi-Bin-Assignment.md](03-Multi-Bin-Assignment.md) | Complete |
 
-Further flows (Allocate Product, Multi Bin Assignment, Move from Bin, Move from Product, History) to be
-added one at a time, in the same format.
+02 and 03 are the two halves of allocation and are written to be read together: same panel design, same
+bin-picking channel, different jobs. The remaining flows (Move from Bin, Move from Product, History) are
+to be added one at a time, in the same format.
 
 ## How each document is structured
 
