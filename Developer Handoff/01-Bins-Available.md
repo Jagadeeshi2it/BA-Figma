@@ -7,21 +7,34 @@
 
 ---
 
-## Default state
+## Default state {copy}
 
 ![Allocation page, Bins Available off](screenshots/bins-available/01-default-state.png)
 
-The page as it loads. The count is already there — `Bins Available(16)` — because the number is not
-gated on the toggle. Nothing on the canvas is marked: Bin 1D and Bin 1E are empty and say so in their
-body text, but that text is a property of the bin, not of this feature.
+The Allocation page as it loads, with the availability filter off. `Bins Available(16)` already states
+how many bins across every cabinet and fridge are empty and able to take stock — the count is live and
+is never gated on the filter, so the operator has the number without asking for it.
 
-## Interaction state
+From here the operator can read that count, switch cabinets and doors to browse what each bin holds,
+search for a product or a bin, or open `Allocate/Move` to start a workflow. Empty bins read
+"Available Bin" in their card body, but nothing is marked out on the canvas: finding the free ones
+means opening doors and looking. Pressing `Bins Available(16)` is what answers that in one step.
+
+## Interaction state {copy}
 
 ![The same page with Bins Available on](screenshots/bins-available/02-interaction-state.png)
 
-The same door, after one tap on the control. Three things changed and nothing else did: the button
-turned green, every door with at least one free bin gained a green dot, and every empty bin card gained
-a 2px green outline. No bin, door or cabinet is hidden — this marks, it does not filter down.
+The same door after one press of `Bins Available(16)`. The control turns green, every door holding at
+least one free bin gains a green dot, and every empty bin behind the open door gains a green outline.
+Nothing is hidden and no count changes — the filter marks what is already there, so the operator can
+see at a glance which doors are worth opening rather than checking them one at a time.
+
+From here the operator can pick a door by its dot, tap an outlined bin exactly as they would with the
+filter off, and press the control again to turn the marking off. The state also holds while a workflow
+is open: `Bins Available` stays in the header during Allocate Product, Multi Bin Assignment and both
+Move flows, so free bins can be marked and then chosen as an allocation target or a Move To without
+leaving the flow. A bin the workflow has claimed shows the workflow's own colour instead — the
+availability outline yields, so "free" and "already chosen" never look the same.
 
 ---
 

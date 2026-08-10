@@ -7,10 +7,16 @@
  * build-docs-html.mjs already gives: a hand-converted copy is stale the moment the source changes,
  * and worse than no copy because it still looks authoritative. Re-run this after editing a note.
  *
- * What this build adds over the other one is a **Copy** control on every note, because these pages
- * are read to be pasted somewhere else — a ticket, a PR description, a spec. Copy hands back the
- * MARKDOWN SOURCE of that section rather than the rendered text: markdown is what every tracker this
- * would land in accepts, and the rendered version loses the tables and the emphasis on the way.
+ * What this build adds over the other one is a **Copy** control, on the notes that ask for one: end a
+ * heading with `{copy}` and it gets a button handing back that section's MARKDOWN SOURCE, rather than
+ * the rendered text — markdown is what every tracker this would land in accepts, and the rendered
+ * version loses the tables and the emphasis on the way.
+ *
+ * It was on every note for a day. The sections worth pasting into a ticket are the flow ones — what
+ * the operator can do in a given state — and a button beside all twenty headings made those four
+ * impossible to pick out, which is the opposite of what the control is for. Opt-in rather than a rule
+ * over titles, so a note is copyable because its author said so, not because it happened to be called
+ * the right thing.
  */
 import { readFileSync, writeFileSync, readdirSync } from 'node:fs';
 import { dirname, resolve, basename } from 'node:path';
@@ -51,18 +57,25 @@ function notes(md) {
   let current = null;
   let sub = null;
 
+  // `## Something {copy}` — the marker says "this note is worth pasting somewhere", and is stripped
+  // from the title so it never reaches the page or the copied text.
+  const heading = raw => {
+    const copyable = /\{copy\}\s*$/.test(raw);
+    return { title: raw.replace(/\s*\{copy\}\s*$/, '').trim(), copyable, body: [], children: [] };
+  };
+
   for (const line of lines) {
     const h2 = line.match(/^##\s+(.*)$/);
     const h3 = line.match(/^###\s+(.*)$/);
 
     if (h2) {
-      current = { title: h2[1].trim(), body: [], children: [] };
+      current = heading(h2[1]);
       sub = null;
       sections.push(current);
       continue;
     }
     if (h3 && current) {
-      sub = { title: h3[1].trim(), body: [], children: [] };
+      sub = heading(h3[1]);
       current.children.push(sub);
       continue;
     }
@@ -90,13 +103,21 @@ function renderNote(node, level, toc) {
   const store = `src-${++copyId}`;
   toc.push({ level, text: node.title, id });
 
+  const button = node.copyable
+    ? `<button type="button" class="copy" data-copy="${store}" title="Copy this note as markdown">Copy</button>`
+    : '';
+  // Only a copyable note carries its source; there is no point shipping the markdown of a section
+  // nothing can copy.
+  const source = node.copyable
+    ? `\n  <pre class="src" id="${store}" hidden>${escape(rawOf(node, level))}</pre>`
+    : '';
+
   return `
-<section class="note level-${level}">
+<section class="note level-${level}${node.copyable ? ' copyable' : ''}">
   <div class="note-head">
     <h${level} id="${id}"><a class="anchor" href="#${id}">${inline(node.title)}</a></h${level}>
-    <button type="button" class="copy" data-copy="${store}" title="Copy this note as markdown">Copy</button>
-  </div>
-  <pre class="src" id="${store}" hidden>${escape(rawOf(node, level))}</pre>
+    ${button}
+  </div>${source}
   ${convert(node.body.join('\n')).html}
   ${node.children.map(child => renderNote(child, level + 1, toc)).join('\n')}
 </section>`;
