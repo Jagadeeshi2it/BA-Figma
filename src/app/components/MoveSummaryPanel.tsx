@@ -413,7 +413,11 @@ export default function MoveSummaryPanel({
 
         <ArrowRight className="w-3 h-3 shrink-0 text-[#94a3b8] mt-[3px]" />
 
-        <span className="flex-1 min-w-0">
+        {/* The to-end is right-aligned, against the panel's right edge. Bin labels are short relative to
+            the column, so left-aligning both left a ragged gutter down the right of every card while the
+            two columns floated in the middle. Anchored to the edges, each column has a straight side to
+            read down. */}
+        <span className="flex-1 min-w-0 text-right">
           <span
             className={`block break-words ${
               row.isCurrentTarget ? 'font-semibold text-[#020817]' : 'text-[#4a5565]'
@@ -422,7 +426,7 @@ export default function MoveSummaryPanel({
             {binLabel(row.toLabel, row.toDoor)}
           </span>
           {(targetText || movedBadge) && (
-            <span className="flex items-center gap-1.5 flex-wrap">
+            <span className="flex items-center justify-end gap-1.5 flex-wrap">
               {targetText && <span className="font-medium text-[#020817]">{targetText}</span>}
               {movedBadge && doneBadge(movedBadge)}
             </span>
@@ -472,7 +476,10 @@ export default function MoveSummaryPanel({
 
       <ArrowRight className="w-3 h-3 shrink-0 text-[#94a3b8]" />
 
-      <div className="flex-1 min-w-0 space-y-0.5">
+      {/* Right-aligned, against the panel's right edge — see renderPairingRow. Both shapes anchor the
+          to-end the same way, or the two would disagree about where a target bin sits depending on
+          something the operator did not choose (whether their sources happen to share destinations). */}
+      <div className="flex-1 min-w-0 space-y-0.5 text-right">
         {targets.map(row => {
           const targetText = quantityText(row.quantity, row.unit);
           const movedBadge = targetMovedBadge(row);
@@ -486,7 +493,7 @@ export default function MoveSummaryPanel({
                 {binLabel(row.toLabel, row.toDoor)}
               </span>
               {(targetText || movedBadge) && (
-                <span className="flex items-center gap-1.5 flex-wrap">
+                <span className="flex items-center justify-end gap-1.5 flex-wrap">
                   {targetText && <span className="font-medium text-[#020817]">{targetText}</span>}
                   {movedBadge && doneBadge(movedBadge)}
                 </span>
@@ -873,8 +880,19 @@ export default function MoveSummaryPanel({
                       distinctTargets
                     )
                   ) : (
-                    pairingsBySource.map(sourceBin => (
-                      <div key={`${sourceBin.label}-${sourceBin.door ?? ''}`} className="space-y-0.5">
+                    pairingsBySource.map((sourceBin, sourceIndex) => (
+                      /* A rule between source blocks, because the left column is blank on a source's
+                         continuation rows — so without one, "Bin 1C" appearing after two blank left cells
+                         is the only thing marking where the previous bin's block ended, and a two-target
+                         source butting against the next source reads as one four-row list. Dashed and
+                         light: it separates rows that belong together, and a solid line at this weight
+                         competes with the card's own border. Only between blocks, never above the first. */
+                      <div
+                        key={`${sourceBin.label}-${sourceBin.door ?? ''}`}
+                        className={`space-y-0.5 ${
+                          sourceIndex > 0 ? 'pt-2 border-t border-dashed border-gray-200' : ''
+                        }`}
+                      >
                         {sourceBin.targets.map((row, targetIndex) =>
                           renderPairingRow(row, `pair-${row.key}`, {
                             showSource: targetIndex === 0,
