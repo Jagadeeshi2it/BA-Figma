@@ -345,38 +345,47 @@ const HeaderSection = memo(function HeaderSection({
             />
         </div>
 
+          {/* A filter on the view, not an action — it outlines the empty bins and stays on until
+              turned off. It was a checkbox beside the title, which said "a state you are holding"
+              more plainly than a button can; as a button next to the workflow trigger the risk is
+              that it reads as a fourth action, which is what moved it away from here the first
+              time. What has to carry the difference now is that it goes GREEN when on — the same
+              green the bins it turns on are outlined in, so the control and its effect are
+              obviously one thing, and neither can be mistaken for the blue primary beside it.
+              Filled was tried first and read as a pressed button rather than a live filter.
+              aria-pressed carries the state for anyone not reading the colour.
+
+              The stroke is border-green-500 exactly, matching BinCard's available outline. The
+              label is one step deeper: #22C55E manages 2.3:1 as 14px text on white, well under the
+              ~4.5:1 this app holds text to (see textHighlight.tsx), while #15803D is the same green
+              at 5.02:1 — the codebase already solved this for the target-bin text.
+
+              UNLIKE the two controls after it, this one stays on screen inside every workflow. It
+              hid with them until 2026-08-10, on the reasoning that a workflow's own controls own the
+              screen — but that argument is about ENTRY POINTS, and this starts nothing. "Where is
+              there room?" is at its most useful precisely when the operator is mid-allocation or
+              picking a Move To, and hiding the button did not even turn the filter off: the outlines
+              stayed on the canvas with no way to clear them until the workflow was cancelled.
+              A bin that the workflow has claimed draws the workflow's own stroke, not this one — see
+              BinCard, where the availability outline yields to source/target/assignment. */}
+          <button
+            type="button"
+            aria-pressed={highlightAvailableBins}
+            onClick={handleAvailableBinsClick}
+            className={`h-9 px-3 rounded-[4px] border bg-white text-[14px] leading-[20px] whitespace-nowrap cursor-pointer transition-colors ${
+              highlightAvailableBins
+                ? 'border-green-500 text-[#15803D] hover:bg-[#F0FDF4]'
+                : 'border-[#095192] text-[#095192] hover:bg-[#F1F6FA]'
+            }`}
+          >
+            Bins Available({allAvailableBins})
+          </button>
+
           {/* Hidden inside any workflow — the unallocated tray, a move, or an allocate. While one is
               open its own controls own the screen, and offering a second entry point invites
               abandoning a half-built selection. */}
           {!showUnallocatedProducts && !changeAllocationMode && !showAllocateProducts && (
             <>
-              {/* A filter on the view, not an action — it tints the empty bins and stays on until
-                  turned off. It was a checkbox beside the title, which said "a state you are holding"
-                  more plainly than a button can; as a button next to the workflow trigger the risk is
-                  that it reads as a fourth action, which is what moved it away from here the first
-                  time. What has to carry the difference now is that it goes GREEN when on — the same
-                  green the bins it turns on are outlined in, so the control and its effect are
-                  obviously one thing, and neither can be mistaken for the blue primary beside it.
-                  Filled was tried first and read as a pressed button rather than a live filter.
-                  aria-pressed carries the state for anyone not reading the colour.
-
-                  The stroke is border-green-500 exactly, matching BinCard's available outline. The
-                  label is one step deeper: #22C55E manages 2.3:1 as 14px text on white, well under the
-                  ~4.5:1 this app holds text to (see textHighlight.tsx), while #15803D is the same green
-                  at 5.02:1 — the codebase already solved this for the target-bin text. */}
-              <button
-                type="button"
-                aria-pressed={highlightAvailableBins}
-                onClick={handleAvailableBinsClick}
-                className={`h-9 px-3 rounded-[4px] border bg-white text-[14px] leading-[20px] whitespace-nowrap cursor-pointer transition-colors ${
-                  highlightAvailableBins
-                    ? 'border-green-500 text-[#15803D] hover:bg-[#F0FDF4]'
-                    : 'border-[#095192] text-[#095192] hover:bg-[#F1F6FA]'
-                }`}
-              >
-                Bins Available({allAvailableBins})
-              </button>
-
               {/* One entry point for all three jobs. They were a plain Allocate button beside a Move
                   picker, which put two of the three choices at different depths — you could start an
                   allocate in one tap but had to open a menu to move. Behind one trigger the first

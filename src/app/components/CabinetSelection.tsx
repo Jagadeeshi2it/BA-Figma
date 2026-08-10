@@ -54,6 +54,7 @@ const CabinetSelection = memo(function CabinetSelection({
                 selectedCabinet={selectedCabinet}
                 selectedDoor={selectedDoor}
                 doorsWithAvailableBins={doorsWithAvailableBins}
+                freeBinsByDoor={freeBinsByDoor}
                 highlightAvailableBins={highlightAvailableBins}
                 doorsWithSearchMatches={doorsWithSearchMatches}
                 doorsWithSelectedBins={doorsWithSelectedBins}

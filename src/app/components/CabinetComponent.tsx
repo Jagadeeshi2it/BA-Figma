@@ -1,6 +1,6 @@
 import React from 'react';
-import { SEARCH_HIGHLIGHT_COLOR } from '../utils/textHighlight';
 import { isFridgeDoor } from '../utils/doorUtils';
+import DoorIndicators from './DoorIndicators';
 
 interface CabinetComponentProps {
   cabinetName: string;
@@ -75,14 +75,12 @@ function DoorButton({
   // stand in either: a fridge's single pooled bin is normally stocked, so it reports 0 free and reads
   // as a door with no room, when in fact it is the destination climate-sensitive stock is headed for.
   const doorKind = isFridgeDoor(door) ? 'fridge' : 'cabinet';
-  const shouldHighlightGreen = highlightAvailableBins && hasAvailableBins && !isSelected;
-  const shouldHighlightSearch = searchQuery?.trim() && hasSearchMatches && !isSelected;
   const shouldHighlightAllocation = showUnallocatedProducts && hasSelectedBins && !isSelected;
   const shouldHighlightChangeAllocation = changeAllocationMode && hasChangeAllocationBins && !isSelected;
   
-  // Show dots for search and available (persist even when selected or in change allocation mode, but not in regular allocation mode)
-  const showSearchDot = searchQuery?.trim() && hasSearchMatches && !shouldHighlightAllocation;
-  const showAvailableDot = highlightAvailableBins && hasAvailableBins && !shouldHighlightAllocation;
+  // Show indicators for search and available (persist even when selected or in change allocation mode, but not in regular allocation mode)
+  const showSearchDot = !!searchQuery?.trim() && hasSearchMatches && !shouldHighlightAllocation;
+  const showAvailableCount = highlightAvailableBins && hasAvailableBins && !shouldHighlightAllocation;
   
   if (isFirst) {
     return (
@@ -104,21 +102,10 @@ function DoorButton({
                 : 'border-[#ebebeb]'
         } border-solid inset-0 pointer-events-none rounded`} />
         
-        {/* Indicator Dots Container */}
-        {(showSearchDot || showAvailableDot) && (
-          <div className="absolute h-[6px] left-[25px] top-[3px] w-[14px] pointer-events-none">
-            <svg className="block size-full" fill="none" preserveAspectRatio="none" viewBox="0 0 14 6">
-              <g>
-                {showSearchDot && (
-                  <circle cx={showAvailableDot ? "3" : "11"} cy="3" fill={SEARCH_HIGHLIGHT_COLOR} r="3" />
-                )}
-                {showAvailableDot && (
-                  <circle cx="11" cy="3" fill="#00C951" r="3" />
-                )}
-              </g>
-            </svg>
-          </div>
-        )}
+        <DoorIndicators
+          showSearchDot={showSearchDot}
+          availableBinCount={showAvailableCount ? freeBinCount : 0}
+        />
         
         <div
           className={`absolute flex flex-col font-normal h-4 justify-center leading-[0] not-italic ${
@@ -171,21 +158,10 @@ function DoorButton({
               : 'border-[#ebebeb]'
       } border-solid inset-0 pointer-events-none rounded`} />
       
-      {/* Indicator Dots Container */}
-      {(showSearchDot || showAvailableDot) && (
-        <div className="absolute h-[6px] left-[68px] top-[3px] w-[14px] pointer-events-none">
-          <svg className="block size-full" fill="none" preserveAspectRatio="none" viewBox="0 0 14 6">
-            <g>
-              {showSearchDot && (
-                <circle cx={showAvailableDot ? "3" : "11"} cy="3" fill={SEARCH_HIGHLIGHT_COLOR} r="3" />
-              )}
-              {showAvailableDot && (
-                <circle cx="11" cy="3" fill="#00C951" r="3" />
-              )}
-            </g>
-          </svg>
-        </div>
-      )}
+      <DoorIndicators
+        showSearchDot={showSearchDot}
+        availableBinCount={showAvailableCount ? freeBinCount : 0}
+      />
       
       <div className={`flex flex-col font-normal justify-center leading-[16px] not-italic relative shrink-0 ${
         shouldHighlightChangeAllocation
@@ -240,14 +216,12 @@ function FullWidthDoorButton({
   // stand in either: a fridge's single pooled bin is normally stocked, so it reports 0 free and reads
   // as a door with no room, when in fact it is the destination climate-sensitive stock is headed for.
   const doorKind = isFridgeDoor(door) ? 'fridge' : 'cabinet';
-  const shouldHighlightGreen = highlightAvailableBins && hasAvailableBins && !isSelected;
-  const shouldHighlightSearch = searchQuery?.trim() && hasSearchMatches && !isSelected;
   const shouldHighlightAllocation = showUnallocatedProducts && hasSelectedBins && !isSelected;
   const shouldHighlightChangeAllocation = changeAllocationMode && hasChangeAllocationBins && !isSelected;
   
-  // Show dots for search and available (persist even when selected or in change allocation mode, but not in regular allocation mode)
-  const showSearchDot = searchQuery?.trim() && hasSearchMatches && !shouldHighlightAllocation;
-  const showAvailableDot = highlightAvailableBins && hasAvailableBins && !shouldHighlightAllocation;
+  // Show indicators for search and available (persist even when selected or in change allocation mode, but not in regular allocation mode)
+  const showSearchDot = !!searchQuery?.trim() && hasSearchMatches && !shouldHighlightAllocation;
+  const showAvailableCount = highlightAvailableBins && hasAvailableBins && !shouldHighlightAllocation;
   
   return (
     <div
@@ -268,21 +242,10 @@ function FullWidthDoorButton({
               : 'border-[#ebebeb]'
       } border-solid inset-0 pointer-events-none rounded`} />
       
-      {/* Indicator Dots Container */}
-      {(showSearchDot || showAvailableDot) && (
-        <div className="absolute h-[6px] right-[6px] top-[3px] w-[14px] pointer-events-none">
-          <svg className="block size-full" fill="none" preserveAspectRatio="none" viewBox="0 0 14 6">
-            <g>
-              {showSearchDot && (
-                <circle cx={showAvailableDot ? "3" : "11"} cy="3" fill={SEARCH_HIGHLIGHT_COLOR} r="3" />
-              )}
-              {showAvailableDot && (
-                <circle cx="11" cy="3" fill="#00C951" r="3" />
-              )}
-            </g>
-          </svg>
-        </div>
-      )}
+      <DoorIndicators
+        showSearchDot={showSearchDot}
+        availableBinCount={showAvailableCount ? freeBinCount : 0}
+      />
       
       <div className="flex flex-row items-center justify-center min-h-inherit relative size-full">
         <div className="box-border content-stretch flex flex-row items-center justify-center min-h-inherit px-[31px] py-[9px] relative w-full">

@@ -407,7 +407,18 @@ export default function BinCard({
         } ${
           isSelectedForAssignment && !changeAllocationMode ? 'ring-1 ring-[#8F48D2]' : ''
         } ${
-          highlightAvailable && bin.available ? 'border-green-500 border-2 border-solid' : ''
+          // Yields to every stroke a workflow draws, exactly as the search highlight below does. The
+          // filter is now on screen inside the workflows (see HeaderSection), so an available bin
+          // being picked as a Move To is an ordinary event rather than a corner case — and both
+          // strokes are green, so leaving the two to fight would come down to stylesheet order and
+          // read as "free" on a bin the operator had already committed.
+          highlightAvailable &&
+          bin.available &&
+          !isChangeAllocationSource &&
+          !isChangeAllocationTarget &&
+          !(isSelectedForAssignment && !changeAllocationMode)
+            ? 'border-green-500 border-2 border-solid'
+            : ''
         } ${
           // Only while the bin is nothing more than a search hit. Once it's a source or a target,
           // that state owns the stroke — two borders competing on one card would come down to

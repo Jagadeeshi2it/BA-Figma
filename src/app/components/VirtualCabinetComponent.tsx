@@ -1,5 +1,5 @@
 import React from 'react';
-import { SEARCH_HIGHLIGHT_COLOR } from '../utils/textHighlight';
+import DoorIndicators from './DoorIndicators';
 
 interface VirtualCabinetComponentProps {
   cabinetName: string;
@@ -7,6 +7,10 @@ interface VirtualCabinetComponentProps {
   selectedCabinet: string;
   selectedDoor: string;
   doorsWithAvailableBins?: string[];
+  // Free bins per door, for the availability badge. A fridge holds one pooled bin and that bin is
+  // stocked in this seed, so the badge never draws here today — but the count is threaded rather than
+  // assumed to be 0, or emptying a fridge would light the door with no number in it.
+  freeBinsByDoor?: Record<string, number>;
   highlightAvailableBins?: boolean;
   doorsWithSearchMatches?: string[];
   doorsWithSelectedBins?: string[];
@@ -33,10 +37,11 @@ function Header({ cabinetName, isSelected, isDoorSelected }: { cabinetName: stri
   );
 }
 
-function FridgeButton({ 
-  door, 
-  isSelected, 
+function FridgeButton({
+  door,
+  isSelected,
   hasAvailableBins,
+  freeBinCount,
   highlightAvailableBins,
   hasSearchMatches,
   hasSelectedBins,
@@ -46,9 +51,10 @@ function FridgeButton({
   changeAllocationMode,
   onClick 
 }: { 
-  door: string; 
+  door: string;
   isSelected: boolean;
   hasAvailableBins: boolean;
+  freeBinCount: number;
   highlightAvailableBins: boolean;
   hasSearchMatches: boolean;
   hasSelectedBins: boolean;
@@ -59,14 +65,12 @@ function FridgeButton({
   onClick: (e: React.MouseEvent) => void;
 }) {
   const doorNumber = door.split(' ')[1];
-  const shouldHighlightGreen = highlightAvailableBins && hasAvailableBins && !isSelected;
-  const shouldHighlightSearch = searchQuery?.trim() && hasSearchMatches && !isSelected;
   const shouldHighlightAllocation = showUnallocatedProducts && hasSelectedBins && !isSelected;
   const shouldHighlightChangeAllocation = changeAllocationMode && hasChangeAllocationBins && !isSelected;
-  
-  // Show dots for search and available (persist even when selected or in change allocation mode, but not in regular allocation mode)
-  const showSearchDot = searchQuery?.trim() && hasSearchMatches && !shouldHighlightAllocation;
-  const showAvailableDot = highlightAvailableBins && hasAvailableBins && !shouldHighlightAllocation;
+
+  // Show indicators for search and available (persist even when selected or in change allocation mode, but not in regular allocation mode)
+  const showSearchDot = !!searchQuery?.trim() && hasSearchMatches && !shouldHighlightAllocation;
+  const showAvailableCount = highlightAvailableBins && hasAvailableBins && !shouldHighlightAllocation;
   
   return (
     <div
@@ -95,21 +99,10 @@ function FridgeButton({
               : 'border-[#ebebeb]'
       } border-solid inset-0 pointer-events-none rounded`} />
       
-      {/* Indicator Dots Container */}
-      {(showSearchDot || showAvailableDot) && (
-        <div className="absolute h-[6px] left-[34px] top-[3px] w-[14px] pointer-events-none">
-          <svg className="block size-full" fill="none" preserveAspectRatio="none" viewBox="0 0 14 6">
-            <g>
-              {showSearchDot && (
-                <circle cx={showAvailableDot ? "3" : "11"} cy="3" fill={SEARCH_HIGHLIGHT_COLOR} r="3" />
-              )}
-              {showAvailableDot && (
-                <circle cx="11" cy="3" fill="#00C951" r="3" />
-              )}
-            </g>
-          </svg>
-        </div>
-      )}
+      <DoorIndicators
+        showSearchDot={showSearchDot}
+        availableBinCount={showAvailableCount ? freeBinCount : 0}
+      />
       
       <div className={`flex flex-col font-normal justify-center leading-[16px] not-italic relative shrink-0 ${
         shouldHighlightChangeAllocation
@@ -127,10 +120,11 @@ function FridgeButton({
   );
 }
 
-function Background({ 
-  doors, 
-  selectedDoor, 
+function Background({
+  doors,
+  selectedDoor,
   doorsWithAvailableBins,
+  freeBinsByDoor,
   highlightAvailableBins,
   doorsWithSearchMatches,
   doorsWithSelectedBins,
@@ -141,9 +135,10 @@ function Background({
   onDoorClick,
   isSelected 
 }: { 
-  doors: string[]; 
+  doors: string[];
   selectedDoor: string;
   doorsWithAvailableBins: string[];
+  freeBinsByDoor: Record<string, number>;
   highlightAvailableBins: boolean;
   doorsWithSearchMatches: string[];
   doorsWithSelectedBins: string[];
@@ -167,6 +162,7 @@ function Background({
               door={door}
               isSelected={selectedDoor === door}
               hasAvailableBins={doorsWithAvailableBins.includes(door)}
+              freeBinCount={freeBinsByDoor[door] ?? 0}
               highlightAvailableBins={highlightAvailableBins}
               hasSearchMatches={doorsWithSearchMatches.includes(door)}
               hasSelectedBins={doorsWithSelectedBins.includes(door)}
@@ -192,6 +188,7 @@ export default function VirtualCabinetComponent({
   selectedCabinet,
   selectedDoor,
   doorsWithAvailableBins = [],
+  freeBinsByDoor = {},
   highlightAvailableBins = false,
   doorsWithSearchMatches = [],
   doorsWithSelectedBins = [],
@@ -216,6 +213,7 @@ export default function VirtualCabinetComponent({
         doors={doors} 
         selectedDoor={selectedDoor} 
         doorsWithAvailableBins={doorsWithAvailableBins}
+        freeBinsByDoor={freeBinsByDoor}
         highlightAvailableBins={highlightAvailableBins}
         doorsWithSearchMatches={doorsWithSearchMatches}
         doorsWithSelectedBins={doorsWithSelectedBins}
