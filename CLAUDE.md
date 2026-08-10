@@ -427,12 +427,48 @@ A 320px panel on Review and both halves of step ④, answering "what is moving f
 while the operator is mid-move. `MoveSummaryPanel.tsx` is purely presentational; each screen derives
 its own `MoveSummaryRow[]` from state it already holds (§3).
 
-- **Sources listed, then targets — each stated once.** Not nested: a target line's figure is what lands in
-  *that bin*, not what came from one source, so printing it under each source showed one arrival three
-  times over with the full amount each time. The pairing it implied is not real either — the quantity taken
-  from a source is deliberately not divided between its targets (below), since the operator decides the
-  split by scanning. "These bins, into these bins" is the whole truth the panel has. Flat `from → to` rows
-  were worse still: they repeated the source bin *and* its quantity once per destination.
+- **Two columns, sources left and targets right — and the shape follows the move.** The pairing is spelled
+  out only where it actually varies, which is the whole rule (`everySourceSharesTargets`):
+
+  ```
+  every source into the same bins          sources with different destinations
+  ── one arrow, two lists ──               ── one row per pairing ──
+
+  Door 2 - Bin 4C  →  Door 2 - Bin 3C      Door 1 - Bin 1B  →  Door 1 - Bin 3D
+  Door 3 - Bin 2A     Door 2 - Bin 4B      Door 1 - Bin 1C  →  Door 1 - Bin 3D
+  Door 3 - Bin 2B                                           →  Door 1 - Bin 4A
+  ```
+
+  When every source feeds the same set, "all of these into all of these" says it completely and
+  per-source rows would print the same destination list once per source, saying nothing more for it. When
+  they differ, those rows are the only thing that can say which feeds which. In the per-source form a
+  source's name and figure sit on the first of its rows and the column stays blank below, so the block
+  reads as belonging to the bin at its head.
+
+  Compared as an **ordered** signature of each source's target keys: the rows arrive in the walk's order,
+  so two sources naming the same bins in a different order are genuinely visited differently and are not
+  folded together.
+
+  **This replaced two flat lists — every source, then every target — on 2026-08-11, and the reason is
+  what to hold on to.** That shape was chosen because a target's figure is what lands in *that bin*, not
+  what came from one source, so nesting target lines under sources printed one arrival three times over
+  at its full amount. True, and still respected. But it was also justified on the grounds that the
+  pairing "is not real", and **that part was wrong**: what is not divisible per pairing is the
+  **quantity** (the amount taken from a source is deliberately not split between its targets, below —
+  the operator decides that by scanning). The **routing** is real, it is recorded in the transfers, and
+  the operator chose it themselves on Review. Two flat lists cannot express it: three sources and two
+  targets never says which feeds which, and it is worst exactly where a source feeds both, which no
+  reading of the two lists recovers.
+- **A figure belongs to a bin, so each is printed once.** In the collapsed form this is free — each bin
+  has exactly one line, which is a good sign the shape fits the case. In the per-source form the source's
+  figure goes on its first row and the target's on the first row that names it (`firstRowForTarget`),
+  later rows carrying the bin name alone: a target fed by three sources appears on three rows, and
+  repeating its arriving amount on each is the original mistake in a new shape. **The bold you-are-here
+  marking is deliberately not first-occurrence-only** — that is a fact about the bin, so every row naming
+  it wears it.
+- **The take half keeps a single column**, source bins only (`renderSourceOnlyRow`). There the operator's
+  whole job is the bin in front of them and no split has been decided, so pairing rows would name
+  destinations carrying no figure and no act — and leave a column of dangling arrows.
 - **The card states the collected total beside the product name.** Sources reading 25, 10 and 5 never said
   40 anywhere, leaving the operator to add up what they are carrying — and 40 is the figure they need at the
   target bin. Summed over distinct source bins, since `sourceQuantity` repeats across the rows sharing one.
@@ -881,8 +917,8 @@ only the first share as the whole amount available.
 
 ### The Move List's row model
 
-`MoveSummaryRow` is one source→target pairing; the panel groups them (by product, then by source bin) to
-get the nesting. Four things about it are load-bearing:
+`MoveSummaryRow` is one source→target pairing, and since 2026-08-11 the panel renders it as one — grouped
+by product, then by source bin, one row per pairing (§2 B). Five things about it are load-bearing:
 
 - **A row's product is the identity triple, via `moveSummaryProductKey`** — never `productName`. Three
   catalogue products are called `CARBOPLATIN 600 MG/60 ML VIAL` and differ only by NDC, so grouping by
@@ -894,8 +930,10 @@ get the nesting. Four things about it are load-bearing:
 
 - **`sourceQuantity` vs `quantity`.** The first is what leaves the source bin — one figure for the bin,
   repeated across the pairings that share it, so the panel takes it from the first and states it once.
-  The second is what lands in *this* target bin. `null` means undecided, and renders as nothing at all:
-  a `0` would read as a decision already made.
+  The second is what lands in *this* target bin, and it repeats too, across the pairings sharing that
+  target — which is why the panel prints it on the target's first row only. **Neither is per pairing**,
+  and a row carrying both is not a claim that this much went from this bin to that one. `null` means
+  undecided, and renders as nothing at all: a `0` would read as a decision already made.
 - **`isCurrentSource` / `isCurrentTarget`.** Exactly one is true across the whole panel. Not derivable
   from `status`, which is per-row — keying the marking on `status` alone lit every target bin of the
   current product at once, so the panel could not say which bin was in the operator's hands.
