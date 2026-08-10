@@ -142,6 +142,57 @@ export default function App() {
   const [skippedMoveProducts, setSkippedMoveProducts] = useState<SkippedProduct[]>([]);
 
   /**
+   * Give a product being placed another Move To bin, mid-move, because the bin in front of the operator
+   * has run out of room for stock that has already left its source.
+   *
+   * It lives here because `pendingSerialTransfers` is here, and everything the operator can see of the
+   * move is derived from it: the placement screen's product/bin walk, the route (`moveRoute` → the
+   * `placeBinOrder` both step-④ screens sort by), the footer's counters, and the Move List. One append
+   * moves all of them together. A bin held in the placement screen's own state would appear on that
+   * screen and be invisible to the route, which is how the operator ends up sent to a door that closed.
+   *
+   * **One transfer per source bin, each carrying that source's whole declared amount** — the same shape
+   * step ② and the quantity screen produce, because the split between targets is deliberately not
+   * decided up front (§ Transfers). What actually lands here is settled later by
+   * `finalizeAndConfirm`, which drains the sources in order against a running per-source budget, so a
+   * source already spent by an earlier bin contributes nothing to this one and none of them can be
+   * debited past what they held. That budget is what makes appending safe; without it the new bin would
+   * re-charge the first source for its whole amount a second time
+   * (`scripts/verify-source-attribution.mjs`).
+   *
+   * `placedInCurrentBin` is not applied to any transfer. It is the operator's statement about the bin
+   * they are standing at, and the placement screen has already recorded it by trimming that bin's
+   * scanned list — which is what creates the remainder this new bin exists to take.
+   */
+  const handleAddMoveTargetBin = useCallback(
+    (productId: string, binId: string, _placedInCurrentBin: number) => {
+      setPendingSerialTransfers(prev => {
+        const productTransfers = prev.filter(transfer => transfer.productId === productId);
+        if (productTransfers.length === 0) return prev;
+        // Already going there — nothing to add. Guarded in the picker too, which refuses an existing
+        // target with a sentence; this is the arithmetic version of the same rule, since a duplicate
+        // pairing would split one identity into two rows in one bin and double every count of it.
+        if (productTransfers.some(transfer => transfer.toBinId === binId)) return prev;
+
+        const bySource = new Map<string, ProductTransfer>();
+        productTransfers.forEach(transfer => {
+          if (!bySource.has(transfer.fromBinId)) bySource.set(transfer.fromBinId, transfer);
+        });
+
+        const added = Array.from(bySource.values()).map(transfer => ({
+          ...transfer,
+          toBinId: binId,
+          // Serials belong to the bin they were scanned into, never carried over from another one.
+          serialNumbers: undefined
+        }));
+
+        return [...prev, ...added];
+      });
+    },
+    []
+  );
+
+  /**
    * Back to the default view with nothing retained — the same end state a completed move leaves behind.
    *
    * The step-④ Cancel used to clear only the pipeline's own state, which left changeAllocationMode on
@@ -559,6 +610,7 @@ export default function App() {
           <TargetBinSerialScanPage
             transfers={pendingSerialTransfers}
             placeBinOrder={moveWalk?.placeBinOrder}
+            onAddTargetBin={handleAddMoveTargetBin}
             skippedProducts={skippedMoveProducts}
             doorShelfConfig={inventoryState.doorShelfConfig}
             moveMode={inventoryState.moveMode}
