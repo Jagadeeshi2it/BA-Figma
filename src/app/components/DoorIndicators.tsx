@@ -14,13 +14,16 @@ export const AVAILABLE_BIN_INDICATOR_COLOR = '#00C951';
  * edge, and it is why the availability indicator could not gain a number without being changed in four
  * places.
  *
- * The availability indicator states HOW MANY bins are free behind the door, rather than only that some
- * are. A bare dot is colour-and-shape with no text alternative, so it said nothing to a screen reader
- * and nothing about size to anyone else — and "which door has room for these four products" is a
- * question the operator actually has, answered previously only by opening doors one at a time.
+ * Both indicators are 6px dots. The availability one carried its COUNT for a day — a 16px badge with a
+ * number in it — and the number was dropped at the operator's request: at cabinet level the question is
+ * which doors to walk to, and a door with room is a door with room. The count is still threaded in, and
+ * still stated, but as this dot's accessible name rather than on its face — a bare dot is
+ * colour-and-shape with nothing at all for a screen reader, which is the half of the problem the number
+ * was not needed to solve.
  *
- * The search dot stays a dot: "this door holds a match" has no number worth printing, since the count
- * that matters there is per product, not per door.
+ * The size difference is the reason the badge is not simply parked behind a flag: at 6px the dot sits
+ * inside the tile's top-right corner, while the badge had to hang off the corner to clear the "Door"
+ * label on a ~44px tile. Restoring it means restoring that offset too.
  */
 export default function DoorIndicators({
   showSearchDot,
@@ -37,13 +40,7 @@ export default function DoorIndicators({
     // Right-anchored on every tile. The four hand-rolled versions were each positioned from the left
     // with a literal offset derived from that tile's width, so a tile that changed width moved its
     // indicators off the corner.
-    //
-    // Sitting ON the corner rather than inside it: the tiles are ~44px wide and their "Door" label is
-    // centred across nearly all of that, so a 16px badge placed inside the top-right lands on the last
-    // letter of the word. The 6px dot this replaced was small enough to fit; a badge with a number in
-    // it is not. Half-outside is also the shape the badge already reads as. It stays within the
-    // cabinet's own 8px padding, so it never escapes the cabinet card.
-    <div className="absolute -top-[6px] -right-[6px] flex items-center gap-1 pointer-events-none">
+    <div className="absolute top-[3px] right-[4px] flex items-center gap-1 pointer-events-none">
       {showSearchDot && (
         <span
           className="block w-[6px] h-[6px] rounded-full"
@@ -51,16 +48,12 @@ export default function DoorIndicators({
         />
       )}
       {showAvailable && (
-        // min-w rather than a fixed width: a two-digit count must widen the badge into a pill rather
-        // than overflow a circle. px-[3px] keeps the digits off the rounding at 10 and above.
         <span
           role="img"
           aria-label={`${availableBinCount} ${availableBinCount === 1 ? 'bin' : 'bins'} available`}
-          className="flex items-center justify-center min-w-[16px] h-[16px] px-[3px] rounded-full text-white text-[10px] leading-none font-semibold tabular-nums"
+          className="block w-[6px] h-[6px] rounded-full"
           style={{ backgroundColor: AVAILABLE_BIN_INDICATOR_COLOR }}
-        >
-          {availableBinCount}
-        </span>
+        />
       )}
     </div>
   );
