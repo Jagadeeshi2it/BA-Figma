@@ -1,0 +1,750 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Demo Mode — behaviours and actions</title>
+<style>
+  :root {
+    --bg: #ffffff; --panel: #f7f8fa; --text: #1b1f24; --muted: #5c6672; --rule: #e3e7ec;
+    --link: #095192; --code-bg: #f2f4f7; --code-text: #123; --accent: #095192;
+    --done: #15803d; --done-bg: #e8f6ec; --partial: #9a6700; --partial-bg: #fdf5e2;
+    --open: #b0331f; --open-bg: #fdecea;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14171a; --panel: #1b1f23; --text: #e6e9ec; --muted: #9aa4af; --rule: #2b3137;
+      --link: #7fb2e5; --code-bg: #22272c; --code-text: #dbe3ea; --accent: #7fb2e5;
+      --done: #6fcf8e; --done-bg: #1d2a21; --partial: #e0b341; --partial-bg: #2b2517;
+      --open: #f0907f; --open-bg: #2c1c1a;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 16px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .shell { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 0; }
+  nav {
+    position: sticky; top: 0; align-self: start; height: 100vh; overflow-y: auto;
+    background: var(--panel); border-right: 1px solid var(--rule); padding: 24px 18px 48px;
+  }
+  nav .docs { display: flex; flex-direction: column; gap: 2px; margin-bottom: 22px; }
+  nav .docs a {
+    padding: 6px 8px; border-radius: 4px; font-size: 13px; text-decoration: none; color: var(--muted);
+  }
+  nav .docs a.current { background: var(--accent); color: #fff; font-weight: 500; }
+  nav h2 {
+    font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted);
+    margin: 0 8px 8px; font-weight: 600;
+  }
+  nav ol { list-style: none; margin: 0; padding: 0; }
+  nav li a {
+    display: block; padding: 4px 8px; border-radius: 4px; font-size: 13px; line-height: 1.4;
+    text-decoration: none; color: var(--muted); border-left: 2px solid transparent;
+  }
+  nav li a:hover { color: var(--text); background: color-mix(in srgb, var(--accent) 10%, transparent); }
+  nav li a.active { color: var(--accent); border-left-color: var(--accent); font-weight: 500; }
+  nav li.sub a { padding-left: 20px; font-size: 12.5px; }
+  main { padding: 40px 40px 120px; max-width: 900px; }
+  header.doc { border-bottom: 1px solid var(--rule); padding-bottom: 18px; margin-bottom: 28px; }
+  header.doc h1 { font-size: 27px; line-height: 1.25; margin: 0 0 6px; letter-spacing: -.01em; }
+  header.doc p { margin: 0; color: var(--muted); font-size: 15px; }
+  h2 { font-size: 21px; margin: 44px 0 12px; padding-top: 8px; letter-spacing: -.01em; }
+  h3 { font-size: 17px; margin: 30px 0 10px; }
+  h4 { font-size: 15px; margin: 22px 0 8px; color: var(--muted); }
+  a { color: var(--link); }
+  a.anchor { color: inherit; text-decoration: none; }
+  a.anchor:hover::after { content: " #"; color: var(--muted); font-weight: 400; }
+  p, li { overflow-wrap: break-word; }
+  ul, ol { padding-left: 22px; }
+  li { margin: 5px 0; }
+  li > ul, li > ol { margin-top: 5px; }
+  code {
+    background: var(--code-bg); color: var(--code-text); padding: 1px 5px; border-radius: 3px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13px;
+  }
+  pre {
+    background: var(--code-bg); border: 1px solid var(--rule); border-radius: 6px;
+    padding: 14px 16px; overflow-x: auto; font-size: 13px; line-height: 1.55;
+  }
+  pre code { background: none; padding: 0; }
+  blockquote {
+    margin: 16px 0; padding: 10px 16px; border-left: 3px solid var(--accent);
+    background: var(--panel); color: var(--muted); border-radius: 0 4px 4px 0;
+  }
+  hr { border: 0; border-top: 1px solid var(--rule); margin: 36px 0; }
+  .table-scroll { overflow-x: auto; margin: 16px 0; }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; }
+  th, td { border: 1px solid var(--rule); padding: 8px 11px; text-align: left; vertical-align: top; }
+  th { background: var(--panel); font-weight: 600; }
+  .status {
+    display: inline-block; font-size: 11px; font-weight: 600; letter-spacing: .02em;
+    padding: 1px 7px; border-radius: 10px; vertical-align: 1px; margin-right: 2px;
+  }
+  .status.done { color: var(--done); background: var(--done-bg); }
+  .status.partial { color: var(--partial); background: var(--partial-bg); }
+  .status.open { color: var(--open); background: var(--open-bg); }
+  @media (max-width: 900px) {
+    .shell { grid-template-columns: 1fr; }
+    nav { position: static; height: auto; border-right: 0; border-bottom: 1px solid var(--rule); }
+    main { padding: 24px 20px 80px; }
+  }
+</style>
+</head>
+<body>
+<div class="shell">
+  <nav>
+    <h2>Documents</h2>
+    <div class="docs">
+      <a href="claude.html">Bin Allocation 2.0 — working guide</a>
+      <a href="demo.html" class="current">Demo Mode — behaviours and actions</a>
+      <a href="ux-audit.html">UX audit — heuristic findings</a>
+    </div>
+    <h2>On this page</h2>
+    <ol>
+      <li><a href="#1-the-one-decision-everything-rests-on">1. The one decision everything rests on</a></li>
+      <li><a href="#2-entering-leaving-and-what-gets-reset">2. Entering, leaving, and what gets reset</a></li>
+      <li><a href="#3-the-control-panel">3. The control panel</a></li>
+      <li class="sub"><a href="#rules-that-are-load-bearing">Rules that are load-bearing</a></li>
+      <li class="sub"><a href="#rejected">Rejected</a></li>
+      <li><a href="#4-what-is-drawn-over-the-app">4. What is drawn over the app</a></li>
+      <li class="sub"><a href="#the-input-shield">The input shield</a></li>
+      <li class="sub"><a href="#the-real-pointer">The real pointer</a></li>
+      <li class="sub"><a href="#layering">Layering</a></li>
+      <li><a href="#5-navigating-the-walk">5. Navigating the walk</a></li>
+      <li class="sub"><a href="#play-pause">Play / Pause</a></li>
+      <li class="sub"><a href="#next">Next</a></li>
+      <li class="sub"><a href="#previous-a-real-step-backwards">Previous — a real step backwards</a></li>
+      <li class="sub"><a href="#a-hidden-tab-pauses">A hidden tab pauses</a></li>
+      <li><a href="#6-pace">6. Pace</a></li>
+      <li><a href="#7-anchors">7. Anchors</a></li>
+      <li><a href="#8-the-step-vocabulary">8. The step vocabulary</a></li>
+      <li><a href="#9-the-dom-layer-and-four-things-that-cost-a-debugging-round">9. The DOM layer, and four things that cost a debugging round</a></li>
+      <li><a href="#10-scenario-allocate-product">10. Scenario: Allocate Product</a></li>
+      <li><a href="#10a2-scenario-multi-bin-assignment">10a2. Scenario: Multi Bin Assignment</a></li>
+      <li><a href="#10b-scenario-move-from-bin">10b. Scenario: Move from Bin</a></li>
+      <li><a href="#10c-scenario-move-from-product">10c. Scenario: Move from Product</a></li>
+      <li><a href="#10d-not-built-the-multi-bin-pick">10d. Not built: the multi-bin pick</a></li>
+      <li><a href="#11-adding-a-scenario">11. Adding a scenario</a></li>
+      <li><a href="#12-known-limits">12. Known limits</a></li>
+    </ol>
+  </nav>
+  <main>
+    <header class="doc">
+      <h1>Demo Mode — behaviours and actions</h1>
+      <p>The guided walkthroughs: what they do, what drives them, and what was tried and dropped.</p>
+    </header>
+    <p><strong>Status: built.</strong> Everything described here is implemented in <code>src/app/demo/</code> and verified in the browser. Where a behaviour was tried and removed, it is recorded as such rather than deleted — those are the decisions most likely to be re-proposed.</p>
+<p>Demo Mode plays a guided walkthrough of a real workflow: a virtual cursor moves to real controls and clicks them, and the app responds exactly as it would to a person. It is a separate document from <a href="claude.html">CLAUDE.md</a> because it is a feature with its own rules rather than a description of the app; CLAUDE.md §7 is the one-paragraph orientation and points here.</p>
+<hr />
+<h2 id="1-the-one-decision-everything-rests-on"><a class="anchor" href="#1-the-one-decision-everything-rests-on">1. The one decision everything rests on</a></h2>
+<p><strong>A step finds a DOM node and dispatches a real event. It never calls the app's handlers.</strong></p>
+<p>A demo that drives state is a second implementation of the workflow. It keeps passing while the UI it claims to demonstrate is broken, and the two drift apart without anyone noticing. Driving real events means the demo fails loudly when the flow changes — which is the only thing that makes it usable as documentation.</p>
+<p>Everything awkward below follows from that choice, and is worth the cost.</p>
+<hr />
+<h2 id="2-entering-leaving-and-what-gets-reset"><a class="anchor" href="#2-entering-leaving-and-what-gets-reset">2. Entering, leaving, and what gets reset</a></h2>
+<div class="table-scroll"><table><thead><tr>
+<th>Action</th>
+<th>What happens</th>
+</tr></thead><tbody>
+<tr>
+<td><strong><code>/</code></strong> anywhere outside a text field</td>
+<td>Opens the Demo Scenarios palette</td>
+</tr>
+<tr>
+<td>Pick a scenario</td>
+<td>Sets <code>?demo=&lt;id&gt;</code> and <strong>reloads</strong>, then auto-runs</td>
+</tr>
+<tr>
+<td><strong>Restart</strong></td>
+<td>Same as picking it again — reload, run from the top</td>
+</tr>
+<tr>
+<td><strong>Exit demo</strong></td>
+<td>Stops the walk, drops the overlay, strips the URL parameters. <strong>No reload.</strong></td>
+</tr>
+</tbody></table></div>
+<p><strong>Entering reloads, and it has to.</strong> Inventory lives in React state seeded from a static file and nothing persists, so a reload is the only thing that guarantees a scenario's preconditions. This scenario needs MESNA still unallocated and a bin still empty — both stop being true the moment anyone runs it once, including the demo itself. The palette used to say so in a footer line before you chose — <em>"Runs the real workflow, and reloads first…"</em> — which is now gone with the rest of that chrome (below). It was a warning printed on every visit about a state the viewer usually has not built: the palette is opened to start a walkthrough, not in the middle of careful work.</p>
+<p><strong>Exit deliberately does not reload.</strong> The viewer has just watched something happen and the obvious next move is to poke at the result. Exiting hands back an app that is immediately interactive and still shows whatever the demo did.</p>
+<p><strong><code>/</code> is free again because it used to be worse.</strong> It once revealed a hidden Unallocated Products button in the header — an undocumented shortcut in front of the app's most basic job, removed for that reason (CLAUDE.md §2 D). A palette is the honest use for the key: a list of things you can run, not a hidden door to one of them.</p>
+<p>The palette guards against its own shortcut: <code>/</code> typed inside an <code>input</code>, <code>textarea</code> or <code>contenteditable</code> is just a character. The app's own search box is why that check is not optional.</p>
+<p><strong>It is a title and the list, nothing else.</strong> <code>Select a module for a demo</code>, then the scenarios. It had a search box at the top and a footer explaining the arrow keys; both were removed on 2026-08-08. Four scenarios fit on screen at once, so the box could only make a short list look like a long one — and it took the caret on open, so the first thing offered was somewhere to type rather than something to choose. The keys still work (↑↓, Enter, Esc); the dialog takes focus itself now, which the input used to do by accident. Restore the search when the list actually outgrows the panel, not before.</p>
+<hr />
+<h2 id="3-the-control-panel"><a class="anchor" href="#3-the-control-panel">3. The control panel</a></h2>
+<p>Top-left, over the app's logo. Chrome belongs where chrome lives, and the logo is the one thing on the page carrying no state and answering no question mid-demo.</p>
+<pre><code>at rest (90px)      ● ↺ ✕
+hovered (~285px)    ● ↺ ✕ │ ‹ ▷ ›  Tick the product  6/30</code></pre>
+<div class="table-scroll"><table><thead><tr>
+<th>Control</th>
+<th>Always visible</th>
+<th>What it does</th>
+</tr></thead><tbody>
+<tr>
+<td>● status dot</td>
+<td>yes</td>
+<td>Green pulsing = running · white = paused · green solid = completed · red = stopped. Tooltip carries the scenario name or the failure reason. Tapping it toggles expansion.</td>
+</tr>
+<tr>
+<td>↺ <strong>Restart demo</strong></td>
+<td>yes</td>
+<td>Reload and run from the top</td>
+</tr>
+<tr>
+<td>✕ <strong>Exit demo</strong></td>
+<td>yes</td>
+<td>Hand the app back, as it stands</td>
+</tr>
+<tr>
+<td>‹ <strong>Previous step</strong></td>
+<td>on hover</td>
+<td>Undo the last step — see §5</td>
+</tr>
+<tr>
+<td>▷ <strong>Play</strong> / ▮▮ <strong>Pause</strong></td>
+<td>on hover</td>
+<td>Run continuously, or hold</td>
+</tr>
+<tr>
+<td>› <strong>Next step</strong></td>
+<td>on hover</td>
+<td>Run exactly one step, then hold</td>
+</tr>
+<tr>
+<td>step name + <code>n/N</code></td>
+<td>on hover</td>
+<td>Which step is being performed, and how far through</td>
+</tr>
+</tbody></table></div>
+<h3 id="rules-that-are-load-bearing"><a class="anchor" href="#rules-that-are-load-bearing">Rules that are load-bearing</a></h3>
+<ul>
+<li><strong>The two persistent icons come first</strong>, before the collapsing group, so the panel grows rightward and they never move. At the far end, expanding would slide them out from under the pointer that triggered it — mis-aiming a click at best, and at worst oscillating, since leaving the panel collapses it again. A <strong>260ms grace period</strong> on the way out guards the same thing.</li>
+<li><strong>Collapsing animates <code>grid-template-columns: 0fr → 1fr</code></strong>, not a max-width. The content decides its own width, so a longer step name cannot be clipped by a number somebody picked once.</li>
+<li><strong>It opens itself when the walk ends, and stays open.</strong> A demo that finishes while the panel is a dot and two icons finishes silently — the cursor stops, the app sits there, and nothing says whether that was the end or a stall. It expands to <strong><code>Demo completed</code></strong> with Restart, Previous and Exit already in front of the viewer, and <code>close()</code> is a no-op from then on: a message that vanishes when the pointer drifts off has not been delivered.</li>
+<li><strong>Every button carries <code>aria-label</code> and <code>title</code></strong>, so an icon-only panel is not a row of unnamed controls, and hover/focus reveal the same names a screen reader always has.</li>
+<li><strong>Hover is not the only way in.</strong> Focus opens it for the keyboard and a tap on the dot opens it for a finger — this app targets a touch-only tablet, where hover does not exist.</li>
+<li><strong><code>w-max</code> on the wrapper is load-bearing.</strong> A <code>fixed</code> element placed with <code>left: …</code> and no <code>right</code> gets only the remaining width available to it; without <code>w-max</code> the flex row silently squeezes controls out of existence, which reads as a rendering bug rather than a sizing one (CLAUDE.md §4).</li>
+</ul>
+<h3 id="rejected"><a class="anchor" href="#rejected">Rejected</a></h3>
+<ul>
+<li><strong>Labels on every button, always.</strong> Too wide for a panel that sits over the app for a whole walkthrough.</li>
+<li><strong>Icon-only with no expansion.</strong> Compact, but Previous, Play and Next were then unreachable unless you discovered nothing — a control you cannot find is worse than a wide bar.</li>
+<li><strong>Top-centre.</strong> Put a floating black bar in the middle of the header the viewer was trying to read.</li>
+</ul>
+<hr />
+<h2 id="4-what-is-drawn-over-the-app"><a class="anchor" href="#4-what-is-drawn-over-the-app">4. What is drawn over the app</a></h2>
+<p><strong>Only the cursor.</strong> Two things used to accompany it and both were removed. Both will be tempting to add back, which is why the reasoning is here.</p>
+<p><strong>Captions</strong>, one per step, pinned beside the cursor. A walkthrough that explains every click in a black box over the screen stops demonstrating the app and starts talking about it — and it covers the interface it exists to show off.</p>
+<p><strong>A highlight ring</strong> around each target, just before the click. The cursor is already travelling to the control and pausing on it, so the ring said a second time what the movement had just said, in a heavier voice.</p>
+<p>What is left is a pointer that behaves like a hand, and an app that explains itself through its own state changes, highlights and transitions. <strong>So the pacing carries the explanation</strong> — see §6.</p>
+<p>The press ripple stays: with the ring gone it is the only thing marking the moment of contact.</p>
+<h3 id="the-input-shield"><a class="anchor" href="#the-input-shield">The input shield</a></h3>
+<p>A transparent <code>fixed inset-0</code> layer swallows real clicks while the walk runs. One stray click — ticking a product the script is about to tick, closing the panel it is about to type into — desynchronises the whole walk, and the failure looks like a broken app rather than a race.</p>
+<p>Synthetic events are dispatched straight onto their target and are not hit-tested, so the shield does not block the demo's own clicks. The control panel sits above it, so its controls stay live. The shield is gone once the walk has finished: at that point the app is the point.</p>
+<h3 id="the-real-pointer"><a class="anchor" href="#the-real-pointer">The real pointer</a></h3>
+<p>Two cursors at once is the worst of both worlds — the viewer cannot tell which one is theirs — so the shield carries <code>cursor: none</code> while the demo drives. But hiding it unconditionally makes the panel feel unreachable: you move the mouse, nothing appears, and the walkthrough reads as something you are locked inside.</p>
+<p>So a genuine <code>pointermove</code> brings the real pointer straight back, and <strong><code>isTrusted</code> is the whole trick</strong>: the demo's own synthetic pointer events report <code>false</code>, so the demo cannot mistake itself for the user. It hides again after <strong>2s of real stillness</strong>, and only while the walk is <em>running</em> — the moment it is paused the user is in charge and the pointer stays.</p>
+<p>The <code>cursor</code> rule lives on the shield rather than on <code>body</code> because the shield is exactly the area the demo owns. Over the control panel the real pointer is always visible, which is what makes "move the mouse and take over" work mid-step.</p>
+<h3 id="layering"><a class="anchor" href="#layering">Layering</a></h3>
+<p>Portalled to <code>document.body</code>, above the tablet simulator's <code>fixed inset-0 z-[9999]</code> frame. Radix overlays must portal <em>into</em> that frame to be visible (CLAUDE.md §4); the cursor is the opposite case. <code>getBoundingClientRect</code> already returns post-transform viewport coordinates, so one set of numbers is right in both modes.</p>
+<div class="table-scroll"><table><thead><tr>
+<th>Layer</th>
+<th>z</th>
+</tr></thead><tbody>
+<tr>
+<td>input shield</td>
+<td>10030</td>
+</tr>
+<tr>
+<td>virtual cursor</td>
+<td>10045</td>
+</tr>
+<tr>
+<td>control panel</td>
+<td>10050</td>
+</tr>
+<tr>
+<td>scenario palette</td>
+<td>10060</td>
+</tr>
+</tbody></table></div>
+<hr />
+<h2 id="5-navigating-the-walk"><a class="anchor" href="#5-navigating-the-walk">5. Navigating the walk</a></h2>
+<p>The runner's position is <code>positionRef</code> — <strong>steps completed</strong>, 0…N. The loop reads it fresh each pass, which is what lets Previous move it <em>backwards</em>. A for-loop over indices could only go forward.</p>
+<h3 id="play-pause"><a class="anchor" href="#play-pause">Play / Pause</a></h3>
+<p>Pausing gates <strong>between</strong> steps, never inside one. A pause therefore never leaves half an interaction done, and resuming can never re-run a click that already landed.</p>
+<h3 id="next"><a class="anchor" href="#next">Next</a></h3>
+<p>Releases the gate for exactly one step, via <code>stepOnceRef</code>, which the loop clears as it passes. It pauses first, so it doubles as "pause and advance" while playing.</p>
+<h3 id="previous-a-real-step-backwards"><a class="anchor" href="#previous-a-real-step-backwards">Previous — a real step backwards</a></h3>
+<p><strong>Each step declares how to undo itself</strong> (<code>DemoStep.reverse</code>), and the reverse is performed like any other step — cursor, click, settle — so going back looks like the operator changing their mind rather than the screen jumping. Position moves back by one and the walk stays paused, so Next re-runs the step just undone.</p>
+<p>This works because almost everything a demo does is a toggle: ticking un-ticks, tapping a bin un-taps, a typed query clears.</p>
+<div class="table-scroll"><table><thead><tr>
+<th><code>reverse</code></th>
+<th>Meaning</th>
+</tr></thead><tbody>
+<tr>
+<td><code>[]</code></td>
+<td>This step changed nothing that needs putting back</td>
+</tr>
+<tr>
+<td><code>[steps]</code></td>
+<td>Run these, in order, to undo it</td>
+</tr>
+<tr>
+<td><em>absent</em></td>
+<td>Cannot be undone through the UI — falls back to the rebuild below</td>
+</tr>
+</tbody></table></div>
+<p><code>note</code> and <code>await</code> steps change nothing and reverse for free without declaring anything.</p>
+<p><strong>Some steps need two acts to undo one.</strong> Choosing <em>Allocate Product</em> both closes the menu and opens the tray, so its reverse closes the tray and reopens the menu. That is why <code>reverse</code> is a list.</p>
+<p><strong>The fallback.</strong> A step with no reverse reloads to <code>?demo=&lt;id&gt;&amp;step=&lt;n&gt;</code> and replays the earlier steps with no cursor animation and no settles. It is correct but visibly a rebuild, so <strong>every step that can declare a reverse should</strong>. In the current scenario exactly one step cannot: allocating. Nothing in the tray un-allocates — that path exists only behind the zero-inventory banner after a move (CLAUDE.md §2 C).</p>
+<p><strong>The loop does not exit when the walk finishes.</strong> It parks in the gate with <code>status: 'finished'</code>, so Previous still works from the final state instead of dead-ending the viewer with only Restart.</p>
+<p><strong>Off-by-one, stated once because it has already been got wrong:</strong> the panel shows <code>position + 1</code> (the step being performed, or about to be), while the replay parameter counts steps to <em>replay</em>. So the fallback passes <code>position</code>, not <code>position - 1</code>. Passing the latter steps back two at a time, which reads as a broken button rather than an off-by-one.</p>
+<h3 id="a-hidden-tab-pauses"><a class="anchor" href="#a-hidden-tab-pauses">A hidden tab pauses</a></h3>
+<p>Going into the background pauses the walk; returning resumes it. A demo that plays on while nobody is watching means the viewer comes back to a finished screen and no idea what happened. <code>autoPausedRef</code> keeps this from overriding a deliberate pause — coming back to a tab you paused on purpose leaves it paused.</p>
+<hr />
+<h2 id="6-pace"><a class="anchor" href="#6-pace">6. Pace</a></h2>
+<p>All durations live in <code>demo/pace.ts</code>, because pace is a single judgement about the whole experience rather than a set of unrelated numbers.</p>
+<div class="table-scroll"><table><thead><tr>
+<th>Setting</th>
+<th>Value</th>
+<th></th>
+</tr></thead><tbody>
+<tr>
+<td><code>cursorMinMs</code> / <code>cursorMaxMs</code></td>
+<td>550 / 1500</td>
+<td>Travel time, scaled by distance</td>
+</tr>
+<tr>
+<td><code>cursorPerPx</code></td>
+<td>1.15</td>
+<td>ms per pixel between those bounds</td>
+</tr>
+<tr>
+<td><code>approachMs</code></td>
+<td>280</td>
+<td>After arriving, before pressing</td>
+</tr>
+<tr>
+<td><code>pressMs</code></td>
+<td>180</td>
+<td>How long the press reads as held</td>
+</tr>
+<tr>
+<td><code>typeCharMs</code></td>
+<td>85</td>
+<td>Per character</td>
+</tr>
+<tr>
+<td><code>afterClickMs</code></td>
+<td>1100</td>
+<td>Settle after a click</td>
+</tr>
+<tr>
+<td><code>afterAwaitMs</code></td>
+<td>900</td>
+<td>Settle after a wait</td>
+</tr>
+<tr>
+<td><code>afterNoteMs</code></td>
+<td>1600</td>
+<td>A beat with no interaction</td>
+</tr>
+</tbody></table></div>
+<p>Individual steps override the settle with <code>settleMs</code> where the viewer needs longer — the bin tap and the allocation are the two biggest in the current scenario.</p>
+<p><strong>The bias is deliberately slow</strong>, and this is the note most likely to be argued with. A demo that keeps up with someone who already knows the app is useless to the person it is for: they are reading an interface they have never seen, and every click changes something they then have to find. Too slow costs boredom; too fast teaches nothing.</p>
+<p><strong>The approach pause is most of what makes the cursor read as a hand</strong> rather than a script. A hand lands on a control and then presses; it does not do both at once.</p>
+<p>Easing is <code>easeInOutCubic</code>. A linear cursor reads as a machine.</p>
+<hr />
+<h2 id="7-anchors"><a class="anchor" href="#7-anchors">7. Anchors</a></h2>
+<p>Targets are <code>data-demo</code> attributes. Never text, never structure.</p>
+<div class="table-scroll"><table><thead><tr>
+<th>Anchor</th>
+<th>Where</th>
+</tr></thead><tbody>
+<tr>
+<td><code>workflow-trigger</code></td>
+<td>The <code>Allocate/Move</code> button</td>
+</tr>
+<tr>
+<td><code>workflow-allocate-product</code></td>
+<td>Menu entry — the unallocated tray</td>
+</tr>
+<tr>
+<td><code>workflow-multi-bin-assignment</code></td>
+<td>Menu entry</td>
+</tr>
+<tr>
+<td><code>workflow-move-from-bin</code></td>
+<td>Menu entry</td>
+</tr>
+<tr>
+<td><code>workflow-move-from-product</code></td>
+<td>Menu entry</td>
+</tr>
+<tr>
+<td><code>unallocated-search</code></td>
+<td>The tray's search box</td>
+</tr>
+<tr>
+<td><code>unallocated-product</code></td>
+<td>A tray product row (first match)</td>
+</tr>
+<tr>
+<td><code>unallocated-select-all</code></td>
+<td>The tray's Select All checkbox row</td>
+</tr>
+<tr>
+<td><code>unallocated-badge-filter</code></td>
+<td>The tray's badge filter trigger</td>
+</tr>
+<tr>
+<td><code>unallocated-review-selection</code></td>
+<td>The tray's footer counter — a toggle into the ticked products</td>
+</tr>
+<tr>
+<td><code>allocate-search</code></td>
+<td>Multi Bin Assignment's search box</td>
+</tr>
+<tr>
+<td><code>allocate-product</code></td>
+<td>A Multi Bin result row — and a <code>Selected products</code> row, since it is one row</td>
+</tr>
+<tr>
+<td><code>allocate-select-all</code></td>
+<td>Multi Bin Assignment's Select All</td>
+</tr>
+<tr>
+<td><code>allocate-badge-filter</code></td>
+<td>Multi Bin Assignment's badge filter trigger</td>
+</tr>
+<tr>
+<td><code>allocate-review-selection</code></td>
+<td>Multi Bin's footer counter — the way back to the selection</td>
+</tr>
+<tr>
+<td><code>allocate-confirm</code></td>
+<td>Multi Bin Assignment's Allocate button</td>
+</tr>
+<tr>
+<td><code>allocate-cancel</code></td>
+<td>Multi Bin Assignment's Cancel button</td>
+</tr>
+<tr>
+<td><code>badge-filter-option-&lt;value&gt;</code></td>
+<td>One filter option — <code>all</code>, <code>climate</code>, <code>civ</code>, <code>sdv</code>, <code>mdv</code></td>
+</tr>
+<tr>
+<td><code>unallocated-allocate</code></td>
+<td>The tray's Allocate button</td>
+</tr>
+<tr>
+<td><code>unallocated-cancel</code></td>
+<td>The tray's Cancel button</td>
+</tr>
+<tr>
+<td><code>history-trigger</code></td>
+<td>The header's History button</td>
+</tr>
+<tr>
+<td><code>history-back</code></td>
+<td>The History page's back arrow</td>
+</tr>
+<tr>
+<td><code>pipeline-primary</code></td>
+<td>The move footer's primary — <strong>on every one of the four stages</strong></td>
+</tr>
+<tr>
+<td><code>pipeline-back</code></td>
+<td>The move footer's Back</td>
+</tr>
+<tr>
+<td><code>pipeline-cancel</code></td>
+<td>The move footer's Cancel</td>
+</tr>
+<tr>
+<td><code>review-select-product</code></td>
+<td>A Review card's <code>Select</code>, on the rows not yet taken</td>
+</tr>
+<tr>
+<td><code>step4-quantity</code></td>
+<td>The take half of step ④</td>
+</tr>
+<tr>
+<td><code>step4-placement</code></td>
+<td>The place half of step ④</td>
+</tr>
+<tr>
+<td><code>source-product-row</code></td>
+<td>A product row that answers the tap — only in a Product move's step ①</td>
+</tr>
+<tr>
+<td><code>door</code></td>
+<td>A door button, on both cabinets and the fridges</td>
+</tr>
+</tbody></table></div>
+<p><code>door</code> is the exception that proves the rule about naming: a walk never wants <em>a</em> door, it wants one with room or one that is cold, so it is always paired with the attributes below rather than used alone.</p>
+<p>Plus the data attributes a scenario resolves against rather than naming a specific element: <code>data-bin-id</code>, <code>data-bin-available</code>, <code>data-bin-product-count</code> and <code>data-product-quantity</code> on <code>BinCard</code>, and <code>data-door-free-bins</code> / <code>data-door-kind</code> on each door button.</p>
+<p><strong>One anchor for four primaries.</strong> <code>pipeline-primary</code> is on every stage's forward button rather than one per stage, because the footer's whole design is that the operator looks at one place for what happens next — a walkthrough reaching for the same place is demonstrating that rather than working around it. It is also the only handle that survives the labels: <code>Move To</code>, <code>Select bins to move</code>, <code>Build Move List</code>, <code>Start Qty Move</code> and <code>Proceed to Move To</code> are all this one control.</p>
+<p><strong><code>review-select-product</code> is conditional</strong>, present on <code>Select</code> and absent on the spent <code>Selected</code>. So "the first match" is always a product still available to pick, and a walk can select several by repeating one step rather than counting rows.</p>
+<p><strong><code>data-bin-product-count</code> answers a question <code>available</code> cannot.</strong> <code>available="false"</code> says a bin is not empty; the Move from Bin walk needs a source holding <em>more than one</em> product, because choosing which of them leave is the thing that makes it a Bin move.</p>
+<p><strong>Why not match on text.</strong> This app renames its labels constantly — CLAUDE.md §2 is largely a record of it, and the workflow menu alone is on its third naming. A broken selector presents to a viewer as a broken app.</p>
+<p><strong>Why <code>data-bin-available</code>.</strong> A scenario needs "a bin with room" without naming one: bin ids belong to the seed, and the seed is expected to be replaced by real cabinet data. The attribute comes from the same <code>bin.available</code> that draws the green stroke, so the demo taps a bin the viewer can see is free. Selecting a bin does not change it, so the same card resolves on the way back — which is what lets the reverse step simply tap it again.</p>
+<p><strong><code>data-door-kind</code> tells a fridge from a cabinet door.</strong> Cold storage is Door 9-14 and renders as <code>Fridge N</code>, but a walk must not match on that label. <code>data-door-free-bins</code> cannot stand in either: a fridge's single pooled bin is stocked in this seed, so it reports no room — and a bin holding something is not a bin that is full, since the app models no capacity at all (CLAUDE.md §5). Fridges are drawn by <code>VirtualCabinetComponent</code> rather than <code>CabinetComponent</code>, and carried no door anchor at all until the Climate round needed one; they answer <code>data-demo="door"</code> now, so a walk looking for "a door" does not have to know two components draw them.</p>
+<p><strong><code>node scripts/verify-demo-anchors.mjs</code></strong> asserts every anchor a scenario reaches for still renders. A rename fails in the terminal instead of in front of a viewer.</p>
+<p><strong>The filter options are anchored per option, not per panel.</strong> <code>ProductListControls</code> is one component rendered by both allocation panels, so the option rows cannot carry a panel-specific name — and they do not need one: the values are the same everywhere and only one of these panels can be open at a time, so a walk asking for "the Climate option" cannot reach the wrong one. The two <em>panel-specific</em> anchors (the Select All row and the filter trigger) are passed in as props, spelled out as literals at each call site so they stay greppable.</p>
+<p>Two spellings it had to learn, both from anchors that are not plain literals. A <strong>conditional</strong> anchor (<code>data-demo={taken ? undefined : 'review-select-product'}</code>) is found by reading the braces' own string literals — as is any <code>…demoId="x"</code> prop at a call site, which covers <code>FooterButton</code>'s <code>demoId</code> and <code>ProductListControls</code>' <code>selectAllDemoId</code> / <code>filterDemoId</code>. An <strong>interpolated</strong> one (`<code> data-demo={</code>unallocated-filter-${option.value}<code>} </code>`, one per row of a mapped list) is matched on its fixed prefix — weaker than an exact match and deliberately the last resort, but it still catches what actually goes wrong, which is the element being renamed or deleted.</p>
+<hr />
+<h2 id="8-the-step-vocabulary"><a class="anchor" href="#8-the-step-vocabulary">8. The step vocabulary</a></h2>
+<pre data-lang="ts"><code>interface DemoStep {
+  kind: 'click' | 'type' | 'await' | 'note';
+  label: string;              // names the step; read in the panel, never drawn over the app
+  target?: DemoTarget;        // CSS selector, or a function returning an Element
+  text?: string | (() =&gt; string); // 'type' only; a function is resolved when the step runs
+  settleMs?: number;          // overrides the PACE default
+  reverse?: DemoStep[];       // see §5
+}</code></pre>
+<div class="table-scroll"><table><thead><tr>
+<th>Kind</th>
+<th>Does</th>
+</tr></thead><tbody>
+<tr>
+<td><code>click</code></td>
+<td>Move to the target and click it, for real</td>
+</tr>
+<tr>
+<td><code>type</code></td>
+<td>Move, focus, and type <code>text</code> a character at a time</td>
+</tr>
+<tr>
+<td><code>await</code></td>
+<td>Wait for the target to appear without touching it</td>
+</tr>
+<tr>
+<td><code>note</code></td>
+<td>A pause. No cursor movement, no interaction</td>
+</tr>
+</tbody></table></div>
+<p><strong>A target may be a function</strong>, re-evaluated at the moment the step runs. That is the escape hatch for anything only the scenario can identify — see <code>nthFreeBin</code> in <code>allocateProduct.ts</code>. It is what keeps the runner from having to learn about bins.</p>
+<p><strong>So may <code>text</code></strong>, for the same reason: a scenario that resolves "a bin with room" from the DOM has to be able to type <em>that</em> bin's name, and a hard-coded one would rot with the seed exactly as a hard-coded bin id would. See <code>firstFreeBinName</code> in <code>allocateProduct.ts</code>.</p>
+<p><strong>Labels name the step; they never narrate it.</strong> They are read in the control panel and in the failure message, and nowhere else.</p>
+<hr />
+<h2 id="9-the-dom-layer-and-four-things-that-cost-a-debugging-round"><a class="anchor" href="#9-the-dom-layer-and-four-things-that-cost-a-debugging-round">9. The DOM layer, and four things that cost a debugging round</a></h2>
+<p><code>demo/dom.ts</code>. All four of these look like details and are not.</p>
+<ul>
+<li><strong><code>el.click()</code> is not enough.</strong> Radix opens its Popover on <code>pointerdown</code>, so a bare click leaves the <code>Allocate/Move</code> menu shut and the whole scenario stalls waiting for a menu entry that never appears. <code>dispatchRealClick</code> sends the full <code>pointerover → mouseover → pointermove → mousemove → pointerdown → mousedown → focus → pointerup → mouseup → click</code> sequence.</li>
+<li><strong>React ignores <code>input.value = x</code>.</strong> Its <code>onChange</code> rides a native <code>input</code> event, and React's value tracker suppresses the event when it believes nothing changed. <code>setInputValue</code> goes through the prototype's setter so the tracker updates too.</li>
+<li><strong>Every wait is a poll, never a fixed delay.</strong> State updates are async (CLAUDE.md §4), and a delay tuned on one machine is a flaky demo on a slower one. <code>waitForTarget</code> polls for the node <em>and</em> a non-zero box — a panel mid-transition is in the DOM before it can be clicked at a sensible coordinate. <code>scrollTargetIntoView</code> watches the rect until it stops moving rather than guessing how long a smooth scroll takes.</li>
+<li><strong><code>sleep</code> uses <code>setTimeout</code>, not <code>requestAnimationFrame</code>.</strong> rAF does not fire at all in a backgrounded tab, so a rAF-based sleep never resolves there and the walk stops dead mid-step with no error — indistinguishable from a broken app. The cursor <em>animation</em> still uses rAF, with a watchdog that jumps it to its destination if no frame arrives.</li>
+</ul>
+<p>Two more, in the runner:</p>
+<ul>
+<li><strong>The target is re-resolved after the scroll.</strong> A React re-render during the settle can replace the node, and clicking a detached element is a click that silently does nothing.</li>
+<li><strong>The cursor is written imperatively</strong> through <code>cursorRef.current.style.transform</code>, never React state — it moves at frame rate. Nothing else re-renders either: <code>&lt;App /&gt;</code> is created once in <code>main.tsx</code> and never consumes the demo context, so React skips it when a step advances.</li>
+</ul>
+<hr />
+<h2 id="10-scenario-allocate-product"><a class="anchor" href="#10-scenario-allocate-product">10. Scenario: Allocate Product</a></h2>
+<p>One walk, four rounds, in order of increasing shape:</p>
+<div class="table-scroll"><table><thead><tr>
+<th>Round</th>
+<th>Pattern</th>
+<th>Products</th>
+<th>Bins</th>
+</tr></thead><tbody>
+<tr>
+<td>1</td>
+<td>one → one</td>
+<td><code>MESNA</code></td>
+<td>first free</td>
+</tr>
+<tr>
+<td>2</td>
+<td>many → one</td>
+<td><strong>whatever the <code>Climate</code> filter finds</strong></td>
+<td>a fridge's pooled bin</td>
+</tr>
+<tr>
+<td>3</td>
+<td>one → many</td>
+<td><code>VYLOY</code></td>
+<td>first two free</td>
+</tr>
+<tr>
+<td>4</td>
+<td>many → many</td>
+<td>top two off the unfiltered list</td>
+<td>first two free</td>
+</tr>
+</tbody></table></div>
+<p>Then: close the tray, open History, end on four entries under Today.</p>
+<p><strong>The panel never closes between rounds, and that is the point.</strong> Split into four scenarios, each would open the tray, do one thing and shut it — which is not how a cabinet gets set up. Run as one walk it also shows what four separate demos cannot: the tray shortening and the free bins running out as the work proceeds.</p>
+<p><strong>Each round is the tray first, then one trip to the cabinet.</strong> <code>openDoorWithRoom</code> runs immediately before the bins are tapped, never at the top of a round — the order the decision is actually made in (what needs a home, and only then where), and it removes a visible round trip: the <code>await</code> step parks the cursor on the search box, so a door step above the search dragged it out to the cabinet and the search dragged it straight back. Round 2 needs no door step (<code>firstFridge</code> opens the fridge) and already ran in this order. The Multi Bin walk follows the same rule (§10a2).</p>
+<p><strong>The seam between rounds is free.</strong> <code>handleConfirmAssignment</code> leaves the panel open and resets exactly what should reset: allocated products leave the tray, the ticks and bin picks clear, and the filled bin flips to <code>available: false</code>. So a round starts clean without a step to clean it, and <code>nthFreeBin</code> simply finds what is left.</p>
+<p><strong>Products are matched by name, never by tray id.</strong> Ids are <code>unalloc-1</code>, <code>unalloc-2</code>… assigned by index over whatever is still unallocated, so they renumber after every round of this very scenario — a step naming one would be wrong by round two. Six of the eight reserved products are used; two are left so the tray still has something in it at the end rather than bottoming out into its empty state.</p>
+<p><strong>Round 2 is the badge filter, and it carries the round's whole point.</strong> Narrow the tray to <code>Climate</code>, <code>Select All</code>, open a fridge, tap its bin, Allocate. That is the many-products-one-location case done the way the job is actually done: climate-sensitive stock belongs in cold storage, so every product the filter finds has the <em>same</em> destination — which is exactly when <code>Select All</code> is the right control and exactly why the filter sits opposite it.</p>
+<p>It replaces a round that searched two names in turn and then cleared the box so both picks were on screen at once. That version existed to show the tray's invisible-selection gap (CLAUDE.md §8), which is a caveat rather than a workflow; the caveat is still visible in round 4, where a filtered pick meets an unfiltered one.</p>
+<p>Three things about it are load-bearing and easy to break by editing the rounds:</p>
+<ul>
+<li><strong>The tray must hold at least two CLIMATE products, and round 1 must not take one.</strong> <code>Select All</code> over a single row is not a bulk allocation. Both halves have bitten: round 1 was <code>SOLU-CORTEF</code>, which was Climate at the time (hence <code>MESNA</code>), and later the Climate rate dropping to ~1 in 6 cost <code>SOLU-CORTEF</code> the badge and left the tray with one. The reserve list is maintained by hand against this constraint now — see <code>UNALLOCATED_RESERVE_IDS</code>. <code>FLUOROURACIL</code> and <code>OPDIVO</code> are the two today, and <code>verify-unallocated-filter.mjs</code> asserts the count.</li>
+<li><strong>Round 2 clears the search box before setting the filter.</strong> The two narrowings compose as AND, and round 1 leaves its product's name in the box, so the filter would land on top of a query for one specific drug and find nothing. Clearing first is also the honest order: the point of the round is that no typing is needed.</li>
+<li><strong>Round 3 resets the filter to <code>All products</code>.</strong> The filter survives an allocation — it is only reset when the tray is opened or closed — so nothing else can be found until it is put back. Not housekeeping smuggled into the walk: it is the one moment the persistence is visible, and a viewer who has just watched the filter empty the tray should see that the tray is not empty.</li>
+</ul>
+<p><strong>Round 2 used to find its bin by name</strong> — typing it into the main search and pressing Highlight Bin, so the destination lit up a beat before the cursor arrived. Removed, and not because the idea was wrong: the dropdown did not reliably open for a synthetic click on the search box, so the step stalled the walk in front of the viewer. See §12; the runner-level cause is fixed now and the beat could come back.</p>
+<p><strong>Round 4 assigns the cross product</strong>, not a pairing: every ticked product goes into every tapped bin, which is why two ticks and two taps produce four rows. It also picks its two products straight off the unfiltered list rather than searching for each — an operator setting up a cabinet works down what still needs a home rather than recalling names to type, and it is what makes the remaining tray visible as a list at all.</p>
+<p><strong>The walk is door-aware, because it has to be.</strong> It needs six free bins and no single door has them: the seed spreads fifteen across the cabinet, one behind Door 1 and two behind each of Doors 2–8. Only the OPEN door's bins are in the DOM, so a scenario cannot count another door's free bins by looking — which is what <code>data-door-free-bins</code> on each door button is for. <code>openDoorWithRoom(n)</code> runs before every round and re-resolves, so the walk moves along the shelves as doors fill up. Assuming nine free bins behind Door 1 is exactly how this scenario used to die mid-run.</p>
+<p><strong>Closing the tray and opening History are two steps in that order because they have to be.</strong> History hides while any workflow is open.</p>
+<p><strong>It ends at the ledger on purpose.</strong> An allocation that shows only as a 0-vial row in a bin reads as nothing having happened; four entries under Today are the proof that four transactions were recorded.</p>
+<p>That ending is also what forced the History page's badges to be fixed. They were hardcoded — every row printed <code>CLIMATE</code> and <code>CIV</code> regardless — so a walk whose second round filters two Climate products out of eight ended on a page marking all of them Climate, which reads as the filter being broken rather than the ledger. All three badges derive from <code>binProducts</code> now (CLAUDE.md §2 D).</p>
+<p><strong><code>data/seedHistory.ts</code> seeds nothing into today.</strong> It used to carry a multi-product unallocation stamped today at 08:40, which rendered as the only rows in Today's list — so a walkthrough's own transactions landed among strangers and the viewer had to hunt for the ones they had just watched being created. Every record type the History page can render is still covered by the older entries.</p>
+<hr />
+<h2 id="10a2-scenario-multi-bin-assignment"><a class="anchor" href="#10a2-scenario-multi-bin-assignment">10a2. Scenario: Multi Bin Assignment</a></h2>
+<p>Workflow A — giving a product that is <strong>already stocked</strong> another bin. Two rounds, 30 steps, ending at the ledger:</p>
+<div class="table-scroll"><table><thead><tr>
+<th>Round</th>
+<th>What the walk does</th>
+</tr></thead><tbody>
+<tr>
+<td>1. one product → two bins</td>
+<td>search <code>COSELA</code>, tick it, open a door with 2 free bins, tap both, Allocate</td>
+</tr>
+<tr>
+<td>2. two products → one bin</td>
+<td>search <code>MITOMYCIN</code>, tick; search <code>POLIVY</code>, tick; tap the footer counter to see both; open a door with a free bin, tap it; Allocate</td>
+</tr>
+</tbody></table></div>
+<p><strong>Two rounds, not the tray's four.</strong> Copying <code>Allocate Product</code>'s grid would add a "many products into many bins" round that is the two above happening at once — a round with no new fact in it, on a walk whose brief was to stay short.</p>
+<p><strong>The panel stays open between them</strong>, as in the tray's walk and for the same reason: <code>handleAssignProductsToBins</code> leaves it up and clears exactly what should clear, so each round starts clean without a step to clean it, and the filled bins flip to <code>available: false</code> so the resolvers find the next free ones on their own.</p>
+<p><strong>The door opens after the product is picked, never at the top of a round.</strong> Both rounds are everything-in-the-panel, then one trip to the cabinet — the order the decision is actually made in (what am I giving another bin, and only then where). Opening the door first cost a visible round trip: the <code>await</code> step parks the cursor on the search box, the door step dragged it across to the cabinet, and the search step dragged it straight back. One product decision, split by an errand, which reads as the walk changing its mind. Each round now crosses between panel and cabinet once.</p>
+<p><strong>Round 1's product is one that already lives in two bins.</strong> COSELA's row lists both, so "and now a third and a fourth" is visible on the row itself rather than only in the ledger. That list is also the point of this panel over the tray — it is the context for choosing another bin, and it is what tells you not to pick one the drug is already in.</p>
+<p><strong>Round 2 exists to show two things at once</strong>: that a second search does not lose the first pick (the panel holds the picked product <em>objects</em>, not their keys), and that the footer's counter is how you then <em>see</em> both — it clears the query, and a clear box is what puts the <code>Selected products</code> list on screen. Its reverse types the second term back rather than tapping the counter again, because the counter is not a toggle in this panel (it is in the tray, which has no other way back).</p>
+<p><strong>Products are searched for, never picked off a list.</strong> This panel lists nothing until something is typed, so the tray's <code>pickFromList</code> has no equivalent here — and that is the workflow, not a limitation: you arrive knowing which drug needs another bin.</p>
+<p><strong>Allocate has no reverse</strong>, the same as the tray's: nothing in this panel unallocates, and the app's only unallocation is the zero-inventory banner after a move. Previous rebuilds from the start.</p>
+<p><strong>The ledger is the closing beat and also a check.</strong> Both rounds file as <code>New Bin Allocation</code>, the same as the tray's. This panel wrote nothing to History at all until 2026-08-07 — the one workflow whose entire output is an allocation was the one missing from the allocation record — so a walk that ends here fails loudly if that regresses.</p>
+<hr />
+<h2 id="10b-scenario-move-from-bin"><a class="anchor" href="#10b-scenario-move-from-bin">10b. Scenario: Move from Bin</a></h2>
+<p>Workflow B with <code>moveMode = 'bin'</code>, all four steps, ending at the ledger:</p>
+<div class="table-scroll"><table><thead><tr>
+<th>Step</th>
+<th>What the walk does</th>
+</tr></thead><tbody>
+<tr>
+<td>① Bin</td>
+<td>open a door with a free bin, tap a <strong>stocked</strong> bin as Move From</td>
+</tr>
+<tr>
+<td>② Target</td>
+<td>tap a <strong>free</strong> bin as Move To</td>
+</tr>
+<tr>
+<td>③ Review</td>
+<td><code>Select</code> one of that bin's products — the rest stay</td>
+</tr>
+<tr>
+<td>④ Move</td>
+<td>accept the full quantity at the source, then place it at the target</td>
+</tr>
+</tbody></table></div>
+<p>Then: the emptied bin raises the zero-inventory banner, and History records the move.</p>
+<p><strong>The source bin must hold more than one product.</strong> Picking a bin does not commit its contents — Review still asks which of them are leaving — and with a single-product bin that question answers itself, so the walk would be a Move from Product wearing a different name. <code>stockedBinWithChoice</code> resolves on <code>data-bin-product-count &gt;= 2</code>, not on <code>available="false"</code>, which only says "not empty".</p>
+<p><strong>It moves the full quantity, and nothing types a number.</strong> The quantity page opens at the source bin's whole amount (<code>transfer.quantity || productInfo.quantity</code>, and transfers are staged at 0), so accepting it is the happy path. That is not only the shortest route: a partial move switches serial scanning on, and how many serials there are to scan is then whatever the seed happens to hold — which a scenario cannot know without reading quantities out of the DOM and generating steps from them. <strong>A partial move with scanning deserves its own walkthrough</strong>; it is not this one.</p>
+<p><strong>Emptying the bin is the closing beat, not an accident.</strong> A full move leaves the source at 0, so the cabinet comes back with the zero-inventory banner raised. The walk does not dismiss it: the banner is the app asking whether the product should keep its now-empty bin, a question with no deadline, and watching it wait is the point (CLAUDE.md §2 C).</p>
+<p><strong>Step ④ has no reverse, and cannot.</strong> There is no Back on either half — Cancel is the only exit and it discards the move rather than stepping through it. Previous falls back to the rebuild.</p>
+<p><strong>The target cannot collide with the source.</strong> Step ② refuses a bin already serving as a source, and the walk's target resolver asks for a <em>free</em> bin, which by definition never is one.</p>
+<hr />
+<h2 id="10c-scenario-move-from-product"><a class="anchor" href="#10c-scenario-move-from-product">10c. Scenario: Move from Product</a></h2>
+<p>The same pipeline entered through the other door. From step ② onward the two walks are near-identical, <strong>because the workflows are</strong> — one pipeline with two ways in, not two pipelines. Everything worth watching is step ①, and all of it follows from the operator having declared the unit up front:</p>
+<div class="table-scroll"><table><thead><tr>
+<th></th>
+<th>Move from Bin</th>
+<th>Move from Product</th>
+</tr></thead><tbody>
+<tr>
+<td>Bin card tap</td>
+<td>selects the bin</td>
+<td><strong>inert</strong> — refused with an explanation</td>
+</tr>
+<tr>
+<td>Product row tap</td>
+<td>inert (bubbles to the card)</td>
+<td><strong>selects that product</strong></td>
+</tr>
+<tr>
+<td>Source badge</td>
+<td><code>Move From</code></td>
+<td><code>1 Selected</code></td>
+</tr>
+<tr>
+<td>Footer's from-end</td>
+<td><code>Move From</code></td>
+<td>just <code>Move</code> (<code>sourceEndLabel</code>)</td>
+</tr>
+<tr>
+<td>Review</td>
+<td>headed by the bin, lists its products</td>
+<td>headed by the product, lists its bins</td>
+</tr>
+</tbody></table></div>
+<p><strong>One product, from one bin — and the flagship behaviour is deliberately not here.</strong> Picking a product out of the search dropdown takes it <em>in every bin it lives in</em>, which is what "wherever this drug is" means and is the best reason this workflow exists. It is not in this walk for a mechanical reason: how many bins a product occupies is seed data, and a multi-bin pick makes <strong>two</strong> step counts depend on it — Review pages source bin by source bin, each needing its own <code>Select</code>, and step ④ then takes from each in turn. A scenario is a static list of steps and can count neither. See §10d.</p>
+<p><strong>Review needs both cards anchored.</strong> The bin-centric view renders <code>SourceProductCard</code>; the product-centric one renders <code>ProductCentricCard</code>. They look alike on purpose — same column, same secondary button — so both carry <code>review-select-product</code>, and a walk asks for "the Select in Review" without knowing which kind of move is running. Anchoring only the first is exactly how this walk stalled on its first run, on a screen that looked correct.</p>
+<p><strong><code>data-product-quantity</code> sits beside the row anchor.</strong> A product at 0 is movable by design (what moves is the allocation, CLAUDE.md §2 E) but it is not the happy path, and the seed holds several such rows — Bin 1B's ALIMTA is one.</p>
+<hr />
+<h2 id="10d-not-built-the-multi-bin-pick"><a class="anchor" href="#10d-not-built-the-multi-bin-pick">10d. Not built: the multi-bin pick</a></h2>
+<p>Both move walks stop short of the same thing, and for the same reason. <code>Move from Product</code> cannot show the search dropdown's "take it wherever it lives", and <code>Move from Bin</code> cannot show a partial move with serial scanning. In each case the number of steps is a function of the data:</p>
+<div class="table-scroll"><table><thead><tr>
+<th>Walk</th>
+<th>What it cannot show</th>
+<th>Because</th>
+</tr></thead><tbody>
+<tr>
+<td>Move from Product</td>
+<td>picking a product across all its bins</td>
+<td>Review pages per source bin; step ④ takes per source bin</td>
+</tr>
+<tr>
+<td>Move from Bin</td>
+<td>a partial move</td>
+<td>the placement screen needs one scan per unit still to place</td>
+</tr>
+</tbody></table></div>
+<p><strong>The fix is one addition to the step vocabulary, not a cleverer scenario</strong>: a way to say <em>"press this until the condition clears"</em> — <code>repeatWhile?: () =&gt; boolean</code> on a click step, run in <code>runStep</code> behind a hard iteration cap. The conditions are already expressible and read well: <code>() =&gt; !!document.querySelector('[data-demo="step4-quantity"]')</code> is "keep taking until the take phase ends". Faking it with a fixed number of repeats would produce a walk that works on today's seed and stops halfway on tomorrow's — which is the failure this whole file is written to avoid.</p>
+<hr />
+<h2 id="11-adding-a-scenario"><a class="anchor" href="#11-adding-a-scenario">11. Adding a scenario</a></h2>
+<p>A file in <code>demo/scenarios/</code> and a line in its <code>index.ts</code>. Nothing in the runner, the cursor or the palette should need to change; if it does, the step vocabulary is missing something and <em>that</em> is what to add.</p>
+<p>Checklist:</p>
+<ol>
+<li>Pin products and bins by <strong>identity or property</strong>, never by index or position.</li>
+<li>Give every state-changing step a <code>reverse</code>, or accept the visible rebuild on Previous.</li>
+<li>Add <code>data-demo</code> anchors for anything not already anchored, and re-run <code>node scripts/verify-demo-anchors.mjs</code>.</li>
+<li>Set <code>settleMs</code> above the default wherever the viewer needs to find something.</li>
+<li>Check the scenario cannot trip the E-Kit rule, which is the only thing in the app that can refuse an action outright.</li>
+<li><strong>Group the steps by surface.</strong> Do everything on one surface before moving to the next — both allocation walks pick their products in the panel and only then open a door. A step that sends the cursor away and straight back reads as the walk changing its mind, and the <code>await</code> step after a panel opens already parks the cursor there.</li>
+<li>Verify by watching it, or by driving the steps through <code>dom.ts</code>'s own <code>dispatchRealClick</code> — never a hand-rolled click (§12).</li>
+</ol>
+<hr />
+<h2 id="12-known-limits"><a class="anchor" href="#12-known-limits">12. Known limits</a></h2>
+<ul>
+<li><strong>Previous cannot undo an allocation</strong> (§5). It is the one irreversible step in the current scenario and it falls back to the rebuild. If an unallocate path ever reaches the tray, that step is the one to give a <code>reverse</code> to.</li>
+<li><strong>Entering always reloads</strong>, so starting a demo discards whatever the viewer was doing. It is no longer stated anywhere on screen — the palette's footer went with its search box (§2) — so a viewer who had built something up loses it without warning. Judged the lesser cost: the palette is opened to start a walkthrough, not mid-task.</li>
+<li><strong>The four scenarios cover the four workflows, and none of the data-dependent shapes.</strong> A product picked across several bins, or a partial move with serial scanning, both need <code>repeatWhile</code> (§10d), which is specified and not built.</li>
+<li><strong>The runner has no headless test.</strong> <code>verify-demo-anchors.mjs</code> checks that anchors resolve, which catches the most likely breakage, but the walk itself is verified by watching it — or by importing a scenario in the console and driving its steps through <code>dom.ts</code>'s own <code>dispatchRealClick</code>. Use the runner's function, not a hand-rolled click: a sequence missing <code>pointermove</code> opens a Radix Select and then fails to commit the option, silently, which looks exactly like the scenario being wrong. The project has no test infrastructure at all (CLAUDE.md §6).</li>
+<li><strong>Nothing scales the pace at runtime.</strong> <code>PACE</code> is a module constant; a speed control would be a small change and is the obvious next affordance if anyone finds the pace wrong rather than merely slow.</li>
+</ul>
+  </main>
+</div>
+<script>
+  // Scroll-spy: highlight the section currently in view. rAF-throttled, no dependencies.
+  const links = [...document.querySelectorAll('nav li a')];
+  const targets = links.map(a => document.getElementById(decodeURIComponent(a.hash.slice(1)))).filter(Boolean);
+  let queued = false;
+  const spy = () => {
+    queued = false;
+    let activeIndex = 0;
+    targets.forEach((el, index) => { if (el.getBoundingClientRect().top < 120) activeIndex = index; });
+    links.forEach((a, index) => a.classList.toggle('active', index === activeIndex));
+  };
+  addEventListener('scroll', () => { if (!queued) { queued = true; requestAnimationFrame(spy); } }, { passive: true });
+  spy();
+</script>
+</body>
+</html>

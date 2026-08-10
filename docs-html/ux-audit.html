@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>UX audit — heuristic findings</title>
+<style>
+  :root {
+    --bg: #ffffff; --panel: #f7f8fa; --text: #1b1f24; --muted: #5c6672; --rule: #e3e7ec;
+    --link: #095192; --code-bg: #f2f4f7; --code-text: #123; --accent: #095192;
+    --done: #15803d; --done-bg: #e8f6ec; --partial: #9a6700; --partial-bg: #fdf5e2;
+    --open: #b0331f; --open-bg: #fdecea;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14171a; --panel: #1b1f23; --text: #e6e9ec; --muted: #9aa4af; --rule: #2b3137;
+      --link: #7fb2e5; --code-bg: #22272c; --code-text: #dbe3ea; --accent: #7fb2e5;
+      --done: #6fcf8e; --done-bg: #1d2a21; --partial: #e0b341; --partial-bg: #2b2517;
+      --open: #f0907f; --open-bg: #2c1c1a;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 16px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .shell { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 0; }
+  nav {
+    position: sticky; top: 0; align-self: start; height: 100vh; overflow-y: auto;
+    background: var(--panel); border-right: 1px solid var(--rule); padding: 24px 18px 48px;
+  }
+  nav .docs { display: flex; flex-direction: column; gap: 2px; margin-bottom: 22px; }
+  nav .docs a {
+    padding: 6px 8px; border-radius: 4px; font-size: 13px; text-decoration: none; color: var(--muted);
+  }
+  nav .docs a.current { background: var(--accent); color: #fff; font-weight: 500; }
+  nav h2 {
+    font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted);
+    margin: 0 8px 8px; font-weight: 600;
+  }
+  nav ol { list-style: none; margin: 0; padding: 0; }
+  nav li a {
+    display: block; padding: 4px 8px; border-radius: 4px; font-size: 13px; line-height: 1.4;
+    text-decoration: none; color: var(--muted); border-left: 2px solid transparent;
+  }
+  nav li a:hover { color: var(--text); background: color-mix(in srgb, var(--accent) 10%, transparent); }
+  nav li a.active { color: var(--accent); border-left-color: var(--accent); font-weight: 500; }
+  nav li.sub a { padding-left: 20px; font-size: 12.5px; }
+  main { padding: 40px 40px 120px; max-width: 900px; }
+  header.doc { border-bottom: 1px solid var(--rule); padding-bottom: 18px; margin-bottom: 28px; }
+  header.doc h1 { font-size: 27px; line-height: 1.25; margin: 0 0 6px; letter-spacing: -.01em; }
+  header.doc p { margin: 0; color: var(--muted); font-size: 15px; }
+  h2 { font-size: 21px; margin: 44px 0 12px; padding-top: 8px; letter-spacing: -.01em; }
+  h3 { font-size: 17px; margin: 30px 0 10px; }
+  h4 { font-size: 15px; margin: 22px 0 8px; color: var(--muted); }
+  a { color: var(--link); }
+  a.anchor { color: inherit; text-decoration: none; }
+  a.anchor:hover::after { content: " #"; color: var(--muted); font-weight: 400; }
+  p, li { overflow-wrap: break-word; }
+  ul, ol { padding-left: 22px; }
+  li { margin: 5px 0; }
+  li > ul, li > ol { margin-top: 5px; }
+  code {
+    background: var(--code-bg); color: var(--code-text); padding: 1px 5px; border-radius: 3px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13px;
+  }
+  pre {
+    background: var(--code-bg); border: 1px solid var(--rule); border-radius: 6px;
+    padding: 14px 16px; overflow-x: auto; font-size: 13px; line-height: 1.55;
+  }
+  pre code { background: none; padding: 0; }
+  blockquote {
+    margin: 16px 0; padding: 10px 16px; border-left: 3px solid var(--accent);
+    background: var(--panel); color: var(--muted); border-radius: 0 4px 4px 0;
+  }
+  hr { border: 0; border-top: 1px solid var(--rule); margin: 36px 0; }
+  .table-scroll { overflow-x: auto; margin: 16px 0; }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; }
+  th, td { border: 1px solid var(--rule); padding: 8px 11px; text-align: left; vertical-align: top; }
+  th { background: var(--panel); font-weight: 600; }
+  .status {
+    display: inline-block; font-size: 11px; font-weight: 600; letter-spacing: .02em;
+    padding: 1px 7px; border-radius: 10px; vertical-align: 1px; margin-right: 2px;
+  }
+  .status.done { color: var(--done); background: var(--done-bg); }
+  .status.partial { color: var(--partial); background: var(--partial-bg); }
+  .status.open { color: var(--open); background: var(--open-bg); }
+  @media (max-width: 900px) {
+    .shell { grid-template-columns: 1fr; }
+    nav { position: static; height: auto; border-right: 0; border-bottom: 1px solid var(--rule); }
+    main { padding: 24px 20px 80px; }
+  }
+</style>
+</head>
+<body>
+<div class="shell">
+  <nav>
+    <h2>Documents</h2>
+    <div class="docs">
+      <a href="claude.html">Bin Allocation 2.0 — working guide</a>
+      <a href="demo.html">Demo Mode — behaviours and actions</a>
+      <a href="ux-audit.html" class="current">UX audit — heuristic findings</a>
+    </div>
+    <h2>On this page</h2>
+    <ol>
+      <li><a href="#how-to-use-this-file">How to use this file</a></li>
+      <li><a href="#priority-actions">Priority actions</a></li>
+      <li><a href="#h1-visibility-of-system-status">H1 — Visibility of system status</a></li>
+      <li><a href="#h2-match-between-system-and-the-real-world">H2 — Match between system and the real world</a></li>
+      <li><a href="#h3-user-control-and-freedom">H3 — User control and freedom</a></li>
+      <li><a href="#h4-consistency-and-standards">H4 — Consistency and standards</a></li>
+      <li><a href="#h5-error-prevention">H5 — Error prevention</a></li>
+      <li><a href="#h6-recognition-rather-than-recall">H6 — Recognition rather than recall</a></li>
+      <li><a href="#h7-flexibility-and-efficiency-of-use">H7 — Flexibility and efficiency of use</a></li>
+      <li><a href="#h8-aesthetic-and-minimalist-design">H8 — Aesthetic and minimalist design</a></li>
+      <li><a href="#h9-help-users-recognise-diagnose-and-recover-from-errors">H9 — Help users recognise, diagnose and recover from errors</a></li>
+      <li><a href="#h10-help-and-documentation">H10 — Help and documentation</a></li>
+      <li><a href="#deliberately-not-findings">Deliberately not findings</a></li>
+    </ol>
+  </nav>
+  <main>
+    <header class="doc">
+      <h1>UX audit — heuristic findings</h1>
+      <p>Numbered findings against the ten usability heuristics, with what has been closed since.</p>
+    </header>
+    <p><strong>Date:</strong> 2026-07-31 · <strong>Revised:</strong> 2026-08-04 · <strong>Method:</strong> Nielsen's 10 usability heuristics, applied to the workflows (Allocate Product, Move by Bin, Move by Product), the search-driven bin selection, and the four-step move pipeline. See <a href="claude.html">CLAUDE.md</a> for how the app is built.</p>
+<p><strong>Verdict:</strong> ⚠️ Several issues to address. The domain modelling (H2) is the app's real strength; error <em>prevention</em> (H5) is its weakest area and the gap is structural, not cosmetic.</p>
+<p><strong>Grounding caveat:</strong> findings marked <code>[code]</code> were read from source, not seen rendered. If those screens look different from how they read, the H1 and H4 items are the ones most likely to shift.</p>
+<p><strong>2026-08-03 revision.</strong> <code>P1</code> and <code>P3</code> were built on <code>move-quantity-pipeline-spine</code>, which closed the whole visibility cluster (<code>H1-1</code>, <code>H1-2</code>, <code>H3-2</code>, <code>H6-1</code>, <code>H6-2</code>) and turned two others up. <code>P2</code> — the missing domain constraints — is untouched and is now clearly the largest remaining item. The colour legend that would have closed <code>H4-2</code>/<code>H8-2</code> was built and then deliberately removed, so both are reopened as <code>[~]</code> with the reasoning recorded rather than lost.</p>
+<p><strong>2026-08-04 revision.</strong> Two things this audit had not named came from the operator rather than from the heuristics, and both are now built: the <strong>Move Summary panel</strong> (<code>H1-4</code>) closed a disconnect between steps ③ and ④ — the pipeline said <em>where</em> you were but never <em>what you were moving</em> — and <strong>moving a 0-quantity allocation</strong> (<code>H5-4</code>) removed a workaround the pharmacy team hit constantly. Worth noting how they arrived: neither was findable by walking the heuristics, because both are about what the operator came to do rather than about how the interface behaves. The <code>SHOW_PIPELINE_STEPS</code> question under <code>H1-1</code> is settled — the band is deleted — and one new defect is open (<code>H4-5</code>).</p>
+<hr />
+<h2 id="how-to-use-this-file"><a class="anchor" href="#how-to-use-this-file">How to use this file</a></h2>
+<p>Each finding has a stable ID. Tick it when fixed and leave the line in place — the record of what was wrong and why is worth more than a clean list. Add new findings at the end of their section rather than renumbering.</p>
+<ul>
+<li><code>[ ]</code> open · <code>[x]</code> fixed · <code>[~]</code> partially fixed / decision needed</li>
+</ul>
+<hr />
+<h2 id="priority-actions"><a class="anchor" href="#priority-actions">Priority actions</a></h2>
+<p>The three things worth doing first, in order of impact per unit of work.</p>
+<ul>
+<li><span class="status done">closed</span> <strong>P1 — Never show a disabled primary without its reason.</strong> Done 2026-08-03. The button carries the requirement (<code>Select a source bin</code> → <code>Target Selection →</code> once satisfied, arrow dropped while blocked). The empty summaries were <strong>not</strong> made to instruct as proposed: the instruction went into the footer's <code>Step n/4</code> cell instead, where it belongs to the step rather than to one of two summary halves, and the empty summary reads in the mode's own unit (<code>0 Products</code> in a Product move, <code>0 Bins</code> in a Bin move). Filled cells go blue with a chevron. Covers <code>H6-2</code> and <code>H1-2</code>.</li>
+<li><span class="status open">open</span> <strong>P2 — Add the domain constraints, or state out loud that the demo has none.</strong> Capacity, par level, door-type routing and product-fits-bin are the four rules an operator will assume exist. The app will currently accept a physically impossible allocation without objection, which in a pharmacy demo is a credibility problem rather than a UX gap. Covers <code>H5-1</code>. <strong>Now the largest remaining item</strong> — the interface no longer hides its own shape, so the missing domain is what an operator will hit next.</li>
+<li><span class="status done">closed</span> <strong>P3 — Make the pipeline's shape visible and its Back non-destructive.</strong> Done 2026-08-03. Steps are <code>① Bin|Product → ② Target → ③ Review → ④ Move</code>, with ④ deliberately spanning the take and place screens (a separate "Place" step misread them as separate errands) and Review promoted from modal to page so all four are the same kind of surface. <code>Back</code> from placement returns to the product you were on via <code>initialProductKey</code>. Covers <code>H1-1</code> and <code>H3-2</code>. <strong>Settled 2026-08-04:</strong> the footer's <code>Step n/4</code> won and the stepper band was deleted, so only one indicator exists.</li>
+</ul>
+<hr />
+<h2 id="h1-visibility-of-system-status"><a class="anchor" href="#h1-visibility-of-system-status">H1 — Visibility of system status</a></h2>
+<ul>
+<li><span class="status done">closed</span> <strong>H1-1</strong> The move pipeline is four screens deep and never says so. No step count, no breadcrumb. You discover there is another screen by pressing a button and arriving on it. Fixed 2026-08-03: every stage's footer opens with <code>Step n/4</code>, sourced from <code>TOTAL_PIPELINE_STEPS</code> so it cannot drift from the pipeline it describes. A fuller stepper band was built first and parked behind <code>SHOW_PIPELINE_STEPS = false</code>; <strong>deleted 2026-08-04</strong> now that the footer has clearly won. One indicator, no flag. The successor question is <code>SHOW_STEP4_POSITION_COUNTERS</code> — see <code>H1-4</code>.</li>
+<li><span class="status done">closed</span> <strong>H1-2</strong> Entering Move Quantity is silent on the canvas: <code>changeAllocationMode</code> reaches <code>BinCard</code> only to <em>disable</em> things, so the shelves become less interactive-looking with no cue that a tap now means "select". The mode's only visible signal is a bottom bar reading <code>0 Bins, 0 Products</code> twice. Fixed 2026-08-03 by answering it in words rather than on the canvas: the footer prints what to do on this step (<code>instructionFor</code>), phrased as the physical act and differing between the kinds only where they genuinely differ — "Tap a product inside a bin, or find one with search" vs "Tap the bins holding the stock you want to move". The Product wording names the <em>row</em> on purpose: in that kind the bin is inert, so aiming the user at a bin would point them at the one control that cannot answer (see <code>H9-1</code>).</li>
+<li><span class="status done">closed</span> <strong>H1-3</strong> After <code>Select</code>, the control vanished and the row carried no marker of its own — confirmation existed only in the target column. Fixed 2026-07-31: every Select-family control now stays put and greys to <code>Selected</code> / <code>All selected</code>.</li>
+<li><span class="status done">closed</span> <strong>H1-4</strong> <strong>The pipeline said where you were but never what you were moving.</strong> Raised by the operator, not by this audit: steps ③ and ④ felt disconnected because the step count answered <em>position</em> while the question in the operator's head — which products, out of which bins, into which bins — had no answer anywhere on screen. A quantity page showing one product at a time gave no way to see the batch it belonged to. Fixed 2026-08-04 with the <strong>Move Summary panel</strong>, present on Review and both halves of ④. What the iterations taught, all of it visible in the final shape:</li>
+<ul>
+<li>Nesting target bins under their source beat flat <code>from → to</code> rows — flat repeated the source bin and its quantity once per destination, so one bin split three ways read as three departures.</li>
+<li>Each badge belongs to the line whose act it names (<code>Taken</code> on the source, <code>Moved</code> on the target). A single per-stage badge hung on the target lines made a target bin announce "Taken" before anything had reached it.</li>
+<li>Bold marks the bin in hand; a filled chip read as "selected" instead of "you are here".</li>
+<li>Only the quantity being moved. The History page's <code>-20 → 180</code> was tried and dropped — before/after is not what the operator needs while holding the stock.</li>
+<li>The toggle must never be disabled, or closing the panel strands them with no way back.</li>
+</ul>
+<li><span class="status partial">part-closed</span> <strong>H1-5</strong> Step ④'s <code>Product n of N</code> and <code>Source/Target Bin n of N</code> counters are hidden behind <code>SHOW_STEP4_POSITION_COUNTERS = false</code> (2026-08-04), at the operator's request, while the Move Summary beside them is judged on its own — the panel arguably says the same thing in more detail. Open because it is a parked decision, and the deleted stepper band is the precedent for what happens if it stays parked: <strong>if the answer is "off", delete the cells and their side sheets.</strong></li>
+</ul>
+<p><strong>Working well:</strong> the bottom bar's running source/target counts; the <code>Door unlocked</code> toast deduped per physical door for the whole session, so the same door is never announced twice.</p>
+<hr />
+<h2 id="h2-match-between-system-and-the-real-world"><a class="anchor" href="#h2-match-between-system-and-the-real-world">H2 — Match between system and the real world</a></h2>
+<p>The app's strongest dimension. Little to fix.</p>
+<ul>
+<li><span class="status open">open</span> <strong>H2-1</strong> <code>NDC</code>, <code>SDV</code>/<code>MDV</code>, <code>CIV</code> are never explained. Almost certainly fine for pharmacy staff — logged so the assumption is deliberate rather than accidental.</li>
+</ul>
+<p><strong>Working well:</strong> locations read as an operator names them (<code>Door 3 – Bin C, Shelf 1</code>). The PIP cabinet view and per-door unlock toasts model the physical act of walking to a door. The quantity page instructs a physical action — <em>"Remove the quantity shown from this bin, then tap X"</em> — rather than prompting for data entry.</p>
+<hr />
+<h2 id="h3-user-control-and-freedom"><a class="anchor" href="#h3-user-control-and-freedom">H3 — User control and freedom</a></h2>
+<ul>
+<li><span class="status open">open</span> <strong>H3-1</strong> No undo after commit. <code>handleConfirmChangeAllocation</code> mutates and the only recovery is a page reload, which discards <em>everything</em> including unrelated work.</li>
+<li><span class="status done">closed</span> <strong>H3-2</strong> <strong>Back from the target page re-enters the quantity step with the whole batch</strong>, so you redo every product's quantity rather than the one you wanted to change. A direct consequence of gathering all quantities before the target visit — the right trade, but it needs a product-level Back. Fixed 2026-08-03: <code>TargetBinSerialScanPage</code>'s <code>onBack</code> carries the product key, and the quantity page resumes on it (<code>initialProductKey</code>). Its own <code>Back</code> steps within the batch first and only leaves the stage from the first product.</li>
+</ul>
+<p><strong>Working well:</strong> <code>Cancel</code> on every step; <code>Remove all</code> in the review panel; per-item removal in both panels. <code>Cancel</code> and <code>Back</code> are now blue secondary rather than destructive red across the app — abandoning an uncommitted selection is a step back, not a deletion, and the red overstated it.</p>
+<hr />
+<h2 id="h4-consistency-and-standards"><a class="anchor" href="#h4-consistency-and-standards">H4 — Consistency and standards</a></h2>
+<ul>
+<li><span class="status partial">part-closed</span> <strong>H4-1</strong> Two multi-select idioms coexist. The allocate panel and unallocated tray use a tappable row with a custom tick square; the search dropdown uses per-row buttons with a coloured product name and no checkbox at all. <strong>Half-closed 2026-08-06:</strong> the two <em>panels</em> were themselves drifting apart and are now one design — same header, search box, clear button, empty state, badge filter and <code>Select All</code> — which matters more than before, since they are the menu's two adjacent allocation entries. <strong>Hardened 2026-08-08:</strong> the two shared controls are now one module (<code>ProductListControls</code>, as <code>BadgeFilterSelect</code> + <code>SelectAllToggle</code>) rather than the same markup twice, so the agreement is enforced rather than inspected. <code>Select All</code> is visible-and-dimmed now, not withheld — a control that appears and disappears as the list fills shifts the layout mid-task. The dropdown is still the odd one out, and deliberately: its rows act rather than accumulate (<code>Highlight</code>, <code>Move</code>), so a tick square would promise a selection it does not keep.</li>
+<li><span class="status partial">part-closed</span> <strong>H4-2</strong> Three bin-selection states look alike and mean different things — source (blue border), target (green), assignment (purple) — and nothing on screen decodes them. Learnable, but only by trial. <strong>Reopened 2026-08-03.</strong> A colour legend was added beside the stepper and then deliberately removed: a permanent key for three states is chrome that never stops being shown to people who learned the colours on their second use, and it sat closer to the step labels than to the bins it described. The finding stands; a legend is not the answer. Better candidates: name the state on the bin itself when selected, or let the footer's step cell say which colour this step is applying.</li>
+<li><span class="status open">open</span> <strong>H4-3</strong> <code>BinCard</code>'s <code>showUnallocatedProducts</code> prop actually means "the user is picking bins right now" and is fed by two unrelated flows. Invisible to users; the kind of naming that produces real inconsistency later. Now feeding three flows, and a Product move needs the <em>opposite</em> of it, so the name is further from the job than when this was written. <code>[code]</code></li>
+<li><span class="status open">open</span> <strong>H4-4</strong> A product row means three different things by context — navigate (view), select (Product move step ①), nothing (Bin move, target step, assignment flows) — with nothing on the row saying which. This is the correct behaviour in each case, but it is carried entirely by hover state. Discovered while fixing the <code>+N more</code> panel, which had the view-mode meaning during a move. <code>[code]</code></li>
+<li><span class="status open">open</span> <strong>H4-5</strong> <strong>Review's target column shows one arrival card per source bin instead of one per product.</strong> Found 2026-08-04, open. Move a product out of three source bins and the target column renders three identical cards, each listing all three "From:" rows. <code>getTargetProducts</code> groups arrivals by <code>transfer.productId</code>, but the same drug in three bins is three ids sharing one identity (<code>name | ndc | inventoryType</code>) — while the "From:" list <em>is</em> matched on the identity, so every card shows every bin. This is the app's own identity rule (see <code>CLAUDE.md</code> §3) broken on one surface; the merge-into-the-existing-row code it replaced had been doing that dedup as a side effect. <code>[code]</code></li>
+<li><span class="status done">closed</span> <strong>H4-6</strong> Every shelf restarted its bin letters at <code>A</code>, so one door showed three or four different bins all called <code>Bin A</code> and the name alone could not say which shelf was meant. Fixed 2026-08-04: <code>bin.name</code> carries its shelf (<code>Bin 1A</code>, <code>Bin 2B</code>), unique within a door — the unit that has to be unambiguous, since all its shelves are on screen together.</li>
+</ul>
+<p><strong>Working well:</strong> product rows now share one shape — name → italic generic name → grey badges → <code>ndc - inventoryType</code> — across five surfaces. The four move stages now share one footer vocabulary (<code>PipelineFooter</code>) — they had grown three different heights, paddings and button markups for the same job, so moving between steps looked like moving between products. Corners are 4px on product cards and bins alike, where three different radii (12px, 14px, 8px) had accumulated for the same kind of surface.</p>
+<hr />
+<h2 id="h5-error-prevention"><a class="anchor" href="#h5-error-prevention">H5 — Error prevention</a></h2>
+<p><strong>The weakest area, and the gap is domain-level rather than interface-level.</strong></p>
+<ul>
+<li><span class="status open">open</span> <strong>H5-1</strong> No par levels, no bin capacity, no product-fits-bin check, no door-type enforcement. A CLIMATE product can be allocated to a room-temperature door and nothing objects. Bin size is <em>derived from</em> contents (<code>shelfLayoutConfig</code> gives the largest footprint to the fullest bin), so "does it fit" has no referent. The Emergency Kit inventory-type rule is the <strong>only</strong> enforced constraint in the app.</li>
+<li><span class="status open">open</span> <strong>H5-2</strong> Serial numbers are counted, not validated. <code>SerialNumberModal.validateSerialNumbers()</code> returns <code>isSelectionComplete</code> — no serial value is checked against anything — while <code>index.html</code> advertises serial validation as the product's whole purpose.</li>
+<li><span class="status partial">part-closed</span> <strong>H5-3</strong> No confirmation before commit. There is no "you are about to move 340 vials across 4 bins" summary between the last screen and the mutation. <strong>Partially answered 2026-08-04:</strong> the Move Summary panel (<code>H1-4</code>) is that summary, and it is on screen throughout Review and both halves of ④ rather than as a final gate. Whether a demo also needs a blocking confirmation is now a judgement call rather than a gap — the information is no longer missing, only the interstitial.</li>
+<li><span class="status done">closed</span> <strong>H5-4</strong> <strong>A product with no stock could not be moved</strong>, so an operator who allocated to the wrong bin before any restock had to unallocate from one screen and re-allocate from another. Raised by the pharmacy team as a routine annoyance, not caught by this audit. Fixed 2026-08-04: a 0-quantity product can be moved, and what moves is the allocation. The quantity page says so in words rather than showing an editor whose min and max are both 0 — <em>"This bin has no quantity to remove — the allocation will still move"</em>. Fixing it surfaced two real defects, both since fixed: history classified the result as a new allocation rather than a move (it keyed on <code>quantity === 0</code>, which had meant "Allocate only"), and <code>finalizeAndConfirm</code> silently dropped the only transfer in the batch.</li>
+</ul>
+<p><strong>Working well:</strong> the target step blocks re-selecting a source bin; assigning a product to a bin it already occupies is skipped rather than silently duplicating the row. <code>Remove all</code> in the target column now reads as an undo (red, matching the per-product <code>Remove</code> beside it) rather than sharing the blue of the column's confirming actions.</p>
+<hr />
+<h2 id="h6-recognition-rather-than-recall"><a class="anchor" href="#h6-recognition-rather-than-recall">H6 — Recognition rather than recall</a></h2>
+<ul>
+<li><span class="status done">closed</span> <strong>H6-1</strong> Two ways into the mode with nothing saying which to use — the search box or tapping the shelves. The app used to silently focus the search box, which argued for one without saying so; that autofocus has been removed, so now neither is signposted. Fixed 2026-08-03 by making the choice explicit <em>before</em> the mode opens: <code>Move by Bin</code> ("Tap whole bins on the shelves") and <code>Move by Product</code> ("Search the products to move") name the route in the menu, and each kind then supports only its own — bins are inert in a Product move. Product mode focuses the search box once on entry, deliberately <strong>not</strong> when returning from the target step, where the selection already exists and stealing focus would fight the operator.</li>
+<li><span class="status done">closed</span> <strong>H6-2</strong> <strong>A disabled primary button with no stated reason.</strong> <code>Target Selection →</code> is greyed with nothing anywhere saying <em>select at least one source bin</em>. The single sharpest flaw in the app: the user can see the control they need and is told nothing about why it won't work. Fixed 2026-08-03 — the label <em>is</em> the requirement while blocked. The same rule was applied to Review's <code>Select all</code>, which now explains a refusal instead of greying silently ("The list is narrowed to a search — clear it to take everything in this bin").</li>
+<li><span class="status open">open</span> <strong>H6-3</strong> The <code>+N more</code> panel stays open across step changes, so it can be left open into a step where its rows do nothing. Inert rows are correct for a Bin move and for the target step — the scope is the bin — but the panel gives no sign it has gone read-only. Either close it on a step change or say what it is for while a move is running. <code>[code]</code></li>
+</ul>
+<p><strong>Working well:</strong> selected bins now list beneath each picked product, so you needn't remember what you tapped out on the shelves. Step ① is labelled for the unit the operator chose (<code>Bin</code> / <code>Product</code>) rather than a generic "Source", so the menu choice is echoed back on the screen that carries it out. The Move Summary panel (<code>H1-4</code>) removed the largest remaining recall load in the pipeline: which products came out of which bins, readable at any point rather than reconstructed from memory. Review's target column separates <em>what this move is putting in</em> from <em>what the bin already held</em> under their own headings, so neither has to be inferred from which cards happen to carry a <code>Remove</code>.</p>
+<hr />
+<h2 id="h7-flexibility-and-efficiency-of-use"><a class="anchor" href="#h7-flexibility-and-efficiency-of-use">H7 — Flexibility and efficiency of use</a></h2>
+<p>Strong overall.</p>
+<ul>
+<li><span class="status done">closed</span> <strong>H7-1</strong> The <code>/</code> keyboard shortcut that reveals the Unallocated Products button is undiscoverable and undocumented. Fixed 2026-08-06 by removing the shortcut and the button rather than documenting them: allocating a product that has no bin is the app's most basic job, so it is now the <strong>first entry</strong> in the workflow menu (<code>Allocate Product</code>), alongside the three that were already there. The flow it opens is unchanged. What used to be called <code>Allocate Product</code> — giving an <em>already</em> allocated product another bin — is now <code>Multi Bin Assignment</code>, which is the specialised case and reads like one.</li>
+</ul>
+<p><strong>Working well:</strong> <code>Move all</code> per bin; <code>Select All</code> per product across its bins; <code>Select All</code> in both panels; multi-select surviving a re-search; a <code>|</code>-separated OR query grammar letting one search carry several products at once.</p>
+<hr />
+<h2 id="h8-aesthetic-and-minimalist-design"><a class="anchor" href="#h8-aesthetic-and-minimalist-design">H8 — Aesthetic and minimalist design</a></h2>
+<ul>
+<li><span class="status open">open</span> <strong>H8-1</strong> The search dropdown is the densest surface in the app — name, badges, NDC, bin locations, quantity <em>and</em> a per-row action button.</li>
+<li><span class="status partial">part-closed</span> <strong>H8-2</strong> Colour is doing a lot of unlabelled work: amber search highlight, blue source, green target, purple assignment, red destructive. See <code>H4-2</code> — a legend was tried and removed. One rung down 2026-08-03: destructive red no longer appears on <code>Cancel</code>/<code>Back</code>, so red now means only "this destroys something", and the footer's blue-when-filled summary values give blue a second, consistent job (<em>this side has something in it</em>) rather than a fifth unrelated one.</li>
+</ul>
+<p><strong>Working well:</strong> a real amount has already been stripped — <code>Current</code> badges where a highlight already said it, <code>Clear</code> where <code>Remove all</code> existed, two labelled NDC rows collapsed to one line, <code>Allocate only</code> removed with the workflow split.</p>
+<hr />
+<h2 id="h9-help-users-recognise-diagnose-and-recover-from-errors"><a class="anchor" href="#h9-help-users-recognise-diagnose-and-recover-from-errors">H9 — Help users recognise, diagnose and recover from errors</a></h2>
+<ul>
+<li><span class="status partial">part-closed</span> <strong>H9-1</strong> Failures are mostly silent. A bin tap outside a recognised mode does nothing, with no feedback. (This was literally a bug once: the allocate workflow had no branch in <code>handleBinClick</code>, so taps did nothing at all and looked identical to a broken control.) <strong>Three refusals now explain themselves</strong> rather than absorbing the tap — the wrong-unit bin tap in a Product move's step ①, the wrong-unit product tap in <code>AllProductsPanel</code>, and, added 2026-08-06, tapping a <strong>source</strong> bin at step ② while choosing targets ("This bin holds a product you are moving, so it cannot also be moved to"). All three share one toast id, so a repeated tap replaces the message instead of stacking copies.</li>
+</ul>
+<p><strong>Still open, and the clearest remaining case:</strong> in a Bin move's step ①, tapping an <em>available</em> bin does nothing at all — <code>handleBinClick</code> requires <code>!bin.available &amp;&amp; products.length &gt; 0</code> and falls through in silence otherwise. An empty bin is exactly what an operator might try to move stock <em>from</em> before realising it holds none, so it deserves the same sentence the other three now get.</p>
+<p><strong>Working well:</strong> the E-Kit refusal is the model to copy — it names the rule, the allowed inventory types, and both ways out.</p>
+<hr />
+<h2 id="h10-help-and-documentation"><a class="anchor" href="#h10-help-and-documentation">H10 — Help and documentation</a></h2>
+<ul>
+<li><span class="status partial">part-closed</span> <strong>H10-1</strong> No help anywhere. The workflow menu's two descriptions are the only explanatory copy in the product — they work well, and are worth extending as a pattern rather than adding a help centre. <strong>Extended 2026-08-03</strong> exactly that way rather than by adding help: three one-line menu descriptions, plus a per-step instruction in the footer written as the physical act — the device the quantity page already used ("Remove the quantity shown from this bin, then tap…") and which this audit singled out as working. Still <code>[~]</code>: the domain vocabulary in <code>H2-1</code> and the <code>/</code> shortcut in the domain vocabulary in <code>H2-1</code> has nowhere to be explained.</li>
+<li><span class="status done">closed</span> <strong>H10-2</strong> The zero-quantity release rule had to be explained in a menu description because the UI could not show it — a sign the rule needed a visible home, not better prose. Resolved by removing unallocation from that workflow entirely (2026-07-31); it now lives only where it is naturally occasioned, as the prompt after a move empties a bin.</li>
+</ul>
+<hr />
+<h2 id="deliberately-not-findings"><a class="anchor" href="#deliberately-not-findings">Deliberately not findings</a></h2>
+<p>Recorded so they are not re-raised as bugs:</p>
+<ul>
+<li><strong>Allocating creates 0-quantity locations.</strong> Intended — a bin gains the product, stock arrives by moving it in. They accumulate during exploration until a reload.</li>
+<li><strong>A reload discards all changes.</strong> Intended for a demo with no backend.</li>
+<li><strong>Unallocation cannot be started deliberately.</strong> A design decision, not an omission: having both directions on one screen, gated on a quantity rule, was built and then removed for being hard to read.</li>
+<li><strong>Step ④ covers two screens, so the count "sticks" at 4/4.</strong> Taking a quantity at the source and placing it in the target are two halves of one move. A fifth step, or a "Place" step, said they were separate errands. Each screen's own header says which half you are on.</li>
+<li><strong>The operator must pick Bin or Product before the move opens.</strong> Not a redundant question: intent is not recoverable from a selection. Review used to infer the perspective from how many bins the selection spanned, which handed the bin-centric screen to someone who had come to move a product.</li>
+<li><strong>The <code>Bins Available(n)</code> checkbox is not a fourth workflow.</strong> It is a view filter, moved out of the action row and next to the <code>Allocation</code> title for that reason.</li>
+<li><strong>The quantity taken at a source is not divided between its target bins.</strong> It was, evenly, up front. The split is the operator's decision, made by scanning into each bin on the placement screen, so the source half deliberately shows no per-target figure — a <code>0</code> there would read as a decision already taken. (The even split was also breaking the placement screen's own arithmetic.)</li>
+<li><strong>The same product can appear twice in Review's target column</strong> — once as arriving stock, once as what the bin already held. Two rows of one identity is the point: they answer different questions and only the arrival is removable. Not to be confused with <code>H4-5</code>, which is three cards of the <em>same</em> arrival.</li>
+<li><strong>A fridge card has no bin header.</strong> One pooled bin per fridge door, so <code>Main Storage (Fridge)</code> restated what the door heading had already said and named a bin nothing needs telling apart from.</li>
+</ul>
+  </main>
+</div>
+<script>
+  // Scroll-spy: highlight the section currently in view. rAF-throttled, no dependencies.
+  const links = [...document.querySelectorAll('nav li a')];
+  const targets = links.map(a => document.getElementById(decodeURIComponent(a.hash.slice(1)))).filter(Boolean);
+  let queued = false;
+  const spy = () => {
+    queued = false;
+    let activeIndex = 0;
+    targets.forEach((el, index) => { if (el.getBoundingClientRect().top < 120) activeIndex = index; });
+    links.forEach((a, index) => a.classList.toggle('active', index === activeIndex));
+  };
+  addEventListener('scroll', () => { if (!queued) { queued = true; requestAnimationFrame(spy); } }, { passive: true });
+  spy();
+</script>
+</body>
+</html>
