@@ -93,7 +93,7 @@ Cabinet ──> Door ──> Shelf ──> Bin ──> Product row
 
 | Level | In the seed | Notes |
 |---|---|---|
-| Cabinet | 3 — Cabinet 1, Cabinet 2, Virtual | Virtual is the fridges; a 4th (Emergency Kit) exists in data but is hidden |
+| Cabinet | 3 — Cabinet 1, Cabinet 2, Virtual | Virtual is the fridges |
 | Door | 14 — Doors 1–8 in the two cabinets, Doors 9–14 as Fridge 1–6 | Fridges are labelled `Fridge N` (door number − 8) |
 | Shelf | 4 per cabinet door; none for a fridge | A fridge holds one pooled bin and no shelf structure |
 | Bin | **134** — 128 across the cabinet doors, 6 pooled fridge bins | 16 are empty in the seed |
@@ -252,8 +252,10 @@ likely way to misread the prototype:
 | **Door-type routing** | Nothing stops a climate-sensitive product being allocated to a room-temperature door. The seed keeps cold stock in the fridges, but that is data, not enforcement. |
 | **Serial number validation** | Serials are *counted*, never checked against anything. |
 
-The one real domain rule is the **Emergency Kit rule**: E-Kit bins accept only `Purchased` inventory,
-enforced on the bin tap and again at confirm.
+Taken together: **within the scope of this phase there are no domain constraints on what may go where.**
+Any product can be allocated to any bin in either cabinet or any fridge, and the module will accept it
+without objection. Validation of that kind is outstanding work, not a rule waiting to be found in the
+code — so a real build has to decide which constraints exist before it can enforce any.
 
 Two more pieces of the detail page are placeholder and must not be implemented as behaviour: the item
 table's serial, lot, expiry and restock values are **generated at render time** (one row per unit of
