@@ -1,0 +1,597 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>06 — History — Developer Handoff</title>
+<style>
+  :root {
+    --bg: #ffffff; --panel: #f7f8fa; --text: #1b1f24; --muted: #5c6672; --rule: #e3e7ec;
+    --link: #095192; --code-bg: #f2f4f7; --accent: #095192; --ok: #15803d;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14171a; --panel: #1b1f23; --text: #e6e9ec; --muted: #9aa4af; --rule: #2b3137;
+      --link: #7fb2e5; --code-bg: #22272c; --accent: #7fb2e5; --ok: #6fcf8e;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 16px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .shell { display: grid; grid-template-columns: 280px minmax(0, 1fr); }
+  nav {
+    position: sticky; top: 0; align-self: start; height: 100vh; overflow-y: auto;
+    background: var(--panel); border-right: 1px solid var(--rule); padding: 24px 18px 48px;
+  }
+  nav .brand { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-bottom: 14px; }
+  nav .docs { display: flex; flex-direction: column; gap: 2px; margin-bottom: 22px; }
+  nav .docs a { padding: 6px 8px; border-radius: 4px; font-size: 13px; text-decoration: none; color: var(--muted); }
+  nav .docs a.current { background: var(--accent); color: #fff; font-weight: 500; }
+  nav h2 { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0 8px 8px; font-weight: 600; }
+  nav ol { list-style: none; margin: 0; padding: 0; }
+  nav ol a { display: block; padding: 4px 8px; border-radius: 4px; font-size: 13px; color: var(--muted); text-decoration: none; }
+  nav ol a:hover { background: rgba(127,127,127,.12); color: var(--text); }
+  nav ol a.active { color: var(--link); font-weight: 600; }
+  nav li.sub a { padding-left: 20px; font-size: 12.5px; }
+  main { padding: 40px 48px 120px; max-width: 980px; }
+  header.page { border-bottom: 1px solid var(--rule); padding-bottom: 20px; margin-bottom: 28px; }
+  header.page h1 { margin: 0 0 6px; font-size: 30px; letter-spacing: -.01em; }
+  header.page .meta { color: var(--muted); font-size: 14px; }
+  header.page .actions { margin-top: 14px; }
+  h2, h3, h4 { line-height: 1.3; letter-spacing: -.01em; margin: 0; }
+  h2 { font-size: 22px; } h3 { font-size: 17px; } h4 { font-size: 15px; }
+  .anchor { color: inherit; text-decoration: none; }
+  .anchor:hover::after { content: " #"; color: var(--muted); font-weight: 400; }
+  .note { scroll-margin-top: 24px; }
+  .note.level-2 { margin-top: 40px; padding-top: 8px; border-top: 1px solid var(--rule); }
+  .note.level-3 { margin-top: 26px; }
+  .note-head { display: flex; align-items: baseline; gap: 12px; }
+  .note-head h2, .note-head h3 { flex: 1; min-width: 0; }
+  .copy {
+    flex: none; font: inherit; font-size: 12px; line-height: 1; padding: 6px 10px; cursor: pointer;
+    border-radius: 4px; border: 1px solid var(--rule); background: var(--bg); color: var(--muted);
+    transition: color .12s, border-color .12s;
+  }
+  .copy:hover { color: var(--link); border-color: var(--link); }
+  .copy.done { color: var(--ok); border-color: var(--ok); }
+  .copy.wide { font-size: 13px; padding: 8px 14px; }
+  p, ul, ol, table { margin: 14px 0; }
+  li { margin: 4px 0; }
+  code { background: var(--code-bg); padding: 1px 5px; border-radius: 3px; font-size: 13.5px; }
+  pre { background: var(--code-bg); padding: 14px 16px; border-radius: 6px; overflow-x: auto; }
+  pre code { background: none; padding: 0; }
+  pre.src { display: none; }
+  a { color: var(--link); }
+  img {
+    display: block; max-width: 100%; height: auto; margin: 18px 0;
+    border: 1px solid var(--rule); border-radius: 6px;
+  }
+  .table-scroll { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: 14.5px; }
+  th, td { border: 1px solid var(--rule); padding: 8px 10px; text-align: left; vertical-align: top; }
+  th { background: var(--panel); font-weight: 600; }
+  blockquote { margin: 14px 0; padding: 2px 16px; border-left: 3px solid var(--rule); color: var(--muted); }
+  hr { border: 0; border-top: 1px solid var(--rule); margin: 28px 0; }
+  @media (max-width: 900px) {
+    .shell { grid-template-columns: 1fr; }
+    nav { position: static; height: auto; border-right: 0; border-bottom: 1px solid var(--rule); }
+    main { padding: 28px 20px 80px; }
+  }
+</style>
+</head>
+<body>
+<div class="shell">
+  <nav>
+    <div class="brand">Developer Handoff</div>
+    <div class="docs">
+      <a href="index.html">Developer Handoff — Bin Allocation 2.0</a>
+      <a href="00-Introduction.html">00 — Introduction</a>
+      <a href="01-Bins-Available.html">01 — Bins Available</a>
+      <a href="02-Allocate-Product.html">02 — Allocate Product</a>
+      <a href="03-Multi-Bin-Assignment.html">03 — Multi Bin Assignment</a>
+      <a href="04-Move-from-Bin.html">04 — Move from Bin</a>
+      <a href="05-Move-from-Product.html">05 — Move from Product</a>
+      <a href="06-History.html" class="current">06 — History</a>
+    </div>
+    <h2>On this page</h2>
+    <ol>
+      <li><a href="#default-state">Default state</a></li>
+      <li><a href="#interaction-state">Interaction state</a></li>
+      <li><a href="#1-what-gets-written-and-by-which-workflow">1. What gets written, and by which workflow</a></li>
+      <li><a href="#2-filtering">2. Filtering</a></li>
+      <li><a href="#3-implementation-in-the-prototype">3. Implementation in the prototype</a></li>
+      <li><a href="#4-notes-and-open-questions">4. Notes and open questions</a></li>
+      <li class="sub"><a href="#4-1-the-default-filter-hides-the-ledger-and-the-empty-state-misreports-it">4.1 The default filter hides the ledger, and the empty state misreports it</a></li>
+      <li class="sub"><a href="#4-2-the-ledger-is-in-memory-and-dated-relative-to-today">4.2 The ledger is in memory and dated relative to today</a></li>
+      <li class="sub"><a href="#4-3-created-by-is-always-the-same-user">4.3 <code>Created By</code> is always the same user</a></li>
+      <li class="sub"><a href="#4-4-there-is-no-export-and-no-drill-through">4.4 There is no export and no drill-through</a></li>
+      <li class="sub"><a href="#4-5-test-assertions-worth-writing">4.5 Test assertions worth writing</a></li>
+    </ol>
+  </nav>
+  <main>
+    <header class="page">
+      <h1>06 — History</h1>
+      <div class="meta">Generated from 06-History.md — edit the markdown, then re-run <code>node scripts/build-handoff-html.mjs</code>.</div>
+      <div class="actions">
+        <button type="button" class="copy wide" data-copy="whole-doc">Copy whole document</button>
+      </div>
+    </header>
+    <pre class="src" id="whole-doc" hidden># 06 — History
+
+**Surface:** the clock button in the header → a full page
+**Job:** the ledger — every allocation, move and unallocation, with what changed and where
+**Prototype files:** `HistoryPage.tsx`, `utils/historyUtils.ts`, `data/seedHistory.ts`, `useInventoryState.ts`
+**Captured:** 2026-08-10 · seed data unmodified · screenshots at 1512×908
+
+Read [00-Introduction.md](00-Introduction.md) first. This page is where the three write workflows —
+[Allocate Product](02-Allocate-Product.md), [Multi Bin Assignment](03-Multi-Bin-Assignment.md) and the two
+[move](04-Move-from-Bin.md) [kinds](05-Move-from-Product.md) — end up.
+
+---
+
+## Default state {copy}
+
+![History as it opens](screenshots/history/01-default-state.png)
+
+The clock button in the header opens History as a full page: a filter row — `Product` search, `Date`, and
+`Transaction Type` — over a table, with `Back` returning to the cabinet.
+
+**The `Date` filter defaults to `Today`, and it opens empty in a fresh session**, showing
+*"No history yet — product allocations and moves will appear here."* The seeded ledger is 1–6 days old, so
+none of it passes the default filter. This is a real trap rather than a quirk: the message states there is
+no history when there are fifteen entries one option away (§4.1).
+
+From here the operator can search by product name or NDC, widen the date to 7, 15 or 30 days, narrow to
+one or more transaction types, or reset the filters with the control at the end of the row.
+
+## Interaction state {copy}
+
+![The ledger over seven days](screenshots/history/02-interaction-state.png)
+
+Widening `Date` to `7 days` shows the ledger. One row per product per transaction, newest first, with
+seven columns: **Product** (name, generic name, vial badge), **NDC**, **Inventory Type**,
+**Moved From**, **Moved To**, **Status**, and **Created By** (timestamp above the user).
+
+The two location columns are where the value is. Each lists one line per bin, with the arithmetic beneath:
+`-4 → 0 vials` on the source side, `+4 → 4 vials` on the target — what left, what the bin was left
+holding, what arrived, what the bin ended up with. A transaction spanning several bins lists them all and
+adds a **`90 vials total`** line, which a single-bin row omits because `-25 → 0` already says it.
+
+`Status` is a chip, and it is what tells the three kinds apart:
+
+| Chip | Colour | Written by |
+|---|---|---|
+| `Bin Changes` | blue | a completed move, either kind |
+| `Bin Allocation` | green | Allocate Product, or Multi Bin Assignment |
+| `Unallocated` | red | releasing a bin from the product detail page or the zero-inventory banner |
+
+An unallocation shows a source bin and an em dash for the target: nothing arrived anywhere.
+
+---
+
+## 1. What gets written, and by which workflow
+
+| Workflow | `transactionType` | Carries |
+|---|---|---|
+| [Allocate Product](02-Allocate-Product.md) | `New Bin Allocation` | The products and the bins they went into |
+| [Multi Bin Assignment](03-Multi-Bin-Assignment.md) | `New Bin Allocation` | Per-product target bins — never a shared bin list |
+| [Move from Bin / Product](04-Move-from-Bin.md) | `Product moved` | Per-bin quantities on both ends |
+| Unallocate | `Unallocated` | The source bin only |
+
+Two rules behind that table:
+
+- **Classification is on the action, not on the quantity.** A move that carries no stock — relocating an
+  allocation at 0 — is still a move. Those were the same test while a 0-quantity transfer could only mean
+  "allocate only", and a real move can now end at 0.
+- **An allocation records no quantity line**, because a new location opens at zero. One workflow
+  nonetheless writes an invented figure into its entry; see [02 §5.2](02-Allocate-Product.md) — the field
+  is not rendered, so it is invisible rather than visible and wrong, but it is still wrong in the record.
+
+---
+
+## 2. Filtering
+
+| Control | Behaviour |
+|---|---|
+| `Product` | Substring over product name and NDC |
+| `Date` | `Today` (default), `7 days`, `15 days`, `30 days` — inclusive of the boundary day |
+| `Transaction Type` | Three checkboxes — Bin Changes, Bin Allocation, Unallocated — each with a **count of matching entries in the whole ledger**, not in the filtered view |
+| Reset | Returns all three to their defaults |
+
+All three compose as AND. The type counts are deliberately unfiltered: they answer "is there any of this
+kind at all", which is the question worth asking when a filter has emptied the table.
+
+---
+
+## 3. Implementation in the prototype
+
+| Concern | Where |
+|---|---|
+| Page, filters, table | `HistoryPage.tsx` |
+| Entry shape | `AllocationHistoryEntry` — products, bins, `sourceBin`, `action`, `transactionType`, `timestamp` |
+| Rows | Entries are flattened to one row per product, with duplicate products inside an entry consolidated |
+| Seed | `data/seedHistory.ts` — fifteen entries dated 1–6 days back, generated relative to today |
+| Enrichment | `ProductDataService` resolves a product id back to the catalogue for generic name and badges |
+| Migration | `migrateHistoryEntriesWithSourceBin` backfills `sourceBin` on older entries |
+
+**Badges are derived, never stored.** `SDV`/`MDV`, `CLIMATE` and `CIV` all come from the shared
+`binProducts` helpers, on the identity triple. This page was the last surface deriving them another way,
+and both halves were wrong: `CLIMATE` and `CIV` were printed on **every** row unconditionally, and the vial
+type preferred a catalogue value that disagreed with the bin card for the same product. Only the *markup*
+differs here — 10px on a black chip for table density — the values cannot.
+
+An earlier `HistoryModal.tsx` still exists in the tree and is **unused**; the table needed a full page.
+
+---
+
+## 4. Notes and open questions
+
+### 4.1 The default filter hides the ledger, and the empty state misreports it
+
+`Today` plus a ledger that is mostly older than today means History opens empty in a fresh session, under
+copy that says there is no history at all. Two things to fix in a real build, and they are separable:
+
+- The default range should either be wider, or the empty state should distinguish *"nothing today"* from
+  *"nothing ever"* and point at the date filter — the type counts already prove entries exist.
+- The date options are relative windows only. There is no absolute range, so "what happened on the 3rd"
+  cannot be asked.
+
+### 4.2 The ledger is in memory and dated relative to today
+
+A reload discards everything written during the session and re-seeds fifteen entries dated 1–6 days back,
+so the ledger is never a record of anything real. Nothing paginates, either: every matching row renders.
+
+### 4.3 `Created By` is always the same user
+
+There is no auth, so every entry is attributed to the same name. The column is a placeholder for a real
+actor and should not be taken as evidence that user attribution is wired up.
+
+### 4.4 There is no export and no drill-through
+
+A row cannot be opened, and the page cannot be exported. Both are likely to be asked for once this is a
+real ledger.
+
+### 4.5 Test assertions worth writing
+
+1. Every committed workflow writes exactly one entry, with the `transactionType` its table row above
+   states.
+2. A move's per-bin figures reconcile: for each source, `movedQty + remainingQty` equals what the bin held
+   before; for each target, `resultingQty − movedQty` equals what it held before.
+3. A multi-bin transaction shows a total line; a single-bin one does not.
+4. Date filtering is inclusive of the boundary day, and the type counts stay unaffected by the date and
+   product filters.
+5. Badges on a History row match the badges the same product shows on its bin card.
+6. A 0-quantity move is filed as `Product moved`, not as an allocation.</pre>
+    <p><strong>Surface:</strong> the clock button in the header → a full page <strong>Job:</strong> the ledger — every allocation, move and unallocation, with what changed and where <strong>Prototype files:</strong> <code>HistoryPage.tsx</code>, <code>utils/historyUtils.ts</code>, <code>data/seedHistory.ts</code>, <code>useInventoryState.ts</code> <strong>Captured:</strong> 2026-08-10 · seed data unmodified · screenshots at 1512×908</p>
+<p>Read <a href="00-Introduction.html">00-Introduction.md</a> first. This page is where the three write workflows — <a href="02-Allocate-Product.html">Allocate Product</a>, <a href="03-Multi-Bin-Assignment.html">Multi Bin Assignment</a> and the two <a href="04-Move-from-Bin.html">move</a> <a href="05-Move-from-Product.html">kinds</a> — end up.</p>
+<hr />
+    
+<section class="note level-2 copyable">
+  <div class="note-head">
+    <h2 id="default-state"><a class="anchor" href="#default-state">Default state</a></h2>
+    <button type="button" class="copy" data-copy="src-100" title="Copy this note as markdown">Copy</button>
+  </div>
+  <pre class="src" id="src-100" hidden>## Default state
+
+![History as it opens](screenshots/history/01-default-state.png)
+
+The clock button in the header opens History as a full page: a filter row — `Product` search, `Date`, and
+`Transaction Type` — over a table, with `Back` returning to the cabinet.
+
+**The `Date` filter defaults to `Today`, and it opens empty in a fresh session**, showing
+*"No history yet — product allocations and moves will appear here."* The seeded ledger is 1–6 days old, so
+none of it passes the default filter. This is a real trap rather than a quirk: the message states there is
+no history when there are fifteen entries one option away (§4.1).
+
+From here the operator can search by product name or NDC, widen the date to 7, 15 or 30 days, narrow to
+one or more transaction types, or reset the filters with the control at the end of the row.</pre>
+  <p><img src="screenshots/history/01-default-state.png" alt="History as it opens" /></p>
+<p>The clock button in the header opens History as a full page: a filter row — <code>Product</code> search, <code>Date</code>, and <code>Transaction Type</code> — over a table, with <code>Back</code> returning to the cabinet.</p>
+<p><strong>The <code>Date</code> filter defaults to <code>Today</code>, and it opens empty in a fresh session</strong>, showing <em>"No history yet — product allocations and moves will appear here."</em> The seeded ledger is 1–6 days old, so none of it passes the default filter. This is a real trap rather than a quirk: the message states there is no history when there are fifteen entries one option away (§4.1).</p>
+<p>From here the operator can search by product name or NDC, widen the date to 7, 15 or 30 days, narrow to one or more transaction types, or reset the filters with the control at the end of the row.</p>
+  
+</section>
+
+<section class="note level-2 copyable">
+  <div class="note-head">
+    <h2 id="interaction-state"><a class="anchor" href="#interaction-state">Interaction state</a></h2>
+    <button type="button" class="copy" data-copy="src-101" title="Copy this note as markdown">Copy</button>
+  </div>
+  <pre class="src" id="src-101" hidden>## Interaction state
+
+![The ledger over seven days](screenshots/history/02-interaction-state.png)
+
+Widening `Date` to `7 days` shows the ledger. One row per product per transaction, newest first, with
+seven columns: **Product** (name, generic name, vial badge), **NDC**, **Inventory Type**,
+**Moved From**, **Moved To**, **Status**, and **Created By** (timestamp above the user).
+
+The two location columns are where the value is. Each lists one line per bin, with the arithmetic beneath:
+`-4 → 0 vials` on the source side, `+4 → 4 vials` on the target — what left, what the bin was left
+holding, what arrived, what the bin ended up with. A transaction spanning several bins lists them all and
+adds a **`90 vials total`** line, which a single-bin row omits because `-25 → 0` already says it.
+
+`Status` is a chip, and it is what tells the three kinds apart:
+
+| Chip | Colour | Written by |
+|---|---|---|
+| `Bin Changes` | blue | a completed move, either kind |
+| `Bin Allocation` | green | Allocate Product, or Multi Bin Assignment |
+| `Unallocated` | red | releasing a bin from the product detail page or the zero-inventory banner |
+
+An unallocation shows a source bin and an em dash for the target: nothing arrived anywhere.
+
+---</pre>
+  <p><img src="screenshots/history/02-interaction-state.png" alt="The ledger over seven days" /></p>
+<p>Widening <code>Date</code> to <code>7 days</code> shows the ledger. One row per product per transaction, newest first, with seven columns: <strong>Product</strong> (name, generic name, vial badge), <strong>NDC</strong>, <strong>Inventory Type</strong>, <strong>Moved From</strong>, <strong>Moved To</strong>, <strong>Status</strong>, and <strong>Created By</strong> (timestamp above the user).</p>
+<p>The two location columns are where the value is. Each lists one line per bin, with the arithmetic beneath: <code>-4 → 0 vials</code> on the source side, <code>+4 → 4 vials</code> on the target — what left, what the bin was left holding, what arrived, what the bin ended up with. A transaction spanning several bins lists them all and adds a <strong><code>90 vials total</code></strong> line, which a single-bin row omits because <code>-25 → 0</code> already says it.</p>
+<p><code>Status</code> is a chip, and it is what tells the three kinds apart:</p>
+<div class="table-scroll"><table><thead><tr>
+<th>Chip</th>
+<th>Colour</th>
+<th>Written by</th>
+</tr></thead><tbody>
+<tr>
+<td><code>Bin Changes</code></td>
+<td>blue</td>
+<td>a completed move, either kind</td>
+</tr>
+<tr>
+<td><code>Bin Allocation</code></td>
+<td>green</td>
+<td>Allocate Product, or Multi Bin Assignment</td>
+</tr>
+<tr>
+<td><code>Unallocated</code></td>
+<td>red</td>
+<td>releasing a bin from the product detail page or the zero-inventory banner</td>
+</tr>
+</tbody></table></div>
+<p>An unallocation shows a source bin and an em dash for the target: nothing arrived anywhere.</p>
+<hr />
+  
+</section>
+
+<section class="note level-2">
+  <div class="note-head">
+    <h2 id="1-what-gets-written-and-by-which-workflow"><a class="anchor" href="#1-what-gets-written-and-by-which-workflow">1. What gets written, and by which workflow</a></h2>
+    
+  </div>
+  <div class="table-scroll"><table><thead><tr>
+<th>Workflow</th>
+<th><code>transactionType</code></th>
+<th>Carries</th>
+</tr></thead><tbody>
+<tr>
+<td><a href="02-Allocate-Product.html">Allocate Product</a></td>
+<td><code>New Bin Allocation</code></td>
+<td>The products and the bins they went into</td>
+</tr>
+<tr>
+<td><a href="03-Multi-Bin-Assignment.html">Multi Bin Assignment</a></td>
+<td><code>New Bin Allocation</code></td>
+<td>Per-product target bins — never a shared bin list</td>
+</tr>
+<tr>
+<td><a href="04-Move-from-Bin.html">Move from Bin / Product</a></td>
+<td><code>Product moved</code></td>
+<td>Per-bin quantities on both ends</td>
+</tr>
+<tr>
+<td>Unallocate</td>
+<td><code>Unallocated</code></td>
+<td>The source bin only</td>
+</tr>
+</tbody></table></div>
+<p>Two rules behind that table:</p>
+<ul>
+<li><strong>Classification is on the action, not on the quantity.</strong> A move that carries no stock — relocating an allocation at 0 — is still a move. Those were the same test while a 0-quantity transfer could only mean "allocate only", and a real move can now end at 0.</li>
+<li><strong>An allocation records no quantity line</strong>, because a new location opens at zero. One workflow nonetheless writes an invented figure into its entry; see <a href="02-Allocate-Product.html">02 §5.2</a> — the field is not rendered, so it is invisible rather than visible and wrong, but it is still wrong in the record.</li>
+</ul>
+<hr />
+  
+</section>
+
+<section class="note level-2">
+  <div class="note-head">
+    <h2 id="2-filtering"><a class="anchor" href="#2-filtering">2. Filtering</a></h2>
+    
+  </div>
+  <div class="table-scroll"><table><thead><tr>
+<th>Control</th>
+<th>Behaviour</th>
+</tr></thead><tbody>
+<tr>
+<td><code>Product</code></td>
+<td>Substring over product name and NDC</td>
+</tr>
+<tr>
+<td><code>Date</code></td>
+<td><code>Today</code> (default), <code>7 days</code>, <code>15 days</code>, <code>30 days</code> — inclusive of the boundary day</td>
+</tr>
+<tr>
+<td><code>Transaction Type</code></td>
+<td>Three checkboxes — Bin Changes, Bin Allocation, Unallocated — each with a <strong>count of matching entries in the whole ledger</strong>, not in the filtered view</td>
+</tr>
+<tr>
+<td>Reset</td>
+<td>Returns all three to their defaults</td>
+</tr>
+</tbody></table></div>
+<p>All three compose as AND. The type counts are deliberately unfiltered: they answer "is there any of this kind at all", which is the question worth asking when a filter has emptied the table.</p>
+<hr />
+  
+</section>
+
+<section class="note level-2">
+  <div class="note-head">
+    <h2 id="3-implementation-in-the-prototype"><a class="anchor" href="#3-implementation-in-the-prototype">3. Implementation in the prototype</a></h2>
+    
+  </div>
+  <div class="table-scroll"><table><thead><tr>
+<th>Concern</th>
+<th>Where</th>
+</tr></thead><tbody>
+<tr>
+<td>Page, filters, table</td>
+<td><code>HistoryPage.tsx</code></td>
+</tr>
+<tr>
+<td>Entry shape</td>
+<td><code>AllocationHistoryEntry</code> — products, bins, <code>sourceBin</code>, <code>action</code>, <code>transactionType</code>, <code>timestamp</code></td>
+</tr>
+<tr>
+<td>Rows</td>
+<td>Entries are flattened to one row per product, with duplicate products inside an entry consolidated</td>
+</tr>
+<tr>
+<td>Seed</td>
+<td><code>data/seedHistory.ts</code> — fifteen entries dated 1–6 days back, generated relative to today</td>
+</tr>
+<tr>
+<td>Enrichment</td>
+<td><code>ProductDataService</code> resolves a product id back to the catalogue for generic name and badges</td>
+</tr>
+<tr>
+<td>Migration</td>
+<td><code>migrateHistoryEntriesWithSourceBin</code> backfills <code>sourceBin</code> on older entries</td>
+</tr>
+</tbody></table></div>
+<p><strong>Badges are derived, never stored.</strong> <code>SDV</code>/<code>MDV</code>, <code>CLIMATE</code> and <code>CIV</code> all come from the shared <code>binProducts</code> helpers, on the identity triple. This page was the last surface deriving them another way, and both halves were wrong: <code>CLIMATE</code> and <code>CIV</code> were printed on <strong>every</strong> row unconditionally, and the vial type preferred a catalogue value that disagreed with the bin card for the same product. Only the <em>markup</em> differs here — 10px on a black chip for table density — the values cannot.</p>
+<p>An earlier <code>HistoryModal.tsx</code> still exists in the tree and is <strong>unused</strong>; the table needed a full page.</p>
+<hr />
+  
+</section>
+
+<section class="note level-2">
+  <div class="note-head">
+    <h2 id="4-notes-and-open-questions"><a class="anchor" href="#4-notes-and-open-questions">4. Notes and open questions</a></h2>
+    
+  </div>
+  
+  
+<section class="note level-3">
+  <div class="note-head">
+    <h3 id="4-1-the-default-filter-hides-the-ledger-and-the-empty-state-misreports-it"><a class="anchor" href="#4-1-the-default-filter-hides-the-ledger-and-the-empty-state-misreports-it">4.1 The default filter hides the ledger, and the empty state misreports it</a></h3>
+    
+  </div>
+  <p><code>Today</code> plus a ledger that is mostly older than today means History opens empty in a fresh session, under copy that says there is no history at all. Two things to fix in a real build, and they are separable:</p>
+<ul>
+<li>The default range should either be wider, or the empty state should distinguish <em>"nothing today"</em> from <em>"nothing ever"</em> and point at the date filter — the type counts already prove entries exist.</li>
+<li>The date options are relative windows only. There is no absolute range, so "what happened on the 3rd" cannot be asked.</li>
+</ul>
+  
+</section>
+
+<section class="note level-3">
+  <div class="note-head">
+    <h3 id="4-2-the-ledger-is-in-memory-and-dated-relative-to-today"><a class="anchor" href="#4-2-the-ledger-is-in-memory-and-dated-relative-to-today">4.2 The ledger is in memory and dated relative to today</a></h3>
+    
+  </div>
+  <p>A reload discards everything written during the session and re-seeds fifteen entries dated 1–6 days back, so the ledger is never a record of anything real. Nothing paginates, either: every matching row renders.</p>
+  
+</section>
+
+<section class="note level-3">
+  <div class="note-head">
+    <h3 id="4-3-created-by-is-always-the-same-user"><a class="anchor" href="#4-3-created-by-is-always-the-same-user">4.3 <code>Created By</code> is always the same user</a></h3>
+    
+  </div>
+  <p>There is no auth, so every entry is attributed to the same name. The column is a placeholder for a real actor and should not be taken as evidence that user attribution is wired up.</p>
+  
+</section>
+
+<section class="note level-3">
+  <div class="note-head">
+    <h3 id="4-4-there-is-no-export-and-no-drill-through"><a class="anchor" href="#4-4-there-is-no-export-and-no-drill-through">4.4 There is no export and no drill-through</a></h3>
+    
+  </div>
+  <p>A row cannot be opened, and the page cannot be exported. Both are likely to be asked for once this is a real ledger.</p>
+  
+</section>
+
+<section class="note level-3">
+  <div class="note-head">
+    <h3 id="4-5-test-assertions-worth-writing"><a class="anchor" href="#4-5-test-assertions-worth-writing">4.5 Test assertions worth writing</a></h3>
+    
+  </div>
+  <ol>
+<li>Every committed workflow writes exactly one entry, with the <code>transactionType</code> its table row above states.</li>
+<li>A move's per-bin figures reconcile: for each source, <code>movedQty + remainingQty</code> equals what the bin held before; for each target, <code>resultingQty − movedQty</code> equals what it held before.</li>
+<li>A multi-bin transaction shows a total line; a single-bin one does not.</li>
+<li>Date filtering is inclusive of the boundary day, and the type counts stay unaffected by the date and product filters.</li>
+<li>Badges on a History row match the badges the same product shows on its bin card.</li>
+<li>A 0-quantity move is filed as <code>Product moved</code>, not as an allocation.</li>
+</ol>
+  
+</section>
+</section>
+  </main>
+</div>
+<script>
+  // execCommand is the fallback, not the relic it looks like: these pages are opened straight off
+  // disk as often as they are served, and navigator.clipboard is unavailable on a file:// origin.
+  function put(text) {
+    if (navigator.clipboard?.writeText) return navigator.clipboard.writeText(text);
+    return new Promise((done, fail) => {
+      const area = document.createElement('textarea');
+      area.value = text;
+      area.style.position = 'fixed';
+      area.style.opacity = '0';
+      document.body.appendChild(area);
+      area.select();
+      const ok = document.execCommand('copy');
+      area.remove();
+      ok ? done() : fail(new Error('copy refused'));
+    });
+  }
+
+  addEventListener('click', event => {
+    const button = event.target.closest('.copy');
+    if (!button) return;
+    const source = document.getElementById(button.dataset.copy);
+    if (!source) return;
+    const label = button.dataset.label ?? button.textContent;
+    button.dataset.label = label;
+    put(source.textContent).then(
+      () => {
+        button.textContent = 'Copied';
+        button.classList.add('done');
+      },
+      () => {
+        // Says what happened rather than pretending it worked — a button that reports success and
+        // leaves the clipboard untouched is worse than one that fails out loud.
+        button.textContent = 'Press ⌘C';
+        const range = document.createRange();
+        source.hidden = false;
+        range.selectNodeContents(source);
+        getSelection().removeAllRanges();
+        getSelection().addRange(range);
+      }
+    );
+    setTimeout(() => {
+      button.textContent = label;
+      button.classList.remove('done');
+      source.hidden = true;
+    }, 1600);
+  });
+
+  // Scroll-spy, so the sidebar says where you are.
+  let queued = false;
+  function spy() {
+    queued = false;
+    const links = [...document.querySelectorAll('nav ol a')];
+    let active = 0;
+    links.forEach((link, index) => {
+      const target = document.getElementById(decodeURIComponent(link.hash.slice(1)));
+      if (target && target.getBoundingClientRect().top < 120) active = index;
+    });
+    links.forEach((link, index) => link.classList.toggle('active', index === active));
+  }
+  addEventListener('scroll', () => { if (!queued) { queued = true; requestAnimationFrame(spy); } }, { passive: true });
+  spy();
+</script>
+</body>
+</html>

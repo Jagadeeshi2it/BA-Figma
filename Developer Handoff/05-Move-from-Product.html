@@ -1,0 +1,500 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>05 — Move from Product — Developer Handoff</title>
+<style>
+  :root {
+    --bg: #ffffff; --panel: #f7f8fa; --text: #1b1f24; --muted: #5c6672; --rule: #e3e7ec;
+    --link: #095192; --code-bg: #f2f4f7; --accent: #095192; --ok: #15803d;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14171a; --panel: #1b1f23; --text: #e6e9ec; --muted: #9aa4af; --rule: #2b3137;
+      --link: #7fb2e5; --code-bg: #22272c; --accent: #7fb2e5; --ok: #6fcf8e;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 16px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .shell { display: grid; grid-template-columns: 280px minmax(0, 1fr); }
+  nav {
+    position: sticky; top: 0; align-self: start; height: 100vh; overflow-y: auto;
+    background: var(--panel); border-right: 1px solid var(--rule); padding: 24px 18px 48px;
+  }
+  nav .brand { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-bottom: 14px; }
+  nav .docs { display: flex; flex-direction: column; gap: 2px; margin-bottom: 22px; }
+  nav .docs a { padding: 6px 8px; border-radius: 4px; font-size: 13px; text-decoration: none; color: var(--muted); }
+  nav .docs a.current { background: var(--accent); color: #fff; font-weight: 500; }
+  nav h2 { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0 8px 8px; font-weight: 600; }
+  nav ol { list-style: none; margin: 0; padding: 0; }
+  nav ol a { display: block; padding: 4px 8px; border-radius: 4px; font-size: 13px; color: var(--muted); text-decoration: none; }
+  nav ol a:hover { background: rgba(127,127,127,.12); color: var(--text); }
+  nav ol a.active { color: var(--link); font-weight: 600; }
+  nav li.sub a { padding-left: 20px; font-size: 12.5px; }
+  main { padding: 40px 48px 120px; max-width: 980px; }
+  header.page { border-bottom: 1px solid var(--rule); padding-bottom: 20px; margin-bottom: 28px; }
+  header.page h1 { margin: 0 0 6px; font-size: 30px; letter-spacing: -.01em; }
+  header.page .meta { color: var(--muted); font-size: 14px; }
+  header.page .actions { margin-top: 14px; }
+  h2, h3, h4 { line-height: 1.3; letter-spacing: -.01em; margin: 0; }
+  h2 { font-size: 22px; } h3 { font-size: 17px; } h4 { font-size: 15px; }
+  .anchor { color: inherit; text-decoration: none; }
+  .anchor:hover::after { content: " #"; color: var(--muted); font-weight: 400; }
+  .note { scroll-margin-top: 24px; }
+  .note.level-2 { margin-top: 40px; padding-top: 8px; border-top: 1px solid var(--rule); }
+  .note.level-3 { margin-top: 26px; }
+  .note-head { display: flex; align-items: baseline; gap: 12px; }
+  .note-head h2, .note-head h3 { flex: 1; min-width: 0; }
+  .copy {
+    flex: none; font: inherit; font-size: 12px; line-height: 1; padding: 6px 10px; cursor: pointer;
+    border-radius: 4px; border: 1px solid var(--rule); background: var(--bg); color: var(--muted);
+    transition: color .12s, border-color .12s;
+  }
+  .copy:hover { color: var(--link); border-color: var(--link); }
+  .copy.done { color: var(--ok); border-color: var(--ok); }
+  .copy.wide { font-size: 13px; padding: 8px 14px; }
+  p, ul, ol, table { margin: 14px 0; }
+  li { margin: 4px 0; }
+  code { background: var(--code-bg); padding: 1px 5px; border-radius: 3px; font-size: 13.5px; }
+  pre { background: var(--code-bg); padding: 14px 16px; border-radius: 6px; overflow-x: auto; }
+  pre code { background: none; padding: 0; }
+  pre.src { display: none; }
+  a { color: var(--link); }
+  img {
+    display: block; max-width: 100%; height: auto; margin: 18px 0;
+    border: 1px solid var(--rule); border-radius: 6px;
+  }
+  .table-scroll { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: 14.5px; }
+  th, td { border: 1px solid var(--rule); padding: 8px 10px; text-align: left; vertical-align: top; }
+  th { background: var(--panel); font-weight: 600; }
+  blockquote { margin: 14px 0; padding: 2px 16px; border-left: 3px solid var(--rule); color: var(--muted); }
+  hr { border: 0; border-top: 1px solid var(--rule); margin: 28px 0; }
+  @media (max-width: 900px) {
+    .shell { grid-template-columns: 1fr; }
+    nav { position: static; height: auto; border-right: 0; border-bottom: 1px solid var(--rule); }
+    main { padding: 28px 20px 80px; }
+  }
+</style>
+</head>
+<body>
+<div class="shell">
+  <nav>
+    <div class="brand">Developer Handoff</div>
+    <div class="docs">
+      <a href="index.html">Developer Handoff — Bin Allocation 2.0</a>
+      <a href="00-Introduction.html">00 — Introduction</a>
+      <a href="01-Bins-Available.html">01 — Bins Available</a>
+      <a href="02-Allocate-Product.html">02 — Allocate Product</a>
+      <a href="03-Multi-Bin-Assignment.html">03 — Multi Bin Assignment</a>
+      <a href="04-Move-from-Bin.html">04 — Move from Bin</a>
+      <a href="05-Move-from-Product.html" class="current">05 — Move from Product</a>
+      <a href="06-History.html">06 — History</a>
+    </div>
+    <h2>On this page</h2>
+    <ol>
+      <li><a href="#step-pick-the-products-to-move">Step ① — pick the products to move</a></li>
+      <li><a href="#1-why-the-unit-is-declared-up-front">1. Why the unit is declared up front</a></li>
+      <li><a href="#2-the-selection-is-bin-product-pairs">2. The selection is (bin, product) pairs</a></li>
+      <li><a href="#3-where-a-product-row-means-three-different-things">3. Where a product row means three different things</a></li>
+      <li><a href="#4-notes-and-open-questions">4. Notes and open questions</a></li>
+      <li class="sub"><a href="#4-1-the-refusal-toasts-are-the-only-thing-standing-between-a-rule-and-a-dead-control">4.1 The refusal toasts are the only thing standing between a rule and a dead control</a></li>
+      <li class="sub"><a href="#4-2-search-picks-can-be-broader-than-they-look">4.2 Search picks can be broader than they look</a></li>
+      <li class="sub"><a href="#4-3-everything-in-04-304-move-from-bin-md-applies-here-too">4.3 Everything in <a href="04-Move-from-Bin.html">04 §3</a> applies here too</a></li>
+      <li class="sub"><a href="#4-4-test-assertions-worth-writing">4.4 Test assertions worth writing</a></li>
+    </ol>
+  </nav>
+  <main>
+    <header class="page">
+      <h1>05 — Move from Product</h1>
+      <div class="meta">Generated from 05-Move-from-Product.md — edit the markdown, then re-run <code>node scripts/build-handoff-html.mjs</code>.</div>
+      <div class="actions">
+        <button type="button" class="copy wide" data-copy="whole-doc">Copy whole document</button>
+      </div>
+    </header>
+    <pre class="src" id="whole-doc" hidden># 05 — Move from Product
+
+**Surface:** `Allocate/Move` › **Move from Product** — the same four-step pipeline, entered differently
+**Job:** move a **product** out of wherever it lives into one or more other bins
+**Prototype files:** `PipelineSteps.tsx`, `BinCard.tsx`, `AllProductsPanel.tsx`, `utils/sourcePicks.ts`, `useInventoryState.ts`
+**Captured:** 2026-08-10 · seed data unmodified · screenshots at 1512×908
+
+**This is not a second workflow.** It is [04 — Move from Bin](04-Move-from-Bin.md) entered through the
+other door: step ① gathers a different unit, and from step ② onwards the screens, rules and commit are
+identical. Read 04 for steps ②–④; this document covers what differs, which is all in step ①.
+
+---
+
+## Step ① — pick the products to move {copy}
+
+![Step 1 of 4 of a Move from Product](screenshots/move-from-product/01-step1-default.png)
+
+The footer reads `Move from Product · Step 1/4` with a different instruction — *"Search for the products
+to move, or tap them in a bin."* — and the summary cells differ from the other kind in a way that is
+easy to miss: the from-end is labelled just **`Move`**, not `Move From`, and it counts **`0 Products`**
+rather than bins. The primary states **`Select products to move`**.
+
+`Move From` names a *place*, and in this kind nothing was chosen from anywhere: the operator picks
+products, and the bins join as a consequence. `Move From · 1 Product` asked from where and then did not
+answer.
+
+From here there are two routes in, and **the bin card itself is inert**:
+
+| Gesture | Result |
+|---|---|
+| Tap a **product row** on a bin card | Picks that product **in that bin** — one pair |
+| Pick a product from the **header search** dropdown | Picks it in **every** bin it lives in — "wherever this drug is" |
+| Tap the **bin card** | Refused, with a toast: *"This move goes by product — tap a product inside the bin, or search for it."* |
+
+![A product picked, with the bin reading 1 Selected](screenshots/move-from-product/02-step1-product-picked.png)
+
+The picked row turns blue — the operator chose *this product*, so the product is what is marked — and the
+bin card's badge reads **`1 Selected`** rather than `Move From`, counting that bin's products in the move.
+The footer's from-end becomes `Move 1 Product` and the primary becomes `Move To →`.
+
+Tapping a picked product again un-picks it. If that leaves its bin holding nothing that is still being
+moved, the bin drops out of the selection on its own.
+
+From step ② the two kinds converge completely: pick target bins, build the move list, choose per-bin
+products at Review, then take and place. See [04](04-Move-from-Bin.md).
+
+---
+
+## 1. Why the unit is declared up front
+
+The menu asks which kind of move this is, and the answer is carried in state for the whole pipeline
+rather than inferred from the selection.
+
+Review used to **guess** the perspective from the data — it built a product-centric list only when the
+selection spanned more than some number of bins — so a product living in two bins got the bin-centric
+screen and the operator found themselves picking bins when they had come to move a product. Intent is not
+recoverable from a selection, so it is asked for and carried.
+
+That one flag decides how the source is gathered, what step ①'s label says, which instruction the footer
+prints, what unit an empty summary counts in, and how Review reads. **Any new branch on "what kind of move
+is this" belongs there, not in a heuristic over the data.**
+
+---
+
+## 2. The selection is (bin, product) pairs
+
+A Move from Product's selection is a set of **(bin, product)** pairs, not a list of product identities.
+The distinction is load-bearing and every bug in this area came from collapsing it:
+
+- **Breadth comes from the gesture, never from matching.** A row tap is one pair; a search pick is one
+  pair per bin that product occupies.
+- A product picked in Bin 1B must not become picked in Bin 1C merely because Bin 1C also holds it, and a
+  second product sitting in a bin that joined the selection must not be dragged in with it.
+- A bin card counts **its own** picks, so the badge and the footer cannot disagree.
+- A row's highlight comes from the picks, not from the search box: an unpicked row gets no highlight, and
+  a picked row stays highlighted after the search is cleared.
+- Review scopes each bin's list to that bin's picks, so a bin never offers a product picked somewhere
+  else.
+
+`node scripts/verify-source-picks.mjs` (16 assertions) pins this.
+
+---
+
+## 3. Where a product row means three different things
+
+The same row is a link, a selection, or nothing, depending on where the operator is — and every surface
+that renders one has to handle all three:
+
+| Where | A product row does |
+|---|---|
+| View Mode | Opens the product's detail page |
+| Move from Product, step ① | Selects that product, in that bin |
+| Move from Bin, or either assignment panel, or step ② | Nothing — the scope is the bin |
+
+"Nothing" is not the same as "no handler": on a bin card the tap bubbles to the card and selects the
+**bin**, which is correct in a Bin move and at either kind's target step. In the `+N more` panel there is
+no card beneath, so the tap is swallowed — and that is the one genuinely dead product row in the app,
+which is why it raises an explaining toast instead.
+
+---
+
+## 4. Notes and open questions
+
+### 4.1 The refusal toasts are the only thing standing between a rule and a dead control
+
+Three taps are legitimately refused in this kind of move — the bin card in step ①, a product row in the
+`+N more` panel, and a source bin at step ② — and all three used to be refused in silence. The copy lives
+beside the footer's instructions so a correction and the standing advice cannot drift into contradicting
+each other, and all three share one toast id so a repeated tap replaces the message rather than stacking
+copies.
+
+### 4.2 Search picks can be broader than they look
+
+Choosing a product from the dropdown picks it in **every** bin it occupies. That is what "wherever this
+drug is" means and it is deliberate, but the breadth is only visible afterwards, in the badges on each
+affected bin and in the footer's count.
+
+### 4.3 Everything in [04 §3](04-Move-from-Bin.md) applies here too
+
+Step ④'s shape is specified to change, serials are counted rather than validated, the position counters
+are switched off rather than decided, and the `+N more` panel does not close when the step changes.
+
+### 4.4 Test assertions worth writing
+
+1. A bin tap in step ① changes nothing and raises the explaining toast.
+2. A row tap picks exactly one (bin, product) pair; a search pick picks one pair per bin holding that
+   product.
+3. Picking a product in one bin does not mark the same product in another bin, and does not mark other
+   products in the same bin.
+4. Un-picking the last picked product in a bin removes that bin from the selection.
+5. Each bin's badge count equals that bin's own picks, and the footer's product count equals the distinct
+   products picked.
+6. From step ② onwards, a Move from Product and a Move from Bin with equivalent selections produce
+   identical transfers.</pre>
+    <p><strong>Surface:</strong> <code>Allocate/Move</code> › <strong>Move from Product</strong> — the same four-step pipeline, entered differently <strong>Job:</strong> move a <strong>product</strong> out of wherever it lives into one or more other bins <strong>Prototype files:</strong> <code>PipelineSteps.tsx</code>, <code>BinCard.tsx</code>, <code>AllProductsPanel.tsx</code>, <code>utils/sourcePicks.ts</code>, <code>useInventoryState.ts</code> <strong>Captured:</strong> 2026-08-10 · seed data unmodified · screenshots at 1512×908</p>
+<p><strong>This is not a second workflow.</strong> It is <a href="04-Move-from-Bin.html">04 — Move from Bin</a> entered through the other door: step ① gathers a different unit, and from step ② onwards the screens, rules and commit are identical. Read 04 for steps ②–④; this document covers what differs, which is all in step ①.</p>
+<hr />
+    
+<section class="note level-2 copyable">
+  <div class="note-head">
+    <h2 id="step-pick-the-products-to-move"><a class="anchor" href="#step-pick-the-products-to-move">Step ① — pick the products to move</a></h2>
+    <button type="button" class="copy" data-copy="src-91" title="Copy this note as markdown">Copy</button>
+  </div>
+  <pre class="src" id="src-91" hidden>## Step ① — pick the products to move
+
+![Step 1 of 4 of a Move from Product](screenshots/move-from-product/01-step1-default.png)
+
+The footer reads `Move from Product · Step 1/4` with a different instruction — *"Search for the products
+to move, or tap them in a bin."* — and the summary cells differ from the other kind in a way that is
+easy to miss: the from-end is labelled just **`Move`**, not `Move From`, and it counts **`0 Products`**
+rather than bins. The primary states **`Select products to move`**.
+
+`Move From` names a *place*, and in this kind nothing was chosen from anywhere: the operator picks
+products, and the bins join as a consequence. `Move From · 1 Product` asked from where and then did not
+answer.
+
+From here there are two routes in, and **the bin card itself is inert**:
+
+| Gesture | Result |
+|---|---|
+| Tap a **product row** on a bin card | Picks that product **in that bin** — one pair |
+| Pick a product from the **header search** dropdown | Picks it in **every** bin it lives in — "wherever this drug is" |
+| Tap the **bin card** | Refused, with a toast: *"This move goes by product — tap a product inside the bin, or search for it."* |
+
+![A product picked, with the bin reading 1 Selected](screenshots/move-from-product/02-step1-product-picked.png)
+
+The picked row turns blue — the operator chose *this product*, so the product is what is marked — and the
+bin card's badge reads **`1 Selected`** rather than `Move From`, counting that bin's products in the move.
+The footer's from-end becomes `Move 1 Product` and the primary becomes `Move To →`.
+
+Tapping a picked product again un-picks it. If that leaves its bin holding nothing that is still being
+moved, the bin drops out of the selection on its own.
+
+From step ② the two kinds converge completely: pick target bins, build the move list, choose per-bin
+products at Review, then take and place. See [04](04-Move-from-Bin.md).
+
+---</pre>
+  <p><img src="screenshots/move-from-product/01-step1-default.png" alt="Step 1 of 4 of a Move from Product" /></p>
+<p>The footer reads <code>Move from Product · Step 1/4</code> with a different instruction — <em>"Search for the products to move, or tap them in a bin."</em> — and the summary cells differ from the other kind in a way that is easy to miss: the from-end is labelled just <strong><code>Move</code></strong>, not <code>Move From</code>, and it counts <strong><code>0 Products</code></strong> rather than bins. The primary states <strong><code>Select products to move</code></strong>.</p>
+<p><code>Move From</code> names a <em>place</em>, and in this kind nothing was chosen from anywhere: the operator picks products, and the bins join as a consequence. <code>Move From · 1 Product</code> asked from where and then did not answer.</p>
+<p>From here there are two routes in, and <strong>the bin card itself is inert</strong>:</p>
+<div class="table-scroll"><table><thead><tr>
+<th>Gesture</th>
+<th>Result</th>
+</tr></thead><tbody>
+<tr>
+<td>Tap a <strong>product row</strong> on a bin card</td>
+<td>Picks that product <strong>in that bin</strong> — one pair</td>
+</tr>
+<tr>
+<td>Pick a product from the <strong>header search</strong> dropdown</td>
+<td>Picks it in <strong>every</strong> bin it lives in — "wherever this drug is"</td>
+</tr>
+<tr>
+<td>Tap the <strong>bin card</strong></td>
+<td>Refused, with a toast: <em>"This move goes by product — tap a product inside the bin, or search for it."</em></td>
+</tr>
+</tbody></table></div>
+<p><img src="screenshots/move-from-product/02-step1-product-picked.png" alt="A product picked, with the bin reading 1 Selected" /></p>
+<p>The picked row turns blue — the operator chose <em>this product</em>, so the product is what is marked — and the bin card's badge reads <strong><code>1 Selected</code></strong> rather than <code>Move From</code>, counting that bin's products in the move. The footer's from-end becomes <code>Move 1 Product</code> and the primary becomes <code>Move To →</code>.</p>
+<p>Tapping a picked product again un-picks it. If that leaves its bin holding nothing that is still being moved, the bin drops out of the selection on its own.</p>
+<p>From step ② the two kinds converge completely: pick target bins, build the move list, choose per-bin products at Review, then take and place. See <a href="04-Move-from-Bin.html">04</a>.</p>
+<hr />
+  
+</section>
+
+<section class="note level-2">
+  <div class="note-head">
+    <h2 id="1-why-the-unit-is-declared-up-front"><a class="anchor" href="#1-why-the-unit-is-declared-up-front">1. Why the unit is declared up front</a></h2>
+    
+  </div>
+  <p>The menu asks which kind of move this is, and the answer is carried in state for the whole pipeline rather than inferred from the selection.</p>
+<p>Review used to <strong>guess</strong> the perspective from the data — it built a product-centric list only when the selection spanned more than some number of bins — so a product living in two bins got the bin-centric screen and the operator found themselves picking bins when they had come to move a product. Intent is not recoverable from a selection, so it is asked for and carried.</p>
+<p>That one flag decides how the source is gathered, what step ①'s label says, which instruction the footer prints, what unit an empty summary counts in, and how Review reads. <strong>Any new branch on "what kind of move is this" belongs there, not in a heuristic over the data.</strong></p>
+<hr />
+  
+</section>
+
+<section class="note level-2">
+  <div class="note-head">
+    <h2 id="2-the-selection-is-bin-product-pairs"><a class="anchor" href="#2-the-selection-is-bin-product-pairs">2. The selection is (bin, product) pairs</a></h2>
+    
+  </div>
+  <p>A Move from Product's selection is a set of <strong>(bin, product)</strong> pairs, not a list of product identities. The distinction is load-bearing and every bug in this area came from collapsing it:</p>
+<ul>
+<li><strong>Breadth comes from the gesture, never from matching.</strong> A row tap is one pair; a search pick is one pair per bin that product occupies.</li>
+<li>A product picked in Bin 1B must not become picked in Bin 1C merely because Bin 1C also holds it, and a second product sitting in a bin that joined the selection must not be dragged in with it.</li>
+<li>A bin card counts <strong>its own</strong> picks, so the badge and the footer cannot disagree.</li>
+<li>A row's highlight comes from the picks, not from the search box: an unpicked row gets no highlight, and a picked row stays highlighted after the search is cleared.</li>
+<li>Review scopes each bin's list to that bin's picks, so a bin never offers a product picked somewhere else.</li>
+</ul>
+<p><code>node scripts/verify-source-picks.mjs</code> (16 assertions) pins this.</p>
+<hr />
+  
+</section>
+
+<section class="note level-2">
+  <div class="note-head">
+    <h2 id="3-where-a-product-row-means-three-different-things"><a class="anchor" href="#3-where-a-product-row-means-three-different-things">3. Where a product row means three different things</a></h2>
+    
+  </div>
+  <p>The same row is a link, a selection, or nothing, depending on where the operator is — and every surface that renders one has to handle all three:</p>
+<div class="table-scroll"><table><thead><tr>
+<th>Where</th>
+<th>A product row does</th>
+</tr></thead><tbody>
+<tr>
+<td>View Mode</td>
+<td>Opens the product's detail page</td>
+</tr>
+<tr>
+<td>Move from Product, step ①</td>
+<td>Selects that product, in that bin</td>
+</tr>
+<tr>
+<td>Move from Bin, or either assignment panel, or step ②</td>
+<td>Nothing — the scope is the bin</td>
+</tr>
+</tbody></table></div>
+<p>"Nothing" is not the same as "no handler": on a bin card the tap bubbles to the card and selects the <strong>bin</strong>, which is correct in a Bin move and at either kind's target step. In the <code>+N more</code> panel there is no card beneath, so the tap is swallowed — and that is the one genuinely dead product row in the app, which is why it raises an explaining toast instead.</p>
+<hr />
+  
+</section>
+
+<section class="note level-2">
+  <div class="note-head">
+    <h2 id="4-notes-and-open-questions"><a class="anchor" href="#4-notes-and-open-questions">4. Notes and open questions</a></h2>
+    
+  </div>
+  
+  
+<section class="note level-3">
+  <div class="note-head">
+    <h3 id="4-1-the-refusal-toasts-are-the-only-thing-standing-between-a-rule-and-a-dead-control"><a class="anchor" href="#4-1-the-refusal-toasts-are-the-only-thing-standing-between-a-rule-and-a-dead-control">4.1 The refusal toasts are the only thing standing between a rule and a dead control</a></h3>
+    
+  </div>
+  <p>Three taps are legitimately refused in this kind of move — the bin card in step ①, a product row in the <code>+N more</code> panel, and a source bin at step ② — and all three used to be refused in silence. The copy lives beside the footer's instructions so a correction and the standing advice cannot drift into contradicting each other, and all three share one toast id so a repeated tap replaces the message rather than stacking copies.</p>
+  
+</section>
+
+<section class="note level-3">
+  <div class="note-head">
+    <h3 id="4-2-search-picks-can-be-broader-than-they-look"><a class="anchor" href="#4-2-search-picks-can-be-broader-than-they-look">4.2 Search picks can be broader than they look</a></h3>
+    
+  </div>
+  <p>Choosing a product from the dropdown picks it in <strong>every</strong> bin it occupies. That is what "wherever this drug is" means and it is deliberate, but the breadth is only visible afterwards, in the badges on each affected bin and in the footer's count.</p>
+  
+</section>
+
+<section class="note level-3">
+  <div class="note-head">
+    <h3 id="4-3-everything-in-04-304-move-from-bin-md-applies-here-too"><a class="anchor" href="#4-3-everything-in-04-304-move-from-bin-md-applies-here-too">4.3 Everything in <a href="04-Move-from-Bin.html">04 §3</a> applies here too</a></h3>
+    
+  </div>
+  <p>Step ④'s shape is specified to change, serials are counted rather than validated, the position counters are switched off rather than decided, and the <code>+N more</code> panel does not close when the step changes.</p>
+  
+</section>
+
+<section class="note level-3">
+  <div class="note-head">
+    <h3 id="4-4-test-assertions-worth-writing"><a class="anchor" href="#4-4-test-assertions-worth-writing">4.4 Test assertions worth writing</a></h3>
+    
+  </div>
+  <ol>
+<li>A bin tap in step ① changes nothing and raises the explaining toast.</li>
+<li>A row tap picks exactly one (bin, product) pair; a search pick picks one pair per bin holding that product.</li>
+<li>Picking a product in one bin does not mark the same product in another bin, and does not mark other products in the same bin.</li>
+<li>Un-picking the last picked product in a bin removes that bin from the selection.</li>
+<li>Each bin's badge count equals that bin's own picks, and the footer's product count equals the distinct products picked.</li>
+<li>From step ② onwards, a Move from Product and a Move from Bin with equivalent selections produce identical transfers.</li>
+</ol>
+  
+</section>
+</section>
+  </main>
+</div>
+<script>
+  // execCommand is the fallback, not the relic it looks like: these pages are opened straight off
+  // disk as often as they are served, and navigator.clipboard is unavailable on a file:// origin.
+  function put(text) {
+    if (navigator.clipboard?.writeText) return navigator.clipboard.writeText(text);
+    return new Promise((done, fail) => {
+      const area = document.createElement('textarea');
+      area.value = text;
+      area.style.position = 'fixed';
+      area.style.opacity = '0';
+      document.body.appendChild(area);
+      area.select();
+      const ok = document.execCommand('copy');
+      area.remove();
+      ok ? done() : fail(new Error('copy refused'));
+    });
+  }
+
+  addEventListener('click', event => {
+    const button = event.target.closest('.copy');
+    if (!button) return;
+    const source = document.getElementById(button.dataset.copy);
+    if (!source) return;
+    const label = button.dataset.label ?? button.textContent;
+    button.dataset.label = label;
+    put(source.textContent).then(
+      () => {
+        button.textContent = 'Copied';
+        button.classList.add('done');
+      },
+      () => {
+        // Says what happened rather than pretending it worked — a button that reports success and
+        // leaves the clipboard untouched is worse than one that fails out loud.
+        button.textContent = 'Press ⌘C';
+        const range = document.createRange();
+        source.hidden = false;
+        range.selectNodeContents(source);
+        getSelection().removeAllRanges();
+        getSelection().addRange(range);
+      }
+    );
+    setTimeout(() => {
+      button.textContent = label;
+      button.classList.remove('done');
+      source.hidden = true;
+    }, 1600);
+  });
+
+  // Scroll-spy, so the sidebar says where you are.
+  let queued = false;
+  function spy() {
+    queued = false;
+    const links = [...document.querySelectorAll('nav ol a')];
+    let active = 0;
+    links.forEach((link, index) => {
+      const target = document.getElementById(decodeURIComponent(link.hash.slice(1)));
+      if (target && target.getBoundingClientRect().top < 120) active = index;
+    });
+    links.forEach((link, index) => link.classList.toggle('active', index === active));
+  }
+  addEventListener('scroll', () => { if (!queued) { queued = true; requestAnimationFrame(spy); } }, { passive: true });
+  spy();
+</script>
+</body>
+</html>

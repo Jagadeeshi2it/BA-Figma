@@ -52,10 +52,18 @@ are placeholder rather than behaviour.
 | 01 | Bins Available — availability filter and count | [01-Bins-Available.md](01-Bins-Available.md) | Complete |
 | 02 | Allocate Product — the Unallocated Products tray | [02-Allocate-Product.md](02-Allocate-Product.md) | Complete |
 | 03 | Multi Bin Assignment — an additional bin for a stocked product | [03-Multi-Bin-Assignment.md](03-Multi-Bin-Assignment.md) | Complete |
+| 04 | Move from Bin — the four-step move pipeline | [04-Move-from-Bin.md](04-Move-from-Bin.md) | Complete |
+| 05 | Move from Product — the same pipeline, other entry | [05-Move-from-Product.md](05-Move-from-Product.md) | Complete |
+| 06 | History — the ledger | [06-History.md](06-History.md) | Complete |
 
-02 and 03 are the two halves of allocation and are written to be read together: same panel design, same
-bin-picking channel, different jobs. The remaining flows (Move from Bin, Move from Product, History) are
-to be added one at a time, in the same format.
+Some of these are written in pairs, deliberately:
+
+- **02 and 03** are the two halves of allocation — same panel design, same bin-picking channel, different
+  jobs. Read together.
+- **04 and 05** are one pipeline with two entrances. 04 documents all four steps; 05 covers only step ①,
+  which is the sole difference, and refers back.
+
+That covers every workflow behind `Allocate/Move`, plus the ledger they all write to.
 
 ## How each document is structured
 
