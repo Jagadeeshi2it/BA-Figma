@@ -132,6 +132,51 @@ const scanKey = (productId: string, toBinId: string) => `${productId}-${toBinId}
  *
  * Module scope, like `scanKey`, so no caller can be ordered before it.
  */
+/**
+ * Where a target bin stands in the placement walk: the bin in hand, one that is finished, or one still
+ * ahead. Two surfaces ask — the Move Summary's row status and the target-bin side sheet's `Done` badge —
+ * so it is one function rather than the same expression written twice.
+ *
+ * Two ways to be finished, and the second is the one that had to be added:
+ *
+ * - **Position** — the walk has passed it. This is what covers a bin the operator visited and
+ *   deliberately put nothing into, a legitimate outcome (see `canSave`) with no quantity to show for it.
+ * - **Stock in it** — something has actually been placed, wherever it sits in the walk. Position alone
+ *   was the entire test, and was sound while bins could only be added at step ② in route order, where a
+ *   bin further along could not already hold anything. Adding one mid-walk broke that: declare the bin
+ *   in front of you full, pick another, and the route re-plans, so the bin you just put 100 vials into
+ *   can end up AFTER the new one. The positional test called it `pending`, and a `pending` bin is drawn
+ *   carrying nothing — a bin the operator has filled reading as untouched, which is the worst direction
+ *   for this to fail in.
+ *
+ * `current` outranks both, so exactly one bin is ever current and the panel's you-are-here marking is
+ * unaffected.
+ *
+ * Module scope, so no caller can be ordered before it, and so `scripts/verify-placement-walk-status.mjs`
+ * can reach it.
+ */
+export const placementBinStatus = ({
+  productIndex,
+  targetBinIndex,
+  currentProductIndex,
+  currentTargetBinIndex,
+  placed
+}: {
+  productIndex: number;
+  targetBinIndex: number;
+  currentProductIndex: number;
+  currentTargetBinIndex: number;
+  placed: number;
+}): 'current' | 'done' | 'pending' => {
+  if (productIndex === currentProductIndex && targetBinIndex === currentTargetBinIndex) {
+    return 'current';
+  }
+  const isBehindInWalk =
+    productIndex < currentProductIndex ||
+    (productIndex === currentProductIndex && targetBinIndex < currentTargetBinIndex);
+  return isBehindInWalk || placed > 0 ? 'done' : 'pending';
+};
+
 const synthesizeScannedItems = (count: number, unit?: string): ScannedItem[] =>
   Array.from({ length: count }, () => ({
     serial: `SN${Math.floor(Math.random() * 1000000000).toString().padStart(9, '0')}`,
@@ -420,22 +465,21 @@ export default function TargetBinSerialScanPage({
     const rows: MoveSummaryRow[] = [];
     productGroups.forEach((product, productIndex) => {
       product.targetBins.forEach((targetBinGroup, targetBinIndex) => {
-        const status: MoveSummaryRow['status'] =
-          productIndex < currentProductIndex
-            ? 'done'
-            : productIndex > currentProductIndex
-              ? 'pending'
-              : targetBinIndex === currentTargetBinIndex
-                ? 'current'
-                : targetBinIndex < currentTargetBinIndex
-                  ? 'done'
-                  : 'pending';
-
-        // What has actually been placed in this bin. A bin the operator hasn't reached yet has no
-        // figure at all: its share is decided by scanning into it, so a 0 would look like a decision
-        // they'd made rather than one still ahead of them. (When no scanning is required the whole
-        // amount is known up front, so it's shown.)
+        // What has actually been placed in this bin. Read before the status, because it is one of the
+        // two things that can make a bin done.
         const placed = (scannedItems[scanKey(product.productId, targetBinGroup.toBinId)] || []).length;
+
+        const status: MoveSummaryRow['status'] = placementBinStatus({
+          productIndex,
+          targetBinIndex,
+          currentProductIndex,
+          currentTargetBinIndex,
+          placed
+        });
+
+        // A bin the operator hasn't reached yet has no figure at all: its share is decided by scanning
+        // into it, so a 0 would look like a decision they'd made rather than one still ahead of them.
+        // (When no scanning is required the whole amount is known up front, so it's shown.)
         const quantity = !serialScanningRequired
           ? targetBinGroup.totalQuantity
           : status === 'pending' ? null : placed;
@@ -1443,9 +1487,19 @@ export default function TargetBinSerialScanPage({
         onClose={() => setActiveSheet(null)}
       >
         {currentProduct.targetBins.map((tb, idx) => {
-          const isCurrent = idx === currentTargetBinIndex;
-          const isDone = idx < currentTargetBinIndex;
-          const scannedCount = (scannedItems[`${currentProduct.productId}-${tb.toBinId}`] || []).length;
+          const scannedCount = (scannedItems[scanKey(currentProduct.productId, tb.toBinId)] || []).length;
+          // The same function the Move Summary's row status comes from, so this badge and that panel
+          // cannot disagree about which bins are finished. This sheet only ever lists the current
+          // product's bins, so the product indices are equal by construction.
+          const walkStatus = placementBinStatus({
+            productIndex: currentProductIndex,
+            targetBinIndex: idx,
+            currentProductIndex,
+            currentTargetBinIndex,
+            placed: scannedCount
+          });
+          const isCurrent = walkStatus === 'current';
+          const isDone = walkStatus === 'done';
           return (
             <div
               key={tb.toBinId}
