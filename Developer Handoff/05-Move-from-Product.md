@@ -9,6 +9,8 @@
 other door: step ① gathers a different unit, and from step ② onwards the screens, rules and commit are
 identical. Read 04 for steps ②–④; this document covers what differs, which is all in step ①.
 
+**Station level only**, like the other kind — see [07-Station-Switcher.md](07-Station-Switcher.md).
+
 ---
 
 ## Step ① — pick the products to move {copy}

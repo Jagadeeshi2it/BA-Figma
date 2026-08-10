@@ -8,6 +8,9 @@
 Read [00-Introduction.md](00-Introduction.md) first, and [02-Allocate-Product.md](02-Allocate-Product.md)
 alongside this one — the two are deliberately the same panel design doing two different jobs.
 
+**Available at both access levels**, for the same reason as the tray — see
+[07-Station-Switcher.md](07-Station-Switcher.md).
+
 ---
 
 ## Default state {copy}

@@ -9,6 +9,10 @@ Read [00-Introduction.md](00-Introduction.md) first. [05-Move-from-Product.md](0
 is the same pipeline entered through the other door — only step ① differs, so that document covers step
 ① and refers back here for the rest.
 
+**Station level only.** Moving stock means opening a door and moving vials by hand, so this workflow is
+withheld at clinic level — its menu entry is not rendered there. See
+[07-Station-Switcher.md](07-Station-Switcher.md).
+
 ---
 
 ## The shape of the pipeline

@@ -1,0 +1,758 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>07 — Station Switcher and clinic level — Developer Handoff</title>
+<style>
+  :root {
+    --bg: #ffffff; --panel: #f7f8fa; --text: #1b1f24; --muted: #5c6672; --rule: #e3e7ec;
+    --link: #095192; --code-bg: #f2f4f7; --accent: #095192; --ok: #15803d;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14171a; --panel: #1b1f23; --text: #e6e9ec; --muted: #9aa4af; --rule: #2b3137;
+      --link: #7fb2e5; --code-bg: #22272c; --accent: #7fb2e5; --ok: #6fcf8e;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 16px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .shell { display: grid; grid-template-columns: 280px minmax(0, 1fr); }
+  nav {
+    position: sticky; top: 0; align-self: start; height: 100vh; overflow-y: auto;
+    background: var(--panel); border-right: 1px solid var(--rule); padding: 24px 18px 48px;
+  }
+  nav .brand { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-bottom: 14px; }
+  nav .docs { display: flex; flex-direction: column; gap: 2px; margin-bottom: 22px; }
+  nav .docs a { padding: 6px 8px; border-radius: 4px; font-size: 13px; text-decoration: none; color: var(--muted); }
+  nav .docs a.current { background: var(--accent); color: #fff; font-weight: 500; }
+  nav h2 { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0 8px 8px; font-weight: 600; }
+  nav ol { list-style: none; margin: 0; padding: 0; }
+  nav ol a { display: block; padding: 4px 8px; border-radius: 4px; font-size: 13px; color: var(--muted); text-decoration: none; }
+  nav ol a:hover { background: rgba(127,127,127,.12); color: var(--text); }
+  nav ol a.active { color: var(--link); font-weight: 600; }
+  nav li.sub a { padding-left: 20px; font-size: 12.5px; }
+  main { padding: 40px 48px 120px; max-width: 980px; }
+  header.page { border-bottom: 1px solid var(--rule); padding-bottom: 20px; margin-bottom: 28px; }
+  header.page h1 { margin: 0 0 6px; font-size: 30px; letter-spacing: -.01em; }
+  header.page .meta { color: var(--muted); font-size: 14px; }
+  header.page .actions { margin-top: 14px; }
+  h2, h3, h4 { line-height: 1.3; letter-spacing: -.01em; margin: 0; }
+  h2 { font-size: 22px; } h3 { font-size: 17px; } h4 { font-size: 15px; }
+  .anchor { color: inherit; text-decoration: none; }
+  .anchor:hover::after { content: " #"; color: var(--muted); font-weight: 400; }
+  .note { scroll-margin-top: 24px; }
+  .note.level-2 { margin-top: 40px; padding-top: 8px; border-top: 1px solid var(--rule); }
+  .note.level-3 { margin-top: 26px; }
+  .note-head { display: flex; align-items: baseline; gap: 12px; }
+  .note-head h2, .note-head h3 { flex: 1; min-width: 0; }
+  .copy {
+    flex: none; font: inherit; font-size: 12px; line-height: 1; padding: 6px 10px; cursor: pointer;
+    border-radius: 4px; border: 1px solid var(--rule); background: var(--bg); color: var(--muted);
+    transition: color .12s, border-color .12s;
+  }
+  .copy:hover { color: var(--link); border-color: var(--link); }
+  .copy.done { color: var(--ok); border-color: var(--ok); }
+  .copy.wide { font-size: 13px; padding: 8px 14px; }
+  p, ul, ol, table { margin: 14px 0; }
+  li { margin: 4px 0; }
+  code { background: var(--code-bg); padding: 1px 5px; border-radius: 3px; font-size: 13.5px; }
+  pre { background: var(--code-bg); padding: 14px 16px; border-radius: 6px; overflow-x: auto; }
+  pre code { background: none; padding: 0; }
+  pre.src { display: none; }
+  a { color: var(--link); }
+  img {
+    display: block; max-width: 100%; height: auto; margin: 18px 0;
+    border: 1px solid var(--rule); border-radius: 6px;
+  }
+  .table-scroll { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: 14.5px; }
+  th, td { border: 1px solid var(--rule); padding: 8px 10px; text-align: left; vertical-align: top; }
+  th { background: var(--panel); font-weight: 600; }
+  blockquote { margin: 14px 0; padding: 2px 16px; border-left: 3px solid var(--rule); color: var(--muted); }
+  hr { border: 0; border-top: 1px solid var(--rule); margin: 28px 0; }
+  @media (max-width: 900px) {
+    .shell { grid-template-columns: 1fr; }
+    nav { position: static; height: auto; border-right: 0; border-bottom: 1px solid var(--rule); }
+    main { padding: 28px 20px 80px; }
+  }
+</style>
+</head>
+<body>
+<div class="shell">
+  <nav>
+    <div class="brand">Developer Handoff</div>
+    <div class="docs">
+      <a href="index.html">Developer Handoff — Bin Allocation 2.0</a>
+      <a href="00-Introduction.html">00 — Introduction</a>
+      <a href="01-Bins-Available.html">01 — Bins Available</a>
+      <a href="02-Allocate-Product.html">02 — Allocate Product</a>
+      <a href="03-Multi-Bin-Assignment.html">03 — Multi Bin Assignment</a>
+      <a href="04-Move-from-Bin.html">04 — Move from Bin</a>
+      <a href="05-Move-from-Product.html">05 — Move from Product</a>
+      <a href="06-History.html">06 — History</a>
+      <a href="07-Station-Switcher.html" class="current">07 — Station Switcher and clinic level</a>
+    </div>
+    <h2>On this page</h2>
+    <ol>
+      <li><a href="#default-state-station-level">Default state — station level</a></li>
+      <li><a href="#interaction-state-clinic-level">Interaction state — clinic level</a></li>
+      <li><a href="#the-station-picker">The station picker</a></li>
+      <li><a href="#1-behaviour">1. Behaviour</a></li>
+      <li class="sub"><a href="#1-1-switching-level">1.1 Switching level</a></li>
+      <li class="sub"><a href="#1-2-the-switch-is-refused-while-a-workflow-is-open">1.2 The switch is refused while a workflow is open</a></li>
+      <li class="sub"><a href="#1-3-the-level-holds-on-every-page">1.3 The level holds on every page</a></li>
+      <li><a href="#2-what-each-level-may-do">2. What each level may do</a></li>
+      <li><a href="#3-history-across-a-clinic">3. History across a clinic</a></li>
+      <li><a href="#4-implementation-in-the-prototype">4. Implementation in the prototype</a></li>
+      <li><a href="#5-notes-and-open-questions">5. Notes and open questions</a></li>
+      <li class="sub"><a href="#5-1-stations-are-a-name-not-a-configuration">5.1 Stations are a name, not a configuration</a></li>
+      <li class="sub"><a href="#5-2-the-level-is-not-a-permission">5.2 The level is not a permission</a></li>
+      <li class="sub"><a href="#5-3-one-way-by-design-which-suits-a-demo-and-not-a-product">5.3 One-way by design, which suits a demo and not a product</a></li>
+      <li class="sub"><a href="#5-4-station-level-still-shows-every-station-s-history">5.4 Station level still shows every station's history</a></li>
+      <li class="sub"><a href="#5-5-test-assertions-worth-writing">5.5 Test assertions worth writing</a></li>
+    </ol>
+  </nav>
+  <main>
+    <header class="page">
+      <h1>07 — Station Switcher and clinic level</h1>
+      <div class="meta">Generated from 07-Station-Switcher.md — edit the markdown, then re-run <code>node scripts/build-handoff-html.mjs</code>.</div>
+      <div class="actions">
+        <button type="button" class="copy wide" data-copy="whole-doc">Copy whole document</button>
+      </div>
+    </header>
+    <pre class="src" id="whole-doc" hidden># 07 — Station Switcher and clinic level
+
+**Surface:** the top bar's clinic label, the station link beside the page title, and the station picker
+**Job:** distinguish an operator standing at a cabinet from one working elsewhere in the building
+**Prototype files:** `App.tsx` (`accessLevel`), `TopNav.tsx`, `HeaderSection.tsx`, `StationSelectionModal.tsx`, `HistoryPage.tsx`
+**Captured:** 2026-08-10 · seed data unmodified · screenshots at 1512×908
+
+Read [00-Introduction.md](00-Introduction.md) first. This document is the one place the **two access
+levels** are described; every other feature document is written from station level, which is the default.
+
+---
+
+## Default state — station level {copy}
+
+![Station level, the default](screenshots/station-switcher/01-default-state.png)
+
+The app opens at **station level**: the operator is physically in front of a cabinet, and everything
+applies. The top bar names the practice, the clinic and the station, with the station as a chip that
+opens the picker. The page title is `Allocation` alone, and the workflow trigger reads
+**`Allocate/Move`** with all four entries behind it.
+
+From here the operator can do everything the other six documents describe. Tapping **`Onco Clinic Center`**
+switches to clinic level.
+
+## Interaction state — clinic level {copy}
+
+![Clinic level](screenshots/station-switcher/02-interaction-state.png)
+
+At **clinic level** the operator is elsewhere in the building with no cabinet in reach. Four things change
+and nothing else does:
+
+| | Station level | Clinic level |
+|---|---|---|
+| Workflow trigger | `Allocate/Move` | **`Allocate`** — it offers no Move, so it does not promise one |
+| Workflows offered | All four | **Allocate Product** and **Multi Bin Assignment** only |
+| Station name | A chip in the top bar | **Beside the page title**, as `Onco Station ▾` |
+| Top bar | Practice · clinic · station | Practice · clinic (the station chip and its divider go together) |
+
+`Bins Available` and `History` stay at both levels — both are read-only, and a clinic user arguably needs
+the ledger more, having no cabinet to look at. The cabinet, its doors, search, product detail and the
+zero-inventory banner are all unchanged.
+
+From here the operator can allocate exactly as they would at a station, switch which station they are
+working on, and read History across the whole clinic (§3). **Refreshing returns to station level** — that
+is the only way back, by design.
+
+![The workflow menu at clinic level](screenshots/station-switcher/03-clinic-menu.png)
+
+The two Move entries are **withheld, not disabled**. Moving stock is a physical act — open a door, take
+vials out of one bin, put them in another — so away from the cabinet it is not a job that can be started
+and finished, and a greyed row would invite asking why. Allocation survives the distance because it
+decides where stock *should* live.
+
+## The station picker {copy}
+
+![The station picker](screenshots/station-switcher/04-station-picker.png)
+
+The station name beside the title opens a modal listing the clinic's stations, with the current one filled
+in `#095192` and marked `(Current)`. `Confirm` commits; `Cancel` leaves the current station alone.
+`Confirm` is dimmed until a different station is picked, and keeps its name rather than stating a
+requirement — the word is the control's identity.
+
+Four sample stations are hard-coded: **Onco Station**, **Secondary Station**, **North Station**,
+**East Station**.
+
+**Switching station changes the name only.** Every station shows the same seeded cabinet, because
+per-station cabinet and fridge configuration is deliberately not modelled yet (§4.1). The picker is also
+reachable from the top bar's station chip at station level — one modal, one handler, so the two places can
+never disagree about which station is current.
+
+---
+
+## 1. Behaviour
+
+### 1.1 Switching level
+
+- `Onco Clinic Center` in the top bar switches **station → clinic**.
+- **One-way.** There is no in-app way back; a refresh returns to station level. That follows from the app
+  holding all state in memory, so it needed no reset mechanism of its own.
+- The label carries no active styling. Three signals already say where you are: the station name moves to
+  the page title, the trigger drops `Move`, and the top bar loses the station chip. `aria-pressed` reports
+  the level for anyone not reading the layout.
+
+### 1.2 The switch is refused while a workflow is open
+
+Tapping the clinic label with the Unallocated tray, an assignment panel, a move pipeline, Review, or
+either step-④ screen open does **not** switch. It raises:
+
+&gt; Finish or cancel what you are working on before switching to clinic level.
+
+A selection built across several searches, or a move halfway through Review, is not something to discard
+as a side effect of tapping a clinic name. The alternative — closing the workflow — was considered and
+rejected for that reason; refusing in silence was rejected because a control that declines without saying
+so is indistinguishable from a broken one.
+
+**The guard reads one expression covering all six surfaces.** A new workflow must be added to it, or
+switching level will strand it: its entry points disappear while its state survives.
+
+### 1.3 The level holds on every page
+
+`History` and the product detail page render their own top bar, and both are handed the level. Without it
+they drew the station-level shape — station chip back, divider back — which reads as having been dropped a
+level by opening a ledger.
+
+---
+
+## 2. What each level may do
+
+| | Station | Clinic |
+|---|---|---|
+| Browse cabinets, doors, bins | ✅ | ✅ |
+| Search, highlight, product detail | ✅ | ✅ |
+| `Bins Available` filter | ✅ | ✅ |
+| [Allocate Product](02-Allocate-Product.md) | ✅ | ✅ |
+| [Multi Bin Assignment](03-Multi-Bin-Assignment.md) | ✅ | ✅ |
+| [Move from Bin](04-Move-from-Bin.md) | ✅ | ❌ |
+| [Move from Product](05-Move-from-Product.md) | ✅ | ❌ |
+| [History](06-History.md) | ✅ | ✅ — with a Station column and filter |
+| Unallocate from the product page | ✅ | ✅ |
+
+Note what is **not** gated: allocation can still put a product into any bin of any door or fridge at clinic
+level, including bins the operator cannot see. That is consistent with allocation being a decision rather
+than a physical act, but it means a clinic user can allocate into a cabinet they are nowhere near.
+
+---
+
+## 3. History across a clinic
+
+At clinic level the ledger is read across several stations, so it gains two things — see
+[06-History.md](06-History.md) for everything else about the page:
+
+![History at clinic level](screenshots/station-switcher/05-clinic-history.png)
+
+- **A `Station` column**, placed ahead of `Moved From` / `Moved To`: it says where the transaction
+  happened, and those two say where within it.
+- **A `Station` filter**, whose options are read from the entries themselves — so it can neither offer a
+  station with nothing behind it nor hide one that has rows. It ANDs with the product, date and type
+  filters, and the reset control clears it.
+
+Every entry is stamped with the station it was written at, when it is written. The seeded ledger is spread
+deterministically across the four stations so the filter has more than one answer. **An entry with no
+station renders an em dash** rather than being assumed to belong to whichever station is current — a ledger
+that guesses where something happened is worse than one that admits it does not know.
+
+At station level neither the column nor the filter renders: the operator works one cabinet, so both would
+restate the only station there is.
+
+---
+
+## 4. Implementation in the prototype
+
+| Concern | Where |
+|---|---|
+| The level | `accessLevel: 'station' \| 'clinic'` in `App.tsx`, defaulting to `'station'` |
+| The switch, and its refusal | `handleClinicClick` in `App.tsx`, guarded by `workflowInProgress` |
+| Top bar | `TopNav.tsx` — the clinic label is the switch; the station chip and its divider are withheld at clinic level |
+| Station link + menu gating | `HeaderSection.tsx`, prop `isClinicLevel` |
+| Picker | `StationSelectionModal.tsx` — four hard-coded stations |
+| Station on entries | `useInventoryState(currentStation)` stamps every history entry; `AllocationHistoryEntry.station` |
+| Clinic History | `HistoryPage.tsx`, prop `isClinicLevel` |
+
+Every prop defaults to station behaviour, so a caller that passes nothing keeps what it had — which is why
+adding this feature could not change station level. The station is a **plain argument** to
+`useInventoryState` rather than state inside it, so a station change is reflected by the next entry with
+no effect to keep in sync.
+
+---
+
+## 5. Notes and open questions
+
+### 5.1 Stations are a name, not a configuration
+
+Every station shows the same cabinet. Real stations differ in cabinets, doors and fridges, and modelling
+that was explicitly deferred. Two consequences for the real build:
+
+- Switching station must reload that station's cabinet configuration, which makes it a data-fetching
+  boundary rather than a label change — and raises the question of what happens to an open selection when
+  the underlying bins change. Today the switch is allowed at any time because nothing depends on it.
+- The picker's four names are hard-coded in the modal. They should come from the clinic.
+
+### 5.2 The level is not a permission
+
+`accessLevel` is UI state in one component, set by tapping a label. Anything relying on it as a
+restriction — "this user may not move stock" — has to be enforced server-side; hiding two menu entries is
+presentation. The real system presumably derives the level from where the session is, not from a click.
+
+### 5.3 One-way by design, which suits a demo and not a product
+
+Refreshing is the only way back to station level. That was the ask for the demo. A real build needs the
+level to follow the context the user is actually in, at which point "switching back" stops being a UI
+question.
+
+### 5.4 Station level still shows every station's history
+
+At station level the ledger includes other stations' transactions, with no column saying so. Scoping it to
+the current station is a one-line filter, deliberately not applied — it changes existing behaviour, and
+whether a station user should see the clinic's whole history is a product question.
+
+### 5.5 Test assertions worth writing
+
+1. With no props passed, every affected component renders its station-level shape.
+2. At clinic level the workflow menu contains exactly the two allocation entries, and the trigger reads
+   `Allocate`.
+3. Tapping the clinic label with any workflow open leaves the level unchanged, leaves the workflow
+   untouched, and raises the toast.
+4. The level survives navigation to History and to a product's detail page.
+5. Every history entry written at station X carries station X, whichever workflow wrote it.
+6. The Station filter's options equal the distinct stations present in the ledger, and narrowing to one
+   leaves only that station's rows.
+7. A reload returns to station level.</pre>
+    <p><strong>Surface:</strong> the top bar's clinic label, the station link beside the page title, and the station picker <strong>Job:</strong> distinguish an operator standing at a cabinet from one working elsewhere in the building <strong>Prototype files:</strong> <code>App.tsx</code> (<code>accessLevel</code>), <code>TopNav.tsx</code>, <code>HeaderSection.tsx</code>, <code>StationSelectionModal.tsx</code>, <code>HistoryPage.tsx</code> <strong>Captured:</strong> 2026-08-10 · seed data unmodified · screenshots at 1512×908</p>
+<p>Read <a href="00-Introduction.html">00-Introduction.md</a> first. This document is the one place the <strong>two access levels</strong> are described; every other feature document is written from station level, which is the default.</p>
+<hr />
+    
+<section class="note level-2 copyable">
+  <div class="note-head">
+    <h2 id="default-state-station-level"><a class="anchor" href="#default-state-station-level">Default state — station level</a></h2>
+    <button type="button" class="copy" data-copy="src-111" title="Copy this note as markdown">Copy</button>
+  </div>
+  <pre class="src" id="src-111" hidden>## Default state — station level
+
+![Station level, the default](screenshots/station-switcher/01-default-state.png)
+
+The app opens at **station level**: the operator is physically in front of a cabinet, and everything
+applies. The top bar names the practice, the clinic and the station, with the station as a chip that
+opens the picker. The page title is `Allocation` alone, and the workflow trigger reads
+**`Allocate/Move`** with all four entries behind it.
+
+From here the operator can do everything the other six documents describe. Tapping **`Onco Clinic Center`**
+switches to clinic level.</pre>
+  <p><img src="screenshots/station-switcher/01-default-state.png" alt="Station level, the default" /></p>
+<p>The app opens at <strong>station level</strong>: the operator is physically in front of a cabinet, and everything applies. The top bar names the practice, the clinic and the station, with the station as a chip that opens the picker. The page title is <code>Allocation</code> alone, and the workflow trigger reads <strong><code>Allocate/Move</code></strong> with all four entries behind it.</p>
+<p>From here the operator can do everything the other six documents describe. Tapping <strong><code>Onco Clinic Center</code></strong> switches to clinic level.</p>
+  
+</section>
+
+<section class="note level-2 copyable">
+  <div class="note-head">
+    <h2 id="interaction-state-clinic-level"><a class="anchor" href="#interaction-state-clinic-level">Interaction state — clinic level</a></h2>
+    <button type="button" class="copy" data-copy="src-112" title="Copy this note as markdown">Copy</button>
+  </div>
+  <pre class="src" id="src-112" hidden>## Interaction state — clinic level
+
+![Clinic level](screenshots/station-switcher/02-interaction-state.png)
+
+At **clinic level** the operator is elsewhere in the building with no cabinet in reach. Four things change
+and nothing else does:
+
+| | Station level | Clinic level |
+|---|---|---|
+| Workflow trigger | `Allocate/Move` | **`Allocate`** — it offers no Move, so it does not promise one |
+| Workflows offered | All four | **Allocate Product** and **Multi Bin Assignment** only |
+| Station name | A chip in the top bar | **Beside the page title**, as `Onco Station ▾` |
+| Top bar | Practice · clinic · station | Practice · clinic (the station chip and its divider go together) |
+
+`Bins Available` and `History` stay at both levels — both are read-only, and a clinic user arguably needs
+the ledger more, having no cabinet to look at. The cabinet, its doors, search, product detail and the
+zero-inventory banner are all unchanged.
+
+From here the operator can allocate exactly as they would at a station, switch which station they are
+working on, and read History across the whole clinic (§3). **Refreshing returns to station level** — that
+is the only way back, by design.
+
+![The workflow menu at clinic level](screenshots/station-switcher/03-clinic-menu.png)
+
+The two Move entries are **withheld, not disabled**. Moving stock is a physical act — open a door, take
+vials out of one bin, put them in another — so away from the cabinet it is not a job that can be started
+and finished, and a greyed row would invite asking why. Allocation survives the distance because it
+decides where stock *should* live.</pre>
+  <p><img src="screenshots/station-switcher/02-interaction-state.png" alt="Clinic level" /></p>
+<p>At <strong>clinic level</strong> the operator is elsewhere in the building with no cabinet in reach. Four things change and nothing else does:</p>
+<div class="table-scroll"><table><thead><tr>
+<th></th>
+<th>Station level</th>
+<th>Clinic level</th>
+</tr></thead><tbody>
+<tr>
+<td>Workflow trigger</td>
+<td><code>Allocate/Move</code></td>
+<td><strong><code>Allocate</code></strong> — it offers no Move, so it does not promise one</td>
+</tr>
+<tr>
+<td>Workflows offered</td>
+<td>All four</td>
+<td><strong>Allocate Product</strong> and <strong>Multi Bin Assignment</strong> only</td>
+</tr>
+<tr>
+<td>Station name</td>
+<td>A chip in the top bar</td>
+<td><strong>Beside the page title</strong>, as <code>Onco Station ▾</code></td>
+</tr>
+<tr>
+<td>Top bar</td>
+<td>Practice · clinic · station</td>
+<td>Practice · clinic (the station chip and its divider go together)</td>
+</tr>
+</tbody></table></div>
+<p><code>Bins Available</code> and <code>History</code> stay at both levels — both are read-only, and a clinic user arguably needs the ledger more, having no cabinet to look at. The cabinet, its doors, search, product detail and the zero-inventory banner are all unchanged.</p>
+<p>From here the operator can allocate exactly as they would at a station, switch which station they are working on, and read History across the whole clinic (§3). <strong>Refreshing returns to station level</strong> — that is the only way back, by design.</p>
+<p><img src="screenshots/station-switcher/03-clinic-menu.png" alt="The workflow menu at clinic level" /></p>
+<p>The two Move entries are <strong>withheld, not disabled</strong>. Moving stock is a physical act — open a door, take vials out of one bin, put them in another — so away from the cabinet it is not a job that can be started and finished, and a greyed row would invite asking why. Allocation survives the distance because it decides where stock <em>should</em> live.</p>
+  
+</section>
+
+<section class="note level-2 copyable">
+  <div class="note-head">
+    <h2 id="the-station-picker"><a class="anchor" href="#the-station-picker">The station picker</a></h2>
+    <button type="button" class="copy" data-copy="src-113" title="Copy this note as markdown">Copy</button>
+  </div>
+  <pre class="src" id="src-113" hidden>## The station picker
+
+![The station picker](screenshots/station-switcher/04-station-picker.png)
+
+The station name beside the title opens a modal listing the clinic's stations, with the current one filled
+in `#095192` and marked `(Current)`. `Confirm` commits; `Cancel` leaves the current station alone.
+`Confirm` is dimmed until a different station is picked, and keeps its name rather than stating a
+requirement — the word is the control's identity.
+
+Four sample stations are hard-coded: **Onco Station**, **Secondary Station**, **North Station**,
+**East Station**.
+
+**Switching station changes the name only.** Every station shows the same seeded cabinet, because
+per-station cabinet and fridge configuration is deliberately not modelled yet (§4.1). The picker is also
+reachable from the top bar's station chip at station level — one modal, one handler, so the two places can
+never disagree about which station is current.
+
+---</pre>
+  <p><img src="screenshots/station-switcher/04-station-picker.png" alt="The station picker" /></p>
+<p>The station name beside the title opens a modal listing the clinic's stations, with the current one filled in <code>#095192</code> and marked <code>(Current)</code>. <code>Confirm</code> commits; <code>Cancel</code> leaves the current station alone. <code>Confirm</code> is dimmed until a different station is picked, and keeps its name rather than stating a requirement — the word is the control's identity.</p>
+<p>Four sample stations are hard-coded: <strong>Onco Station</strong>, <strong>Secondary Station</strong>, <strong>North Station</strong>, <strong>East Station</strong>.</p>
+<p><strong>Switching station changes the name only.</strong> Every station shows the same seeded cabinet, because per-station cabinet and fridge configuration is deliberately not modelled yet (§4.1). The picker is also reachable from the top bar's station chip at station level — one modal, one handler, so the two places can never disagree about which station is current.</p>
+<hr />
+  
+</section>
+
+<section class="note level-2">
+  <div class="note-head">
+    <h2 id="1-behaviour"><a class="anchor" href="#1-behaviour">1. Behaviour</a></h2>
+    
+  </div>
+  
+  
+<section class="note level-3">
+  <div class="note-head">
+    <h3 id="1-1-switching-level"><a class="anchor" href="#1-1-switching-level">1.1 Switching level</a></h3>
+    
+  </div>
+  <ul>
+<li><code>Onco Clinic Center</code> in the top bar switches <strong>station → clinic</strong>.</li>
+<li><strong>One-way.</strong> There is no in-app way back; a refresh returns to station level. That follows from the app holding all state in memory, so it needed no reset mechanism of its own.</li>
+<li>The label carries no active styling. Three signals already say where you are: the station name moves to the page title, the trigger drops <code>Move</code>, and the top bar loses the station chip. <code>aria-pressed</code> reports the level for anyone not reading the layout.</li>
+</ul>
+  
+</section>
+
+<section class="note level-3">
+  <div class="note-head">
+    <h3 id="1-2-the-switch-is-refused-while-a-workflow-is-open"><a class="anchor" href="#1-2-the-switch-is-refused-while-a-workflow-is-open">1.2 The switch is refused while a workflow is open</a></h3>
+    
+  </div>
+  <p>Tapping the clinic label with the Unallocated tray, an assignment panel, a move pipeline, Review, or either step-④ screen open does <strong>not</strong> switch. It raises:</p>
+<blockquote>Finish or cancel what you are working on before switching to clinic level.</blockquote>
+<p>A selection built across several searches, or a move halfway through Review, is not something to discard as a side effect of tapping a clinic name. The alternative — closing the workflow — was considered and rejected for that reason; refusing in silence was rejected because a control that declines without saying so is indistinguishable from a broken one.</p>
+<p><strong>The guard reads one expression covering all six surfaces.</strong> A new workflow must be added to it, or switching level will strand it: its entry points disappear while its state survives.</p>
+  
+</section>
+
+<section class="note level-3">
+  <div class="note-head">
+    <h3 id="1-3-the-level-holds-on-every-page"><a class="anchor" href="#1-3-the-level-holds-on-every-page">1.3 The level holds on every page</a></h3>
+    
+  </div>
+  <p><code>History</code> and the product detail page render their own top bar, and both are handed the level. Without it they drew the station-level shape — station chip back, divider back — which reads as having been dropped a level by opening a ledger.</p>
+<hr />
+  
+</section>
+</section>
+
+<section class="note level-2">
+  <div class="note-head">
+    <h2 id="2-what-each-level-may-do"><a class="anchor" href="#2-what-each-level-may-do">2. What each level may do</a></h2>
+    
+  </div>
+  <div class="table-scroll"><table><thead><tr>
+<th></th>
+<th>Station</th>
+<th>Clinic</th>
+</tr></thead><tbody>
+<tr>
+<td>Browse cabinets, doors, bins</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>Search, highlight, product detail</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr>
+<td><code>Bins Available</code> filter</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr>
+<td><a href="02-Allocate-Product.html">Allocate Product</a></td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr>
+<td><a href="03-Multi-Bin-Assignment.html">Multi Bin Assignment</a></td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr>
+<td><a href="04-Move-from-Bin.html">Move from Bin</a></td>
+<td>✅</td>
+<td>❌</td>
+</tr>
+<tr>
+<td><a href="05-Move-from-Product.html">Move from Product</a></td>
+<td>✅</td>
+<td>❌</td>
+</tr>
+<tr>
+<td><a href="06-History.html">History</a></td>
+<td>✅</td>
+<td>✅ — with a Station column and filter</td>
+</tr>
+<tr>
+<td>Unallocate from the product page</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+</tbody></table></div>
+<p>Note what is <strong>not</strong> gated: allocation can still put a product into any bin of any door or fridge at clinic level, including bins the operator cannot see. That is consistent with allocation being a decision rather than a physical act, but it means a clinic user can allocate into a cabinet they are nowhere near.</p>
+<hr />
+  
+</section>
+
+<section class="note level-2">
+  <div class="note-head">
+    <h2 id="3-history-across-a-clinic"><a class="anchor" href="#3-history-across-a-clinic">3. History across a clinic</a></h2>
+    
+  </div>
+  <p>At clinic level the ledger is read across several stations, so it gains two things — see <a href="06-History.html">06-History.md</a> for everything else about the page:</p>
+<p><img src="screenshots/station-switcher/05-clinic-history.png" alt="History at clinic level" /></p>
+<ul>
+<li><strong>A <code>Station</code> column</strong>, placed ahead of <code>Moved From</code> / <code>Moved To</code>: it says where the transaction happened, and those two say where within it.</li>
+<li><strong>A <code>Station</code> filter</strong>, whose options are read from the entries themselves — so it can neither offer a station with nothing behind it nor hide one that has rows. It ANDs with the product, date and type filters, and the reset control clears it.</li>
+</ul>
+<p>Every entry is stamped with the station it was written at, when it is written. The seeded ledger is spread deterministically across the four stations so the filter has more than one answer. <strong>An entry with no station renders an em dash</strong> rather than being assumed to belong to whichever station is current — a ledger that guesses where something happened is worse than one that admits it does not know.</p>
+<p>At station level neither the column nor the filter renders: the operator works one cabinet, so both would restate the only station there is.</p>
+<hr />
+  
+</section>
+
+<section class="note level-2">
+  <div class="note-head">
+    <h2 id="4-implementation-in-the-prototype"><a class="anchor" href="#4-implementation-in-the-prototype">4. Implementation in the prototype</a></h2>
+    
+  </div>
+  <div class="table-scroll"><table><thead><tr>
+<th>Concern</th>
+<th>Where</th>
+</tr></thead><tbody>
+<tr>
+<td>The level</td>
+<td>`accessLevel: 'station' \</td>
+<td>'clinic'<code> in </code>App.tsx<code>, defaulting to </code>'station'`</td>
+</tr>
+<tr>
+<td>The switch, and its refusal</td>
+<td><code>handleClinicClick</code> in <code>App.tsx</code>, guarded by <code>workflowInProgress</code></td>
+</tr>
+<tr>
+<td>Top bar</td>
+<td><code>TopNav.tsx</code> — the clinic label is the switch; the station chip and its divider are withheld at clinic level</td>
+</tr>
+<tr>
+<td>Station link + menu gating</td>
+<td><code>HeaderSection.tsx</code>, prop <code>isClinicLevel</code></td>
+</tr>
+<tr>
+<td>Picker</td>
+<td><code>StationSelectionModal.tsx</code> — four hard-coded stations</td>
+</tr>
+<tr>
+<td>Station on entries</td>
+<td><code>useInventoryState(currentStation)</code> stamps every history entry; <code>AllocationHistoryEntry.station</code></td>
+</tr>
+<tr>
+<td>Clinic History</td>
+<td><code>HistoryPage.tsx</code>, prop <code>isClinicLevel</code></td>
+</tr>
+</tbody></table></div>
+<p>Every prop defaults to station behaviour, so a caller that passes nothing keeps what it had — which is why adding this feature could not change station level. The station is a <strong>plain argument</strong> to <code>useInventoryState</code> rather than state inside it, so a station change is reflected by the next entry with no effect to keep in sync.</p>
+<hr />
+  
+</section>
+
+<section class="note level-2">
+  <div class="note-head">
+    <h2 id="5-notes-and-open-questions"><a class="anchor" href="#5-notes-and-open-questions">5. Notes and open questions</a></h2>
+    
+  </div>
+  
+  
+<section class="note level-3">
+  <div class="note-head">
+    <h3 id="5-1-stations-are-a-name-not-a-configuration"><a class="anchor" href="#5-1-stations-are-a-name-not-a-configuration">5.1 Stations are a name, not a configuration</a></h3>
+    
+  </div>
+  <p>Every station shows the same cabinet. Real stations differ in cabinets, doors and fridges, and modelling that was explicitly deferred. Two consequences for the real build:</p>
+<ul>
+<li>Switching station must reload that station's cabinet configuration, which makes it a data-fetching boundary rather than a label change — and raises the question of what happens to an open selection when the underlying bins change. Today the switch is allowed at any time because nothing depends on it.</li>
+<li>The picker's four names are hard-coded in the modal. They should come from the clinic.</li>
+</ul>
+  
+</section>
+
+<section class="note level-3">
+  <div class="note-head">
+    <h3 id="5-2-the-level-is-not-a-permission"><a class="anchor" href="#5-2-the-level-is-not-a-permission">5.2 The level is not a permission</a></h3>
+    
+  </div>
+  <p><code>accessLevel</code> is UI state in one component, set by tapping a label. Anything relying on it as a restriction — "this user may not move stock" — has to be enforced server-side; hiding two menu entries is presentation. The real system presumably derives the level from where the session is, not from a click.</p>
+  
+</section>
+
+<section class="note level-3">
+  <div class="note-head">
+    <h3 id="5-3-one-way-by-design-which-suits-a-demo-and-not-a-product"><a class="anchor" href="#5-3-one-way-by-design-which-suits-a-demo-and-not-a-product">5.3 One-way by design, which suits a demo and not a product</a></h3>
+    
+  </div>
+  <p>Refreshing is the only way back to station level. That was the ask for the demo. A real build needs the level to follow the context the user is actually in, at which point "switching back" stops being a UI question.</p>
+  
+</section>
+
+<section class="note level-3">
+  <div class="note-head">
+    <h3 id="5-4-station-level-still-shows-every-station-s-history"><a class="anchor" href="#5-4-station-level-still-shows-every-station-s-history">5.4 Station level still shows every station's history</a></h3>
+    
+  </div>
+  <p>At station level the ledger includes other stations' transactions, with no column saying so. Scoping it to the current station is a one-line filter, deliberately not applied — it changes existing behaviour, and whether a station user should see the clinic's whole history is a product question.</p>
+  
+</section>
+
+<section class="note level-3">
+  <div class="note-head">
+    <h3 id="5-5-test-assertions-worth-writing"><a class="anchor" href="#5-5-test-assertions-worth-writing">5.5 Test assertions worth writing</a></h3>
+    
+  </div>
+  <ol>
+<li>With no props passed, every affected component renders its station-level shape.</li>
+<li>At clinic level the workflow menu contains exactly the two allocation entries, and the trigger reads <code>Allocate</code>.</li>
+<li>Tapping the clinic label with any workflow open leaves the level unchanged, leaves the workflow untouched, and raises the toast.</li>
+<li>The level survives navigation to History and to a product's detail page.</li>
+<li>Every history entry written at station X carries station X, whichever workflow wrote it.</li>
+<li>The Station filter's options equal the distinct stations present in the ledger, and narrowing to one leaves only that station's rows.</li>
+<li>A reload returns to station level.</li>
+</ol>
+  
+</section>
+</section>
+  </main>
+</div>
+<script>
+  // execCommand is the fallback, not the relic it looks like: these pages are opened straight off
+  // disk as often as they are served, and navigator.clipboard is unavailable on a file:// origin.
+  function put(text) {
+    if (navigator.clipboard?.writeText) return navigator.clipboard.writeText(text);
+    return new Promise((done, fail) => {
+      const area = document.createElement('textarea');
+      area.value = text;
+      area.style.position = 'fixed';
+      area.style.opacity = '0';
+      document.body.appendChild(area);
+      area.select();
+      const ok = document.execCommand('copy');
+      area.remove();
+      ok ? done() : fail(new Error('copy refused'));
+    });
+  }
+
+  addEventListener('click', event => {
+    const button = event.target.closest('.copy');
+    if (!button) return;
+    const source = document.getElementById(button.dataset.copy);
+    if (!source) return;
+    const label = button.dataset.label ?? button.textContent;
+    button.dataset.label = label;
+    put(source.textContent).then(
+      () => {
+        button.textContent = 'Copied';
+        button.classList.add('done');
+      },
+      () => {
+        // Says what happened rather than pretending it worked — a button that reports success and
+        // leaves the clipboard untouched is worse than one that fails out loud.
+        button.textContent = 'Press ⌘C';
+        const range = document.createRange();
+        source.hidden = false;
+        range.selectNodeContents(source);
+        getSelection().removeAllRanges();
+        getSelection().addRange(range);
+      }
+    );
+    setTimeout(() => {
+      button.textContent = label;
+      button.classList.remove('done');
+      source.hidden = true;
+    }, 1600);
+  });
+
+  // Scroll-spy, so the sidebar says where you are.
+  let queued = false;
+  function spy() {
+    queued = false;
+    const links = [...document.querySelectorAll('nav ol a')];
+    let active = 0;
+    links.forEach((link, index) => {
+      const target = document.getElementById(decodeURIComponent(link.hash.slice(1)));
+      if (target && target.getBoundingClientRect().top < 120) active = index;
+    });
+    links.forEach((link, index) => link.classList.toggle('active', index === active));
+  }
+  addEventListener('scroll', () => { if (!queued) { queued = true; requestAnimationFrame(spy); } }, { passive: true });
+  spy();
+</script>
+</body>
+</html>

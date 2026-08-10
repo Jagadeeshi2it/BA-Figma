@@ -39,6 +39,11 @@ The two location columns are where the value is. Each lists one line per bin, wi
 holding, what arrived, what the bin ended up with. A transaction spanning several bins lists them all and
 adds a **`90 vials total`** line, which a single-bin row omits because `-25 → 0` already says it.
 
+**At clinic level the table carries one more column — `Station` — and the filter row one more control.**
+A clinic reads several stations' ledgers in one table, so where a transaction happened is both a column
+(ahead of the two bin columns, which say where *within* it) and a filter. Neither renders at station level.
+See [07-Station-Switcher.md](07-Station-Switcher.md) §3.
+
 `Status` is a chip, and it is what tells the three kinds apart:
 
 | Chip | Colour | Written by |
@@ -60,6 +65,10 @@ An unallocation shows a source bin and an em dash for the target: nothing arrive
 | [Move from Bin / Product](04-Move-from-Bin.md) | `Product moved` | Per-bin quantities on both ends |
 | Unallocate | `Unallocated` | The source bin only |
 
+Every entry also carries the **station** it was written at, stamped at write time. An entry without one —
+written before stations existed — renders an em dash rather than being assumed to belong to whichever
+station is current.
+
 Two rules behind that table:
 
 - **Classification is on the action, not on the quantity.** A move that carries no stock — relocating an
@@ -78,9 +87,10 @@ Two rules behind that table:
 | `Product` | Substring over product name and NDC |
 | `Date` | `Today` (default), `7 days`, `15 days`, `30 days` — inclusive of the boundary day |
 | `Transaction Type` | Three checkboxes — Bin Changes, Bin Allocation, Unallocated — each with a **count of matching entries in the whole ledger**, not in the filtered view |
-| Reset | Returns all three to their defaults |
+| `Station` | **Clinic level only.** `All stations` plus one option per station present in the ledger — read from the entries, so it can neither offer a station with nothing behind it nor hide one that has rows. |
+| Reset | Returns all of them to their defaults |
 
-All three compose as AND. The type counts are deliberately unfiltered: they answer "is there any of this
+They all compose as AND. The type counts are deliberately unfiltered: they answer "is there any of this
 kind at all", which is the question worth asking when a filter has emptied the table.
 
 ---
@@ -90,7 +100,7 @@ kind at all", which is the question worth asking when a filter has emptied the t
 | Concern | Where |
 |---|---|
 | Page, filters, table | `HistoryPage.tsx` |
-| Entry shape | `AllocationHistoryEntry` — products, bins, `sourceBin`, `action`, `transactionType`, `timestamp` |
+| Entry shape | `AllocationHistoryEntry` — products, bins, `sourceBin`, `action`, `transactionType`, `timestamp`, `station` |
 | Rows | Entries are flattened to one row per product, with duplicate products inside an entry consolidated |
 | Seed | `data/seedHistory.ts` — fifteen entries dated 1–6 days back, generated relative to today |
 | Enrichment | `ProductDataService` resolves a product id back to the catalogue for generic name and badges |

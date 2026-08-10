@@ -95,6 +95,7 @@
       <a href="04-Move-from-Bin.html">04 — Move from Bin</a>
       <a href="05-Move-from-Product.html">05 — Move from Product</a>
       <a href="06-History.html">06 — History</a>
+      <a href="07-Station-Switcher.html">07 — Station Switcher and clinic level</a>
     </div>
     <h2>On this page</h2>
     <ol>
@@ -144,7 +145,9 @@ which renders CLAUDE.md, DEMO.md and UX-AUDIT.md.
 | `01-default-state.png` | The page as it stands before the feature is used. |
 | `02-interaction-state.png` | The same page after the operator acts on it — same door, same scroll position, so the only difference visible is the feature's own. |
 
-The introduction carries seven, because it covers several surfaces rather than one feature's two states:
+Two documents carry more, because they span several surfaces rather than one feature's two states — the
+Station Switcher has five (both levels, the clinic menu, the picker, clinic History), and the introduction
+seven:
 the cabinet browse, the search dropdown, the two different things a search can highlight — a bin, or a
 product wherever it lives — a product's detail page, and the two states of that page a happy path never
 reaches: zero inventory, and the unallocate confirmation.
@@ -169,6 +172,7 @@ are placeholder rather than behaviour.
 | 04 | Move from Bin — the four-step move pipeline | [04-Move-from-Bin.md](04-Move-from-Bin.md) | Complete |
 | 05 | Move from Product — the same pipeline, other entry | [05-Move-from-Product.md](05-Move-from-Product.md) | Complete |
 | 06 | History — the ledger | [06-History.md](06-History.md) | Complete |
+| 07 | Station Switcher — station level vs clinic level | [07-Station-Switcher.md](07-Station-Switcher.md) | Complete |
 
 Some of these are written in pairs, deliberately:
 
@@ -177,7 +181,12 @@ Some of these are written in pairs, deliberately:
 - **04 and 05** are one pipeline with two entrances. 04 documents all four steps; 05 covers only step ①,
   which is the sole difference, and refers back.
 
-That covers every workflow behind `Allocate/Move`, plus the ledger they all write to.
+- **07 stands slightly apart**: it is not a workflow but the access level the other six are read under.
+  Docs 00–06 describe **station level**, which is the default; 07 says what changes when the operator is
+  working from the clinic instead, and each workflow doc states which levels it applies at.
+
+That covers every workflow behind `Allocate/Move`, the ledger they all write to, and the two levels they
+are used at.
 
 ## How each document is structured
 
@@ -226,7 +235,7 @@ names do not.</pre>
 <td>The same page after the operator acts on it — same door, same scroll position, so the only difference visible is the feature's own.</td>
 </tr>
 </tbody></table></div>
-<p>The introduction carries seven, because it covers several surfaces rather than one feature's two states: the cabinet browse, the search dropdown, the two different things a search can highlight — a bin, or a product wherever it lives — a product's detail page, and the two states of that page a happy path never reaches: zero inventory, and the unallocate confirmation.</p>
+<p>Two documents carry more, because they span several surfaces rather than one feature's two states — the Station Switcher has five (both levels, the clinic menu, the picker, clinic History), and the introduction seven: the cabinet browse, the search dropdown, the two different things a search can highlight — a bin, or a product wherever it lives — a product's detail page, and the two states of that page a happy path never reaches: zero inventory, and the unallocate confirmation.</p>
 <p>They exist for <strong>visual context only</strong>. Every behaviour, edge case, colour value and interaction rule belongs in the notes, not in a screenshot — a doc that documents through images needs a new image every time a rule changes, and the images fall out of date silently. Component-level crops, hover states and intermediate steps are deliberately not included.</p>
   
 </section>
@@ -285,13 +294,20 @@ names do not.</pre>
 <td><a href="06-History.html">06-History.md</a></td>
 <td>Complete</td>
 </tr>
+<tr>
+<td>07</td>
+<td>Station Switcher — station level vs clinic level</td>
+<td><a href="07-Station-Switcher.html">07-Station-Switcher.md</a></td>
+<td>Complete</td>
+</tr>
 </tbody></table></div>
 <p>Some of these are written in pairs, deliberately:</p>
 <ul>
 <li><strong>02 and 03</strong> are the two halves of allocation — same panel design, same bin-picking channel, different jobs. Read together.</li>
 <li><strong>04 and 05</strong> are one pipeline with two entrances. 04 documents all four steps; 05 covers only step ①, which is the sole difference, and refers back.</li>
+<li><strong>07 stands slightly apart</strong>: it is not a workflow but the access level the other six are read under. Docs 00–06 describe <strong>station level</strong>, which is the default; 07 says what changes when the operator is working from the clinic instead, and each workflow doc states which levels it applies at.</li>
 </ul>
-<p>That covers every workflow behind <code>Allocate/Move</code>, plus the ledger they all write to.</p>
+<p>That covers every workflow behind <code>Allocate/Move</code>, the ledger they all write to, and the two levels they are used at.</p>
   
 </section>
 

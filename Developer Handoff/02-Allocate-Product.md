@@ -8,6 +8,10 @@
 Read [00-Introduction.md](00-Introduction.md) first — this document assumes the cabinet model, the tap
 rules and the identity triple described there.
 
+**Available at both access levels.** Allocation decides where stock should live, which needs no hands on
+the hardware, so this workflow is offered at clinic level too — see
+[07-Station-Switcher.md](07-Station-Switcher.md).
+
 ---
 
 ## Default state {copy}

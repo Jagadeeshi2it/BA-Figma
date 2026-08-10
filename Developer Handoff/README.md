@@ -30,7 +30,9 @@ which renders CLAUDE.md, DEMO.md and UX-AUDIT.md.
 | `01-default-state.png` | The page as it stands before the feature is used. |
 | `02-interaction-state.png` | The same page after the operator acts on it — same door, same scroll position, so the only difference visible is the feature's own. |
 
-The introduction carries seven, because it covers several surfaces rather than one feature's two states:
+Two documents carry more, because they span several surfaces rather than one feature's two states — the
+Station Switcher has five (both levels, the clinic menu, the picker, clinic History), and the introduction
+seven:
 the cabinet browse, the search dropdown, the two different things a search can highlight — a bin, or a
 product wherever it lives — a product's detail page, and the two states of that page a happy path never
 reaches: zero inventory, and the unallocate confirmation.
@@ -55,6 +57,7 @@ are placeholder rather than behaviour.
 | 04 | Move from Bin — the four-step move pipeline | [04-Move-from-Bin.md](04-Move-from-Bin.md) | Complete |
 | 05 | Move from Product — the same pipeline, other entry | [05-Move-from-Product.md](05-Move-from-Product.md) | Complete |
 | 06 | History — the ledger | [06-History.md](06-History.md) | Complete |
+| 07 | Station Switcher — station level vs clinic level | [07-Station-Switcher.md](07-Station-Switcher.md) | Complete |
 
 Some of these are written in pairs, deliberately:
 
@@ -63,7 +66,12 @@ Some of these are written in pairs, deliberately:
 - **04 and 05** are one pipeline with two entrances. 04 documents all four steps; 05 covers only step ①,
   which is the sole difference, and refers back.
 
-That covers every workflow behind `Allocate/Move`, plus the ledger they all write to.
+- **07 stands slightly apart**: it is not a workflow but the access level the other six are read under.
+  Docs 00–06 describe **station level**, which is the default; 07 says what changes when the operator is
+  working from the clinic instead, and each workflow doc states which levels it applies at.
+
+That covers every workflow behind `Allocate/Move`, the ledger they all write to, and the two levels they
+are used at.
 
 ## How each document is structured
 

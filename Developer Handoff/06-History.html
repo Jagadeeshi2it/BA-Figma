@@ -95,6 +95,7 @@
       <a href="04-Move-from-Bin.html">04 — Move from Bin</a>
       <a href="05-Move-from-Product.html">05 — Move from Product</a>
       <a href="06-History.html" class="current">06 — History</a>
+      <a href="07-Station-Switcher.html">07 — Station Switcher and clinic level</a>
     </div>
     <h2>On this page</h2>
     <ol>
@@ -160,6 +161,11 @@ The two location columns are where the value is. Each lists one line per bin, wi
 holding, what arrived, what the bin ended up with. A transaction spanning several bins lists them all and
 adds a **`90 vials total`** line, which a single-bin row omits because `-25 → 0` already says it.
 
+**At clinic level the table carries one more column — `Station` — and the filter row one more control.**
+A clinic reads several stations' ledgers in one table, so where a transaction happened is both a column
+(ahead of the two bin columns, which say where *within* it) and a filter. Neither renders at station level.
+See [07-Station-Switcher.md](07-Station-Switcher.md) §3.
+
 `Status` is a chip, and it is what tells the three kinds apart:
 
 | Chip | Colour | Written by |
@@ -181,6 +187,10 @@ An unallocation shows a source bin and an em dash for the target: nothing arrive
 | [Move from Bin / Product](04-Move-from-Bin.md) | `Product moved` | Per-bin quantities on both ends |
 | Unallocate | `Unallocated` | The source bin only |
 
+Every entry also carries the **station** it was written at, stamped at write time. An entry without one —
+written before stations existed — renders an em dash rather than being assumed to belong to whichever
+station is current.
+
 Two rules behind that table:
 
 - **Classification is on the action, not on the quantity.** A move that carries no stock — relocating an
@@ -199,9 +209,10 @@ Two rules behind that table:
 | `Product` | Substring over product name and NDC |
 | `Date` | `Today` (default), `7 days`, `15 days`, `30 days` — inclusive of the boundary day |
 | `Transaction Type` | Three checkboxes — Bin Changes, Bin Allocation, Unallocated — each with a **count of matching entries in the whole ledger**, not in the filtered view |
-| Reset | Returns all three to their defaults |
+| `Station` | **Clinic level only.** `All stations` plus one option per station present in the ledger — read from the entries, so it can neither offer a station with nothing behind it nor hide one that has rows. |
+| Reset | Returns all of them to their defaults |
 
-All three compose as AND. The type counts are deliberately unfiltered: they answer "is there any of this
+They all compose as AND. The type counts are deliberately unfiltered: they answer "is there any of this
 kind at all", which is the question worth asking when a filter has emptied the table.
 
 ---
@@ -211,7 +222,7 @@ kind at all", which is the question worth asking when a filter has emptied the t
 | Concern | Where |
 |---|---|
 | Page, filters, table | `HistoryPage.tsx` |
-| Entry shape | `AllocationHistoryEntry` — products, bins, `sourceBin`, `action`, `transactionType`, `timestamp` |
+| Entry shape | `AllocationHistoryEntry` — products, bins, `sourceBin`, `action`, `transactionType`, `timestamp`, `station` |
 | Rows | Entries are flattened to one row per product, with duplicate products inside an entry consolidated |
 | Seed | `data/seedHistory.ts` — fifteen entries dated 1–6 days back, generated relative to today |
 | Enrichment | `ProductDataService` resolves a product id back to the catalogue for generic name and badges |
@@ -313,6 +324,11 @@ The two location columns are where the value is. Each lists one line per bin, wi
 holding, what arrived, what the bin ended up with. A transaction spanning several bins lists them all and
 adds a **`90 vials total`** line, which a single-bin row omits because `-25 → 0` already says it.
 
+**At clinic level the table carries one more column — `Station` — and the filter row one more control.**
+A clinic reads several stations' ledgers in one table, so where a transaction happened is both a column
+(ahead of the two bin columns, which say where *within* it) and a filter. Neither renders at station level.
+See [07-Station-Switcher.md](07-Station-Switcher.md) §3.
+
 `Status` is a chip, and it is what tells the three kinds apart:
 
 | Chip | Colour | Written by |
@@ -327,6 +343,7 @@ An unallocation shows a source bin and an em dash for the target: nothing arrive
   <p><img src="screenshots/history/02-interaction-state.png" alt="The ledger over seven days" /></p>
 <p>Widening <code>Date</code> to <code>7 days</code> shows the ledger. One row per product per transaction, newest first, with seven columns: <strong>Product</strong> (name, generic name, vial badge), <strong>NDC</strong>, <strong>Inventory Type</strong>, <strong>Moved From</strong>, <strong>Moved To</strong>, <strong>Status</strong>, and <strong>Created By</strong> (timestamp above the user).</p>
 <p>The two location columns are where the value is. Each lists one line per bin, with the arithmetic beneath: <code>-4 → 0 vials</code> on the source side, <code>+4 → 4 vials</code> on the target — what left, what the bin was left holding, what arrived, what the bin ended up with. A transaction spanning several bins lists them all and adds a <strong><code>90 vials total</code></strong> line, which a single-bin row omits because <code>-25 → 0</code> already says it.</p>
+<p><strong>At clinic level the table carries one more column — <code>Station</code> — and the filter row one more control.</strong> A clinic reads several stations' ledgers in one table, so where a transaction happened is both a column (ahead of the two bin columns, which say where <em>within</em> it) and a filter. Neither renders at station level. See <a href="07-Station-Switcher.html">07-Station-Switcher.md</a> §3.</p>
 <p><code>Status</code> is a chip, and it is what tells the three kinds apart:</p>
 <div class="table-scroll"><table><thead><tr>
 <th>Chip</th>
@@ -385,6 +402,7 @@ An unallocation shows a source bin and an em dash for the target: nothing arrive
 <td>The source bin only</td>
 </tr>
 </tbody></table></div>
+<p>Every entry also carries the <strong>station</strong> it was written at, stamped at write time. An entry without one — written before stations existed — renders an em dash rather than being assumed to belong to whichever station is current.</p>
 <p>Two rules behind that table:</p>
 <ul>
 <li><strong>Classification is on the action, not on the quantity.</strong> A move that carries no stock — relocating an allocation at 0 — is still a move. Those were the same test while a 0-quantity transfer could only mean "allocate only", and a real move can now end at 0.</li>
@@ -416,11 +434,15 @@ An unallocation shows a source bin and an em dash for the target: nothing arrive
 <td>Three checkboxes — Bin Changes, Bin Allocation, Unallocated — each with a <strong>count of matching entries in the whole ledger</strong>, not in the filtered view</td>
 </tr>
 <tr>
+<td><code>Station</code></td>
+<td><strong>Clinic level only.</strong> <code>All stations</code> plus one option per station present in the ledger — read from the entries, so it can neither offer a station with nothing behind it nor hide one that has rows.</td>
+</tr>
+<tr>
 <td>Reset</td>
-<td>Returns all three to their defaults</td>
+<td>Returns all of them to their defaults</td>
 </tr>
 </tbody></table></div>
-<p>All three compose as AND. The type counts are deliberately unfiltered: they answer "is there any of this kind at all", which is the question worth asking when a filter has emptied the table.</p>
+<p>They all compose as AND. The type counts are deliberately unfiltered: they answer "is there any of this kind at all", which is the question worth asking when a filter has emptied the table.</p>
 <hr />
   
 </section>
@@ -440,7 +462,7 @@ An unallocation shows a source bin and an em dash for the target: nothing arrive
 </tr>
 <tr>
 <td>Entry shape</td>
-<td><code>AllocationHistoryEntry</code> — products, bins, <code>sourceBin</code>, <code>action</code>, <code>transactionType</code>, <code>timestamp</code></td>
+<td><code>AllocationHistoryEntry</code> — products, bins, <code>sourceBin</code>, <code>action</code>, <code>transactionType</code>, <code>timestamp</code>, <code>station</code></td>
 </tr>
 <tr>
 <td>Rows</td>

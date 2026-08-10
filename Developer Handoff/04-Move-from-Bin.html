@@ -95,6 +95,7 @@
       <a href="04-Move-from-Bin.html" class="current">04 — Move from Bin</a>
       <a href="05-Move-from-Product.html">05 — Move from Product</a>
       <a href="06-History.html">06 — History</a>
+      <a href="07-Station-Switcher.html">07 — Station Switcher and clinic level</a>
     </div>
     <h2>On this page</h2>
     <ol>
@@ -137,6 +138,10 @@
 Read [00-Introduction.md](00-Introduction.md) first. [05-Move-from-Product.md](05-Move-from-Product.md)
 is the same pipeline entered through the other door — only step ① differs, so that document covers step
 ① and refers back here for the rest.
+
+**Station level only.** Moving stock means opening a door and moving vials by hand, so this workflow is
+withheld at clinic level — its menu entry is not rendered there. See
+[07-Station-Switcher.md](07-Station-Switcher.md).
 
 ---
 
@@ -382,6 +387,7 @@ Each screen's own header disambiguates, so this is tolerable rather than right.
 7. A move of a 0-quantity product relocates the allocation and is filed as a move, not an allocation.</pre>
     <p><strong>Surface:</strong> <code>Allocate/Move</code> › <strong>Move from Bin</strong> — a four-step, full-page pipeline <strong>Job:</strong> move stock out of one or more bins into one or more other bins <strong>Prototype files:</strong> <code>PipelineSteps.tsx</code>, <code>PipelineFooter.tsx</code>, <code>ChangeAllocationModal.tsx</code>, <code>QuantitySelectionPage.tsx</code>, <code>TargetBinSerialScanPage.tsx</code>, <code>MoveSummaryPanel.tsx</code>, <code>useInventoryState.ts</code> <strong>Captured:</strong> 2026-08-10 · seed data unmodified · screenshots at 1512×908</p>
 <p>Read <a href="00-Introduction.html">00-Introduction.md</a> first. <a href="05-Move-from-Product.html">05-Move-from-Product.md</a> is the same pipeline entered through the other door — only step ① differs, so that document covers step ① and refers back here for the rest.</p>
+<p><strong>Station level only.</strong> Moving stock means opening a door and moving vials by hand, so this workflow is withheld at clinic level — its menu entry is not rendered there. See <a href="07-Station-Switcher.html">07-Station-Switcher.md</a>.</p>
 <hr />
     
 <section class="note level-2">
