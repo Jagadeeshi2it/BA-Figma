@@ -22,7 +22,8 @@ import { pluralizeUnit } from '../utils/pluralizeUnit';
 import ProductBadges from './ProductBadges';
 import { SkippedProduct, CANNOT_CANCEL_REASON } from './QuantitySelectionPage';
 import { CabinetAccess } from '../hooks/useCabinetAccess';
-import AddMoveToBinDialog from './AddMoveToBinDialog';
+import AddMoveToBinOverlay from './AddMoveToBinOverlay';
+import ConfirmDialog from './ConfirmDialog';
 import {
   moveToBinCandidates,
   selectableMoveToBins,
@@ -215,6 +216,13 @@ export default function TargetBinSerialScanPage({
    * find the bin they just asked for.
    */
   const [pendingNewTargetBinId, setPendingNewTargetBinId] = useState<string | null>(null);
+  /**
+   * A bin has been chosen on the shelves, but the move is not scanning serials, so how much actually fit
+   * in the bin the operator is standing at is still unknown — and the remainder cannot be worked out
+   * without it. Holds the chosen bin while that one figure is asked for.
+   */
+  const [pendingSplitBinId, setPendingSplitBinId] = useState<string | null>(null);
+  const [splitFitHere, setSplitFitHere] = useState<number | null>(null);
   const [summaryOpen, setSummaryOpen] = useState(true);
 
   // CRITICAL: Determine if serial scanning is needed
@@ -877,7 +885,27 @@ export default function TargetBinSerialScanPage({
    * Nothing is trimmed when the operator was scanning: the scan list already records exactly what went
    * in, and overwriting it with a typed figure would let the two disagree.
    */
-  const handleAddTargetBin = (binId: string, placedInCurrentBin: number) => {
+  /**
+   * A bin was tapped on the shelves. Whether anything else needs asking depends on how the move records
+   * quantities.
+   *
+   * When serials are being scanned, the scan lists already say what went where, so the pick is the whole
+   * decision and the overlay closes straight into the new bin. When they are not — the whole quantity
+   * going to one bin, so the count was filled in for the operator — the app still has no idea how much
+   * actually fit in the bin they are standing at, and cannot work the remainder out without being told.
+   * That is the one case that still asks a question, and it asks it after the bin is chosen rather than
+   * before, so the tap on the cabinet is never gated behind a form.
+   */
+  const handleOverlayPickBin = (binId: string) => {
+    setAddBinOpen(false);
+    if (serialScanningRequired) {
+      applyAddTargetBin(binId, currentScannedItems.length);
+      return;
+    }
+    setPendingSplitBinId(binId);
+  };
+
+  const applyAddTargetBin = (binId: string, placedInCurrentBin: number) => {
     if (!currentProduct || !currentTargetBin || !onAddTargetBin) return;
 
     if (!serialScanningRequired) {
@@ -893,7 +921,7 @@ export default function TargetBinSerialScanPage({
         // Same reasoning as the effect that fills the last bin of a split: there is nowhere else for it
         // to go. The operator has just said 100 of 150 fit, and the bin they picked is the only other
         // place the move has — so asking them to scan the other 50 one at a time is asking them to
-        // restate a decision they made in the dialog. It also matters that they were NOT scanning
+        // restate a decision they already made. It also matters that they were NOT scanning
         // before this: adding a second bin flips serial scanning on (one source now feeds two bins), and
         // without this the flip would land them in a scan they never opted into, holding stock, with the
         // primary blocked on 50 more.
@@ -907,6 +935,8 @@ export default function TargetBinSerialScanPage({
     onAddTargetBin(currentProduct.productId, binId, placedInCurrentBin);
     setPendingNewTargetBinId(binId);
     setAddBinOpen(false);
+    setPendingSplitBinId(null);
+    setSplitFitHere(null);
   };
 
   /**
@@ -1622,27 +1652,97 @@ export default function TargetBinSerialScanPage({
         })}
       </SideSheet>
 
-      {/* Somewhere to put what would not fit. Mounted here rather than inside the footer so it is not
-          unmounted by the footer's own conditional — the button that opens it disappears the moment the
-          walk moves on, and a dialog that vanished mid-decision would lose the figure being typed. */}
-      {canAddTargetBin && (
-        <AddMoveToBinDialog
-          open={addBinOpen}
-          onOpenChange={setAddBinOpen}
-          productName={currentProduct.productName}
-          unit={pluralizeUnit(currentProduct.unit || 'vial', 2)}
-          currentBinLabel={`${currentTargetBin.targetDoorName} - ${currentTargetBin.targetBinName}`}
-          currentBinQuantity={
-            serialScanningRequired ? currentScannedItems.length : currentTargetBin.totalQuantity
+      {/* Somewhere to put what would not fit — picked off the shelves, the way every other bin in the app
+          is picked. An overlay rather than a screen the pipeline routes to, because this page owns
+          `scannedItems` in local state and unmounting it would discard every serial scanned in the batch. */}
+      <AddMoveToBinOverlay
+        open={addBinOpen && canAddTargetBin}
+        doorShelfConfig={doorShelfConfig}
+        productName={currentProduct.productName}
+        productInventoryType={currentProduct.inventoryType}
+        sourceBinIds={Array.from(
+          new Set(
+            currentProduct.targetBins.flatMap(tb => tb.transfers.map(transfer => transfer.fromBinId))
+          )
+        )}
+        existingTargetBinIds={currentProduct.targetBins.map(tb => tb.toBinId)}
+        currentDoorName={currentTargetBin.targetDoorName}
+        onCancel={() => setAddBinOpen(false)}
+        onPickBin={handleOverlayPickBin}
+      />
+
+      {/* The one question the cabinet cannot answer, and only when the move was not already scanning:
+          how much of the amount taken actually fit in the bin the operator is standing at. Asked after
+          the bin is chosen, so tapping a bin is never gated behind a form. */}
+      <ConfirmDialog
+        open={!!pendingSplitBinId}
+        onOpenChange={open => {
+          if (!open) {
+            setPendingSplitBinId(null);
+            setSplitFitHere(null);
           }
-          totalQuantity={currentProductTotalQuantity}
-          // When serials are being scanned the list already records what fit; asking again would let a
-          // typed figure disagree with the serials beside it.
-          askHowMuchFit={!serialScanningRequired}
-          candidates={addTargetBinCandidates}
-          onConfirm={handleAddTargetBin}
-        />
-      )}
+        }}
+        title="How much fit in this bin?"
+        dismissLabel="Cancel"
+        onDismiss={() => {
+          setPendingSplitBinId(null);
+          setSplitFitHere(null);
+        }}
+        confirmLabel={
+          splitFitHere == null
+            ? 'Enter how many fit'
+            : `Move ${Math.max(0, currentProductTotalQuantity - splitFitHere)} ${pluralizeUnit(
+                currentProduct.unit || 'vial',
+                Math.max(0, currentProductTotalQuantity - splitFitHere)
+              )} to the new bin`
+        }
+        onConfirm={() => {
+          if (splitFitHere == null || !pendingSplitBinId) return;
+          if (currentProductTotalQuantity - splitFitHere <= 0) return;
+          applyAddTargetBin(pendingSplitBinId, splitFitHere);
+        }}
+      >
+        <div className="space-y-3">
+          <p className="text-[14px] text-[#4a5565]">
+            {currentProductTotalQuantity}{' '}
+            {pluralizeUnit(currentProduct.unit || 'vial', currentProductTotalQuantity)} were taken from
+            the source. How many of them fit in {currentTargetBin.targetDoorName} -{' '}
+            {currentTargetBin.targetBinName}?
+          </p>
+          <div className="flex items-center gap-3">
+            {/* Empty until they type it. Anything seeded here is a guess at a bin the app cannot see, and
+                a number already in the field is a number that gets accepted. */}
+            <input
+              type="number"
+              min={0}
+              max={currentProductTotalQuantity}
+              value={splitFitHere ?? ''}
+              placeholder="0"
+              onChange={event => {
+                const raw = event.target.value;
+                if (raw === '') {
+                  setSplitFitHere(null);
+                  return;
+                }
+                const next = Number(raw);
+                if (Number.isNaN(next)) return;
+                setSplitFitHere(Math.max(0, Math.min(currentProductTotalQuantity, Math.floor(next))));
+              }}
+              className="w-24 h-9 px-3 border border-gray-300 rounded-[4px] text-[14px] text-[#020817]"
+            />
+            <span className="text-[13px] text-[#4a5565]">
+              {splitFitHere == null
+                ? `of ${currentProductTotalQuantity}`
+                : currentProductTotalQuantity - splitFitHere <= 0
+                  ? 'all of it fit — nothing to move on'
+                  : `${currentProductTotalQuantity - splitFitHere} ${pluralizeUnit(
+                      currentProduct.unit || 'vial',
+                      currentProductTotalQuantity - splitFitHere
+                    )} go to the new bin`}
+            </span>
+          </div>
+        </div>
+      </ConfirmDialog>
     </div>
   );
 }

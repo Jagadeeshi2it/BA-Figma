@@ -1,0 +1,207 @@
+import React, { useMemo, useState } from 'react';
+import { toast } from 'sonner@2.0.3';
+import { PackagePlus } from 'lucide-react';
+import CabinetSelection from './CabinetSelection';
+import ShelvesSection from './ShelvesSection';
+import { ValidationToast } from './ui/sonner-1';
+import { PipelineFooterShell, FooterActions, FooterButton } from './PipelineFooter';
+import { DoorShelfConfig } from '../types';
+import { cabinets } from '../data/cabinets';
+import {
+  getCurrentShelves,
+  getDoorsWithAvailableBins,
+  getFreeBinCountByDoor,
+  getDoorsWithSelectedBins
+} from '../utils/doorUtils';
+import { moveToBinCandidates, MoveToBinInput, MoveToBinCandidate } from '../utils/moveTargetBins';
+import { emergencyKitService } from '../services/EmergencyKitService';
+
+/**
+ * Choosing another Move To bin the way every other bin in this app is chosen: by tapping it on the
+ * shelves.
+ *
+ * This replaces a dialog with a list of bin names. The list worked and was still wrong — a bin is picked
+ * off the cabinet at step ① and step ②, in the unallocated tray, and in Multi Bin Assignment, so a
+ * scrolling list of names here made the one bin-pick that happens mid-move the only one that did not
+ * look like picking a bin. The cabinet also shows the two things a list cannot: how full a bin is, and
+ * how big it is, which is the entire question when the operator is deciding what will fit.
+ *
+ * **It is an overlay, not a screen the pipeline navigates to, and that is load-bearing.** The placement
+ * screen owns `scannedItems` in local state, so unmounting it discards every serial scanned in the batch.
+ * Rendering the cabinet above it keeps the page mounted underneath. The alternative — lifting that state
+ * into App and routing properly — is the bigger, cleaner change, and nothing here blocks it later.
+ *
+ * `changeAllocationStep={2}` is passed to the real `ShelvesSection` so the cards behave exactly as they
+ * do at the target step: bins tappable, product rows inert, the green Move To treatment on bins already
+ * receiving this product. Reusing the components rather than restyling them is what keeps this from
+ * becoming a second, drifting cabinet.
+ */
+export default function AddMoveToBinOverlay({
+  open,
+  doorShelfConfig,
+  productName,
+  productInventoryType,
+  /** Bins this move takes stock out of — refused, and shown as the from-end. */
+  sourceBinIds,
+  /** Bins already receiving this product in this move. */
+  existingTargetBinIds,
+  /** The door the operator has open, so the overlay opens on it rather than wherever they last were. */
+  currentDoorName,
+  onCancel,
+  onPickBin
+}: {
+  open: boolean;
+  doorShelfConfig: DoorShelfConfig;
+  productName: string;
+  productInventoryType?: string;
+  sourceBinIds: string[];
+  existingTargetBinIds: string[];
+  currentDoorName?: string;
+  onCancel: () => void;
+  onPickBin: (binId: string) => void;
+}) {
+  // Opens on the door already unlocked, since that is where the operator is standing and one door opens
+  // at a time. They can still walk to another; the door dots say which hold free bins.
+  const [selectedDoor, setSelectedDoor] = useState<string>(currentDoorName ?? 'Door 1');
+  const [selectedCabinet, setSelectedCabinet] = useState<string>(
+    () => cabinets.find(cabinet => cabinet.doors.includes(currentDoorName ?? 'Door 1'))?.name ?? 'Cabinet 1'
+  );
+
+  // Reset to the open door each time it opens — a door left selected from a previous visit is a walk the
+  // operator did not ask for.
+  React.useEffect(() => {
+    if (!open) return;
+    const door = currentDoorName ?? 'Door 1';
+    setSelectedDoor(door);
+    setSelectedCabinet(cabinets.find(cabinet => cabinet.doors.includes(door))?.name ?? 'Cabinet 1');
+  }, [open, currentDoorName]);
+
+  /**
+   * The same eligibility the dialog used, so what the shelves accept cannot drift from what the rules
+   * say. Every bin is here, not just the open door's — the operator can walk, and a bin they can see and
+   * tap has to give an answer either way.
+   */
+  const candidatesByBinId = useMemo(() => {
+    const bins: MoveToBinInput[] = [];
+    const restrictedBinIds: string[] = [];
+    Object.keys(doorShelfConfig).forEach(doorName => {
+      doorShelfConfig[doorName]?.forEach(shelf => {
+        shelf.bins?.forEach(bin => {
+          bins.push({
+            binId: bin.id,
+            binName: bin.name,
+            doorName,
+            productCount: bin.products.length,
+            alreadyStocksProduct: bin.products.some(product => product.name === productName)
+          });
+          if (emergencyKitService.isBinInEmergencyKit(bin.id, doorShelfConfig)) {
+            restrictedBinIds.push(bin.id);
+          }
+        });
+      });
+    });
+
+    const candidates = moveToBinCandidates(bins, {
+      sourceBinIds,
+      existingTargetBinIds,
+      restrictedBinIds,
+      productAllowedInRestrictedBins: emergencyKitService.isInventoryTypeAllowed(
+        productInventoryType || '',
+        'move'
+      ),
+      currentDoorName
+    });
+
+    return new Map<string, MoveToBinCandidate>(candidates.map(c => [c.binId, c]));
+  }, [doorShelfConfig, productName, productInventoryType, sourceBinIds, existingTargetBinIds, currentDoorName]);
+
+  if (!open) return null;
+
+  const currentShelves = getCurrentShelves(selectedDoor, doorShelfConfig);
+  const doorsWithAvailableBins = getDoorsWithAvailableBins(doorShelfConfig);
+  const freeBinsByDoor = getFreeBinCountByDoor(doorShelfConfig);
+
+  /**
+   * A tap on a bin. A refused bin explains itself rather than doing nothing — the whole reason the
+   * shelves' refusals are worded at all (§ "A refused tap says which control would work"). One toast id
+   * so a second tap replaces the message instead of stacking copies.
+   */
+  const handleBinClick = (binId: string) => {
+    const candidate = candidatesByBinId.get(binId);
+    if (!candidate) return;
+    if (candidate.blockedReason) {
+      toast.custom(() => <ValidationToast message={candidate.blockedReason!} />, {
+        id: 'add-move-to-bin-refusal',
+        duration: 5000
+      });
+      return;
+    }
+    onPickBin(binId);
+  };
+
+  return (
+    // z-90: above the step-④ screen and its side panels (70), below toasts (100), which have to be
+    // readable over this since a refused tap answers with one.
+    <div className="fixed inset-0 z-90 bg-white flex flex-col">
+      <div className="px-6 py-4 border-b border-gray-200 shrink-0">
+        <div className="flex items-center gap-2">
+          <PackagePlus className="w-5 h-5 text-[#095192]" />
+          <h2 className="text-[16px] font-medium text-[#020817]">Add another Move To bin</h2>
+        </div>
+        <p className="text-[14px] text-[#4a5565] mt-0.5">
+          {productName} — tap the bin to move the rest into.
+        </p>
+      </div>
+
+      <div className="flex-1 overflow-y-auto px-6 py-4">
+        <CabinetSelection
+          selectedCabinet={selectedCabinet}
+          selectedDoor={selectedDoor}
+          doorsWithAvailableBins={doorsWithAvailableBins}
+          freeBinsByDoor={freeBinsByDoor}
+          highlightAvailableBins={false}
+          doorsWithSearchMatches={[]}
+          doorsWithSelectedBins={[]}
+          doorsWithChangeAllocationBins={getDoorsWithSelectedBins(doorShelfConfig, existingTargetBinIds)}
+          searchQuery=""
+          showUnallocatedProducts={false}
+          changeAllocationMode={true}
+          onCabinetClick={setSelectedCabinet}
+          onDoorClick={setSelectedDoor}
+        />
+
+        <ShelvesSection
+          currentShelves={currentShelves}
+          searchQuery=""
+          searchMatchCount={0}
+          selectedDoor={selectedDoor}
+          selectedBin={null}
+          showBinInventory={false}
+          highlightAvailableBins={false}
+          selectedBinsForAssignment={[]}
+          // Step ②'s own semantics: the bin is what a tap means, and product rows are inert. Passing the
+          // real step rather than inventing a mode is what keeps these cards identical to the ones the
+          // operator picked their first target bin from.
+          changeAllocationMode={true}
+          changeAllocationStep={2}
+          changeAllocationSourceBins={sourceBinIds}
+          changeAllocationTargetBins={existingTargetBinIds}
+          showUnallocatedProducts={false}
+          onBinClick={handleBinClick}
+          onProductClick={() => {}}
+        />
+      </div>
+
+      {/* No StepCell: it derives its own copy from `instructionFor(step)`, which would print step ④'s
+          standing "take, then place" line — the wrong guidance for a bin pick. This is a detour inside
+          placement rather than a step of its own, so the instruction sits in the header above and the
+          footer carries only the way out. The shell is still the shared one, so the bar's height and
+          button sizing match every other stage. */}
+      <PipelineFooterShell>
+        <FooterActions>
+          <FooterButton label="Cancel" variant="secondary" onClick={onCancel} />
+        </FooterActions>
+      </PipelineFooterShell>
+    </div>
+  );
+}
