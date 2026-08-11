@@ -49,12 +49,6 @@ export interface MoveSummaryRow {
   // state a move that isn't happening.
   isSkipped?: boolean;
   status: 'pending' | 'current' | 'done';
-  /**
-   * The target bin's id, carried only so the placement half can be walked back to a bin the operator
-   * has already passed (`onSelectTargetBin`). Absent on Review and on the take half, where there is no
-   * walk to move within — the panel does nothing with it beyond handing it back.
-   */
-  toBinId?: string;
 }
 
 /**
@@ -121,19 +115,6 @@ interface MoveSummaryPanelProps {
    * supplies the per-product totals beneath it, because the product view never disappears (§6).
    */
   route?: MoveSummaryRouteView;
-  /**
-   * Walk back to a target bin the operator has already passed. Given only by the placement half, which
-   * is the only stage with a position to move within.
-   *
-   * This is the way back that step ④ otherwise has none of. `Back` was removed at the operator's
-   * request (UX-AUDIT H3-2) and is not being reinstated — this is not a step backwards through the
-   * pipeline, it is picking a different bin out of a list already on screen. The panel is the map of the
-   * move, so tapping the map is the cheapest possible route back, and it needs no new control anywhere.
-   *
-   * Without it, a target bin walked past empty could never be given anything: there is no route to it
-   * and the scan control is dead once the remainder is spent.
-   */
-  onSelectTargetBin?: (toBinId: string) => void;
 }
 
 const STAGE_COPY: Record<Exclude<MoveSummaryStage, 'review' | 'route'>, { label: string; icon: typeof LogOut }> = {
@@ -307,8 +288,7 @@ export default function MoveSummaryPanel({
   onToggle,
   title = 'Move List',
   stage = 'review',
-  route,
-  onSelectTargetBin
+  route
 }: MoveSummaryPanelProps) {
   // No collapsed rail: the footer's own Move Summary counter is what reopens this now, so a second,
   // always-present toggle sitting in the corner just to say "closed" would be a redundant control.
@@ -390,35 +370,23 @@ export default function MoveSummaryPanel({
   );
 
   /**
-   * A target bin's name, tappable where the walk can be moved to it.
+   * A target bin's name. Text, not a control.
    *
-   * Only the bin NAME is the control, not the whole row: the row also carries a quantity and a badge,
-   * which are statements about the bin rather than a way to reach it, and making the figure clickable
-   * would suggest it is the thing being edited.
-   *
-   * The current bin is not a link — tapping to go where you already are does nothing, and offering it
-   * invites the operator to wonder what it would have done. Geometry stays on the base class either way
-   * (§4: never let spacing depend on interactivity), so a card does not resize as the walk moves.
+   * It was briefly tappable, to walk the operator to a bin they had passed. Removed at the operator's
+   * request, and worth recording that it was never only a behaviour change: a `<button>` carries the
+   * UA's `text-align: center`, so it did NOT inherit the column's `text-right` the way the surrounding
+   * spans do. The tappable names sat centred while the rest of the column was flush right, which is the
+   * gap down the right-hand side that gave it away.
    */
-  const targetBinLabel = (row: MoveSummaryRow) => {
-    const label = binLabel(row.toLabel, row.toDoor);
-    const weight = row.isCurrentTarget ? 'font-semibold text-[#020817]' : 'text-[#4a5565]';
-    const canJump = !!onSelectTargetBin && !!row.toBinId && !row.isCurrentTarget;
-
-    if (!canJump) return <span className={`block break-words ${weight}`}>{label}</span>;
-
-    return (
-      <button
-        type="button"
-        onClick={() => onSelectTargetBin!(row.toBinId!)}
-        title={`Go to ${label}`}
-        // No text alignment of its own — it inherits the column's, so the to-end stays flush right.
-        className={`block break-words w-full cursor-pointer hover:text-[#095192] hover:underline ${weight}`}
-      >
-        {label}
-      </button>
-    );
-  };
+  const targetBinLabel = (row: MoveSummaryRow) => (
+    <span
+      className={`block break-words ${
+        row.isCurrentTarget ? 'font-semibold text-[#020817]' : 'text-[#4a5565]'
+      }`}
+    >
+      {binLabel(row.toLabel, row.toDoor)}
+    </span>
+  );
 
   /**
    * One pairing: a source bin on the left, one of its destinations on the right.
@@ -480,14 +448,13 @@ export default function MoveSummaryPanel({
         <span className="flex-1 min-w-0 text-right">
           {targetBinLabel(row)}
           {(targetText || movedBadge) && (
-            /* Badge BEFORE the figure on this side, which is the opposite order to the source column and
-               deliberate: the column is right-aligned, so whatever comes last owns the right edge. With
-               the badge last, a bin carrying one had its figure pushed inward and the numbers down the
-               column stopped lining up — `2 vials Moved` above a bare `48 vials`. The figure is the thing
-               being read down the column, so it is the thing anchored to the edge. */
+            /* Figure first, badge to its right — asked for directly, and it costs the perfect column of
+               right edges the other order bought: a bin carrying a badge has its figure pushed inward of
+               one that does not. Acceptable now that each target is its own block with space around it,
+               so the figures are read per bin rather than scanned down a column. */
             <span className="flex items-center justify-end gap-1.5 flex-wrap">
-              {movedBadge && doneBadge(movedBadge)}
               {targetText && <span className="font-medium text-[#020817]">{targetText}</span>}
+              {movedBadge && doneBadge(movedBadge)}
             </span>
           )}
         </span>
@@ -513,7 +480,7 @@ export default function MoveSummaryPanel({
        card with the target list hanging in the middle of nothing, which reads as an alignment accident
        rather than two lists of different lengths. */
     <div className="flex items-start gap-1.5 text-[12px] leading-[18px]">
-      <div className="flex-1 min-w-0 space-y-0.5">
+      <div className="flex-1 min-w-0 space-y-2">
         {sources.map(row => {
           const sourceText = quantityText(row.sourceQuantity, row.unit);
           const takenBadge = sourceTakenBadge(row);
@@ -544,7 +511,7 @@ export default function MoveSummaryPanel({
       {/* Right-aligned, against the panel's right edge — see renderPairingRow. Both shapes anchor the
           to-end the same way, or the two would disagree about where a target bin sits depending on
           something the operator did not choose (whether their sources happen to share destinations). */}
-      <div className="flex-1 min-w-0 space-y-0.5 text-right">
+      <div className="flex-1 min-w-0 space-y-2 text-right">
         {targets.map(row => {
           const targetText = quantityText(row.quantity, row.unit);
           const movedBadge = targetMovedBadge(row);
@@ -552,11 +519,10 @@ export default function MoveSummaryPanel({
             <div key={`col-target-${row.key}`}>
               {targetBinLabel(row)}
               {(targetText || movedBadge) && (
-                // Badge first, figure last — see renderPairingRow: last owns the right edge, and the
-                // figures are what read down the column.
+                // Figure first, badge to its right — see renderPairingRow.
                 <span className="flex items-center justify-end gap-1.5 flex-wrap">
-                  {movedBadge && doneBadge(movedBadge)}
                   {targetText && <span className="font-medium text-[#020817]">{targetText}</span>}
+                  {movedBadge && doneBadge(movedBadge)}
                 </span>
               )}
             </div>
@@ -950,7 +916,7 @@ export default function MoveSummaryPanel({
                          competes with the card's own border. Only between blocks, never above the first. */
                       <div
                         key={`${sourceBin.label}-${sourceBin.door ?? ''}`}
-                        className={`space-y-0.5 ${
+                        className={`space-y-2 ${
                           sourceIndex > 0 ? 'pt-2 border-t border-dashed border-gray-200' : ''
                         }`}
                       >

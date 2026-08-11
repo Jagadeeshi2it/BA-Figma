@@ -487,12 +487,25 @@ export default function TargetBinSerialScanPage({
           placed
         });
 
-        // A bin the operator hasn't reached yet has no figure at all: its share is decided by scanning
-        // into it, so a 0 would look like a decision they'd made rather than one still ahead of them.
-        // (When no scanning is required the whole amount is known up front, so it's shown.)
-        const quantity = !serialScanningRequired
-          ? targetBinGroup.totalQuantity
-          : status === 'pending' ? null : placed;
+        /**
+         * A bin the operator has not reached yet states no figure at all — whichever way this move
+         * records quantities.
+         *
+         * `pending` is now tested FIRST, and that is the fix. The no-scanning branch used to win outright
+         * and hand every bin `targetBinGroup.totalQuantity`, so a bin three stops down the walk announced
+         * 200 vials before anyone had opened its door. That figure is the transfer's declared amount — a
+         * plan, not a record of anything having been placed there — and the panel's figures are supposed
+         * to be claims about what has happened.
+         *
+         * Past that gate the two branches are unchanged: without scanning the whole amount is known up
+         * front, so the bin in hand shows it; with scanning, what has actually been scanned in.
+         */
+        const quantity =
+          status === 'pending'
+            ? null
+            : !serialScanningRequired
+              ? targetBinGroup.totalQuantity
+              : placed;
 
         // Source door isn't resolved on targetBinGroup.sourceBins (that structure was built for the
         // target side, which resolves its own door), so it's looked up here rather than reworked
@@ -519,9 +532,6 @@ export default function TargetBinSerialScanPage({
             fromDoor: source.door,
             toLabel: targetBinGroup.targetBinName,
             toDoor: targetBinGroup.targetDoorName,
-            // Only so the panel can hand it back when the operator taps a bin to walk to it. This half
-            // is the only stage with a position to move within, so it is the only one that sends it.
-            toBinId: targetBinGroup.toBinId,
             // Taken out of this source.
             sourceQuantity: source.quantity,
             quantity,
@@ -956,25 +966,6 @@ export default function TargetBinSerialScanPage({
     setResumeTargetBinId(null);
   }, [resumeTargetBinId, currentProduct, currentTargetBinIndex]);
 
-  /**
-   * Walk to one of this product's target bins by tapping it in the Move List.
-   *
-   * The only route back step ④ has. It is not a `Back` — that was removed at the operator's request and
-   * stepped through the pipeline; this stays on the placement screen and changes which bin is in hand,
-   * which is a different act. Without it a bin walked past empty was unreachable, and since the scan
-   * control dies once the remainder is spent, its 0 was permanent.
-   *
-   * Scoped to the current product's bins on purpose. Jumping to another product's bin would have to move
-   * `currentProductIndex` too, and the walk's product order is the route's (planned door by door) — so
-   * that is a different and much larger question than "let me finish the bin I skipped".
-   */
-  const handleGoToTargetBin = (toBinId: string) => {
-    if (!currentProduct) return;
-    const index = currentProduct.targetBins.findIndex(tb => tb.toBinId === toBinId);
-    if (index === -1 || index === currentTargetBinIndex) return;
-    setCurrentTargetBinIndex(index);
-    setSerialInput('');
-  };
 
   const handleScanOrAdd = () => {
     if (!currentTargetBin) return;
@@ -1486,7 +1477,6 @@ export default function TargetBinSerialScanPage({
         onToggle={() => setSummaryOpen(prev => !prev)}
         // This half puts stock IN, so the target end of the current pairing is the bin in hand.
         stage="target"
-        onSelectTargetBin={handleGoToTargetBin}
       />
       </div>
 
