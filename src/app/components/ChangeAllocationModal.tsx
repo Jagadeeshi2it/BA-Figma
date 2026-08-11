@@ -600,9 +600,11 @@ export default function ChangeAllocationModal({
       })
     );
 
-    toast.success(
-      `Removed ${affectedProductIds.size} product${affectedProductIds.size > 1 ? 's' : ''} from ${targetBin.name}`
-    );
+    // No toast. Picking and un-picking is what this step IS — the operator does it repeatedly while
+    // making up their mind, and a confirmation per tap stacks messages over the very column that
+    // already answers them. The screen shows the result in three places (the target count, the cards,
+    // the Move List), so the toast could only restate it. Refusals still speak: those report something
+    // the screen cannot show, because nothing changed.
   };
 
   // Handler for product-centric move from a specific bin
@@ -635,7 +637,7 @@ export default function ChangeAllocationModal({
       actionType: 'move'
     }]);
 
-    toast.success(`Added ${sourceProduct.name} from ${sourceBinForProduct.name}`);
+    // No toast — see handleRemoveAllFromTarget. The card appears in the target column as this runs.
   };
 
   // Handler for moving all locations of a product at once
@@ -666,9 +668,9 @@ export default function ChangeAllocationModal({
       }
     });
 
-    if (movedCount > 0) {
-      toast.success(`Moved ${currentProduct.product.name} from ${movedCount} bin${movedCount > 1 ? 's' : ''}`);
-    } else {
+    // Silent on success — see handleRemoveAllFromTarget. The refusal below still speaks, since a no-op
+    // is the one outcome the columns cannot show.
+    if (movedCount === 0) {
       toast.error('All locations already moved');
     }
   };
@@ -797,9 +799,7 @@ export default function ChangeAllocationModal({
       }))
     ]);
 
-    toast.success(
-      `Moving ${candidates.length} product${candidates.length > 1 ? 's' : ''} from ${sourceBin.name}`
-    );
+    // No toast — see handleRemoveAllFromTarget. The target column fills in as this runs.
   };
 
   const getTargetProducts = () => {
