@@ -1228,6 +1228,35 @@ export default function TargetBinSerialScanPage({
     inventoryType: currentProduct.inventoryType
   };
 
+  /**
+   * The bin-picking detour renders in place of this screen's own content, not over the whole viewport.
+   *
+   * This component stays mounted either way, which is what matters: `scannedItems` is local state, so
+   * unmounting would discard every serial scanned in the batch. Returning different children keeps it
+   * alive while handing the content area to the cabinet — and because MainLayout is above this in the
+   * tree, the side navigation and station bar stay exactly where they were. Covering them made a detour
+   * inside step ④ look like leaving the application.
+   */
+  if (addBinOpen && canAddTargetBin) {
+    return (
+      <AddMoveToBinOverlay
+        open
+        doorShelfConfig={doorShelfConfig}
+        productName={currentProduct.productName}
+        productInventoryType={currentProduct.inventoryType}
+        sourceBinIds={Array.from(
+          new Set(
+            currentProduct.targetBins.flatMap(tb => tb.transfers.map(transfer => transfer.fromBinId))
+          )
+        )}
+        existingTargetBinIds={currentProduct.targetBins.map(tb => tb.toBinId)}
+        currentDoorName={currentTargetBin.targetDoorName}
+        onCancel={() => setAddBinOpen(false)}
+        onConfirm={handleOverlayConfirm}
+      />
+    );
+  }
+
   return (
     // Anchored for Demo Mode: the place half of step ④ — the operator is at the TARGET bin, putting stock in.
     // Both halves report Step 4/4, so the footer cannot tell a walkthrough which of them is on screen.
@@ -1652,24 +1681,6 @@ export default function TargetBinSerialScanPage({
         })}
       </SideSheet>
 
-      {/* Somewhere to put what would not fit — picked off the shelves, the way every other bin in the app
-          is picked. An overlay rather than a screen the pipeline routes to, because this page owns
-          `scannedItems` in local state and unmounting it would discard every serial scanned in the batch. */}
-      <AddMoveToBinOverlay
-        open={addBinOpen && canAddTargetBin}
-        doorShelfConfig={doorShelfConfig}
-        productName={currentProduct.productName}
-        productInventoryType={currentProduct.inventoryType}
-        sourceBinIds={Array.from(
-          new Set(
-            currentProduct.targetBins.flatMap(tb => tb.transfers.map(transfer => transfer.fromBinId))
-          )
-        )}
-        existingTargetBinIds={currentProduct.targetBins.map(tb => tb.toBinId)}
-        currentDoorName={currentTargetBin.targetDoorName}
-        onCancel={() => setAddBinOpen(false)}
-        onConfirm={handleOverlayConfirm}
-      />
 
     </div>
   );
