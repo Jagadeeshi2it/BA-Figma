@@ -53,6 +53,18 @@ export default function ChangeAllocationModal({
   // announcing "Nothing selected yet" was real estate spent on an empty state. The footer's own Move
   // Summary counter is the way in, same as it would be to close it again once there's something to see.
   const [summaryOpen, setSummaryOpen] = useState(false);
+  /**
+   * Whether the target bin's *existing* contents are shown. Collapsed by default.
+   *
+   * The column's job on this step is what the operator is putting into the bin; what the bin already
+   * held is context they ask for, and a long-standing list of it pushed the arrivals — the only rows
+   * with a control on them — off the bottom of a bin that was already well stocked.
+   *
+   * Not reset when the target pager moves. It is a preference about how much of the bin to show, and a
+   * list that snapped shut on every page would have to be reopened bin by bin by an operator who has
+   * just said they want to see it.
+   */
+  const [existingProductsOpen, setExistingProductsOpen] = useState(false);
 
   const targetBin = targetBins[currentTargetBinIndex] || null;
 
@@ -1166,7 +1178,17 @@ export default function ChangeAllocationModal({
                     it can't act, rather than the row disappearing (UX-AUDIT P1: never a dead control
                     without its reason). */}
                 {productsAcrossMultipleBins.length === 0 && visibleSourceProductCount > 0 && (
-                  <div className="mb-3 pb-3 border-b border-gray-200 flex items-center justify-between gap-3">
+                  // 45px is the h-8 button this row may or may not carry (32) plus its own pb-3 (12) plus
+                  // the rule itself (1), so the two columns' dividers line up whether or not either side
+                  // is showing a button. Without it the row collapses to its text and the target
+                  // column's rule sits 12px higher than the source's — two panels of one screen reading
+                  // as different layouts.
+                  //
+                  // It has to count the padding and the border: min-height is against the BORDER box, so
+                  // min-h-8 sized the whole row to 32px rather than its contents, and min-h-11 (44) left
+                  // it a pixel short. Measured, not derived — check it in the browser if the row's
+                  // padding or the button's height changes.
+                  <div className="mb-3 pb-3 border-b border-gray-200 flex items-center justify-between gap-3 min-h-[45px]">
                     <span className="text-sm text-gray-600">
                       <span className="font-medium text-[#020817]">{visibleSourceProductCount}</span>{' '}
                       {visibleSourceProductCount === 1 ? 'Product' : 'Products'}
@@ -1355,70 +1377,82 @@ export default function ChangeAllocationModal({
               {/* Two sections, each with its own count: what this move is putting into the bin, then
                   what the bin already held. One combined list left the operator working out which
                   cards were theirs by looking for a Remove button on each; the headings say it once.
-                  A bin with nothing arriving shows only the second section, so before anything is
-                  picked the column reads as a plain statement of the bin's contents. */}
+
+                  Both headings render always, whatever their counts. The column used to swap itself for
+                  a centred "Empty Bin" block when the bin was untouched and empty, and to drop the
+                  arrivals heading entirely until something was picked — so the operator's own side of
+                  the column only appeared once they had already worked out where to pick from. The two
+                  standing headings say what each section is before either has anything in it, and the
+                  zero states carry the instruction. */}
               <div className="flex-1 overflow-y-auto p-4 min-h-0">
                 {(() => {
                   const targetRows = getTargetProducts();
                   const arrivals = targetRows.filter((row: any) => row.isArrival);
                   const alreadyHere = targetRows.filter((row: any) => !row.isArrival);
 
-                  if (targetRows.length === 0) {
-                    return (
-                      <div className="flex items-center justify-center h-32 text-gray-500">
-                        <div className="text-center">
-                          <div className="text-lg mb-2">Empty Bin</div>
-                          <div className="text-sm">No products currently allocated</div>
-                        </div>
-                      </div>
-                    );
-                  }
-
                   return (
                     <>
-                      {arrivals.length > 0 && (
-                        <>
-                          {/* Same count row and padding the source column uses, with a Remove all
-                              beside it once there's more than one to make the same "no-op on a single
-                              item" call Select all does on the source side. */}
-                          <div className="mb-3 pb-3 border-b border-gray-200 flex items-center justify-between gap-3">
-                            <span className="text-sm text-gray-600">
-                              <span className="font-medium text-[#020817]">{arrivals.length}</span>{' '}
-                              {arrivals.length === 1 ? 'Product' : 'Products'}
-                            </span>
+                      {/* Same count row and padding the source column uses, with a Remove all
+                          beside it once there's more than one to make the same "no-op on a single
+                          item" call Select all does on the source side. */}
+                      <div className="mb-3 pb-3 border-b border-gray-200 flex items-center justify-between gap-3 min-h-[45px]">
+                        <span className="text-sm text-gray-600">
+                          <span className="font-medium text-[#020817]">{arrivals.length}</span>{' '}
+                          {arrivals.length === 1 ? 'Product' : 'Products'} selected
+                        </span>
 
-                            {arrivals.length > 1 && (
-                              // Red, matching the per-product Remove sitting inches below it in this
-                              // same column (TargetProductCard's #e7000b). The two do the same thing
-                              // at different scales, so in blue this one read as a different KIND of
-                              // action — the column's "undo" and its "confirm" wearing one colour.
-                              <button
-                                type="button"
-                                onClick={handleRemoveAllFromTarget}
-                                className="h-8 px-3 rounded-[4px] border border-[#e7000b] bg-white text-[#e7000b] text-[14px] leading-[20px] whitespace-nowrap transition-colors cursor-pointer hover:bg-[#FDF2F2]"
-                              >
-                                Remove all
-                              </button>
-                            )}
-                          </div>
-                          <div className="space-y-3">{arrivals.map(renderTargetCard)}</div>
-                        </>
+                        {arrivals.length > 1 && (
+                          // Red, matching the per-product Remove sitting inches below it in this
+                          // same column (TargetProductCard's #e7000b). The two do the same thing
+                          // at different scales, so in blue this one read as a different KIND of
+                          // action — the column's "undo" and its "confirm" wearing one colour.
+                          <button
+                            type="button"
+                            onClick={handleRemoveAllFromTarget}
+                            className="h-8 px-3 rounded-[4px] border border-[#e7000b] bg-white text-[#e7000b] text-[14px] leading-[20px] whitespace-nowrap transition-colors cursor-pointer hover:bg-[#FDF2F2]"
+                          >
+                            Remove all
+                          </button>
+                        )}
+                      </div>
+
+                      {arrivals.length > 0 ? (
+                        <div className="space-y-3">{arrivals.map(renderTargetCard)}</div>
+                      ) : (
+                        // Dashed rather than a plain sentence, so the empty section reads as a place
+                        // things land. It names the control that fills it: the picking happens in the
+                        // other column, which is not obvious from a column that is doing nothing.
+                        <div className="rounded-[4px] border border-dashed border-gray-300 px-4 py-8 text-center text-[14px] leading-[20px] text-gray-500">
+                          Select product(s) from the left panel to move to this bin
+                        </div>
                       )}
 
-                      {alreadyHere.length > 0 && (
-                        <>
-                          <div
-                            className={`mb-3 pb-3 border-b border-gray-200 ${
-                              arrivals.length > 0 ? 'mt-6' : ''
-                            }`}
+                      <div
+                        className={`mb-3 pb-3 mt-6 border-b border-gray-200 flex items-center justify-between gap-3 min-h-[45px]`}
+                      >
+                        <span className="text-sm text-gray-600">
+                          <span className="font-medium text-[#020817]">{alreadyHere.length}</span>{' '}
+                          {alreadyHere.length === 1 ? 'Product' : 'Products'} already in this bin
+                        </span>
+
+                        {/* Named for what it does next, like every other control in the pipeline, so
+                            one button can carry both states. Withheld on an empty bin: there is
+                            nothing to view, and a live control over "0 Products" reads as a list that
+                            failed to load. */}
+                        {alreadyHere.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => setExistingProductsOpen(prev => !prev)}
+                            className="h-8 px-3 rounded-[4px] text-[#095192] text-[14px] leading-[20px] whitespace-nowrap transition-colors cursor-pointer hover:bg-[#F1F6FA]"
                           >
-                            <span className="text-sm text-gray-600">
-                              <span className="font-medium text-[#020817]">{alreadyHere.length}</span>{' '}
-                              {alreadyHere.length === 1 ? 'Product' : 'Products'} already in this bin
-                            </span>
-                          </div>
-                          <div className="space-y-3">{alreadyHere.map(renderTargetCard)}</div>
-                        </>
+                            {existingProductsOpen
+                              ? `Hide ${alreadyHere.length === 1 ? 'Product' : 'Products'}`
+                              : `View ${alreadyHere.length === 1 ? 'Product' : 'Products'}`}
+                          </button>
+                        )}
+                      </div>
+                      {alreadyHere.length > 0 && existingProductsOpen && (
+                        <div className="space-y-3">{alreadyHere.map(renderTargetCard)}</div>
                       )}
                     </>
                   );
