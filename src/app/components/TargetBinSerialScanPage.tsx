@@ -216,6 +216,15 @@ export default function TargetBinSerialScanPage({
    * bin. It did: standing at Bin 3D, adding two bins, and coming back to Bin 1A.
    */
   const [resumeTargetBinId, setResumeTargetBinId] = useState<string | null>(null);
+  /**
+   * Whether the operator has added bins during this step — the one thing that makes the last bin's
+   * auto-fill unsafe, and therefore the only condition under which it is held back.
+   *
+   * Sticky rather than a comparison against the transfers this screen opened with: once the route has
+   * been re-planned, the walk the operator is following is no longer the one they set up at step ②, and
+   * that stays true for the rest of the batch.
+   */
+  const [binsAddedMidMove, setBinsAddedMidMove] = useState(false);
   const [summaryOpen, setSummaryOpen] = useState(true);
 
   // CRITICAL: Determine if serial scanning is needed
@@ -845,30 +854,34 @@ export default function TargetBinSerialScanPage({
   }, [serialScanningRequired, currentTargetBin, currentProduct, doorShelfConfig]);
 
   /**
-   * Auto-fill the LAST target bin with whatever is still unaccounted for — but only once every earlier
-   * bin has actually taken something.
+   * Auto-fill the LAST target bin with whatever is still unaccounted for.
    *
-   * The convenience rests on an assumption: if the earlier bins have had their share, the remainder has
-   * nowhere else to go, so there is nothing left for the operator to decide by scanning it. That
-   * assumption fails the moment a bin is walked past empty. Then the remainder very much does have
-   * somewhere else to go, and filling this bin with all of it took the decision away *and* made it
-   * unrecoverable: `remainingQtyToMove` hits 0, which disables the scan control on every bin, so the
-   * empty one could never be given anything. With no Back in step ④ that was permanent — the operator
-   * watched a bin sit at 0 vials with the one control that could fix it greyed out.
+   * The convenience rests on an assumption: once the earlier bins have had their share, the remainder has
+   * nowhere else to go, so there is nothing left for the operator to decide by scanning it. For a split
+   * planned at step ② that holds — the bins and their order are what the operator set up, and the last one
+   * taking the rest is the behaviour they expect. **That flow is left exactly as it was.**
    *
-   * So the fill now waits for its own precondition to be true. When an earlier bin is empty the input
-   * stays live with a real remainder, and the operator can either put the rest here or jump back to the
-   * bin they missed (the Move List's target lines).
+   * `binsAddedMidMove` is the one case where the assumption breaks. Adding bins here re-plans the route,
+   * so the bin that is now last may be one the operator has only just named, and handing it the whole
+   * remainder defeats the reason they added it — worse, it makes the decision unrecoverable, because
+   * `remainingQtyToMove` hits 0 and that disables the scan control on *every* bin. With no Back in step ④
+   * the bin they meant to fill would sit at 0 with the one control that could fix it greyed out.
+   *
+   * So the extra precondition applies only after bins have been added mid-move: while any earlier bin is
+   * still empty, the fill holds off, the input stays live with a real remainder, and the operator can put
+   * the rest here or jump back to the bin they missed (the Move List's target lines).
    */
   useEffect(() => {
     if (!currentProduct || !currentTargetBin) return;
     const isLastTargetBinForProduct = currentTargetBinIndex === currentProduct.targetBins.length - 1;
     if (!isLastTargetBinForProduct || remainingQtyToMove <= 0) return;
 
-    const everyEarlierBinHasStock = currentProduct.targetBins
-      .slice(0, currentTargetBinIndex)
-      .every(tb => (scannedItems[scanKey(currentProduct.productId, tb.toBinId)] || []).length > 0);
-    if (!everyEarlierBinHasStock) return;
+    if (binsAddedMidMove) {
+      const everyEarlierBinHasStock = currentProduct.targetBins
+        .slice(0, currentTargetBinIndex)
+        .every(tb => (scannedItems[scanKey(currentProduct.productId, tb.toBinId)] || []).length > 0);
+      if (!everyEarlierBinHasStock) return;
+    }
 
     const key = getTargetBinKey(currentTargetBin);
     if ((scannedItems[key] || []).length > 0) return;
@@ -877,7 +890,14 @@ export default function TargetBinSerialScanPage({
       ...prev,
       [key]: synthesizeScannedItems(remainingQtyToMove, currentProduct.unit)
     }));
-  }, [currentProduct, currentTargetBin, currentTargetBinIndex, remainingQtyToMove, scannedItems]);
+  }, [
+    currentProduct,
+    currentTargetBin,
+    currentTargetBinIndex,
+    remainingQtyToMove,
+    scannedItems,
+    binsAddedMidMove
+  ]);
 
 
   /**
@@ -917,6 +937,7 @@ export default function TargetBinSerialScanPage({
     if (!currentProduct || !onAddTargetBin || !currentTargetBin) return;
     // Held before the transfers change, because the walk is re-planned as soon as they do.
     setResumeTargetBinId(currentTargetBin.toBinId);
+    setBinsAddedMidMove(true);
     binIds.forEach(binId => onAddTargetBin(currentProduct.productId, binId));
   };
 
