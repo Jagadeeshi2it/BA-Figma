@@ -2318,8 +2318,19 @@ export const useInventoryState = (activeStation: string = 'Onco Station') => {
                       productsToUnallocate.push({
                         productId: product.id,
                         productName: product.name,
+                        // The generic name, the NDC and the inventory type travel with the row so the
+                        // confirmation can identify the product the way every other surface does. The
+                        // last two are also the rest of the identity triple, which is what the badges
+                        // hash — a name alone cannot produce them (§3).
+                        description: product.description,
+                        ndc: product.ndc,
+                        inventoryType: product.inventoryType,
+                        unit: product.unit,
                         binId: binId,
                         binName: bin.name,
+                        // The door on its own, so the confirmation can print the app's one-string
+                        // `Door 1 - Bin 1B` form (§3) rather than the full shelf-and-cabinet location.
+                        doorName: doorKey,
                         location: location || `${bin.name} - ${shelf.name}, ${doorKey}`
                       });
                     }

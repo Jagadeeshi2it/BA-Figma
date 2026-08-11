@@ -31,6 +31,7 @@ export default function ConfirmDialog({
   onDismiss,
   confirmLabel,
   onConfirm,
+  confirmEnabled = true,
   tone = 'primary',
   className = 'max-w-md'
 }: {
@@ -42,6 +43,17 @@ export default function ConfirmDialog({
   onDismiss: () => void;
   confirmLabel: string;
   onConfirm: () => void;
+  /**
+   * Whether the primary can act. Dimmed rather than recoloured when it cannot, and it keeps its own
+   * label — a confirm's label is its identity, so a requirement sentence would replace the one word
+   * saying what the button does (CLAUDE.md §6). **A caller that passes `false` owes the operator the
+   * reason on screen**, in the body, the way the unallocate dialog's "Choose which products…" line does.
+   *
+   * No `disabled` attribute, for the reason `FooterButton` documents: a disabled button swallows the
+   * click, so a blocked control is indistinguishable from a broken one. `aria-disabled` carries the
+   * state and the missing handler carries the behaviour.
+   */
+  confirmEnabled?: boolean;
   /** `destructive` is for a confirm that actually destroys data — see CLAUDE.md §6 on `#C6362C`. */
   tone?: 'primary' | 'destructive';
   className?: string;
@@ -60,12 +72,13 @@ export default function ConfirmDialog({
             {dismissLabel}
           </Button>
           <Button
-            onClick={onConfirm}
-            className={
+            onClick={confirmEnabled ? onConfirm : undefined}
+            aria-disabled={confirmEnabled ? undefined : true}
+            className={`px-6 rounded-[4px] text-white ${
               tone === 'destructive'
-                ? 'bg-[#C6362C] hover:bg-[#A82C24] text-white px-6 rounded-[4px]'
-                : 'bg-[#095192] hover:bg-[#074080] text-white px-6 rounded-[4px]'
-            }
+                ? 'bg-[#C6362C] hover:bg-[#A82C24]'
+                : 'bg-[#095192] hover:bg-[#074080]'
+            } ${confirmEnabled ? '' : 'opacity-50 cursor-not-allowed'}`}
           >
             {confirmLabel}
           </Button>
