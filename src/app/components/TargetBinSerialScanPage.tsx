@@ -575,49 +575,6 @@ export default function TargetBinSerialScanPage({
     currentProductIndex === productGroups.length - 1 &&
     (!remainingTransfers || remainingTransfers.length === 0);
 
-  /**
-   * Nothing has gone into the bin in front of the operator, so saving would leave it empty and move on.
-   *
-   * Worth naming, because leaving a bin empty is legitimate — "all of it in the first bin, none in the
-   * second" is a real outcome and `canSave` allows it — but it should be a thing the operator *did*,
-   * not a consequence of tapping the same button they tap every other time. It was silent, and combined
-   * with a remainder that gets spent elsewhere it left the bin at 0 with no way to give it anything.
-   *
-   * Only asked when serials are being scanned. Without scanning the bin's figure is its own transfer
-   * total, decided before this screen, so there is nothing here to skip.
-   */
-  const currentBinIsEmpty =
-    serialScanningRequired &&
-    !!currentProduct &&
-    !!currentTargetBin &&
-    (scannedItems[scanKey(currentProduct.productId, currentTargetBin.toBinId)] || []).length === 0;
-
-  /**
-   * Label mirrors what saving actually does next: another target bin for this product, the next product
-   * in the queue, or wrapping up the whole move. It says nothing about skipping — that is a different
-   * act with a button of its own (`showSkipBin` below), rather than the same button changing meaning
-   * depending on whether the bin happens to be empty.
-   */
-  const saveButtonLabel = isFinalSaveStep
-    ? 'Save & Finish'
-    : currentProduct && currentTargetBinIndex < currentProduct.targetBins.length - 1
-      ? 'Save & Next Bin'
-      : 'Save & Next Product';
-
-  /**
-   * Passing over a bin without putting anything in it — its own control, beside Cancel, in the same slot
-   * and the same secondary weight as the quantity screen's `Skip Product`.
-   *
-   * Two acts, two buttons. Saving an empty bin and skipping it reach the same next screen, which is why
-   * one button briefly did both jobs by renaming itself; but they are not the same statement, and a
-   * primary that silently becomes a skip is how a bin gets passed over by an operator who thought they
-   * were saving. With the skip separate, the primary can go back to meaning exactly one thing and being
-   * unavailable when there is nothing to save.
-   *
-   * Not offered on the final step: getting there means the remainder is 0, so everything is already
-   * placed and there is nothing left to skip past.
-   */
-  const showSkipBin = currentBinIsEmpty && !isFinalSaveStep;
 
   // Unlock the door this target bin is behind, locking whatever was open. Silent when the door is
   // already the open one — see the matching effect on the quantity screen.
@@ -757,6 +714,67 @@ export default function TargetBinSerialScanPage({
 
     return Array.from(uniqueSourceQuantities.values()).reduce((sum, qty) => sum + qty, 0);
   }, [currentProduct]);
+
+  /**
+   * Nothing has gone into the bin in front of the operator, so saving would leave it empty and move on.
+   *
+   * Worth naming, because leaving a bin empty is legitimate — "all of it in the first bin, none in the
+   * second" is a real outcome and `canSave` allows it — but it should be a thing the operator *did*,
+   * not a consequence of tapping the same button they tap every other time. It was silent, and combined
+   * with a remainder that gets spent elsewhere it left the bin at 0 with no way to give it anything.
+   *
+   * Only asked when serials are being scanned. Without scanning the bin's figure is its own transfer
+   * total, decided before this screen, so there is nothing here to skip.
+   *
+   * And only when the product has something to place. A zero-quantity move carries nothing — it
+   * relocates the allocation itself (§ "Moving a product that has no stock") — so an empty bin is the
+   * expected state rather than an unfinished one, and `canSave` already lets it through on that basis.
+   */
+  const currentBinIsEmpty =
+    serialScanningRequired &&
+    !!currentProduct &&
+    !!currentTargetBin &&
+    currentProductTotalQuantity > 0 &&
+    (scannedItems[scanKey(currentProduct.productId, currentTargetBin.toBinId)] || []).length === 0;
+
+  /**
+   * Label mirrors what saving actually does next: another target bin for this product, the next product
+   * in the queue, or wrapping up the whole move. It says nothing about skipping — that is a different
+   * act with a button of its own (`showSkipBin` below), rather than the same button changing meaning
+   * depending on whether the bin happens to be empty.
+   */
+  const saveButtonLabel = isFinalSaveStep
+    ? 'Save & Finish'
+    : currentProduct && currentTargetBinIndex < currentProduct.targetBins.length - 1
+      ? 'Save & Next Bin'
+      : 'Save & Next Product';
+
+  /**
+   * Passing over a bin without putting anything in it — its own control, beside Cancel, in the same slot
+   * and the same secondary weight as the quantity screen's `Skip Product`.
+   *
+   * Two acts, two buttons. Saving an empty bin and skipping it reach the same next screen, which is why
+   * one button briefly did both jobs by renaming itself; but they are not the same statement, and a
+   * primary that silently becomes a skip is how a bin gets passed over by an operator who thought they
+   * were saving. With the skip separate, the primary can go back to meaning exactly one thing and being
+   * unavailable when there is nothing to save.
+   *
+   * Not offered on the final step: getting there means the remainder is 0, so everything is already
+   * placed and there is nothing left to skip past.
+   *
+   * **And not offered when this is the product's only target bin.** Skipping means "the rest goes in the
+   * other bins", so it needs other bins to mean anything: with one, it would mean "do not move this
+   * product at all", which is a different decision and belongs to `Skip Product` on the quantity screen,
+   * before the stock was ever taken off the shelf. The button was offered there anyway, inviting an
+   * operator holding stock to pass over the only place the app knows to put it.
+   *
+   * That leaves the empty single-bin case with a disabled primary and no skip, which is correct rather
+   * than a dead end: the scan control is live (the remainder is unspent by definition), so placing is
+   * always available, and `Add Move To Bin` is there if the bin will not take it. The blocked toast names
+   * both, and mentions the skip only when it is actually on screen.
+   */
+  const showSkipBin =
+    currentBinIsEmpty && !isFinalSaveStep && currentProduct.targetBins.length > 1;
 
   // AUTO-POPULATE serial numbers when serial scanning is NOT required
   // This happens when moving entire quantity to single target bin
