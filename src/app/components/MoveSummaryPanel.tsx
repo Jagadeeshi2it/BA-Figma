@@ -369,8 +369,14 @@ export default function MoveSummaryPanel({
   // quantity in the move is taken at the source before any of it is carried (that's the shape of step
   // ④), so by the time the operator is placing, every source line is genuinely done — and keeping the
   // badge lets the panel read the same across both halves instead of appearing to forget.
+  // `Taken` claims stock came out of the bin, so a bin that gave up none does not get it — the same rule
+  // as `Moved` below. It appeared beside its own `0 vials`, the badge and the figure contradicting each
+  // other on one line, and on the take half it appeared against bins the operator had not reached.
   const sourceTakenBadge = (row: MoveSummaryRow) =>
-    stage === 'target' || (stage === 'source' && row.status === 'done') ? 'Taken' : null;
+    (stage === 'target' || (stage === 'source' && row.status === 'done')) &&
+    (row.sourceQuantity ?? 0) > 0
+      ? 'Taken'
+      : null;
   // `Moved` claims stock arrived, so a bin that received none does not get it however finished it is.
   // A bin the operator skipped is done by position and holds nothing, and it wore the badge beside its
   // own `0 vials` — the figure and the badge contradicting each other on one line.

@@ -299,7 +299,21 @@ export default function QuantitySelectionPage({
           fromDoor: group.sourceDoorName,
           toLabel: target.name,
           toDoor: target.door,
-          sourceQuantity: takenFromThisBin,
+          /**
+           * Only a bin the operator has finished with states a figure. Ahead of them, and at the bin
+           * they are standing at, it is `null` — which the panel renders as nothing at all.
+           *
+           * Every bin used to show its amount from the moment the screen opened, because
+           * `transferQuantities` is seeded with each transfer's full quantity on mount and this fell back
+           * to that same default anyway. So the panel reported 200 vials taken out of a bin nobody had
+           * opened yet, and a card summed those defaults into a collected total for stock still sitting
+           * on the shelf. A quantity in this panel is a claim about what has happened; a default is not.
+           *
+           * The bin in hand is excluded too, deliberately: its editor is pre-filled with the full amount,
+           * so echoing it here would be repeating the same untouched default in a second place. The
+           * page's own `Qty to move` figure is the live one while they are deciding.
+           */
+          sourceQuantity: status === 'done' ? takenFromThisBin : null,
           quantity: null,
           unit: group.unit,
           // The bin in the operator's hands on this half is a SOURCE bin; no target is being filled
