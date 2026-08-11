@@ -19,6 +19,7 @@ import AllocateProductsPanel from "./components/AllocateProductsPanel";
 import CancelMoveConfirmModal from "./components/CancelMoveConfirmModal";
 import ZeroInventoryBanner from "./components/ZeroInventoryBanner";
 import { useDebounce } from "./hooks/useDebounce";
+import { useFeatureFlag } from "./hooks/useFeatureFlag";
 import { toast } from "sonner@2.0.3";
 import { ValidationToast } from "./components/ui/sonner-1";
 
@@ -140,6 +141,17 @@ export default function App() {
   // Products the quantity step was told to skip, carried across to the placement screen so its Move
   // Summary can still list them (marked) rather than silently dropping them.
   const [skippedMoveProducts, setSkippedMoveProducts] = useState<SkippedProduct[]>([]);
+
+  /**
+   * Whether `Add Move To Bin` is offered on the placement screen — a demo switch, see `featureFlags.ts`.
+   *
+   * Withholding the handler is the whole implementation: `canAddTargetBin` on that screen is already
+   * `!!onAddTargetBin && …`, so the button, the overlay it opens and the clause the blocked-save toast
+   * adds about it all disappear together. Nothing else needs a branch, and in particular the last target
+   * bin's auto-fill returns to its pre-feature behaviour on its own, since `binsAddedMidMove` can never
+   * become true.
+   */
+  const addMoveToBinEnabled = useFeatureFlag('addMoveToBin');
 
   /**
    * Give a product being placed another Move To bin, mid-move, because the bin in front of the operator
@@ -610,7 +622,7 @@ export default function App() {
           <TargetBinSerialScanPage
             transfers={pendingSerialTransfers}
             placeBinOrder={moveWalk?.placeBinOrder}
-            onAddTargetBin={handleAddMoveTargetBin}
+            onAddTargetBin={addMoveToBinEnabled ? handleAddMoveTargetBin : undefined}
             skippedProducts={skippedMoveProducts}
             doorShelfConfig={inventoryState.doorShelfConfig}
             moveMode={inventoryState.moveMode}
