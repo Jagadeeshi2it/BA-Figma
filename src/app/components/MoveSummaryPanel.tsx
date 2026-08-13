@@ -171,6 +171,54 @@ const groupByProduct = (rows: MoveSummaryRow[]) => {
 };
 
 /**
+ * The take half's structure: doors, each holding its bins, each holding the products inside it.
+ *
+ * The opposite axis from `groupByProduct`, and deliberately so — the two halves of step ④ have different
+ * units. Taking, the operator stands at one door (`useCabinetAccess` opens exactly one) and empties bins in
+ * the route's order, so door → bin → products is the walk itself. Placing, they hold one product and
+ * distribute it, which is what the product-grouped cards describe. A product-grouped panel on the take half
+ * had to list a product's bins together even when the route reaches them at three separate moments, with
+ * other products' bins in between — the same misreading `findNextStopIndex` exists to prevent.
+ *
+ * **Consecutive runs, not a real group-by** — the exact opposite of `groupByProduct`'s choice, for the
+ * opposite reason. There, rows of one product legitimately arrive interleaved and had to be gathered
+ * wherever they fell. Here the caller hands rows in walk order, and a door appearing twice in that order is
+ * a genuine second visit (STEP4-GUIDANCE.md §5): folding the two together would tell the operator they can
+ * do both while it is open, which is the one thing the one-door constraint forbids.
+ *
+ * Products are deduped within a bin on the identity triple. A row is one source→target pairing, so a
+ * product leaving one bin for two targets arrives as two rows carrying the same source figure — printing
+ * both would double the bin's contents and its progress count.
+ */
+const groupBySourceDoorAndBin = (rows: MoveSummaryRow[]) => {
+  const doors: {
+    door?: string;
+    bins: { label: string; door?: string; rows: MoveSummaryRow[] }[];
+  }[] = [];
+
+  rows.forEach(row => {
+    let door = doors[doors.length - 1];
+    if (!door || door.door !== row.fromDoor) {
+      door = { door: row.fromDoor, bins: [] };
+      doors.push(door);
+    }
+
+    let bin = door.bins[door.bins.length - 1];
+    if (!bin || bin.label !== row.fromLabel) {
+      bin = { label: row.fromLabel, door: row.fromDoor, rows: [] };
+      door.bins.push(bin);
+    }
+
+    const key = moveSummaryProductKey(row);
+    if (!bin.rows.some(existing => moveSummaryProductKey(existing) === key)) {
+      bin.rows.push(row);
+    }
+  });
+
+  return doors;
+};
+
+/**
  * The itinerary: door visits, each holding its bin stops, in route order (STEP4-GUIDANCE.md §6).
  *
  * Door VISITS are the grouping key, not doors. A door caught in a precedence cycle is legitimately
@@ -336,6 +384,12 @@ export default function MoveSummaryPanel({
     qty == null ? null : `${qty} ${pluralizeUnit(unit || 'vial', qty)}`;
 
   const isRouteStage = stage === 'route' && !!route;
+  // The take half groups by door and bin instead of by product — see groupBySourceDoorAndBin.
+  const isSourceStage = stage === 'source';
+  // Computed here rather than inside the renderer, because the header above it reports the same figure and
+  // the two must not count differently.
+  const sourceDoors = isSourceStage ? groupBySourceDoorAndBin(rows) : [];
+  const sourceBinCount = sourceDoors.reduce((sum, door) => sum + door.bins.length, 0);
   const stageCopy =
     stage === 'review' || stage === 'route' ? null : STAGE_COPY[stage as 'source' | 'target'];
   const StageIcon = stageCopy?.icon;
@@ -568,6 +622,228 @@ export default function MoveSummaryPanel({
     </span>
   );
 
+  /**
+   * The take half, door by door: what is stacked in each bin the operator is about to reach into.
+   *
+   * A bin's own state is stated on its header rather than left to be inferred from the rows: `2 of 4 taken`
+   * answers "can I close this door and move on", which is the question being asked standing in front of it,
+   * and no per-product row can answer it. Counted in **rows visited, not rows with a figure** — a product
+   * legitimately taken at 0 (an allocation-only move) is done, and counting non-zero amounts would leave the
+   * bin reading `2 of 4` with nothing left to do in it.
+   *
+   * A row wears `Taken` only once stock has actually left (`sourceTakenBadge`, shared with the pairing
+   * view). No `0 Taken` on rows the operator has not reached: the row model treats "undecided" as null and
+   * renders nothing for it, because a stated zero reads as a decision already made — and a bin header saying
+   * `4 of 4 taken` above rows each claiming `0 Taken` is a straight contradiction.
+   */
+  const renderSourceByDoor = () =>
+    sourceDoors.map((door, doorIndex) => {
+      const bins = door.bins;
+      const binsDone = bins.filter(bin => bin.rows.every(row => row.status === 'done')).length;
+      const holdsCurrent = bins.some(bin => bin.rows.some(row => row.status === 'current'));
+
+      return (
+        <div key={`${door.door ?? 'no-door'}-${doorIndex}`} className="mb-3 last:mb-0">
+          {/* The door as a heading rather than a prefix repeated on every bin. With the walk grouped door
+              by door, a door is a section that opens and closes, and the heading is the only place
+              "this door is finished" can be said once. */}
+          <div className="flex items-center justify-between gap-2 mb-1.5">
+            <span className="flex items-center gap-1.5 min-w-0">
+              {holdsCurrent ? (
+                <Unlock className="w-3.5 h-3.5 shrink-0 text-[#12805C]" />
+              ) : (
+                <Lock className="w-3.5 h-3.5 shrink-0 text-[#94a3b8]" />
+              )}
+              <span
+                className={`truncate text-[13px] ${
+                  holdsCurrent ? 'font-semibold text-[#020817]' : 'text-[#4a5565]'
+                }`}
+              >
+                {door.door ?? 'Bins'}
+              </span>
+            </span>
+            <span className="shrink-0 text-[11px] text-[#64748b] whitespace-nowrap">
+              {binsDone === bins.length
+                ? 'done'
+                : `${binsDone} of ${bins.length} bin${bins.length === 1 ? '' : 's'}`}
+            </span>
+          </div>
+
+          {bins.map((bin, binIndex) => {
+            const isCurrentBin = bin.rows.some(row => row.status === 'current');
+            const takenCount = bin.rows.filter(row => row.status === 'done').length;
+            const allTaken = takenCount === bin.rows.length;
+
+            return (
+              <div
+                key={`${bin.label}-${binIndex}`}
+                className={`rounded-[6px] border px-3 py-2 mb-2 ${
+                  isCurrentBin ? 'border-[#095192] bg-white' : 'border-gray-200 bg-white'
+                }`}
+              >
+                <div className="flex items-center justify-between gap-2 pb-2 mb-2 border-b border-gray-100">
+                  <span
+                    className={`truncate text-[13px] ${
+                      isCurrentBin ? 'font-semibold text-[#020817]' : 'font-medium text-[#4a5565]'
+                    }`}
+                  >
+                    {bin.label}
+                  </span>
+                  {/* Green for finished, blue for the bin in hand, grey for one not yet reached — the
+                      same three states the route itinerary uses for its stops, so the two agree. */}
+                  <span
+                    className={`shrink-0 text-[11px] whitespace-nowrap ${
+                      allTaken
+                        ? 'text-[#12805C] font-medium'
+                        : isCurrentBin
+                          ? 'text-[#095192] font-medium'
+                          : 'text-[#64748b]'
+                    }`}
+                  >
+                    {allTaken
+                      ? `${takenCount} of ${bin.rows.length} taken`
+                      : isCurrentBin
+                        ? 'In progress'
+                        : takenCount > 0
+                          ? `${takenCount} of ${bin.rows.length} taken`
+                          : 'Pending'}
+                  </span>
+                </div>
+
+                <div className="space-y-2">
+                  {bin.rows.map((row, rowIndex) => {
+                    const isCurrentRow = row.status === 'current';
+                    const sourceText = quantityText(row.sourceQuantity, row.unit);
+                    const takenBadge = sourceTakenBadge(row);
+
+                    return (
+                      <div
+                        key={`${row.key}-${rowIndex}`}
+                        className={`flex items-start justify-between gap-2 ${
+                          // The product in hand, tinted inside its bin. The bin card keeps a white
+                          // ground: two nested tints read as two selections, and only one thing is in
+                          // the operator's hands.
+                          isCurrentRow ? 'bg-[#F1F6FA] -mx-1.5 px-1.5 py-1 rounded-[4px]' : ''
+                        }`}
+                      >
+                        <span className="min-w-0">
+                          <span
+                            className={`block break-words text-[12px] leading-[18px] ${
+                              isCurrentRow ? 'font-medium text-[#095192]' : 'text-[#020817]'
+                            }`}
+                          >
+                            {row.productName}
+                          </span>
+                          {/* Badges on their own line under the name, as everywhere at this width — the
+                              Move List is the pipeline's one exception to badges-beside-the-name, because
+                              320px costs the name the characters that carry the strength (§6). */}
+                          <span className="flex items-center gap-1 flex-wrap mt-0.5">
+                            <ProductBadges
+                              product={{
+                                name: row.productName,
+                                ndc: row.ndc,
+                                inventoryType: row.inventoryType
+                              }}
+                            />
+                          </span>
+                          {row.ndc && (
+                            <span className="block text-[11px] text-[#94a3b8] mt-0.5 break-words">
+                              {row.ndc}
+                              {row.inventoryType ? ` - ${row.inventoryType}` : ''}
+                            </span>
+                          )}
+                        </span>
+
+                        <span className="shrink-0 flex items-center gap-1.5 whitespace-nowrap">
+                          {row.isSkipped
+                            ? skippedBadge
+                            : (
+                              <>
+                                {sourceText && (
+                                  <span className="text-[12px] font-medium text-[#020817]">{sourceText}</span>
+                                )}
+                                {takenBadge && doneBadge(takenBadge)}
+                              </>
+                            )}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      );
+    });
+
+  /**
+   * Per-product totals beneath the bins, on the take half only.
+   *
+   * Bin-first grouping scatters one product's bins across several cards, and the figure the operator needs
+   * at the target is the sum: sources reading 25, 10 and 5 never said 40 anywhere, which is why the
+   * product-grouped card states it beside the name. This is where that fact survives the regrouping — the
+   * product view never disappears (STEP4-GUIDANCE.md §6).
+   *
+   * **It reports what has been collected, not a fraction of a planned total**, because no planned total
+   * exists to divide by on this half: `sourceQuantity` is null until a bin is finished, deliberately, since
+   * every bin is seeded with its full amount on mount and echoing that default would claim stock had left a
+   * bin nobody had opened. Written as `n of m` first, it read `0 of 0 vials taken` on every product before
+   * the first bin was worked. So the line states the running sum and how many bins are still to come, which
+   * are both facts, and the sum is exactly the figure the operator carries to the target.
+   */
+  const renderSourceProductTotals = () => (
+    <div className="mt-1 pt-3 border-t border-gray-200">
+      <p className="text-[11px] font-semibold text-[#475569] uppercase tracking-wide mb-1.5">Products</p>
+      <div className="space-y-1.5">
+        {groups.map((group, groupIndex) => {
+          const skipped = group.rows.length > 0 && group.rows.every(row => row.isSkipped);
+          // Per source bin, not per pairing: `sourceQuantity` repeats across the rows sharing one bin, so
+          // summing rows would multiply a bin's contribution by its number of destinations.
+          const byBin = new Map<string, { qty: number; done: boolean }>();
+          group.rows.forEach(row => {
+            if (row.sourceQuantity == null) return;
+            const key = `${row.fromLabel}|${row.fromDoor ?? ''}`;
+            const existing = byBin.get(key);
+            byBin.set(key, {
+              qty: row.sourceQuantity,
+              done: (existing?.done ?? false) || row.status === 'done'
+            });
+          });
+          const taken = Array.from(byBin.values())
+            .filter(bin => bin.done)
+            .reduce((sum, bin) => sum + bin.qty, 0);
+          // Bins still to reach into, counted per bin rather than per pairing for the same reason.
+          const binsLeft = new Set(
+            group.rows
+              .filter(row => row.status !== 'done')
+              .map(row => `${row.fromLabel}|${row.fromDoor ?? ''}`)
+          ).size;
+          const unit = pluralizeUnit(group.rows[0]?.unit || 'vial', taken);
+          const binsLeftText = `${binsLeft} bin${binsLeft === 1 ? '' : 's'} to go`;
+
+          return (
+            <div key={`${group.productName}-${groupIndex}`} className="text-[12px]">
+              <div className="flex items-center justify-between gap-2">
+                <span className="truncate text-[#020817]">{group.productName}</span>
+                {skipped && skippedBadge}
+              </div>
+              {!skipped && (
+                <div className="text-[11px] text-[#64748b]">
+                  {taken > 0
+                    ? binsLeft > 0
+                      ? `${taken} ${unit} taken · ${binsLeftText}`
+                      : `${taken} ${unit} taken`
+                    : binsLeftText}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+
   return (
     <div className="shrink-0 w-[320px] h-full bg-white border-l border-gray-200 flex flex-col">
       <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 shrink-0">
@@ -580,7 +856,13 @@ export default function MoveSummaryPanel({
               ? `${route!.visits.filter(v => v.storage === 'cabinet').length} door${
                   route!.visits.filter(v => v.storage === 'cabinet').length === 1 ? '' : 's'
                 } · stop ${route!.stopNumber} of ${route!.stopCount}`
-              : `${groups.length} ${groups.length === 1 ? 'product' : 'products'}`}
+              : isSourceStage
+                ? /* Bins, because bins are what the take half lists — the product count still shows on
+                     the Products section at the foot of the panel. */
+                  `${sourceBinCount} ${sourceBinCount === 1 ? 'bin' : 'bins'} · ${groups.length} ${
+                    groups.length === 1 ? 'product' : 'products'
+                  }`
+                : `${groups.length} ${groups.length === 1 ? 'product' : 'products'}`}
           </p>
         </div>
         <button
@@ -702,6 +984,11 @@ export default function MoveSummaryPanel({
           </>
         ) : groups.length === 0 ? (
           <p className="text-[13px] text-[#64748b] text-center mt-6">Nothing selected yet.</p>
+        ) : isSourceStage ? (
+          <>
+            {renderSourceByDoor()}
+            {renderSourceProductTotals()}
+          </>
         ) : (
           groups.map((group, groupIndex) => {
             const badgeIdentity = { name: group.productName, ndc: group.ndc, inventoryType: group.inventoryType };
