@@ -689,25 +689,21 @@ export default function MoveSummaryPanel({
                   >
                     {bin.label}
                   </span>
-                  {/* Green for finished, blue for the bin in hand, grey for one not yet reached — the
-                      same three states the route itinerary uses for its stops, so the two agree. */}
-                  <span
-                    className={`shrink-0 text-[11px] whitespace-nowrap ${
-                      allTaken
-                        ? 'text-[#12805C] font-medium'
-                        : isCurrentBin
-                          ? 'text-[#095192] font-medium'
-                          : 'text-[#64748b]'
-                    }`}
-                  >
-                    {allTaken
-                      ? `${takenCount} of ${bin.rows.length} taken`
-                      : isCurrentBin
-                        ? 'In progress'
-                        : takenCount > 0
-                          ? `${takenCount} of ${bin.rows.length} taken`
-                          : 'Pending'}
-                  </span>
+                  {/* Progress is reported only once there is progress. `In progress` and `Pending` were
+                      words for two states the card already shows without them: the bin in hand has a blue
+                      border and holds the tinted product row, and "not yet reached" is the default every
+                      untouched bin is in — a label saying so on every card is a column of noise that the
+                      one bin actually doing something has to compete with. What is left is the only line
+                      carrying a fact: how much of this bin is done, green once all of it is. */}
+                  {takenCount > 0 && (
+                    <span
+                      className={`shrink-0 text-[11px] whitespace-nowrap ${
+                        allTaken ? 'text-[#12805C] font-medium' : 'text-[#64748b]'
+                      }`}
+                    >
+                      {takenCount} of {bin.rows.length} taken
+                    </span>
+                  )}
                 </div>
 
                 <div className="space-y-2">
@@ -719,25 +715,37 @@ export default function MoveSummaryPanel({
                     return (
                       <div
                         key={`${row.key}-${rowIndex}`}
-                        className={`flex items-start justify-between gap-2 ${
+                        className={
                           // The product in hand, tinted inside its bin. The bin card keeps a white
                           // ground: two nested tints read as two selections, and only one thing is in
                           // the operator's hands.
                           isCurrentRow ? 'bg-[#F1F6FA] -mx-1.5 px-1.5 py-1 rounded-[4px]' : ''
-                        }`}
+                        }
                       >
-                        <span className="min-w-0">
-                          <span
-                            className={`block break-words text-[12px] leading-[18px] ${
-                              isCurrentRow ? 'font-medium text-[#095192]' : 'text-[#020817]'
-                            }`}
-                          >
-                            {row.productName}
-                          </span>
-                          {/* Badges on their own line under the name, as everywhere at this width — the
-                              Move List is the pipeline's one exception to badges-beside-the-name, because
-                              320px costs the name the characters that carry the strength (§6). */}
-                          <span className="flex items-center gap-1 flex-wrap mt-0.5">
+                        {/* **The name owns its own full-width line, before and after the stock is taken.**
+                            This row used to be a flex pair — name on the left, quantity and `Taken` on the
+                            right — and those two only appear once a bin is finished. So the card silently
+                            re-laid itself out at the moment the operator acted: an untaken row had the
+                            whole width for its name, and the same row a tap later had `10 vials  Taken`
+                            beside it and wrapped "CARBOPLATIN 600 MG/60 ML VIAL" onto a second line. The
+                            one row they had just worked was the one that moved.
+
+                            It is the same reason the badges are not beside the name here (§6): at 320px
+                            anything sharing the name's line costs it the characters carrying the strength,
+                            which is the part being checked. A figure that appears halfway through is worse
+                            than a badge that was always there, because it moves the text under the eye. */}
+                        <span
+                          className={`block break-words text-[12px] leading-[18px] ${
+                            isCurrentRow ? 'font-medium text-[#095192]' : 'text-[#020817]'
+                          }`}
+                        >
+                          {row.productName}
+                        </span>
+
+                        {/* Badges left, the figure right — one attributes line whose height and position
+                            do not depend on whether the figure is there yet. */}
+                        <div className="flex items-center justify-between gap-2 mt-0.5">
+                          <span className="flex items-center gap-1 flex-wrap min-w-0">
                             <ProductBadges
                               product={{
                                 name: row.productName,
@@ -746,26 +754,27 @@ export default function MoveSummaryPanel({
                               }}
                             />
                           </span>
-                          {row.ndc && (
-                            <span className="block text-[11px] text-[#94a3b8] mt-0.5 break-words">
-                              {row.ndc}
-                              {row.inventoryType ? ` - ${row.inventoryType}` : ''}
-                            </span>
-                          )}
-                        </span>
 
-                        <span className="shrink-0 flex items-center gap-1.5 whitespace-nowrap">
-                          {row.isSkipped
-                            ? skippedBadge
-                            : (
-                              <>
-                                {sourceText && (
-                                  <span className="text-[12px] font-medium text-[#020817]">{sourceText}</span>
-                                )}
-                                {takenBadge && doneBadge(takenBadge)}
-                              </>
-                            )}
-                        </span>
+                          <span className="shrink-0 flex items-center gap-1.5 whitespace-nowrap">
+                            {row.isSkipped
+                              ? skippedBadge
+                              : (
+                                <>
+                                  {sourceText && (
+                                    <span className="text-[12px] font-medium text-[#020817]">{sourceText}</span>
+                                  )}
+                                  {takenBadge && doneBadge(takenBadge)}
+                                </>
+                              )}
+                          </span>
+                        </div>
+
+                        {row.ndc && (
+                          <span className="block text-[11px] text-[#94a3b8] mt-0.5 break-words">
+                            {row.ndc}
+                            {row.inventoryType ? ` - ${row.inventoryType}` : ''}
+                          </span>
+                        )}
                       </div>
                     );
                   })}

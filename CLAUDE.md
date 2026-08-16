@@ -475,6 +475,17 @@ its own `MoveSummaryRow[]` from state it already holds (§3).
 - **One badge per act, on the line it belongs to.** `Taken` beside the source line's quantity, `Moved`
   on a target line once stock is actually placed there. A source's `Taken` persists onto the placement
   half — every quantity is taken before any is carried, so by then it is genuinely done.
+- **On the take half's bin cards the product name owns a full-width line, and the quantity and `Taken`
+  sit on the badges line below it.** They used to be a flex pair with the name, and since both only
+  appear once a bin is finished, the card re-laid itself out at the moment the operator acted: a name
+  that had the whole width wrapped onto a second line a tap later. Same reasoning as badges-not-beside-
+  the-name at this width (§6), with an extra edge — a figure that arrives halfway through moves text
+  under the eye, which a badge that was always there does not.
+- **A bin card reports progress only once there is progress.** It carried `In progress` on the bin in
+  hand and `Pending` on every other, both of which the card already says without words: the current bin
+  has a blue border and holds the tinted product row, and untouched is what every other bin is. A label
+  on all of them is a column of noise for the one bin doing something to compete with. What is left is
+  `n of m taken`, green once all of it is.
 - **Bold marks the bin in hand** — the source bin while taking, the target bin while placing. A filled
   chip was tried first and read as "selected" rather than "you are here".
 - **Only the quantity being moved.** The History page's `-20 → 180` shape was tried and dropped: what
