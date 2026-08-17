@@ -82,11 +82,23 @@ export const consolidateBinProducts = (bin: Bin | undefined): any[] => {
 export const selectionBadge = ({
   isSource,
   isTarget,
+  isCommittedTarget,
   moveMode,
   pickedCount
 }: {
   isSource: boolean;
   isTarget: boolean;
+  /**
+   * A target bin the current screen cannot take back — `Add Move To Bin`'s overlay, where the bins already
+   * receiving this product are listed alongside the ones being picked right now.
+   *
+   * The overlay used to give both the same green `Move To`, on the reasoning that a bin about to become a
+   * target and one that already is are the same fact about the cabinet. True of the cabinet, and false of
+   * the tap: an existing target is refused with a toast (`moveToBinCandidates`' EXISTING_TARGET_REASON)
+   * while a bin picked in this visit toggles freely. Two identically badged bins behaving differently
+   * under the same gesture is the thing the badge has to give away.
+   */
+  isCommittedTarget?: boolean;
   moveMode?: 'bin' | 'product' | null;
   pickedCount: number;
 }): { text: string; className: string } | null => {
@@ -94,6 +106,14 @@ export const selectionBadge = ({
     const counted = moveMode === 'product' && pickedCount > 0;
     return { text: counted ? `${pickedCount} Selected` : 'Move From', className: 'text-[#165dfc]' };
   }
-  if (isTarget) return { text: 'Move To', className: 'text-[#359f5a]' };
+  if (isTarget) {
+    // Same green: it IS a Move To bin, and recolouring would say it is some other kind of thing. Only the
+    // wording carries "and not by you, just now" — the app's existing voice for a control whose work is
+    // already done (`Selected`, `All selected`, `Already in Move To`).
+    return {
+      text: isCommittedTarget ? 'Already selected' : 'Move To',
+      className: 'text-[#359f5a]'
+    };
+  }
   return null;
 };

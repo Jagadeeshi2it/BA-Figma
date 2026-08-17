@@ -316,6 +316,17 @@ other bin has its own header for the badge to sit under and keeps it there. Both
 `selectionBadge` in `binProducts.ts` — `BinCard` for the card, `ShelfHeading` in `ShelvesSection` for the
 fridge — so the wording and colour cannot drift between them.
 
+**Inside `Add Move To Bin`'s overlay a target already in the move says `Already selected`, not `Move To`.**
+That overlay shows two kinds of green bin at once — the ones already receiving this product, and the ones
+being picked right now — and they behave differently under the same gesture: an existing target is refused
+with a toast (`EXISTING_TARGET_REASON` in `moveToBinCandidates`) while a bin picked in this visit toggles.
+Badging both `Move To` left the operator tapping one of two identical cards and getting a refusal. The
+colour stays the same, because it is the same claim about the cabinet — only the wording carries "and not
+by you, just now", in the voice the app already uses for spent controls (`Selected`, `All selected`,
+`Already in Move To`). Carried by `committedChangeAllocationTargetBins`, which **only that overlay passes**:
+in the cabinet's own step ② every target is one the operator can take back, so there is nothing to
+distinguish and the badge reads `Move To` as before.
+
 Buttons name **what happens next**: `Select` / `Remove` on the cards, `Next Bin to Move From` →
 `Save & Continue` → `Proceed to Move To` on the quantity page. Nothing says "Confirm" until it
 commits — Review's primary is `Start Qty Move`.

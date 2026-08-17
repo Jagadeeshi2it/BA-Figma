@@ -27,6 +27,13 @@ interface BinCardProps {
   isSelectedForAssignment?: boolean;
   isChangeAllocationSource?: boolean;
   isChangeAllocationTarget?: boolean;
+  /**
+   * A Move To bin this screen cannot take back — set only by `Add Move To Bin`'s overlay, for the bins
+   * already receiving the product. The card looks identical (it is still a target); the badge says
+   * `Already selected` rather than `Move To`, because tapping it is refused while a bin picked in this
+   * visit toggles. See `selectionBadge`.
+   */
+  isCommittedChangeAllocationTarget?: boolean;
   changeAllocationMode?: boolean;
   showUnallocatedProducts?: boolean;
   onClick: (binId: string) => void;
@@ -62,6 +69,7 @@ export default function BinCard({
   isSelectedForAssignment = false,
   isChangeAllocationSource = false,
   isChangeAllocationTarget = false,
+  isCommittedChangeAllocationTarget = false,
   changeAllocationMode = false,
   showUnallocatedProducts = false,
   onClick,
@@ -178,6 +186,7 @@ export default function BinCard({
   const selectionBadgeInfo = selectionBadge({
     isSource: isChangeAllocationSource,
     isTarget: isChangeAllocationTarget,
+    isCommittedTarget: isCommittedChangeAllocationTarget,
     moveMode,
     pickedCount: selectedProductCount
   });

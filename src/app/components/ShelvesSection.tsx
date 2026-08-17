@@ -26,6 +26,8 @@ interface ShelvesSectionProps {
   sourceProductPicks?: SourcePick[];
   changeAllocationSourceBins: string[];
   changeAllocationTargetBins: string[];
+  // Optional: only `Add Move To Bin`'s overlay has committed targets to name.
+  committedChangeAllocationTargetBins?: string[];
   showUnallocatedProducts: boolean;
   onBinClick: (binId: string, doorKey: string) => void;
   onProductClick: (product: any, location: any) => void;
@@ -54,6 +56,7 @@ function ShelfHeading({
   selectedDoor,
   changeAllocationSourceBins,
   changeAllocationTargetBins,
+  committedChangeAllocationTargetBins = [],
   moveMode,
   sourceProductPicks
 }: {
@@ -61,6 +64,7 @@ function ShelfHeading({
   selectedDoor: string | null;
   changeAllocationSourceBins: string[];
   changeAllocationTargetBins: string[];
+  committedChangeAllocationTargetBins?: string[];
   moveMode?: 'bin' | 'product' | null;
   sourceProductPicks: SourcePick[];
 }) {
@@ -70,6 +74,7 @@ function ShelfHeading({
     ? selectionBadge({
         isSource: changeAllocationSourceBins.includes(bin.id),
         isTarget: changeAllocationTargetBins.includes(bin.id),
+        isCommittedTarget: committedChangeAllocationTargetBins.includes(bin.id),
         moveMode,
         pickedCount: productKeysForBin(sourceProductPicks, bin.id).length
       })
@@ -101,6 +106,7 @@ export default function ShelvesSection({
   sourceProductPicks = [],
   changeAllocationSourceBins,
   changeAllocationTargetBins,
+  committedChangeAllocationTargetBins = [],
   showUnallocatedProducts,
   onBinClick,
   onProductClick,
@@ -119,6 +125,7 @@ export default function ShelvesSection({
               selectedDoor={selectedDoor}
               changeAllocationSourceBins={changeAllocationSourceBins}
               changeAllocationTargetBins={changeAllocationTargetBins}
+              committedChangeAllocationTargetBins={committedChangeAllocationTargetBins}
               moveMode={moveMode}
               sourceProductPicks={sourceProductPicks}
             />
@@ -139,6 +146,7 @@ export default function ShelvesSection({
               onSelectSourceProduct={onSelectSourceProduct}
               changeAllocationSourceBins={changeAllocationSourceBins}
               changeAllocationTargetBins={changeAllocationTargetBins}
+              committedChangeAllocationTargetBins={committedChangeAllocationTargetBins}
               showUnallocatedProducts={showUnallocatedProducts}
               onBinClick={onBinClick}
               onProductClick={onProductClick}
@@ -166,6 +174,7 @@ export default function ShelvesSection({
               selectedDoor={selectedDoor}
               changeAllocationSourceBins={changeAllocationSourceBins}
               changeAllocationTargetBins={changeAllocationTargetBins}
+              committedChangeAllocationTargetBins={committedChangeAllocationTargetBins}
               moveMode={moveMode}
               sourceProductPicks={sourceProductPicks}
             />
@@ -186,6 +195,7 @@ export default function ShelvesSection({
               onSelectSourceProduct={onSelectSourceProduct}
               changeAllocationSourceBins={changeAllocationSourceBins}
               changeAllocationTargetBins={changeAllocationTargetBins}
+              committedChangeAllocationTargetBins={committedChangeAllocationTargetBins}
               showUnallocatedProducts={showUnallocatedProducts}
               onBinClick={onBinClick}
               onProductClick={onProductClick}

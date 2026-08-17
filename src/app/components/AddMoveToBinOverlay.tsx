@@ -275,10 +275,16 @@ export default function AddMoveToBinOverlay({
           changeAllocationStep={2}
           changeAllocationSourceBins={sourceBinIds}
           // Bins picked in this visit wear the same green Move To treatment as the ones already in the
-          // move, because that is what they are about to become. Nothing distinguishes "already a
-          // target" from "picked just now" — the operator is looking at where this product will end up,
-          // and how recently a bin joined that list is not a fact about the cabinet.
+          // move, because that is what they are about to become — the operator is looking at where this
+          // product will end up, and the colour is the same claim about the cabinet either way.
+          //
+          // **The wording does distinguish them, though, and has to.** The two look alike and do not
+          // behave alike: an existing target is refused on tap (`EXISTING_TARGET_REASON`) while a bin
+          // picked here toggles. Badging both `Move To` left the operator tapping one of two identical
+          // cards and getting a toast. The committed ones say `Already selected` instead — the app's
+          // existing voice for a control whose work is done, and enough to predict the tap.
           changeAllocationTargetBins={[...existingTargetBinIds, ...selectedBinIds]}
+          committedChangeAllocationTargetBins={existingTargetBinIds}
           showUnallocatedProducts={false}
           onBinClick={handleBinClick}
           onProductClick={() => {}}

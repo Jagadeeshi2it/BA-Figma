@@ -33,6 +33,9 @@ interface ShelfLayoutProps {
   sourceProductPicks?: SourcePick[];
   changeAllocationSourceBins?: string[];
   changeAllocationTargetBins?: string[];
+  // Of those targets, the ones this screen cannot take back — `Add Move To Bin`'s overlay only. Their
+  // badge reads `Already selected`; everything else about the card is unchanged.
+  committedChangeAllocationTargetBins?: string[];
   showUnallocatedProducts?: boolean;
   onBinClick: (binId: string) => void;
   onProductClick?: (product: any, location: any) => void;
@@ -59,6 +62,7 @@ export default function ShelfLayout({
   sourceProductPicks = [],
   changeAllocationSourceBins = [],
   changeAllocationTargetBins = [],
+  committedChangeAllocationTargetBins = [],
   showUnallocatedProducts = false,
   onBinClick,
   onProductClick,
@@ -138,6 +142,7 @@ export default function ShelfLayout({
                   isSelectedForAssignment={selectedBinsForAssignment.includes(bin.id)}
                   isChangeAllocationSource={changeAllocationSourceBins.includes(bin.id)}
                   isChangeAllocationTarget={changeAllocationTargetBins.includes(bin.id)}
+            isCommittedChangeAllocationTarget={committedChangeAllocationTargetBins.includes(bin.id)}
                   changeAllocationMode={changeAllocationMode}
                   showUnallocatedProducts={showUnallocatedProducts}
                   onClick={onBinClick}
@@ -177,6 +182,7 @@ export default function ShelfLayout({
             isSelectedForAssignment={selectedBinsForAssignment.includes(bin.id)}
             isChangeAllocationSource={changeAllocationSourceBins.includes(bin.id)}
             isChangeAllocationTarget={changeAllocationTargetBins.includes(bin.id)}
+            isCommittedChangeAllocationTarget={committedChangeAllocationTargetBins.includes(bin.id)}
             changeAllocationMode={changeAllocationMode}
             showUnallocatedProducts={showUnallocatedProducts}
             onClick={onBinClick}
@@ -215,6 +221,7 @@ export default function ShelfLayout({
             isSelectedForAssignment={selectedBinsForAssignment.includes(bin.id)}
             isChangeAllocationSource={changeAllocationSourceBins.includes(bin.id)}
             isChangeAllocationTarget={changeAllocationTargetBins.includes(bin.id)}
+            isCommittedChangeAllocationTarget={committedChangeAllocationTargetBins.includes(bin.id)}
             changeAllocationMode={changeAllocationMode}
             showUnallocatedProducts={showUnallocatedProducts}
             onClick={onBinClick}
@@ -266,6 +273,7 @@ export default function ShelfLayout({
           isSelectedForAssignment={selectedBinsForAssignment.includes(bin.id)}
           isChangeAllocationSource={changeAllocationSourceBins.includes(bin.id)}
           isChangeAllocationTarget={changeAllocationTargetBins.includes(bin.id)}
+            isCommittedChangeAllocationTarget={committedChangeAllocationTargetBins.includes(bin.id)}
           changeAllocationMode={changeAllocationMode}
           showUnallocatedProducts={showUnallocatedProducts}
           onClick={onBinClick}
