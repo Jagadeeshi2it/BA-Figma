@@ -986,73 +986,6 @@ export default function TargetBinSerialScanPage({
   const showSkipBin =
     currentBinIsEmpty && !isFinalSaveStep && currentProduct.targetBins.length > 1;
 
-  // AUTO-POPULATE serial numbers when serial scanning is NOT required
-  // This happens when moving entire quantity to single target bin
-  useEffect(() => {
-    if (!serialScanningRequired && currentTargetBin && currentProduct) {
-      const key = getTargetBinKey(currentTargetBin);
-      
-      // Check if already populated for this target bin
-      if (scannedItems[key] && scannedItems[key].length > 0) {
-        console.log('🔧 Serial numbers already populated for this target bin');
-        return;
-      }
-      
-      console.log('🔧 Auto-populating serial numbers from source bin(s)');
-      
-      // Collect all serial numbers from source bins
-      const autoPopulatedItems: ScannedItem[] = [];
-      
-      currentTargetBin.transfers.forEach(transfer => {
-        // Find the source bin in doorShelfConfig
-        Object.keys(doorShelfConfig).forEach(doorKey => {
-          const shelves = doorShelfConfig[doorKey];
-          shelves?.forEach(shelf => {
-            shelf.bins?.forEach(bin => {
-              if (bin.id === transfer.fromBinId) {
-                // Find the product in the source bin
-                const product = bin.products.find(p => p.id === transfer.productId);
-                
-                if (product && product.serialNumbers && product.serialNumbers.length > 0) {
-                  // Add all serial numbers from this source bin
-                  product.serialNumbers.forEach(serial => {
-                    autoPopulatedItems.push({
-                      serial: serial,
-                      lot: product.lot || Math.floor(Math.random() * 10000000).toString(),
-                      source: product.manufacturer || 'McKesson Medical',
-                      expiration: product.expiration || new Date(Date.now() + Math.random() * 365 * 24 * 60 * 60 * 1000).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' }),
-                      quantity: `1 ${product.unit || 'vial'}`
-                    });
-                  });
-                } else {
-                  // If no serial numbers exist, generate mock ones based on quantity
-                  for (let i = 0; i < transfer.quantity; i++) {
-                    autoPopulatedItems.push({
-                      serial: `SN${Math.floor(Math.random() * 1000000000).toString().padStart(9, '0')}`,
-                      lot: product?.lot || Math.floor(Math.random() * 10000000).toString(),
-                      source: product?.manufacturer || 'McKesson Medical',
-                      expiration: product?.expiration || new Date(Date.now() + Math.random() * 365 * 24 * 60 * 60 * 1000).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' }),
-                      quantity: `1 ${product?.unit || 'vial'}`
-                    });
-                  }
-                }
-              }
-            });
-          });
-        });
-      });
-      
-      // Set the auto-populated items
-      if (autoPopulatedItems.length > 0) {
-        setScannedItems(prev => ({
-          ...prev,
-          [key]: autoPopulatedItems
-        }));
-        
-        console.log('✅ Auto-populated', autoPopulatedItems.length, 'serial numbers');
-      }
-    }
-  }, [serialScanningRequired, currentTargetBin, currentProduct, doorShelfConfig]);
 
   /**
    * **A bin opens holding everything not yet assigned.**
@@ -1075,11 +1008,22 @@ export default function TargetBinSerialScanPage({
    *     swallow the whole remainder and leave an earlier empty bin unfixable. A bin added now opens holding
    *     the pool, which is what the operator added it for.
    *
+   * **This is the only rule that fills a target bin**, and it has to be. There used to be a second, for the
+   * case where serial scanning is not required: it pushed `transfer.quantity` mock rows into whichever bin
+   * was on screen. That reads correctly with one target bin and double-counts with two, because every
+   * transfer out of a source carries that source's WHOLE declared amount (CLAUDE.md § Transfers) — so
+   * adding a bin mid-move during a full-quantity take filled both bins with all 47, and
+   * `remainingQtyToMove`, which sums scans across every target bin against a source-deduplicated total,
+   * reported **-47**. A pool cannot hand out more than it holds, so the arithmetic is closed by
+   * construction rather than by the two effects agreeing.
+   *
+   * `serialScanningRequired` therefore no longer gates the fill. It decides whether the operator may
+   * *edit* the assignment — the scan box — not whether the bin is loaded.
+   *
    * The seeding on first arrival is the provisional half — see `unplacedItems`.
    */
   useEffect(() => {
     if (!currentProduct || !currentTargetBin) return;
-    if (!serialScanningRequired) return;
     if (currentProductTotalQuantity <= 0) return;
 
     const key = getTargetBinKey(currentTargetBin);
@@ -1108,7 +1052,6 @@ export default function TargetBinSerialScanPage({
     currentTargetBin,
     currentTargetBinIndex,
     currentProductTotalQuantity,
-    serialScanningRequired,
     scannedItems,
     unplacedItems
   ]);

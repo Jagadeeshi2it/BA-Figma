@@ -552,6 +552,15 @@ What this touches, and why each part is easy to break again:
 - **History classifies on `actionType`, not on `quantity === 0`.** Those were the same test while a
   0-quantity transfer only ever meant "Allocate only"; a real move can now end at 0, so the old check
   filed it as a new allocation and wrote no move entry.
+- **One rule fills a target bin, and it has to be one.** A bin opens holding every vial not yet assigned
+  (`unplacedItems`, the pool). There used to be a second fill for the no-scanning case, which pushed
+  `transfer.quantity` mock rows into whichever bin was on screen — correct with one target bin and
+  double-counting with two, because every transfer out of a source carries that source's **whole** declared
+  amount (§ Transfers). Adding a bin mid-move during a full-quantity take therefore filled *both* bins with
+  all 47, and `Qty to move` read **-47**: `remainingQtyToMove` sums scans across every target bin against a
+  source-deduplicated total. A pool cannot hand out more than it holds, so the arithmetic closes by
+  construction rather than by two effects agreeing. `serialScanningRequired` now decides only whether the
+  operator may *edit* the assignment, not whether the bin is loaded.
 - **Each product's last target bin has to account for everything taken from its sources**, and that check
   is scoped per product — `isLastTargetBinForProduct`, hoisted so `canSave`, the save handler and the
   auto-fill effect all read one value. It used to AND in "and this is the last product of the batch", so it
