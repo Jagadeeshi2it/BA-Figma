@@ -1250,6 +1250,19 @@ validation for all transfers", and `SerialNumberModal.validateSerialNumbers()` e
 returns `isSelectionComplete`, i.e. "have enough serials been picked". No serial value is ever
 checked against anything.
 
+**And there is no serial inventory to check against.** A bin's holding is `quantity: number`; `Product`
+carries no serial list and the seed contains the string "serial" zero times. So no serial in the app is
+ever *the* serial that was in a bin: what the operator types at the target is unmatched, and
+`synthesizeScannedItems` fabricates the rest outright (random `SN`, lot and expiry, a hardcoded source)
+whenever a product's last target bin is reached empty. Nothing reads them back either — the History page
+has no serial column.
+**The pharmacy team has since said they need serials traceable to bins** (2026-08-08), which makes this a
+prerequisite rather than a gap: identity has to be captured at the **take** step, where the operator
+actually handles each vial, and bins have to hold serials so the cabinet state can answer what is in them.
+Written up as [STEP4-GUIDANCE.md](STEP4-GUIDANCE.md) §12, including the decision it forces immediately —
+the auto-fill is inventing the fact they need, and removing it before capture moves makes every split move
+a full hand-scan at the target.
+
 ---
 
 ## 6. How to work on this
@@ -1536,6 +1549,12 @@ physically impossible allocation without objection (§5).
 - **`instructionFor` returns one sentence per step with no per-stage nuance.** Step ④ prints the same
   "take, then place" line on both the quantity and the placement screen. Each screen's own header
   disambiguates, so this is tolerable, not right.
+- **Serials are captured at the wrong end of the move, and the placement screen invents them.** The
+  pharmacy team needs to know which serial went into which bin; bins hold no serials, the take step records
+  none, and `synthesizeScannedItems` fabricates a whole bin's worth whenever a product's last target bin is
+  reached empty. Specified in [STEP4-GUIDANCE.md](STEP4-GUIDANCE.md) §12; nothing built. The immediate
+  decision is recorded there rather than taken: honest-and-slower (drop the auto-fill, full hand-scan at
+  every target) or fast-and-false (keep it), with no third option until capture moves to the take step.
 - **Validation of operator intentions is outstanding.** A list of 18 real-world operator goals was
   triaged: 12 are assertable headlessly against the existing handlers, 2 need a headless render, and
   4 have no domain model at all (§5). Nothing has been built.

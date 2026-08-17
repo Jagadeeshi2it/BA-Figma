@@ -16,6 +16,9 @@
   nothing passes it one yet. Step ④'s summary is still product-major.
 - **§8's cancellation** — built: cancelling is offered only before the first quantity leaves a source bin.
 - **§7's re-planning** — not built.
+- **§12's serial custody** — **not built, and what ships today contradicts it.** The pharmacy team needs
+  serials traceable to bins; the app holds none in inventory, captures none at the take step, and invents
+  them at the target for a product's last bin. Nothing here is a small fix — see §12.
 
 This is the rule set for how step ④ of the move pipeline should guide an operator through the physical
 cabinet. It is deliberately a separate document from [CLAUDE.md](CLAUDE.md): the rules here are
@@ -587,6 +590,9 @@ Every item here is a prerequisite, not a nice-to-have.
 - **No capacity or door-type constraints exist at all** (CLAUDE.md §5). The router can therefore
   propose a placement the cabinet would physically refuse — a CLIMATE product into a room-temperature
   door, or a bin with no room. Sequencing cannot fix this; it just shouldn't pretend to have checked.
+- **There is no serial inventory.** A bin's holding is `quantity: number`; `Product` carries no serial
+  list and the seed contains the string "serial" zero times. So no serial in the app is ever *the* serial
+  that was in a bin — see §12, which the pharmacy team's answer on traceability turns into a prerequisite.
 
 ---
 
@@ -604,7 +610,87 @@ Every item here is a prerequisite, not a nice-to-have.
 
 ---
 
+## 12. Serial custody — where identity is captured
+
+**The pharmacy team's answer (2026-08-08): yes, they need to know which serial went into which bin.**
+That single answer settles a question this document had left open, and it reclassifies what the placement
+screen does today from a shortcut into a defect.
+
+### What the code does now
+
+- **Nothing in inventory holds serials.** A bin's contents are a quantity (§10). There is no set of 100
+  serials in a bin from which 80 could be drawn.
+- **The take step captures none.** Step ④a asks for a quantity and nothing else. At the one moment the
+  operator physically handles each vial — pulling it out of the source bin — no identity is recorded.
+- **The placement step invents them.** `synthesizeScannedItems` fabricates a serial (`SN` + 9 random
+  digits), a random lot, a random expiry and a hardcoded `McKesson Medical` source, and the auto-fill
+  writes a bin's whole remainder that way whenever a product's **last** target bin is reached empty.
+- **A dead branch pretends otherwise.** `TargetBinSerialScanPage` tries to read `product.serialNumbers`
+  off the source bin, but that field is not on `Product` and the seed never sets it, so it always falls
+  through to the branch commented *"generate mock ones based on quantity"*.
+- **Nothing reads them back.** The History page has no serial column. The values reach
+  `EKitHistoryService` only, which is out of scope this phase.
+- **Scanning validates nothing.** `SerialNumberModal.validateSerialNumbers()` answers "have enough been
+  picked" (CLAUDE.md §5). No serial value is ever checked against anything.
+
+### Why the current arrangement cannot satisfy the requirement
+
+Identity is captured at the **target** while the **source** has none. There is nothing for a target-side
+scan to be true *about*: the operator types a number that no record anywhere claims was in the bin they
+just emptied. And because the last bin is auto-filled, a split move writes real serials into one bin and
+invented ones into another — with no marking to say which is which.
+
+So the requirement is not partly met. It is met for zero bins.
+
+### Where capture has to move
+
+**To the take step.** That is the only moment identity is physically observable: each vial passes through
+the operator's hand coming out of the bin. Capturing there is a real 100 scans, once, and it is the scan
+that carries the information.
+
+Placement then stops being *entry* and becomes **apportionment** of a known set. This dissolves the
+80/20 problem that prompted the question, and more completely than a count field would:
+
+- The operator scans 100 out of the source once.
+- At the first target they assign 80 of those 100 — by taking the next 80, or by selecting.
+- The remaining 20 are the complement, and *"which 20"* has an answer for the first time.
+
+Note the asymmetry the operator noticed disappears rather than being worked around: nobody scans 80 at a
+target, because no serial is entered at a target at all.
+
+### What the data model needs
+
+**Bins must hold serials, not just counts.** If they do not, the knowledge lives only in the move ledger:
+the cabinet state cannot say what is in a bin, and the *next* move out of that bin has nothing to take.
+That means:
+
+- `Product` in a bin gains a serial list, maintained by every allocate, move and unallocate.
+- The conservation invariant (CLAUDE.md §6) strengthens from per-quantity to **per-serial**: the multiset
+  of serials across all bins is unchanged by a move, and no serial appears in two bins.
+- Allocation opens a location at `quantity: 0` (CLAUDE.md §2 A), so an empty serial list is the correct
+  starting state and needs no special case.
+
+### What must be deleted
+
+`synthesizeScannedItems` and the auto-fill that calls it. Both exist only to spare the operator a scan the
+old design could not avoid, and both fabricate the exact fact the pharmacy needs to be true.
+
+**This is a decision with a cost, and it lands before the rest of the work.** Removing the auto-fill today
+— ahead of take-step capture — makes every split move a full hand-scan at the target, which is the pain
+that started this. Keeping it means continuing to write invented serials. The two options are honest-and-
+slower or fast-and-false; there is no third until capture moves. Recorded here rather than chosen quietly.
+
+---
+
 ## Revisions
+
+- **2026-08-08** — §12 added, from the pharmacy team's answer that serials must be traceable to bins. The
+  answer arrived via a different question — why an 80/20 split forces 80 scans at the first target — and
+  the investigation found the flow captures identity at the wrong end: bins hold no serials, the take step
+  records none, and the placement screen invents them for a product's last bin. Capture moves to the take
+  step and placement becomes apportionment, which dissolves the 80/20 asymmetry rather than optimising it.
+  The immediate consequence is left as an open decision: the auto-fill is fabricating the fact the team
+  needs, and removing it before capture moves makes every split move a full hand-scan.
 
 - **2026-08-07** — The multi-door half of the same-day revision below, which that entry left open. The
   principle behind the same-door alternation is generalised as **R7 — hold as little as possible at once,
