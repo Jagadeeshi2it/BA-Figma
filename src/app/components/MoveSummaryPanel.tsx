@@ -1141,41 +1141,42 @@ export default function MoveSummaryPanel({
                 }`}
               >
                 {/* Identity block — same shape as SourceProductCard/TargetProductCard: name, italic
-                    generic name, badges, then NDC - inventory type on one line. */}
-                <div className="flex items-start justify-between gap-2">
-                  {/* The name gets the row to itself here — this panel is the one place in steps ③ and ④
-                      where the badges do NOT sit beside it. At 320px there is no room for both: badges on
-                      the name's line cost the name the characters it needs, so "CARBOPLATIN 600 MG/60 ML
-                      VIAL" truncated to "CARBOPLATIN 600 MG/6…" and the operator lost the strength, which
-                      is the one part of that name they are checking. Width decides this, not preference —
-                      the wider surfaces in the same steps keep badges beside the name. */}
-                  <h4 className="font-normal text-[#020817] text-[14px] leading-[20px] truncate">
-                    {group.productName}
-                  </h4>
-                  {/* At product level, beside the name — being skipped is a fact about the product,
-                      not about one of its bins, and the bins are exactly what a skipped card has
-                      nothing to say about. */}
-                  {isSkippedCard && skippedBadge}
-                  {/* Everything collected for this product, across all its source bins. A card whose
-                      sources read 25, 10 and 5 never said 40 anywhere, leaving the operator to add up
-                      what they are carrying — and 40 is the figure they need at the target bin. Not
-                      shown on a skipped card, which is carrying nothing. */}
-                  {!isSkippedCard && collectedText && (
-                    <span className="shrink-0 text-[12px] font-semibold text-[#020817] whitespace-nowrap">
-                      {collectedText}
-                    </span>
-                  )}
-                </div>
+                    generic name, badges, then NDC - inventory type on one line.
+
+                    **The name owns a full-width line, exactly as it does on the take half's bin cards.**
+                    The collected total used to sit beside it as a `shrink-0` figure, so a long name paid
+                    for it: `CARBOPLATIN 600 MG/60 ML VIAL` truncated to `CARBOPLATIN 600 MG/6…` and lost
+                    the strength, which is the part the operator is checking. That is the same reason the
+                    badges are not on this line either — and a figure is worse than a badge, since it is
+                    the thing the eye goes to on a placement screen. Widening the panel to 400px eased it
+                    without settling it; giving the name its own line settles it. */}
+                <h4 className="font-normal text-[#020817] text-[14px] leading-[20px] break-words">
+                  {group.productName}
+                </h4>
                 {group.productDescription && (
                   <p className="italic text-gray-500 leading-snug text-[14px] truncate">
                     {group.productDescription}
                   </p>
                 )}
-                {/* Below the generic name, on a line of their own — the layout the rest of the app uses
-                    outside the pipeline. Same `ProductBadges` as everywhere else, so only the position
-                    differs from the wider step-③/④ surfaces. */}
-                <div className="flex items-center gap-1 mt-1.5">
-                  <ProductBadges product={badgeIdentity} />
+                {/* Badges left, the product's figures right — one attributes line, the same arrangement
+                    the take half's rows use. `Skipped` stays at product level rather than moving down to a
+                    bin, because being skipped is a fact about the product and the bins are exactly what a
+                    skipped card has nothing to say about.
+
+                    The collected total is everything gathered for this product across all its source bins:
+                    sources reading 25, 10 and 5 never said 40 anywhere, and 40 is the figure carried to the
+                    target bin. Absent on a skipped card, which is carrying nothing. */}
+                <div className="flex items-center justify-between gap-2 mt-1.5">
+                  <span className="flex items-center gap-1 flex-wrap min-w-0">
+                    <ProductBadges product={badgeIdentity} />
+                  </span>
+                  <span className="shrink-0 flex items-center gap-1.5 whitespace-nowrap">
+                    {isSkippedCard
+                      ? skippedBadge
+                      : collectedText && (
+                          <span className="text-[12px] font-semibold text-[#020817]">{collectedText}</span>
+                        )}
+                  </span>
                 </div>
                 <div className="text-gray-500 text-[13px] break-words mt-1">
                   {group.ndc} - {group.inventoryType}

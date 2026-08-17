@@ -482,12 +482,17 @@ its own `MoveSummaryRow[]` from state it already holds (§3).
 - **One badge per act, on the line it belongs to.** `Taken` beside the source line's quantity, `Moved`
   on a target line once stock is actually placed there. A source's `Taken` persists onto the placement
   half — every quantity is taken before any is carried, so by then it is genuinely done.
-- **On the take half's bin cards the product name owns a full-width line, and the quantity and `Taken`
-  sit on the badges line below it.** They used to be a flex pair with the name, and since both only
-  appear once a bin is finished, the card re-laid itself out at the moment the operator acted: a name
-  that had the whole width wrapped onto a second line a tap later. Same reasoning as badges-not-beside-
-  the-name at this width (§6), with an extra edge — a figure that arrives halfway through moves text
-  under the eye, which a badge that was always there does not.
+- **A product name owns a full-width line on every card in this panel, and the figures sit on the badges
+  line below it.** On the take half's bin cards the quantity and `Taken` used to be a flex pair with the
+  name, and since both only appear once a bin is finished, the card re-laid itself out at the moment the
+  operator acted: a name that had the whole width wrapped onto a second line a tap later. The pairing
+  cards — Review and the placement half — had the same shape with the collected total, where it did not
+  reflow (everything is taken before that screen) but still cost a long name its characters:
+  `CARBOPLATIN 600 MG/60 ML VIAL` truncating to `CARBOPLATIN 600 MG/6…`, losing the strength, which is
+  the part being checked. Both are name-first now. Same reasoning as badges-not-beside-the-name at this
+  width (§6), with an extra edge on the take half — a figure that arrives halfway through moves text
+  under the eye, which a badge that was always there does not. The pairing rows inside the cards were
+  already this shape: bin label on its own line, quantity and badge beneath.
 - **The take half reports no aggregate progress at all.** Three labels were tried and all three are gone:
   `In progress` / `Pending` on the bin cards, `n of m taken` on the bin header, and `n of m bins` on the
   door heading. Each restated in words or numbers what the panel already shows in place — a `Taken` badge
