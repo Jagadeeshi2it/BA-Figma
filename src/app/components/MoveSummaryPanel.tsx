@@ -390,6 +390,24 @@ export default function MoveSummaryPanel({
   // the two must not count differently.
   const sourceDoors = isSourceStage ? groupBySourceDoorAndBin(rows) : [];
   const sourceBinCount = sourceDoors.reduce((sum, door) => sum + door.bins.length, 0);
+
+  /**
+   * Whether the per-product roll-up at the foot of the take half has anything to say.
+   *
+   * It exists for two facts, and both are only facts when a product is spread over more than one source
+   * bin: the running total the operator ends up carrying (sources reading 25, 10 and 5 never say 40
+   * anywhere), and how many bins are still to open for it. Give every product exactly one bin and both
+   * collapse into what the bin card already shows — the total IS that bin's figure, and "1 bin to go" is
+   * the bin's own untouched state restated. Three products with one bin each produced three lines all
+   * reading "1 bin to go", directly beneath the three cards that had just said so.
+   *
+   * So it renders only when at least one product actually spans bins. Counted per distinct source bin
+   * rather than per row, because a row is one source→target pairing — a product sent to two targets out
+   * of a single bin would otherwise look spread when it is not.
+   */
+  const anyProductSpansSourceBins = groups.some(
+    group => new Set(group.rows.map(row => `${row.fromLabel}|${row.fromDoor ?? ''}`)).size > 1
+  );
   const stageCopy =
     stage === 'review' || stage === 'route' ? null : STAGE_COPY[stage as 'source' | 'target'];
   const StageIcon = stageCopy?.icon;
@@ -866,8 +884,9 @@ export default function MoveSummaryPanel({
                   route!.visits.filter(v => v.storage === 'cabinet').length === 1 ? '' : 's'
                 } · stop ${route!.stopNumber} of ${route!.stopCount}`
               : isSourceStage
-                ? /* Bins, because bins are what the take half lists — the product count still shows on
-                     the Products section at the foot of the panel. */
+                ? /* Bins first, because bins are what the take half lists — and this product count is
+                     the only one, since the Products section at the foot now appears only when a product
+                     is spread over several bins. */
                   `${sourceBinCount} ${sourceBinCount === 1 ? 'bin' : 'bins'} · ${groups.length} ${
                     groups.length === 1 ? 'product' : 'products'
                   }`
@@ -996,7 +1015,7 @@ export default function MoveSummaryPanel({
         ) : isSourceStage ? (
           <>
             {renderSourceByDoor()}
-            {renderSourceProductTotals()}
+            {anyProductSpansSourceBins && renderSourceProductTotals()}
           </>
         ) : (
           groups.map((group, groupIndex) => {
