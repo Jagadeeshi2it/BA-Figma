@@ -1505,21 +1505,7 @@ export default function TargetBinSerialScanPage({
    */
   const canRemoveFromThisBin = serialScanningRequired && !isLastTargetBinForProduct;
 
-  /**
-   * Why removal is unavailable, said on tap rather than left to a dimmed control.
-   *
-   * Two different blocks needing different sentences, and neither is "you did something wrong": no later
-   * bin is a fact about the move, and nothing ticked is a step not yet taken. `Add Move To Bin` is named
-   * only when it is actually on screen, the same rule `cannotSaveReason` follows — pointing at a control
-   * that is not there is worse than saying nothing about it.
-   */
   const canRemoveSelected = canRemoveFromThisBin && selectedPlaced.size > 0;
-
-  const cannotRemoveReason = !canRemoveFromThisBin
-    ? canAddTargetBin
-      ? 'This is the only bin left for this product, so there is nowhere to move vials to. Use Add Move To Bin to give it another.'
-      : 'This is the only bin left for this product, so everything here has to go in it.'
-    : 'Select the vials that belong in another bin first.';
 
   // Validation for save button
   // CRITICAL: Different logic for last vs non-last target bins when serial scanning required
@@ -1588,6 +1574,26 @@ export default function TargetBinSerialScanPage({
    * pointing at a control that is not there is worse than saying nothing about it. Declared below
    * `canAddTargetBin` because a `const` is not hoisted (CLAUDE.md §4) — it threw from up there.
    */
+  /**
+   * Why removal is unavailable, said on tap rather than left to a dimmed control.
+   *
+   * Two different blocks needing different sentences, and neither is "you did something wrong": no later
+   * bin is a fact about the move, and nothing ticked is a step not yet taken. `Add Move To Bin` is named
+   * only when it is actually on screen — pointing at a control that is not there is worse than saying
+   * nothing about it.
+   *
+   * **Declared here, below `canAddTargetBin`, for the same reason `cannotSaveReason` is.** A `const` is not
+   * hoisted, and from further up this threw `Cannot access 'canAddTargetBin' before initialization`, which
+   * the error boundary shows as a blank screen (CLAUDE.md §4). The note on `cannotSaveReason` records the
+   * identical mistake being made once already; two in one file is the argument for reading them before
+   * adding a third.
+   */
+  const cannotRemoveReason = !canRemoveFromThisBin
+    ? canAddTargetBin
+      ? 'This is the only bin left for this product, so there is nowhere to move vials to. Use Add Move To Bin to give it another.'
+      : 'This is the only bin left for this product, so everything here has to go in it.'
+    : 'Select the vials that belong in another bin first.';
+
   const cannotSaveReason = (() => {
     // Two different blocks, and they need different sentences. An empty bin is blocked on this bin
     // having received nothing; the final bin is blocked on the batch still having stock unplaced.
