@@ -16,9 +16,13 @@
   nothing passes it one yet. Step ④'s summary is still product-major.
 - **§8's cancellation** — built: cancelling is offered only before the first quantity leaves a source bin.
 - **§7's re-planning** — not built.
-- **§12's serial custody** — **not built, and what ships today contradicts it.** The pharmacy team needs
-  serials traceable to bins; the app holds none in inventory, captures none at the take step, and invents
-  them at the target for a product's last bin. Nothing here is a small fix — see §12.
+- **§12's apportionment interaction** — **built** on the placement screen: each bin opens holding every
+  vial not yet assigned, a scan selects the row it names, and two bulk actions move rows between the placed
+  set and the not-placed pool. The pool is one fixed set per product, so nothing is created or lost after it
+  is seeded.
+- **§12's serial custody** — **not built.** The pool is still *seeded* by synthesis, because bins hold
+  `quantity: number` and there is no real serial list to read out of a source bin. Replacing that one call
+  with a read of the source bin is the remaining work; the interaction above does not change when it lands.
 
 This is the rule set for how step ④ of the move pipeline should guide an operator through the physical
 cabinet. It is deliberately a separate document from [CLAUDE.md](CLAUDE.md): the rules here are

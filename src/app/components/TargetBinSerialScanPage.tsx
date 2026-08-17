@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { toast } from "sonner@2.0.3";
 import { Button } from "./ui/button";
-import { ChevronRight, Search, Trash2, Package, PackagePlus, LogIn, ListChecks, ArrowRight } from "lucide-react";
+import { ChevronRight, Search, Package, PackagePlus, LogIn, ListChecks, ArrowRight, Check, Minus, X } from "lucide-react";
 import { DoorUnlockedToast, ValidationToast } from "./ui/sonner-1";
 import CabinetPipView from "./CabinetPipView";
 import SideSheet from "./SideSheet";
@@ -185,8 +185,137 @@ const synthesizeScannedItems = (count: number, unit?: string): ScannedItem[] =>
       'en-US',
       { month: '2-digit', day: '2-digit', year: 'numeric' }
     ),
-    quantity: `1 ${unit || 'vial'}`
+    // Singular: one row is one vial. It read `1 vials` here while a scanned row read
+    // `1 vial / 400 mg / 16 ml`, so the two halves of the same table disagreed.
+    quantity: `1 ${unit || 'vial'}`.replace(/s$/, '')
   }));
+
+/**
+ * One serial table — the placed set or the not-placed set.
+ *
+ * Module scope, above the component, because it is a pure function of its props (CLAUDE.md §4: a helper
+ * defined below something that calls it throws, since a `const` is not hoisted). Shared rather than
+ * written twice for the same reason `ProductRow` is: the two tables show the same rows in the same shape,
+ * and one drifting would make the pair read as two different kinds of list.
+ *
+ * Styling follows the screen it sits on rather than the wireframe it came from — the existing table's
+ * shell and header, the app's own tick square (`ProductListControls`), `#F1F6FA` for a selected row, and a
+ * white/`#095192` secondary for the bulk action. Nothing here is red: moving a serial to the not-placed
+ * set is not destruction, which is the rule `Cancel` and `Back` already follow (CLAUDE.md §6).
+ */
+function SerialTable({
+  items,
+  selected,
+  onToggle,
+  onToggleAll,
+  onRemoveOne,
+  caption,
+  action
+}: {
+  items: ScannedItem[];
+  selected: Set<string>;
+  onToggle: (serial: string) => void;
+  onToggleAll: () => void;
+  /** Per-row removal. Omitted on the not-placed table, which has nowhere further to remove to. */
+  onRemoveOne?: (serial: string) => void;
+  caption: React.ReactNode;
+  action?: React.ReactNode;
+}) {
+  const allSelected = items.length > 0 && items.every(item => selected.has(item.serial));
+  const someSelected = items.some(item => selected.has(item.serial));
+
+  const tick = (checked: boolean, indeterminate: boolean) => (
+    <div
+      className={`w-5 h-5 rounded-[4px] shrink-0 flex items-center justify-center ${
+        checked || indeterminate ? 'bg-[#095192]' : 'border border-gray-300 bg-white'
+      }`}
+    >
+      {checked ? (
+        <Check className="w-3.5 h-3.5 text-white" strokeWidth={3} />
+      ) : indeterminate ? (
+        <Minus className="w-3.5 h-3.5 text-white" strokeWidth={3} />
+      ) : null}
+    </div>
+  );
+
+  return (
+    <div>
+      {/* Count and the bulk action on one line above the table, the action right-aligned — the same
+          arrangement the allocation panels use for `Select All` and their filter. */}
+      <div className="flex items-center justify-between gap-3 mb-2">
+        <p className="text-[14px] text-[#4a5565]">{caption}</p>
+        {action}
+      </div>
+
+      <div className="border border-[#e5e7eb] rounded-lg overflow-hidden">
+        <table className="w-full">
+          <thead className="bg-[#f9fafb]">
+            <tr>
+              <th className="w-12 px-4 py-3">
+                {/* Selects every row in THIS table only. The two tables are separate selections because
+                    the two bulk actions move rows in opposite directions. */}
+                <div
+                  role="checkbox"
+                  aria-checked={allSelected}
+                  aria-disabled={items.length === 0}
+                  aria-label="Select all rows"
+                  onClick={items.length > 0 ? onToggleAll : undefined}
+                  className={items.length > 0 ? 'cursor-pointer w-fit' : 'opacity-50 cursor-not-allowed w-fit'}
+                >
+                  {tick(allSelected, someSelected && !allSelected)}
+                </div>
+              </th>
+              <th className="text-left px-4 py-3 text-[12px] font-semibold text-[#64748b] uppercase">Serial</th>
+              <th className="text-left px-4 py-3 text-[12px] font-semibold text-[#64748b] uppercase">Lot</th>
+              <th className="text-left px-4 py-3 text-[12px] font-semibold text-[#64748b] uppercase">Expiration</th>
+              <th className="text-left px-4 py-3 text-[12px] font-semibold text-[#64748b] uppercase">Source</th>
+              <th className="text-left px-4 py-3 text-[12px] font-semibold text-[#64748b] uppercase">Quantity</th>
+              {onRemoveOne && <th className="w-12 px-4 py-3"></th>}
+            </tr>
+          </thead>
+          <tbody>
+            {items.map(item => {
+              const isSelected = selected.has(item.serial);
+              return (
+                <tr
+                  key={item.serial}
+                  onClick={() => onToggle(item.serial)}
+                  // The whole row is the control, as it is in both allocation panels — aiming at a 20px
+                  // box in a table row is the worse target on a tablet.
+                  className={`border-t border-[#e5e7eb] cursor-pointer transition-colors ${
+                    isSelected ? 'bg-[#F1F6FA]' : 'hover:bg-gray-50'
+                  }`}
+                >
+                  <td className="px-4 py-3">{tick(isSelected, false)}</td>
+                  <td className="px-4 py-3 text-[14px] text-[#020817]">{item.serial}</td>
+                  <td className="px-4 py-3 text-[14px] text-[#020817]">{item.lot}</td>
+                  <td className="px-4 py-3 text-[14px] text-[#020817]">{item.expiration}</td>
+                  <td className="px-4 py-3 text-[14px] text-[#020817]">{item.source}</td>
+                  <td className="px-4 py-3 text-[14px] text-[#020817]">{item.quantity}</td>
+                  {onRemoveOne && (
+                    <td className="px-4 py-3">
+                      <button
+                        type="button"
+                        aria-label={`Remove ${item.serial} from this bin`}
+                        onClick={event => {
+                          event.stopPropagation();
+                          onRemoveOne(item.serial);
+                        }}
+                        className="w-8 h-8 inline-flex items-center justify-center rounded-[4px] text-[#095192] hover:bg-[#F1F6FA] cursor-pointer"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </td>
+                  )}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
 
 export default function TargetBinSerialScanPage({
   transfers,
@@ -204,6 +333,26 @@ export default function TargetBinSerialScanPage({
   const [currentTargetBinIndex, setCurrentTargetBinIndex] = useState(0);
   const [serialInput, setSerialInput] = useState('');
   const [scannedItems, setScannedItems] = useState<{ [key: string]: ScannedItem[] }>({});
+
+  /**
+   * Vials taken out of the source for this product that are not in any bin yet — the pool.
+   *
+   * Keyed by product, not by bin, because that is what it is: stock in the operator's hands. Together with
+   * `scannedItems` it forms one fixed set per product, and every act on this screen moves a row between the
+   * two. Nothing is created or destroyed after the set is seeded, which is what makes the figures add up
+   * without being policed.
+   *
+   * **The seeding is the provisional part, not the model.** A bin's contents are `quantity: number`
+   * (CLAUDE.md §5), so there is no real serial list to read out of the source and the set is synthesized
+   * once per product below. When bins hold serials, that one call is replaced by reading the source bin and
+   * nothing else here changes — see STEP4-GUIDANCE.md §12.
+   */
+  const [unplacedItems, setUnplacedItems] = useState<{ [productId: string]: ScannedItem[] }>({});
+
+  // Which rows are ticked in each of the two tables. Separate sets, because the two bulk actions move rows
+  // in opposite directions and a shared selection could not say which way a tap meant.
+  const [selectedPlaced, setSelectedPlaced] = useState<Set<string>>(new Set());
+  const [selectedUnplaced, setSelectedUnplaced] = useState<Set<string>>(new Set());
   // Right-side overlay opened by tapping the footer's Product / Target Bin counters
   const [activeSheet, setActiveSheet] = useState<null | 'product' | 'targetBin'>(null);
   const [addBinOpen, setAddBinOpen] = useState(false);
@@ -885,52 +1034,70 @@ export default function TargetBinSerialScanPage({
   }, [serialScanningRequired, currentTargetBin, currentProduct, doorShelfConfig]);
 
   /**
-   * Auto-fill the LAST target bin with whatever is still unaccounted for.
+   * **A bin opens holding everything not yet assigned.**
    *
-   * The convenience rests on an assumption: once the earlier bins have had their share, the remainder has
-   * nowhere else to go, so there is nothing left for the operator to decide by scanning it. For a split
-   * planned at step ② that holds — the bins and their order are what the operator set up, and the last one
-   * taking the rest is the behaviour they expect. **That flow is left exactly as it was.**
+   * This replaces an auto-fill that put the remainder into a product's LAST bin only, which is what made an
+   * 80/20 split cost 80 scans: the first bin opened empty, so the larger share had to be entered by hand
+   * while the smaller one arrived free. Which share was free depended on the route's bin order rather than
+   * on anything about the stock.
    *
-   * `binsAddedMidMove` is the one case where the assumption breaks. Adding bins here re-plans the route,
-   * so the bin that is now last may be one the operator has only just named, and handing it the whole
-   * remainder defeats the reason they added it — worse, it makes the decision unrecoverable, because
-   * `remainingQtyToMove` hits 0 and that disables the scan control on *every* bin. With no Back in step ④
-   * the bin they meant to fill would sit at 0 with the one control that could fix it greyed out.
+   * Inverted, the effort is always the smaller subset. The bin in front of the operator starts with the lot,
+   * they take out what belongs somewhere else, and the next bin opens holding exactly that. Splitting 100 as
+   * 80/20 means acting on 20 whichever bin the route reaches first.
    *
-   * So the extra precondition applies only after bins have been added mid-move: while any earlier bin is
-   * still empty, the fill holds off, the input stays live with a real remainder, and the operator can put
-   * the rest here or jump back to the bin they missed (the Move List's target lines).
+   * Two things follow that used to need enforcing:
+   *
+   *   - **Nothing can be left unaccounted for.** The last bin holds the pool by construction, so
+   *     `remainingQtyToMove` is 0 there without anyone checking — the per-product gate in `canSave` becomes
+   *     a statement rather than a rule (CLAUDE.md §2 E).
+   *   - **`binsAddedMidMove` stops mattering to the fill.** It existed because a newly added last bin would
+   *     swallow the whole remainder and leave an earlier empty bin unfixable. A bin added now opens holding
+   *     the pool, which is what the operator added it for.
+   *
+   * The seeding on first arrival is the provisional half — see `unplacedItems`.
    */
   useEffect(() => {
     if (!currentProduct || !currentTargetBin) return;
-    if (!isLastTargetBinForProduct || remainingQtyToMove <= 0) return;
-
-    if (binsAddedMidMove) {
-      const everyEarlierBinHasStock = currentProduct.targetBins
-        .slice(0, currentTargetBinIndex)
-        .every(tb => (scannedItems[scanKey(currentProduct.productId, tb.toBinId)] || []).length > 0);
-      if (!everyEarlierBinHasStock) return;
-    }
+    if (!serialScanningRequired) return;
+    if (currentProductTotalQuantity <= 0) return;
 
     const key = getTargetBinKey(currentTargetBin);
     if ((scannedItems[key] || []).length > 0) return;
 
-    setScannedItems(prev => ({
-      ...prev,
-      [key]: synthesizeScannedItems(remainingQtyToMove, currentProduct.unit)
-    }));
+    const pool = unplacedItems[currentProduct.productId];
+
+    // First arrival at this product: seed the whole take at once, and put all of it in the bin in front of
+    // the operator. Every later bin opens holding whatever they removed from an earlier one, which is the
+    // same rule stated once — a bin opens holding everything not yet assigned.
+    if (pool === undefined) {
+      setUnplacedItems(prev => ({ ...prev, [currentProduct.productId]: [] }));
+      setScannedItems(prev => ({
+        ...prev,
+        [key]: synthesizeScannedItems(currentProductTotalQuantity, currentProduct.unit)
+      }));
+      return;
+    }
+
+    if (pool.length === 0) return;
+
+    setUnplacedItems(prev => ({ ...prev, [currentProduct.productId]: [] }));
+    setScannedItems(prev => ({ ...prev, [key]: pool }));
   }, [
     currentProduct,
     currentTargetBin,
     currentTargetBinIndex,
-    // Listed although it derives from currentProduct + currentTargetBinIndex above it, so the guard the
-    // effect reads is visible in its own dependency list rather than implied by two of its inputs.
-    isLastTargetBinForProduct,
-    remainingQtyToMove,
+    currentProductTotalQuantity,
+    serialScanningRequired,
     scannedItems,
-    binsAddedMidMove
+    unplacedItems
   ]);
+
+  // A new bin or a new product is a fresh pair of tables, so the ticks do not carry over. Without this a
+  // selection made on one bin would silently apply its bulk action to a different bin's rows.
+  useEffect(() => {
+    setSelectedPlaced(new Set());
+    setSelectedUnplaced(new Set());
+  }, [currentProductIndex, currentTargetBinIndex]);
 
 
   /**
@@ -990,38 +1157,111 @@ export default function TargetBinSerialScanPage({
   }, [resumeTargetBinId, currentProduct, currentTargetBinIndex]);
 
 
+  /**
+   * A scan **selects** the row it names; it no longer adds one.
+   *
+   * Adding was the old model's only way to get stock into a bin, and it could not be honest: the value typed
+   * was invented on the spot and matched against nothing. Now the vials taken out of the source are a fixed
+   * set, so a scanned serial either is or is not one of them — which makes this **the first place in the app
+   * where a serial value is actually checked** (`validateSerialNumbers` only ever answered "have enough been
+   * picked", CLAUDE.md §5).
+   *
+   * A miss is reported rather than swallowed. Under the old model an unrecognised scan silently became a new
+   * row, so scanning the wrong vial was indistinguishable from scanning the right one.
+   */
   const handleScanOrAdd = () => {
-    if (!currentTargetBin) return;
+    if (!currentProduct || !currentTargetBin) return;
+
+    const serial = serialInput.trim();
+    if (!serial) return;
 
     const key = getTargetBinKey(currentTargetBin);
-    
-    // Generate demo serial number
-    const serialNumber = serialInput.trim() || `SN${Math.floor(Math.random() * 1000000000).toString().padStart(9, '0')}`;
-    
-    // Mock data for demonstration
-    const newItem: ScannedItem = {
-      serial: serialNumber,
-      lot: Math.floor(Math.random() * 10000000).toString(),
-      source: 'McKesson Medical',
-      expiration: new Date(Date.now() + Math.random() * 365 * 24 * 60 * 60 * 1000).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' }),
-      quantity: `1 vial / 400 mg / 16 ml`
-    };
+    const placed = scannedItems[key] || [];
+    const pool = unplacedItems[currentProduct.productId] || [];
 
-    setScannedItems(prev => ({
-      ...prev,
-      [key]: [...(prev[key] || []), newItem]
-    }));
+    const inBin = placed.find(item => item.serial.toLowerCase() === serial.toLowerCase());
+    if (inBin) {
+      setSelectedPlaced(prev => new Set(prev).add(inBin.serial));
+      setSerialInput('');
+      return;
+    }
 
+    // Already taken out of this bin. Selecting it in the other table is the useful answer — it is how the
+    // operator puts one back without hunting for the row.
+    const inPool = pool.find(item => item.serial.toLowerCase() === serial.toLowerCase());
+    if (inPool) {
+      setSelectedUnplaced(prev => new Set(prev).add(inPool.serial));
+      setSerialInput('');
+      return;
+    }
+
+    toast.custom(
+      () => <ValidationToast message={`${serial} is not one of the vials taken for this product.`} />,
+      { id: 'serial-not-in-move', duration: 5000 }
+    );
     setSerialInput('');
   };
 
-  const handleRemoveItem = (index: number) => {
-    if (!currentTargetBin) return;
+  /** Take the ticked rows out of this bin. They become the pool, which the next bin opens holding. */
+  const handleRemoveSelected = () => {
+    if (!currentProduct || !currentTargetBin || selectedPlaced.size === 0) return;
     const key = getTargetBinKey(currentTargetBin);
+    const placed = scannedItems[key] || [];
+    const leaving = placed.filter(item => selectedPlaced.has(item.serial));
+    if (leaving.length === 0) return;
+
     setScannedItems(prev => ({
       ...prev,
-      [key]: (prev[key] || []).filter((_, i) => i !== index)
+      [key]: (prev[key] || []).filter(item => !selectedPlaced.has(item.serial))
     }));
+    setUnplacedItems(prev => ({
+      ...prev,
+      [currentProduct.productId]: [...(prev[currentProduct.productId] || []), ...leaving]
+    }));
+    setSelectedPlaced(new Set());
+  };
+
+  /** Put ticked rows back into the bin in front of the operator — the inverse, for a mis-tap. */
+  const handlePlaceSelected = () => {
+    if (!currentProduct || !currentTargetBin || selectedUnplaced.size === 0) return;
+    const key = getTargetBinKey(currentTargetBin);
+    const pool = unplacedItems[currentProduct.productId] || [];
+    const arriving = pool.filter(item => selectedUnplaced.has(item.serial));
+    if (arriving.length === 0) return;
+
+    setScannedItems(prev => ({ ...prev, [key]: [...(prev[key] || []), ...arriving] }));
+    setUnplacedItems(prev => ({
+      ...prev,
+      [currentProduct.productId]: pool.filter(item => !selectedUnplaced.has(item.serial))
+    }));
+    setSelectedUnplaced(new Set());
+  };
+
+  /**
+   * The per-row control, keyed by serial rather than index.
+   *
+   * It used to delete the row outright, which is how an operator reached a bin with an outstanding remainder
+   * and — before the per-product gate — advanced past it, leaving vials in hand recorded as never moved. It
+   * now does exactly what the bulk action does for one row: takes it out of this bin and into the pool, where
+   * the next bin will open holding it. Nothing is destroyed, so the control is not red (CLAUDE.md §6).
+   */
+  const handleRemoveItem = (serial: string) => {
+    if (!currentProduct || !currentTargetBin) return;
+    const key = getTargetBinKey(currentTargetBin);
+    const placed = scannedItems[key] || [];
+    const leaving = placed.find(item => item.serial === serial);
+    if (!leaving) return;
+
+    setScannedItems(prev => ({ ...prev, [key]: (prev[key] || []).filter(item => item.serial !== serial) }));
+    setUnplacedItems(prev => ({
+      ...prev,
+      [currentProduct.productId]: [...(prev[currentProduct.productId] || []), leaving]
+    }));
+    setSelectedPlaced(prev => {
+      const next = new Set(prev);
+      next.delete(serial);
+      return next;
+    });
   };
 
   const handleSave = () => {
@@ -1185,6 +1425,45 @@ export default function TargetBinSerialScanPage({
 
   const qtyMoved = getQtyMoved();
   const currentScannedItems = getCurrentScannedItems();
+
+  /**
+   * The pool, for the second table. Declared here — beside the placed list it is the counterpart of — and
+   * above the JSX, since a `const` is not hoisted (CLAUDE.md §4).
+   */
+  const poolItems = currentProduct ? unplacedItems[currentProduct.productId] || [] : [];
+
+  const toggleInSet = (
+    setter: React.Dispatch<React.SetStateAction<Set<string>>>,
+    serial: string
+  ) =>
+    setter(prev => {
+      const next = new Set(prev);
+      if (next.has(serial)) next.delete(serial);
+      else next.add(serial);
+      return next;
+    });
+
+  const toggleSelectedPlaced = (serial: string) => toggleInSet(setSelectedPlaced, serial);
+  const toggleSelectedUnplaced = (serial: string) => toggleInSet(setSelectedUnplaced, serial);
+
+  // Select-all completes a partial selection rather than clearing it, and clears only once everything is
+  // ticked — the rule `ProductListControls` follows, and the reason its label can name its own next act
+  // (CLAUDE.md §6).
+  const toggleAllIn = (
+    items: ScannedItem[],
+    selected: Set<string>,
+    setter: React.Dispatch<React.SetStateAction<Set<string>>>
+  ) => {
+    const all = items.length > 0 && items.every(item => selected.has(item.serial));
+    setter(all ? new Set() : new Set(items.map(item => item.serial)));
+  };
+
+  const toggleAllPlaced = () => toggleAllIn(currentScannedItems, selectedPlaced, setSelectedPlaced);
+  const toggleAllUnplaced = () => toggleAllIn(poolItems, selectedUnplaced, setSelectedUnplaced);
+
+  // There is something for a scan to find. Not "is anything still unplaced" — that is 0 on arrival now.
+  const canScanSelect =
+    serialScanningRequired && currentScannedItems.length + poolItems.length > 0;
 
   // Validation for save button
   // CRITICAL: Different logic for last vs non-last target bins when serial scanning required
@@ -1404,17 +1683,21 @@ export default function TargetBinSerialScanPage({
                   value={serialInput}
                   onChange={(e) => setSerialInput(e.target.value)}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter' && remainingQtyToMove > 0) handleScanOrAdd();
+                    if (e.key === 'Enter' && canScanSelect) handleScanOrAdd();
                   }}
-                  placeholder={serialScanningRequired ? "Scan or type serial number" : "Serial scanning not required"}
+                  // A scan selects a row now, so the box is live whenever there is a row to select. It used
+                  // to be gated on `remainingQtyToMove > 0` — what was still unplaced — which under the
+                  // bin-opens-full model is 0 the moment the operator arrives, so the control would have
+                  // been dead exactly when it is wanted.
+                  placeholder={serialScanningRequired ? "Scan to select a serial" : "Serial scanning not required"}
                   className="flex-1 text-[16px] text-[#020817] outline-none placeholder:text-[#9fa9b7]"
-                  disabled={!serialScanningRequired || remainingQtyToMove <= 0}
+                  disabled={!canScanSelect}
                 />
                 <Button
                   onClick={handleScanOrAdd}
                   className="bg-[#095192] text-white hover:bg-[#074171]"
                   size="sm"
-                  disabled={!serialScanningRequired || remainingQtyToMove <= 0}
+                  disabled={!canScanSelect}
                 >
                   <Search className="w-4 h-4" />
                 </Button>
@@ -1437,49 +1720,86 @@ export default function TargetBinSerialScanPage({
           </div>
         </div>
 
-        {/* Table Section */}
-        <div className="bg-white px-6 py-6">
-          {currentScannedItems.length > 0 ? (
-            <div className="border border-[#e5e7eb] rounded-lg overflow-hidden">
-              <table className="w-full">
-                <thead className="bg-[#f9fafb]">
-                  <tr>
-                    <th className="text-left px-4 py-3 text-[12px] font-semibold text-[#64748b] uppercase">Serial</th>
-                    <th className="text-left px-4 py-3 text-[12px] font-semibold text-[#64748b] uppercase">Lot</th>
-                    <th className="text-left px-4 py-3 text-[12px] font-semibold text-[#64748b] uppercase">Expiration</th>
-                    <th className="text-left px-4 py-3 text-[12px] font-semibold text-[#64748b] uppercase">Source</th>
-                    <th className="text-left px-4 py-3 text-[12px] font-semibold text-[#64748b] uppercase">Quantity</th>
-                    {serialScanningRequired && <th className="w-12 px-4 py-3"></th>}
-                  </tr>
-                </thead>
-                <tbody>
-                  {currentScannedItems.map((item, index) => (
-                    <tr key={index} className="border-t border-[#e5e7eb]">
-                      <td className="px-4 py-3 text-[14px] text-[#020817]">{item.serial}</td>
-                      <td className="px-4 py-3 text-[14px] text-[#020817]">{item.lot}</td>
-                      <td className="px-4 py-3 text-[14px] text-[#020817]">{item.expiration}</td>
-                      <td className="px-4 py-3 text-[14px] text-[#020817]">{item.source}</td>
-                      <td className="px-4 py-3 text-[14px] text-[#020817]">{item.quantity}</td>
-                      {serialScanningRequired && (
-                        <td className="px-4 py-3">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleRemoveItem(index)}
-                            className="text-red-500 hover:text-red-700 hover:bg-red-50"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </td>
-                      )}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+        {/* Two tables: what is in this bin, and what has been taken out of it and is not in any bin yet.
+            The second only appears once there is something in it — a permanently empty table below a full
+            one reads as a section that failed to load, and on arrival there is nothing there by
+            construction (the bin opens holding everything). */}
+        <div className="bg-white px-6 py-6 space-y-6">
+          {currentScannedItems.length > 0 || poolItems.length > 0 ? (
+            <>
+              <SerialTable
+                items={currentScannedItems}
+                selected={selectedPlaced}
+                onToggle={toggleSelectedPlaced}
+                onToggleAll={toggleAllPlaced}
+                onRemoveOne={serialScanningRequired ? handleRemoveItem : undefined}
+                caption={
+                  <>
+                    <span className="font-semibold text-[#020817]">{currentScannedItems.length}</span>{' '}
+                    {currentScannedItems.length === 1 ? 'vial' : 'vials'} moved in this bin
+                  </>
+                }
+                action={
+                  serialScanningRequired && (
+                    // States its own count, so the operator can check what the tap will take before taking
+                    // it — the same reason the disabled primaries name their requirement (CLAUDE.md §6).
+                    // Dimmed rather than withheld when nothing is ticked: a control that comes and goes as
+                    // rows are selected is a layout moving under the operator mid-task.
+                    <button
+                      type="button"
+                      aria-disabled={selectedPlaced.size === 0}
+                      onClick={selectedPlaced.size > 0 ? handleRemoveSelected : undefined}
+                      className={`h-9 px-3 inline-flex items-center rounded-[4px] text-[14px] leading-[20px] bg-white text-[#095192] border border-[#095192] transition-colors ${
+                        selectedPlaced.size > 0
+                          ? 'hover:bg-[#F1F6FA] cursor-pointer'
+                          : 'opacity-50 cursor-not-allowed'
+                      }`}
+                    >
+                      {selectedPlaced.size > 0
+                        ? `Remove ${selectedPlaced.size} from this bin`
+                        : 'Remove selected'}
+                    </button>
+                  )
+                }
+              />
+
+              {poolItems.length > 0 && (
+                <SerialTable
+                  items={poolItems}
+                  selected={selectedUnplaced}
+                  onToggle={toggleSelectedUnplaced}
+                  onToggleAll={toggleAllUnplaced}
+                  caption={
+                    <>
+                      <span className="font-semibold text-[#020817]">{poolItems.length}</span>{' '}
+                      {poolItems.length === 1 ? 'vial' : 'vials'} not placed in this bin
+                    </>
+                  }
+                  action={
+                    // The inverse of Remove, for a mis-tap. Named for what it does rather than "undo",
+                    // because by the time the operator is looking at this table it is a placement decision
+                    // like any other.
+                    <button
+                      type="button"
+                      aria-disabled={selectedUnplaced.size === 0}
+                      onClick={selectedUnplaced.size > 0 ? handlePlaceSelected : undefined}
+                      className={`h-9 px-3 inline-flex items-center rounded-[4px] text-[14px] leading-[20px] bg-white text-[#095192] border border-[#095192] transition-colors ${
+                        selectedUnplaced.size > 0
+                          ? 'hover:bg-[#F1F6FA] cursor-pointer'
+                          : 'opacity-50 cursor-not-allowed'
+                      }`}
+                    >
+                      {selectedUnplaced.size > 0
+                        ? `Place ${selectedUnplaced.size} in this bin`
+                        : 'Place selected'}
+                    </button>
+                  }
+                />
+              )}
+            </>
           ) : (
             <div className="text-center py-20 text-[#9fa9b7]">
-              <p className="text-[16px]">Scan or Manually Add Items</p>
+              <p className="text-[16px]">Nothing to place for this product.</p>
             </div>
           )}
         </div>
