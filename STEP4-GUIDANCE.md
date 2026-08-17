@@ -642,27 +642,48 @@ invented ones into another — with no marking to say which is which.
 
 So the requirement is not partly met. It is met for zero bins.
 
-### Where capture has to move
+### Where capture belongs — and it is not the take step
 
-**To the take step.** That is the only moment identity is physically observable: each vial passes through
-the operator's hand coming out of the bin. Capturing there is a real 100 scans, once, and it is the scan
-that carries the information.
+**Corrected 2026-08-08, on the operator's objection.** An earlier draft of this section moved capture to
+the take step. That is wrong, and the reason is worth keeping because it is easy to re-propose.
 
-Placement then stops being *entry* and becomes **apportionment** of a known set. This dissolves the
-80/20 problem that prompted the question, and more completely than a count field would:
+Scanning 100 vials as they leave the source produces a list of 100 — and then the vials are loose in the
+operator's hand. Assigning 80 of those rows to the first bin would be **arbitrary**: the record would claim
+those specific 80 went there without it being physically true. That is the same fabrication as
+`synthesizeScannedItems`, better dressed. The only way to make it true is to scan each vial again as it
+goes in, which is 120 scans to do 100 vials' work.
 
-- The operator scans 100 out of the source once.
-- At the first target they assign 80 of those 100 — by taking the next 80, or by selecting.
-- The remaining 20 are the complement, and *"which 20"* has an answer for the first time.
+**Placement is already the right place.** A scan there ties one vial to one destination bin at the moment
+it physically goes in, which is exactly the fact the pharmacy asked for. The screen's instinct is correct;
+only the auto-fill's fabrication is wrong.
 
-Note the asymmetry the operator noticed disappears rather than being worked around: nobody scans 80 at a
-target, because no serial is entered at a target at all.
+### What actually unlocks the operator's proposal: bins that hold serials
+
+The prerequisite is not a take-step scan. It is that **a bin knows which individual vials it holds.**
+
+Once the source bin's 100 are known individually, a move out of it needs only the **diverted subset**
+scanned:
+
+- Scan the 20 that go to bin B. Those 20 are established by a real act on real vials.
+- The other 80 are a **true complement** — the source's known 100 minus the 20 just diverted — so bin A's
+  contents are established without a scan and without invention.
+
+Nothing is scanned twice, and *"which 80"* has an answer for the first time. That is the operator's
+proposal working, and it needs no capture step added anywhere.
+
+**It also redeems the auto-fill rather than deleting it.** Filling a product's last bin stops meaning
+"invent serials for the remainder" and starts meaning "assign the remaining known serials" — the same
+zero-tap experience, now true. The code to delete is `synthesizeScannedItems`; the behaviour it serves
+survives on real data.
+
+**The unavoidable cost moves out of the move flow.** The first time stock enters a bin, every vial must be
+scanned once — at restock or allocation, not here. Note allocation currently opens a location at
+`quantity: 0` with stock arriving by being moved in (CLAUDE.md §2 A), so today there is no point in the app
+where a vial's identity first enters the system. That is the gap, and it is outside step ④.
 
 ### What the data model needs
 
-**Bins must hold serials, not just counts.** If they do not, the knowledge lives only in the move ledger:
-the cabinet state cannot say what is in a bin, and the *next* move out of that bin has nothing to take.
-That means:
+**Bins must hold serials, not just counts** — the prerequisite above, stated as a change:
 
 - `Product` in a bin gains a serial list, maintained by every allocate, move and unallocate.
 - The conservation invariant (CLAUDE.md §6) strengthens from per-quantity to **per-serial**: the multiset
@@ -672,12 +693,13 @@ That means:
 
 ### The apportionment interaction: scan the smaller subset
 
-From the operator, 2026-08-08, and it is better than the "assign 80 of the 100" sketch above because the
-effort always scales with the **smaller** subset rather than with whichever bin the route happens to visit
-first.
+From the operator, 2026-08-08. The effort always scales with the **smaller** subset rather than with
+whichever bin the route happens to visit first, and — given bins that hold serials — every figure it
+produces is true.
 
 **The rule: each target bin opens holding every serial not yet assigned to an earlier bin.** For the first
-bin that is all 100. The operator then scans the ones that belong somewhere else, which **selects** the
+bin that is all 100 — taken from the **source bin's own serial list**, not from anything captured during
+this move. The operator then scans the ones that belong somewhere else, which **selects** the
 matching rows, and removes them in one act. What is removed is unassigned, and the next bin opens holding
 exactly it.
 
@@ -721,18 +743,29 @@ Open details, none blocking:
 
 ### What must be deleted
 
-`synthesizeScannedItems` and the auto-fill that calls it. Both exist only to spare the operator a scan the
-old design could not avoid, and both fabricate the exact fact the pharmacy needs to be true.
+`synthesizeScannedItems`. **Not the auto-fill it serves** — see above: filling a product's last bin is the
+right behaviour, and on real data it becomes truthful rather than invented. What has to go is the
+fabrication, not the convenience.
 
-**This is a decision with a cost, and it lands before the rest of the work.** Removing the auto-fill today
-— ahead of take-step capture — makes every split move a full hand-scan at the target, which is the pain
-that started this. Keeping it means continuing to write invented serials. The two options are honest-and-
-slower or fast-and-false; there is no third until capture moves. Recorded here rather than chosen quietly.
+**Until bins hold serials there is a decision with a cost.** Removing the fabrication before there is
+anything real to put in its place makes every split move a full hand-scan at the target, which is the pain
+that started this. Keeping it means continuing to write invented serials into a record the pharmacy relies
+on. Honest-and-slower or fast-and-false, with no third option until bins hold serials — which is the reason
+that change is the first slice rather than the last. Recorded here rather than chosen quietly.
 
 ---
 
 ## Revisions
 
+- **2026-08-08** — §12 corrected on the operator's objection: capture does **not** move to the take step.
+  Scanning 100 vials out of a bin yields a list and then loose vials, so assigning 80 of those rows to a bin
+  is arbitrary — the same fabrication in better clothes — and making it true needs 120 scans for 100 vials.
+  Placement was already the right place, because a scan there ties one vial to one destination bin as it
+  physically goes in. What unlocks the operator's scan-the-smaller-subset proposal is not a capture step but
+  **bins that hold serials**: with the source's 100 known, the 80 left behind are a true complement. That
+  also redeems the last-bin auto-fill instead of deleting it — assign the remaining known serials rather
+  than invent them. The unavoidable one-time scan moves out of step ④ entirely, to restock/allocation, where
+  the app currently has no point at which a vial's identity first enters the system.
 - **2026-08-08** — §12's apportionment interaction, from the operator: every target bin opens holding the
   unassigned pool, a scan selects the matching row, and a bulk remove drains the selection to the next bin.
   Effort scales with the smaller subset, whichever bin the route reaches first. Recorded as part of §12

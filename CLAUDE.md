@@ -1257,8 +1257,12 @@ ever *the* serial that was in a bin: what the operator types at the target is un
 whenever a product's last target bin is reached empty. Nothing reads them back either — the History page
 has no serial column.
 **The pharmacy team has since said they need serials traceable to bins** (2026-08-08), which makes this a
-prerequisite rather than a gap: identity has to be captured at the **take** step, where the operator
-actually handles each vial, and bins have to hold serials so the cabinet state can answer what is in them.
+prerequisite rather than a gap. The fix is **not** to capture serials at the take step — scanning 100 vials
+out of a bin leaves them loose in the operator's hand, so assigning 80 of those rows to a bin would be
+arbitrary, and making it true costs 120 scans for 100 vials. Placement is already the right place: a scan
+there ties one vial to one destination bin as it goes in. What is missing is that **bins do not hold
+serials**, so with the source's contents unknown the 80 left behind cannot be a complement of anything —
+which is why the remainder has to be invented.
 Written up as [STEP4-GUIDANCE.md](STEP4-GUIDANCE.md) §12, including the decision it forces immediately —
 the auto-fill is inventing the fact they need, and removing it before capture moves makes every split move
 a full hand-scan at the target. §12 also carries the apportionment interaction the operator proposed: each
@@ -1553,12 +1557,16 @@ physically impossible allocation without objection (§5).
 - **`instructionFor` returns one sentence per step with no per-stage nuance.** Step ④ prints the same
   "take, then place" line on both the quantity and the placement screen. Each screen's own header
   disambiguates, so this is tolerable, not right.
-- **Serials are captured at the wrong end of the move, and the placement screen invents them.** The
-  pharmacy team needs to know which serial went into which bin; bins hold no serials, the take step records
-  none, and `synthesizeScannedItems` fabricates a whole bin's worth whenever a product's last target bin is
-  reached empty. Specified in [STEP4-GUIDANCE.md](STEP4-GUIDANCE.md) §12; nothing built. The immediate
-  decision is recorded there rather than taken: honest-and-slower (drop the auto-fill, full hand-scan at
-  every target) or fast-and-false (keep it), with no third option until capture moves to the take step.
+- **Bins do not hold serials, so the placement screen invents them.** The pharmacy team needs to know which
+  serial went into which bin. Scanning at placement is the right place and already what the screen does —
+  the gap is that a bin's contents are `quantity: number`, so the remainder left behind after a partial
+  placement is a complement of nothing and `synthesizeScannedItems` fabricates it. Give bins serials and the
+  last-bin fill becomes truthful rather than invented, and the operator's scan-the-smaller-subset
+  apportionment becomes possible. Specified in [STEP4-GUIDANCE.md](STEP4-GUIDANCE.md) §12; nothing built.
+  Until then the decision recorded there stands rather than taken: honest-and-slower (drop the fabrication,
+  full hand-scan at every target) or fast-and-false (keep it). Note the one-time cost lands outside step ④ —
+  allocation opens a location at `quantity: 0` (§2 A), so the app has no point at which a vial's identity
+  first enters the system.
 - **Validation of operator intentions is outstanding.** A list of 18 real-world operator goals was
   triaged: 12 are assertable headlessly against the existing handlers, 2 need a headless render, and
   4 have no domain model at all (§5). Nothing has been built.
