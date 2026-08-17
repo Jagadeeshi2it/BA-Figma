@@ -67,6 +67,14 @@ interface TargetBinSerialScanPageProps {
    * step. A bin added into local state here would show up on this screen and nowhere else.
    */
   onAddTargetBin?: (productId: string, binId: string) => void;
+  /**
+   * Take a bin back off the product being placed — the undo for `onAddTargetBin`, and owned in the same
+   * place for the same reason.
+   *
+   * Whether a given bin may be removed is decided here rather than there: it needs the scan state, which
+   * is this screen's (`canRemoveTargetBin`).
+   */
+  onRemoveTargetBin?: (productId: string, binId: string) => void;
 }
 
 interface TransferWithInfo extends ProductTransfer {
@@ -154,25 +162,88 @@ const scanKey = (productId: string, toBinId: string) => `${productId}-${toBinId}
  * Module scope, so no caller can be ordered before it, and so `scripts/verify-placement-walk-status.mjs`
  * can reach it.
  */
-export const placementBinStatus = ({
-  productIndex,
-  targetBinIndex,
-  currentProductIndex,
-  currentTargetBinIndex,
-  placed
-}: {
+export interface PlacementStop {
   productIndex: number;
   targetBinIndex: number;
-  currentProductIndex: number;
-  currentTargetBinIndex: number;
+  toBinId: string;
+  doorName?: string;
+}
+
+/**
+ * The placement walk, bin-major: every (product, bin) pair, ordered by the BIN the operator must open.
+ *
+ * Module scope and dependency-free so `scripts/verify-placement-stops.mjs` can replay it — the sequencing
+ * is the whole of this change, and it is the kind of thing that looks right and walks a door twice.
+ *
+ * Three tiers of bin, matching `productGroups`' own sort so the two cannot disagree about where a bin sits:
+ *
+ *   1. bins the route planned, in route order (`placeBinOrder`, which is already door-contiguous);
+ *   2. bins the route never named, in the order they first appear — a stable fallback rather than an
+ *      alphabetical re-sort of something the operator has been watching;
+ *   3. bins added mid-move, after everything else and among themselves in the order they were added, so a
+ *      bin the operator has just asked for lands AHEAD of them. With no `Back` in step ④, a bin ranked
+ *      behind them is a bin that can never be filled.
+ *
+ * Ties within a bin keep `productGroups`' product order, then arrival order — so the sort is stable and a
+ * re-render cannot silently reshuffle the products at one bin under the operator.
+ */
+export const buildPlacementStops = (
+  productGroups: { targetBins: { toBinId: string; targetDoorName?: string }[] }[],
+  placeBinOrder: string[] | undefined,
+  addedMidMoveBinIds: string[]
+): PlacementStop[] => {
+  const stops: PlacementStop[] = [];
+  productGroups.forEach((product, productIndex) => {
+    product.targetBins.forEach((targetBin, targetBinIndex) => {
+      stops.push({
+        productIndex,
+        targetBinIndex,
+        toBinId: targetBin.toBinId,
+        doorName: targetBin.targetDoorName
+      });
+    });
+  });
+
+  const rank = new Map((placeBinOrder ?? []).map((binId, index) => [binId, index]));
+  const appearance = new Map<string, number>();
+  stops.forEach(stop => {
+    if (!appearance.has(stop.toBinId)) appearance.set(stop.toBinId, appearance.size);
+  });
+
+  const binSortKey = (toBinId: string) => {
+    const added = addedMidMoveBinIds.indexOf(toBinId);
+    if (added !== -1) return 2_000_000 + added;
+    const planned = rank.get(toBinId);
+    return planned === undefined ? 1_000_000 + (appearance.get(toBinId) ?? 0) : planned;
+  };
+
+  return stops
+    .map((stop, arrival) => ({ stop, arrival }))
+    .sort(
+      (a, b) =>
+        binSortKey(a.stop.toBinId) - binSortKey(b.stop.toBinId) ||
+        a.stop.productIndex - b.stop.productIndex ||
+        a.arrival - b.arrival
+    )
+    .map(({ stop }) => stop);
+};
+
+export const placementBinStatus = ({
+  stopIndex,
+  currentStopIndex,
+  placed
+}: {
+  /** This pair's position in the placement walk (`placementStops`), or -1 if it has none. */
+  stopIndex: number;
+  currentStopIndex: number;
   placed: number;
 }): 'current' | 'done' | 'pending' => {
-  if (productIndex === currentProductIndex && targetBinIndex === currentTargetBinIndex) {
-    return 'current';
-  }
-  const isBehindInWalk =
-    productIndex < currentProductIndex ||
-    (productIndex === currentProductIndex && targetBinIndex < currentTargetBinIndex);
+  if (stopIndex !== -1 && stopIndex === currentStopIndex) return 'current';
+  // Positions, not a lexicographic comparison of (product, bin). That comparison WAS the walk order while
+  // placement was product-major; now the order lives in one list and this reads it, so the two cannot
+  // disagree about which bins are behind the operator. A pair with no position (-1, mid re-plan) is judged
+  // on its contents alone.
+  const isBehindInWalk = stopIndex !== -1 && currentStopIndex !== -1 && stopIndex < currentStopIndex;
   return isBehindInWalk || placed > 0 ? 'done' : 'pending';
 };
 
@@ -338,6 +409,41 @@ function SerialTable({
   );
 }
 
+/**
+ * Whether a target bin can be taken back off the product being placed.
+ *
+ * Three conditions, and each refuses a different kind of damage:
+ *
+ *   - **The operator added it in this step** (`addedMidMoveBinIds`). The bins chosen at step ② are part of
+ *     the move they confirmed on Review; removing one from a summary panel would rewrite that plan. This
+ *     is the undo for `Add Move To Bin`, and nothing more.
+ *   - **Nothing has been placed in it.** Scanned rows mean vials are physically in that bin. Dropping it
+ *     would either lose them from the books or quietly return them to the pool while they sit on a shelf,
+ *     and the app cannot fix a shelf. Empty the bin first — that is what the two tables are for — and the
+ *     control appears.
+ *   - **It is not the product's last bin.** The stock has already left its source, so a product with no
+ *     destination is stock in hand with no screen to put it down on. App refuses this too; checking here
+ *     means the control is not offered and then rejected.
+ *
+ * Module scope, above the component: it is a pure function of its arguments, and the Move List's rows are
+ * built in a `useMemo` that runs while the component body is still being evaluated — a `const` arrow
+ * declared further down would throw "cannot access before initialization" (CLAUDE.md §4).
+ */
+const targetBinIsRemovable = ({
+  removalOffered,
+  addedMidMoveBinIds,
+  toBinId,
+  placed,
+  targetBinCount
+}: {
+  removalOffered: boolean;
+  addedMidMoveBinIds: string[];
+  toBinId: string;
+  placed: number;
+  targetBinCount: number;
+}) =>
+  removalOffered && addedMidMoveBinIds.includes(toBinId) && placed === 0 && targetBinCount > 1;
+
 export default function TargetBinSerialScanPage({
   transfers,
   doorShelfConfig,
@@ -348,7 +454,8 @@ export default function TargetBinSerialScanPage({
   moveMode,
   cabinetAccess,
   placeBinOrder,
-  onAddTargetBin
+  onAddTargetBin,
+  onRemoveTargetBin
 }: TargetBinSerialScanPageProps) {
   const [currentProductIndex, setCurrentProductIndex] = useState(0);
   const [currentTargetBinIndex, setCurrentTargetBinIndex] = useState(0);
@@ -664,6 +771,51 @@ export default function TargetBinSerialScanPage({
     return groups;
   }, [transfers, doorShelfConfig, placeBinOrder, addedMidMoveBinIds]);
 
+  /**
+   * **The placement walk, bin-major.** Every (product, bin) pair the operator has to work, ordered by the
+   * BIN they must open — so all the products going into one bin are worked consecutively, and a door is
+   * finished before the next one opens.
+   *
+   * This is what the take half already does (`takeBinOrder` + `findNextStopIndex`) and what this half did
+   * not. Placement was product-major: `currentProductIndex` outer, `currentTargetBinIndex` inner. Sorting
+   * each product's bins by route rank, and the products by their earliest bin, got close but could not fix
+   * it — a product placing into Door 1 and Door 3 put Door 3 in the middle of the walk, and the next
+   * product's Door 1 bin sent the operator back through a door they had closed. That is the exact
+   * misreading `findNextStopIndex` exists to prevent on the other side (CLAUDE.md §2 B,
+   * STEP4-GUIDANCE.md §4).
+   *
+   * It is a re-ordering, not a new model: the state pair stays the source of truth and everything derived
+   * from it — the pool, the per-product completeness gate, the scan keys — is untouched. Only the sequence
+   * changes, plus `placementBinStatus`, which now asks position in THIS list rather than comparing the two
+   * indices lexicographically (that comparison was the product-major order written a second time).
+   *
+   * The bin sequence mirrors `productGroups`' own sort so the two cannot disagree about where a bin sits:
+   * planned bins by route rank, bins added mid-move in a later tier in the order they were added, and
+   * first-appearance order as the fallback when no route was handed down. Products within a bin keep
+   * `productGroups`' order.
+   *
+   * The full stop model — one screen per stop, take and place interleaved — is STEP4-GUIDANCE.md §2 and is
+   * still not built. This is the door-thrash half of it, which is the part the operator feels.
+   */
+  const placementStops = useMemo(
+    () => buildPlacementStops(productGroups, placeBinOrder, addedMidMoveBinIds),
+    [productGroups, placeBinOrder, addedMidMoveBinIds]
+  );
+
+  /** Position in the walk, for a (product, bin) pair. `-1` only while the pair is being re-planned. */
+  const stopIndexOf = useMemo(() => {
+    const byPair = new Map<string, number>();
+    placementStops.forEach((stop, index) => {
+      byPair.set(`${stop.productIndex}-${stop.targetBinIndex}`, index);
+    });
+    return (productIndex: number, targetBinIndex: number) =>
+      byPair.get(`${productIndex}-${targetBinIndex}`) ?? -1;
+  }, [placementStops]);
+
+  const currentStopIndex = stopIndexOf(currentProductIndex, currentTargetBinIndex);
+  const nextStop =
+    currentStopIndex === -1 ? undefined : placementStops[currentStopIndex + 1];
+
   // What the Move Summary panel shows on the placement half of step 4 — one row per source→target
   // pairing, which the panel nests under the source bin each pairing leaves from. A target bin fed by
   // two sources therefore appears once beneath each of them, which is the hierarchy being stated: the
@@ -688,10 +840,8 @@ export default function TargetBinSerialScanPage({
         const placed = (scannedItems[scanKey(product.productId, targetBinGroup.toBinId)] || []).length;
 
         const status: MoveSummaryRow['status'] = placementBinStatus({
-          productIndex,
-          targetBinIndex,
-          currentProductIndex,
-          currentTargetBinIndex,
+          stopIndex: stopIndexOf(productIndex, targetBinIndex),
+          currentStopIndex,
           placed
         });
 
@@ -747,6 +897,25 @@ export default function TargetBinSerialScanPage({
             // The bin in hand on this half is a TARGET bin; the source is history by now.
             isCurrentSource: false,
             isCurrentTarget: status === 'current',
+            /**
+             * Offered only on the product being placed, and only for a bin the operator added in this
+             * step with nothing in it yet.
+             *
+             * Scoped to the current product because the removal path is written in this screen's own
+             * coordinates — the scan key and `currentTargetBinIndex` both name the product in hand — so a
+             * Remove on another product's card would act on the wrong one's state. Everything else about
+             * whether the bin may go is `canRemoveTargetBin`'s, which this defers to rather than restates.
+             */
+            canRemoveTarget:
+              productIndex === currentProductIndex &&
+              targetBinIsRemovable({
+                removalOffered: !!onRemoveTargetBin,
+                addedMidMoveBinIds,
+                toBinId: targetBinGroup.toBinId,
+                placed,
+                targetBinCount: product.targetBins.length
+              }),
+            toBinId: targetBinGroup.toBinId,
             status
           });
         });
@@ -770,17 +939,25 @@ export default function TargetBinSerialScanPage({
       });
     });
 
-    // Left in productGroups' own order — the same order the operator walks through placement —
-    // rather than re-sorted alphabetically, matching the quantity page's summary.
+    // Left in productGroups' own order. The WALK is bin-major (placementStops) and the panel groups by
+    // door and bin to match it; these rows are the raw material for both, so they stay in the order the
+    // caller built them and let each view do its own grouping.
     return rows;
   }, [
     productGroups,
     doorShelfConfig,
     currentProductIndex,
     currentTargetBinIndex,
+    // The walk decides each row's status now, so the panel has to rebuild when it changes.
+    stopIndexOf,
+    currentStopIndex,
     scannedItems,
     serialScanningRequired,
-    skippedProducts
+    skippedProducts,
+    // Both decide whether a row offers Remove; a missing dep here would freeze the control in whatever
+    // state it had when the bins were added.
+    addedMidMoveBinIds,
+    onRemoveTargetBin
   ]);
 
   // Distinct products in the summary, for the footer counter — matches the panel's own header count.
@@ -797,9 +974,11 @@ export default function TargetBinSerialScanPage({
   // of the last product in this batch, with no further products queued after it. Distinct from
   // "last target bin within this component's own productGroups", since the parent may still
   // route to another product's Quantity Selection step via `remainingTransfers`.
+  // Asked of the walk (`nextStop`), not of the two indices: with the walk bin-major, the last stop is not
+  // the last product's last bin — it is whichever pair the bin order puts last. Comparing indices said
+  // "final" partway through and left the batch unfinishable.
   const isFinalSaveStep = !!currentProduct &&
-    currentTargetBinIndex === currentProduct.targetBins.length - 1 &&
-    currentProductIndex === productGroups.length - 1 &&
+    !nextStop &&
     (!remainingTransfers || remainingTransfers.length === 0);
 
   /**
@@ -820,8 +999,23 @@ export default function TargetBinSerialScanPage({
    * A product's requirement therefore belongs to the last bin of that product. `Add Move To Bin` is the
    * intended way out and the blocked-tap toast already names it.
    */
+  /*
+   * Asked of the WALK, not of the array. `currentTargetBinIndex === targetBins.length - 1` was the same
+   * question while the walk was product-major and each product's bins were visited in array order. Bin-major
+   * they need not be: the array is sorted by route rank only when a `placeBinOrder` was handed down, so
+   * without one a product's last array entry can be the FIRST of its bins the walk reaches — and the gate
+   * would then demand a full account at the operator's first stop and never again.
+   * `verify-placement-stops.mjs` pins that case.
+   *
+   * Falls back to the array test only when the pair has no position at all (mid re-plan), where there is
+   * nothing better to ask.
+   */
   const isLastTargetBinForProduct = !!currentProduct &&
-    currentTargetBinIndex === currentProduct.targetBins.length - 1;
+    (currentStopIndex === -1
+      ? currentTargetBinIndex === currentProduct.targetBins.length - 1
+      : !placementStops.some(
+          (stop, index) => index > currentStopIndex && stop.productIndex === currentProductIndex
+        ));
 
 
   // Unlock the door this target bin is behind, locking whatever was open. Silent when the door is
@@ -999,11 +1193,14 @@ export default function TargetBinSerialScanPage({
    * act with a button of its own (`showSkipBin` below), rather than the same button changing meaning
    * depending on whether the bin happens to be empty.
    */
+  // Read off the next stop, so the label cannot promise a step the walk does not take — the same rule the
+  // quantity screen's primary follows. Bin-major, "next product" means another product going into THIS bin,
+  // which is now a thing that happens: the operator stays at the bin until everything arriving there has.
   const saveButtonLabel = isFinalSaveStep
     ? 'Save & Finish'
-    : currentProduct && currentTargetBinIndex < currentProduct.targetBins.length - 1
-      ? 'Save & Next Bin'
-      : 'Save & Next Product';
+    : nextStop && currentTargetBin && nextStop.toBinId === currentTargetBin.toBinId
+      ? 'Save & Next Product'
+      : 'Save & Next Bin';
 
   /**
    * Passing over a bin without putting anything in it — its own control, beside Cancel, in the same slot
@@ -1152,6 +1349,48 @@ export default function TargetBinSerialScanPage({
     binIds.forEach(binId => onAddTargetBin(currentProduct.productId, binId));
   };
 
+  /** The rule above, bound to this screen's current product — for the "Bins to move to" sheet. */
+  const canRemoveTargetBin = (targetBin: TargetBinGroup, placed: number) =>
+    targetBinIsRemovable({
+      removalOffered: !!onRemoveTargetBin,
+      addedMidMoveBinIds,
+      toBinId: targetBin.toBinId,
+      placed,
+      targetBinCount: currentProduct.targetBins.length
+    });
+
+  /**
+   * Remove one of the bins added mid-move.
+   *
+   * The scan key goes with it — nothing is in there (`canRemoveTargetBin` insists), but leaving the key
+   * behind would make a bin re-added later open pre-filled from a visit that no longer exists, since the
+   * seeding effect skips a bin that already holds rows.
+   *
+   * The index is clamped rather than recomputed. `currentTargetBinIndex` is a position in a list that is
+   * about to get shorter, and the same reasoning as `resumeTargetBinId` applies: props arrive a render
+   * later, so a position taken now can point past the end. Removing a bin *before* the current one shifts
+   * the current bin down by exactly one.
+   */
+  const handleRemoveTargetBinAt = (targetBin: TargetBinGroup, index: number) => {
+    if (!onRemoveTargetBin || !currentProduct) return;
+
+    const key = getTargetBinKey(targetBin);
+    setScannedItems(prev => {
+      if (!(key in prev)) return prev;
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+    setAddedMidMoveBinIds(prev => prev.filter(binId => binId !== targetBin.toBinId));
+
+    const lastIndexAfter = Math.max(0, currentProduct.targetBins.length - 2);
+    setCurrentTargetBinIndex(current =>
+      Math.min(current > index ? current - 1 : current, lastIndexAfter)
+    );
+
+    onRemoveTargetBin(currentProduct.productId, targetBin.toBinId);
+  };
+
   /**
    * Put the operator back on the bin they were working on, once the added bins have come down through
    * props — App owns the transfers, so there is a render between asking and having.
@@ -1291,20 +1530,18 @@ export default function TargetBinSerialScanPage({
       }
     }
 
-    // Move to next target bin or product
-    if (currentTargetBinIndex < currentProduct.targetBins.length - 1) {
-      // Move to next target bin in same product
-      setCurrentTargetBinIndex(currentTargetBinIndex + 1);
+    // One step along the walk, whatever that stop happens to be: another product going into the bin in
+    // front of the operator, or the first product of the next bin. It used to look for this product's next
+    // bin and only then for another product — the product-major order, which is what sent the operator back
+    // through a door they had finished with (see placementStops).
+    if (nextStop) {
+      setCurrentProductIndex(nextStop.productIndex);
+      setCurrentTargetBinIndex(nextStop.targetBinIndex);
       setSerialInput('');
-    } else if (currentProductIndex < productGroups.length - 1) {
-      // Move to next product
-      setCurrentProductIndex(currentProductIndex + 1);
-      setCurrentTargetBinIndex(0);
-      setSerialInput('');
-    } else {
-      // Last product, last target bin - finalize
-      finalizeAndConfirm();
+      return;
     }
+
+    finalizeAndConfirm();
   };
 
   const finalizeAndConfirm = () => {
@@ -1889,6 +2126,18 @@ export default function TargetBinSerialScanPage({
         onToggle={() => setSummaryOpen(prev => !prev)}
         // This half puts stock IN, so the target end of the current pairing is the bin in hand.
         stage="target"
+        // The walk's bin order, so the panel's door-by-door grouping matches the order the operator is
+        // actually sent round in. The rows themselves are product-major — they are shared with the
+        // per-product surfaces — so the sequence has to come down separately.
+        walkBinOrder={placementStops.map(stop => stop.toBinId)}
+        /* The undo for Add Move To Bin, offered per row by canRemoveTarget. The row carries the bin id
+           back, so this resolves it against the current product's bins — the index matters, because
+           removing a bin ahead of the operator must not shift the one they are standing at. */
+        onRemoveTarget={row => {
+          const index = currentProduct.targetBins.findIndex(tb => tb.toBinId === row.toBinId);
+          if (index === -1) return;
+          handleRemoveTargetBinAt(currentProduct.targetBins[index], index);
+        }}
       />
       </div>
 
@@ -2025,7 +2274,16 @@ export default function TargetBinSerialScanPage({
       >
         {productGroups.map((p, idx) => {
           const isCurrent = idx === currentProductIndex;
-          const isDone = idx < currentProductIndex;
+          // Finished means every stop of this product is behind the operator — not `idx <
+          // currentProductIndex`, which was the product-major walk written a second time. Bin-major, a
+          // product with bins behind two doors is legitimately half-done while a later-indexed product is
+          // already finished, and the index test called it done at its first stop.
+          const isDone =
+            !isCurrent &&
+            currentStopIndex !== -1 &&
+            placementStops
+              .filter(stop => stop.productIndex === idx)
+              .every(stop => stopIndexOf(stop.productIndex, stop.targetBinIndex) < currentStopIndex);
           const totalQty = p.targetBins.reduce((sum, tb) => sum + tb.totalQuantity, 0);
           return (
             <div
@@ -2077,10 +2335,8 @@ export default function TargetBinSerialScanPage({
           // cannot disagree about which bins are finished. This sheet only ever lists the current
           // product's bins, so the product indices are equal by construction.
           const walkStatus = placementBinStatus({
-            productIndex: currentProductIndex,
-            targetBinIndex: idx,
-            currentProductIndex,
-            currentTargetBinIndex,
+            stopIndex: stopIndexOf(currentProductIndex, idx),
+            currentStopIndex,
             placed: scannedCount
           });
           const isCurrent = walkStatus === 'current';
@@ -2115,8 +2371,27 @@ export default function TargetBinSerialScanPage({
                       serialScanningRequired ? scannedCount : tb.totalQuantity
                     )}
                   </span>
+                  {/* Only on a bin the operator added in this step and has put nothing in — see
+                      canRemoveTargetBin. `Remove` names what happens, the way the Review cards' buttons
+                      do, and it is the app's secondary rather than the destructive red: the bin was never
+                      committed, so dropping it discards a choice rather than data (CLAUDE.md §6). */}
+                  {canRemoveTargetBin(tb, scannedCount) && (
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveTargetBinAt(tb, idx)}
+                      className="text-[12px] leading-[16px] px-2 py-1 rounded-[4px] bg-white text-[#095192] border border-[#095192] hover:bg-[#F1F6FA] cursor-pointer"
+                    >
+                      Remove
+                    </button>
+                  )}
                 </div>
               </div>
+              {/* Said on the card itself, not only by the presence of a Remove button: a bin the operator
+                  added is the one thing in this list that was not part of the move they confirmed on
+                  Review, and after two or three additions the list stops being self-evident. */}
+              {addedMidMoveBinIds.includes(tb.toBinId) && (
+                <p className="text-[11px] text-[#64748b] mt-2">Added during this move</p>
+              )}
             </div>
           );
         })}

@@ -52,15 +52,15 @@ const check = (label, actual, expected) => {
   }
 };
 
-/** One product, the operator standing at target bin `at`. */
-const status = (targetBinIndex, at, placed = 0) =>
-  placementBinStatus({
-    productIndex: 0,
-    targetBinIndex,
-    currentProductIndex: 0,
-    currentTargetBinIndex: at,
-    placed
-  });
+/**
+ * A stop at position `stopIndex`, with the operator standing at `at`.
+ *
+ * The signature is positions now, not (product, bin) index pairs: the placement walk is bin-major
+ * (`buildPlacementStops`), so "behind the operator" is a position in that list and no longer something a
+ * lexicographic comparison of the two indices can answer. See verify-placement-stops.mjs for the ordering.
+ */
+const status = (stopIndex, at, placed = 0) =>
+  placementBinStatus({ stopIndex, currentStopIndex: at, placed });
 
 console.log('verify-placement-walk-status');
 
@@ -84,25 +84,17 @@ check('later bin holding nothing is pending', status(2, 0, 0), 'pending');
 check('the bin in hand stays current even holding stock', status(1, 1, 50), 'current');
 check('the bin in hand stays current at index 0', status(0, 0, 100), 'current');
 
-// --- Across products: everything of an earlier product is done, everything of a later one pending.
-const acrossProducts = (productIndex, currentProductIndex, targetBinIndex = 0, placed = 0) =>
-  placementBinStatus({
-    productIndex,
-    targetBinIndex,
-    currentProductIndex,
-    currentTargetBinIndex: 0,
-    placed
-  });
+// --- Across products at the same bin: bin-major means several products can share one stop's bin, and they
+//     are simply consecutive positions. Nothing about the product enters this function any more.
+check('an earlier stop is done whichever product it belonged to', status(0, 3), 'done');
+check('a later stop is pending whichever product it belongs to', status(5, 3), 'pending');
+check('a later stop holding stock is done', status(5, 3, 25), 'done');
 
-check('earlier product is done', acrossProducts(0, 1), 'done');
-check('later product is pending', acrossProducts(2, 1), 'pending');
-check('later product holding stock is done', acrossProducts(2, 1, 0, 25), 'done');
-check('current product, current bin', acrossProducts(1, 1, 0, 0), 'current');
-check(
-  "an earlier product's later bin is done by position alone",
-  acrossProducts(0, 1, 5, 0),
-  'done'
-);
+// --- A pair with no position in the walk (mid re-plan, -1) is judged on its contents alone: it must never
+//     claim to be the bin in hand, and must not read as untouched if the operator has filled it.
+check('an unplaced pair is not current', status(-1, 2), 'pending');
+check('an unplaced pair holding stock still reads done', status(-1, 2, 40), 'done');
+check('an unplaced pair is not current even at currentStopIndex -1', status(-1, -1), 'pending');
 
 // --- Exactly one current across a whole batch, which is the invariant the panel's bold rests on.
 {

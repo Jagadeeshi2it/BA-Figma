@@ -47,6 +47,17 @@ import {
 import { emergencyKitService } from "./services/EmergencyKitService";
 import { productDataService } from "./services/ProductDataService";
 
+/**
+ * A move transfer's product, as the app defines a product: the identity triple, never `productId`.
+ *
+ * The pipeline's transfers carry the per-bin product row's id, so one drug taken out of three bins is
+ * three different ids for what the operator is holding as one thing. Module scope, above the component,
+ * because a helper that is a pure function of its argument has no business being ordered against hooks
+ * (CLAUDE.md §4).
+ */
+const moveTransferProductKey = (transfer: any) =>
+  `${transfer.productName}|${transfer.ndc}|${transfer.inventoryType}`;
+
 export default function App() {
   // Declared before useInventoryState because the hook stamps every history entry with the station it
   // happened at, so it has to be handed the current one.
@@ -179,7 +190,19 @@ export default function App() {
   const handleAddMoveTargetBin = useCallback(
     (productId: string, binId: string) => {
       setPendingSerialTransfers(prev => {
-        const productTransfers = prev.filter(transfer => transfer.productId === productId);
+        // Matched on product IDENTITY, not `productId`. The same drug in three bins is three rows with
+        // three different ids (CLAUDE.md §3), and the id arriving here is the placement screen's
+        // representative — its product group's FIRST transfer. Filtering on it therefore found only the
+        // first source bin's transfers, so a bin added to a product taken out of three bins was paired
+        // with one of them. The move still worked, but the Move List had to spell the pairing out —
+        // one source with two destinations, two with one — printing the new bin under a single source and
+        // the old bin three times over. `everySourceSharesTargets` was reporting the move accurately; the
+        // move was the thing that was wrong.
+        const anchor = prev.find(transfer => transfer.productId === productId);
+        if (!anchor) return prev;
+        const productTransfers = prev.filter(
+          transfer => moveTransferProductKey(transfer) === moveTransferProductKey(anchor)
+        );
         if (productTransfers.length === 0) return prev;
         // Already going there — nothing to add. Guarded in the picker too, which refuses an existing
         // target with a sentence; this is the arithmetic version of the same rule, since a duplicate
@@ -199,6 +222,35 @@ export default function App() {
         }));
 
         return [...prev, ...added];
+      });
+    },
+    []
+  );
+
+  /**
+   * Take a Move To bin back off a product mid-move — the undo for `Add Move To Bin`.
+   *
+   * Every transfer of that product into that bin goes, one per source, which is exactly what the add
+   * created. Nothing else is touched: the sources keep their declared amounts, so what the operator is
+   * carrying does not change — only the list of places it may go.
+   *
+   * The screen decides *whether* removal is allowed (it is offered only for a bin the operator added in
+   * this step and has placed nothing in — see `canRemoveTargetBin`), because that judgement needs the
+   * scan state, which lives there. This handler is the arithmetic half and stays deliberately simple.
+   */
+  const handleRemoveMoveTargetBin = useCallback(
+    (productId: string, binId: string) => {
+      setPendingSerialTransfers(prev => {
+        const anchor = prev.find(transfer => transfer.productId === productId);
+        if (!anchor) return prev;
+        const key = moveTransferProductKey(anchor);
+        const next = prev.filter(
+          transfer => !(moveTransferProductKey(transfer) === key && transfer.toBinId === binId)
+        );
+        // Never strand a product with nowhere to go: the stock has already left its source bins, so a
+        // product with no target is stock in the operator's hand and no screen to put it down on.
+        const stillHasATarget = next.some(transfer => moveTransferProductKey(transfer) === key);
+        return stillHasATarget ? next : prev;
       });
     },
     []
@@ -623,6 +675,7 @@ export default function App() {
             transfers={pendingSerialTransfers}
             placeBinOrder={moveWalk?.placeBinOrder}
             onAddTargetBin={addMoveToBinEnabled ? handleAddMoveTargetBin : undefined}
+            onRemoveTargetBin={addMoveToBinEnabled ? handleRemoveMoveTargetBin : undefined}
             skippedProducts={skippedMoveProducts}
             doorShelfConfig={inventoryState.doorShelfConfig}
             moveMode={inventoryState.moveMode}

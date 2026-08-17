@@ -1,8 +1,34 @@
 import React from 'react';
-import { X, ArrowRight, LogOut, LogIn, Lock, Unlock, Package, Check, Route as RouteIcon } from 'lucide-react';
+import {
+  X,
+  ArrowRight,
+  LogOut,
+  LogIn,
+  Lock,
+  Unlock,
+  Package,
+  Check,
+  Lightbulb,
+  Route as RouteIcon
+} from 'lucide-react';
 import { pluralizeUnit } from '../utils/pluralizeUnit';
 import ProductBadges from './ProductBadges';
 import { DoorVisit, RouteStop } from '../utils/moveRoute';
+
+/**
+ * Whether a finished line wears its green `Taken` / `Moved` badge.
+ *
+ * Off at the operator's request while the row's layout is being judged — the badge and the quantity are
+ * the two things on a row's right-hand side, and with the badge gone the figure is the only thing there.
+ * The derivation stays (`sourceTakenBadge` / `targetMovedBadge` keep every rule about which lines may
+ * wear one), so turning this back on restores the behaviour rather than asking for it to be rebuilt.
+ *
+ * **If the answer lands on "keep them off", delete them rather than leaving this here.** The deleted
+ * stepper band is the precedent (CLAUDE.md §2): a second layout nothing renders only rots. Note the
+ * panel then reports progress on the take half through nothing but position — the blue bin border and
+ * the lit bulb — which is a decision to take deliberately, not to arrive at by leaving a flag off.
+ */
+const SHOW_DONE_BADGES = false;
 
 /**
  * One line of "what's moving from where to where" — Review (step 3) and both halves of Move
@@ -48,6 +74,21 @@ export interface MoveSummaryRow {
   // though — there is no move left to describe, and a from → to line under a skipped product would
   // state a move that isn't happening.
   isSkipped?: boolean;
+  /**
+   * This target bin may be taken back off the move, and the panel should offer it.
+   *
+   * The screen decides — it is the only thing that knows a bin was added mid-move and has nothing placed
+   * in it (`canRemoveTargetBin`). The panel just draws the control, and only where the target's figure is
+   * drawn, so a bin fed by three sources gets one `Remove` rather than three.
+   *
+   * The offer lives here rather than in the footer's "Bins to move to" sheet, where it was first built:
+   * that sheet opens from the step-④ position counters, and those are switched off
+   * (`SHOW_STEP4_POSITION_COUNTERS`), so the control was unreachable. This panel is open by default on
+   * step ④ and lists every bin in the move, which makes it the place the operator is already looking.
+   */
+  canRemoveTarget?: boolean;
+  /** Resolves the row back to a bin for `onRemoveTarget`. Not rendered. */
+  toBinId?: string;
   status: 'pending' | 'current' | 'done';
 }
 
@@ -115,6 +156,19 @@ interface MoveSummaryPanelProps {
    * supplies the per-product totals beneath it, because the product view never disappears (§6).
    */
   route?: MoveSummaryRouteView;
+  /**
+   * Take a target bin back off the move. Offered per row by `canRemoveTarget`, so the panel never has to
+   * decide whether a bin may go — only where to draw the control.
+   */
+  onRemoveTarget?: (row: MoveSummaryRow) => void;
+  /**
+   * Target bin ids in the order the walk visits them — the placement half's `placementStops`.
+   *
+   * Needed because that stage's rows are built product-major (they also feed the per-product cards) while
+   * the panel groups them by door and bin, and the grouping merges consecutive runs only. Ignored on every
+   * other stage: the take half's rows already arrive in walk order.
+   */
+  walkBinOrder?: string[];
 }
 
 const STAGE_COPY: Record<Exclude<MoveSummaryStage, 'review' | 'route'>, { label: string; icon: typeof LogOut }> = {
@@ -190,7 +244,10 @@ const groupByProduct = (rows: MoveSummaryRow[]) => {
  * product leaving one bin for two targets arrives as two rows carrying the same source figure — printing
  * both would double the bin's contents and its progress count.
  */
-const groupBySourceDoorAndBin = (rows: MoveSummaryRow[]) => {
+const groupByDoorAndBin = (rows: MoveSummaryRow[], end: 'from' | 'to') => {
+  const doorOf = (row: MoveSummaryRow) => (end === 'from' ? row.fromDoor : row.toDoor);
+  const labelOf = (row: MoveSummaryRow) => (end === 'from' ? row.fromLabel : row.toLabel);
+
   const doors: {
     door?: string;
     bins: { label: string; door?: string; rows: MoveSummaryRow[] }[];
@@ -198,14 +255,14 @@ const groupBySourceDoorAndBin = (rows: MoveSummaryRow[]) => {
 
   rows.forEach(row => {
     let door = doors[doors.length - 1];
-    if (!door || door.door !== row.fromDoor) {
-      door = { door: row.fromDoor, bins: [] };
+    if (!door || door.door !== doorOf(row)) {
+      door = { door: doorOf(row), bins: [] };
       doors.push(door);
     }
 
     let bin = door.bins[door.bins.length - 1];
-    if (!bin || bin.label !== row.fromLabel) {
-      bin = { label: row.fromLabel, door: row.fromDoor, rows: [] };
+    if (!bin || bin.label !== labelOf(row)) {
+      bin = { label: labelOf(row), door: doorOf(row), rows: [] };
       door.bins.push(bin);
     }
 
@@ -216,6 +273,37 @@ const groupBySourceDoorAndBin = (rows: MoveSummaryRow[]) => {
   });
 
   return doors;
+};
+
+/**
+ * The rows sorted into the order the walk visits their bins.
+ *
+ * `groupByDoorAndBin` merges only CONSECUTIVE runs, deliberately (see above), so it depends on the rows
+ * arriving in walk order. The take half's already do. The placement half's are built product-major, because
+ * the same rows also feed the per-product cards — so that stage passes the walk's bin order down
+ * (`walkBinOrder`, straight from `placementStops`) and this applies it.
+ *
+ * Told rather than inferred. Ordering by row `status` would reproduce it most of the time — a row is `done`
+ * or `current` exactly when the walk has passed or reached its bin — but "most of the time" is where a bin
+ * added mid-move lives: it can hold stock while sitting ahead of the operator, which is the whole reason
+ * `placementBinStatus` looks at contents as well as position. A panel guessing the sequence from statuses
+ * would put that bin at the top of a list the operator has not reached.
+ *
+ * Stable within a bin, so the products at one bin keep the order the walk works them in.
+ */
+const rowsInWalkOrder = (rows: MoveSummaryRow[], walkBinOrder?: string[]) => {
+  if (!walkBinOrder || walkBinOrder.length === 0) return rows;
+
+  const rank = new Map(walkBinOrder.map((binId, index) => [binId, index]));
+  // A row whose bin the order does not name sinks to the end rather than to the front, where an unranked
+  // bin would claim to be the operator's next stop.
+  const rankOf = (row: MoveSummaryRow) =>
+    (row.toBinId !== undefined ? rank.get(row.toBinId) : undefined) ?? Number.MAX_SAFE_INTEGER;
+
+  return rows
+    .map((row, arrival) => ({ row, arrival }))
+    .sort((a, b) => rankOf(a.row) - rankOf(b.row) || a.arrival - b.arrival)
+    .map(({ row }) => row);
 };
 
 /**
@@ -336,7 +424,9 @@ export default function MoveSummaryPanel({
   onToggle,
   title = 'Move List',
   stage = 'review',
-  route
+  route,
+  onRemoveTarget,
+  walkBinOrder
 }: MoveSummaryPanelProps) {
   // No collapsed rail: the footer's own Move Summary counter is what reopens this now, so a second,
   // always-present toggle sitting in the corner just to say "closed" would be a redundant control.
@@ -384,12 +474,23 @@ export default function MoveSummaryPanel({
     qty == null ? null : `${qty} ${pluralizeUnit(unit || 'vial', qty)}`;
 
   const isRouteStage = stage === 'route' && !!route;
-  // The take half groups by door and bin instead of by product — see groupBySourceDoorAndBin.
-  const isSourceStage = stage === 'source';
+  /**
+   * Both halves of step ④ group by door and bin, because both halves now WALK by bin.
+   *
+   * The take half always did. The placement half was product-major and grouped by product to match; its
+   * walk is bin-major now (`buildPlacementStops`), so the panel follows — a list ordered differently from
+   * the walk it describes is worse than either shape on its own. Review keeps the per-product pairing
+   * cards: nothing is being walked there, and which source feeds which target is the thing the operator is
+   * confirming.
+   */
+  const isBinWalkStage = stage === 'source' || stage === 'target';
+  const walkEnd: 'from' | 'to' = stage === 'target' ? 'to' : 'from';
   // Computed here rather than inside the renderer, because the header above it reports the same figure and
   // the two must not count differently.
-  const sourceDoors = isSourceStage ? groupBySourceDoorAndBin(rows) : [];
-  const sourceBinCount = sourceDoors.reduce((sum, door) => sum + door.bins.length, 0);
+  const walkDoors = isBinWalkStage
+    ? groupByDoorAndBin(rowsInWalkOrder(rows, walkBinOrder), walkEnd)
+    : [];
+  const walkBinCount = walkDoors.reduce((sum, door) => sum + door.bins.length, 0);
 
   const stageCopy =
     stage === 'review' || stage === 'route' ? null : STAGE_COPY[stage as 'source' | 'target'];
@@ -408,6 +509,7 @@ export default function MoveSummaryPanel({
   // as `Moved` below. It appeared beside its own `0 vials`, the badge and the figure contradicting each
   // other on one line, and on the take half it appeared against bins the operator had not reached.
   const sourceTakenBadge = (row: MoveSummaryRow) =>
+    SHOW_DONE_BADGES &&
     (stage === 'target' || (stage === 'source' && row.status === 'done')) &&
     (row.sourceQuantity ?? 0) > 0
       ? 'Taken'
@@ -416,7 +518,9 @@ export default function MoveSummaryPanel({
   // A bin the operator skipped is done by position and holds nothing, and it wore the badge beside its
   // own `0 vials` — the figure and the badge contradicting each other on one line.
   const targetMovedBadge = (row: MoveSummaryRow) =>
-    stage === 'target' && row.status === 'done' && (row.quantity ?? 0) > 0 ? 'Moved' : null;
+    SHOW_DONE_BADGES && stage === 'target' && row.status === 'done' && (row.quantity ?? 0) > 0
+      ? 'Moved'
+      : null;
 
   const doneBadge = (label: string) => (
     <span className="text-[10px] font-semibold text-[#12805C] bg-[#E1F5EC] rounded-full px-2 py-0.5">
@@ -425,23 +529,54 @@ export default function MoveSummaryPanel({
   );
 
   /**
-   * A target bin's name. Text, not a control.
+   * A target bin's name, and — where the row says so — the control that takes the bin off the move.
    *
-   * It was briefly tappable, to walk the operator to a bin they had passed. Removed at the operator's
-   * request, and worth recording that it was never only a behaviour change: a `<button>` carries the
-   * UA's `text-align: center`, so it did NOT inherit the column's `text-right` the way the surrounding
-   * spans do. The tappable names sat centred while the rest of the column was flush right, which is the
-   * gap down the right-hand side that gave it away.
+   * **The NAME is text, not a control.** It was briefly tappable, to walk the operator to a bin they had
+   * passed. Removed at the operator's request, and worth recording that it was never only a behaviour
+   * change: a `<button>` carries the UA's `text-align: center`, so it did NOT inherit the column's
+   * `text-right` the way the surrounding spans do. The tappable names sat centred while the rest of the
+   * column was flush right, which is the gap down the right-hand side that gave it away. `Remove` is a
+   * separate small button beside the name for that reason, rather than the name becoming one again.
+   *
+   * `showRemove` follows the figure, not the row: a bin fed by three sources is named on three rows and
+   * must offer one `Remove`, the same first-occurrence rule its quantity follows.
    */
-  const targetBinLabel = (row: MoveSummaryRow) => (
-    <span
-      className={`block break-words ${
-        row.isCurrentTarget ? 'font-semibold text-[#020817]' : 'text-[#4a5565]'
-      }`}
-    >
-      {binLabel(row.toLabel, row.toDoor)}
-    </span>
-  );
+  const targetBinLabel = (row: MoveSummaryRow, options: { showRemove?: boolean } = {}) => {
+    const removable = !!options.showRemove && !!row.canRemoveTarget && !!onRemoveTarget;
+
+    /* The bin in hand is blue, not black — the same `#095192` a Move To badge wears on the shelves, so
+       the panel and the cabinet name the operator's current destination in one colour. It carried the
+       card's blue background before; that tinted the whole card, product name included, for a fact about
+       one bin, so the marking now sits on the bin itself and the card keeps only its blue border. */
+    const name = (
+      <span
+        className={`block break-words ${
+          row.isCurrentTarget ? 'font-semibold text-[#095192]' : 'text-[#4a5565]'
+        }`}
+      >
+        {binLabel(row.toLabel, row.toDoor)}
+      </span>
+    );
+
+    if (!removable) return name;
+
+    return (
+      /* The control sits to the LEFT of the name, inside the right-aligned column: the names read down a
+         straight right edge, and putting a button on that edge would break the one alignment this column
+         has. `items-start` so it sits on the name's first line when a long door-qualified label wraps. */
+      <span className="flex items-start justify-end gap-1.5">
+        <button
+          type="button"
+          onClick={() => onRemoveTarget?.(row)}
+          aria-label={`Remove ${binLabel(row.toLabel, row.toDoor)} from this move`}
+          className="shrink-0 text-[11px] leading-[16px] px-1.5 rounded-[4px] text-[#095192] border border-[#095192] hover:bg-[#F1F6FA] cursor-pointer"
+        >
+          Remove
+        </button>
+        <span className="min-w-0">{name}</span>
+      </span>
+    );
+  };
 
   /**
    * One pairing: a source bin on the left, one of its destinations on the right.
@@ -501,7 +636,9 @@ export default function MoveSummaryPanel({
             two columns floated in the middle. Anchored to the edges, each column has a straight side to
             read down. */}
         <span className="flex-1 min-w-0 text-right">
-          {targetBinLabel(row)}
+          {/* Same first-occurrence flag the figure uses, so a target fed by several sources offers one
+              Remove on the row that also carries its amount. */}
+          {targetBinLabel(row, { showRemove: options.showTargetFigure })}
           {(targetText || movedBadge) && (
             /* Figure first, badge to its right — asked for directly, and it costs the perfect column of
                right edges the other order bought: a bin carrying a badge has its figure pushed inward of
@@ -572,7 +709,8 @@ export default function MoveSummaryPanel({
           const movedBadge = targetMovedBadge(row);
           return (
             <div key={`col-target-${row.key}`}>
-              {targetBinLabel(row)}
+              {/* Each target appears exactly once in this shape, so the control is always on its own row. */}
+              {targetBinLabel(row, { showRemove: true })}
               {(targetText || movedBadge) && (
                 // Figure first, badge to its right — see renderPairingRow.
                 <span className="flex items-center justify-end gap-1.5 flex-wrap">
@@ -637,8 +775,29 @@ export default function MoveSummaryPanel({
    * renders nothing for it, because a stated zero reads as a decision already made. Those badges are now
    * the only progress this view reports — the door and bin tallies that used to sit beside them are gone.
    */
-  const renderSourceByDoor = () =>
-    sourceDoors.map((door, doorIndex) => {
+  /**
+   * On the placement half, which bins a product's stock at THIS bin came out of.
+   *
+   * The bin card is grouped by target now, so the source is the one thing the door-grouped shape drops and
+   * the pairing cards used to carry. It matters at the shelf: the operator is holding vials from three bins
+   * and the label is how they know these are the right ones. Read off the rows rather than threaded through
+   * a new field — a row is already a source→target pairing, so the sources are the rows sharing this
+   * product and this target.
+   */
+  const sourceLabelsFor = (row: MoveSummaryRow) => {
+    const productKey = moveSummaryProductKey(row);
+    const labels: string[] = [];
+    rows.forEach(candidate => {
+      if (moveSummaryProductKey(candidate) !== productKey) return;
+      if (candidate.toLabel !== row.toLabel || (candidate.toDoor ?? '') !== (row.toDoor ?? '')) return;
+      const label = binLabel(candidate.fromLabel, candidate.fromDoor);
+      if (label && !labels.includes(label)) labels.push(label);
+    });
+    return labels;
+  };
+
+  const renderWalkByDoor = () =>
+    walkDoors.map((door, doorIndex) => {
       const bins = door.bins;
       const holdsCurrent = bins.some(bin => bin.rows.some(row => row.status === 'current'));
 
@@ -688,48 +847,80 @@ export default function MoveSummaryPanel({
                   >
                     {bin.label}
                   </span>
+                  {/* The bin's own light, lit. The cabinet lights the bin the operator is to open, and
+                      this is the screen's copy of that lamp — so the panel and the shelf are naming the
+                      same bin, and an operator looking at a lit bin can confirm it against the list
+                      rather than counting bin labels.
+
+                      The app's blue, `#095192`, filled with the same pale `#DBE9F6` the card's own inner
+                      rule uses. It was amber first, on the reasoning that a lamp is not a state the
+                      operator chose — dropped at their request, and blue is defensible on its own terms:
+                      everything marking the bin in hand on this card is already blue (its border, the
+                      product name, the live figure), so the bulb joins that one signal instead of adding
+                      a second colour to a 400px panel. The icon is what says "lamp"; the colour only has
+                      to say "this bin".
+
+                      The pulse is `motion-safe:`, so a reduced-motion preference gets a steady bulb — the
+                      icon and colour carry the meaning, and the animation is only what makes it read as
+                      lit rather than drawn. A `fill` rather than a glow or shadow: a soft halo at 14px
+                      reads as a rendering artifact, and the app has no glow anywhere else to borrow. */}
+                  {isCurrentBin && (
+                    <Lightbulb
+                      className="w-3.5 h-3.5 shrink-0 text-[#095192] fill-[#DBE9F6] motion-safe:animate-pulse"
+                      aria-hidden
+                    />
+                  )}
                 </div>
 
                 <div className="space-y-2">
                   {bin.rows.map((row, rowIndex) => {
                     const isCurrentRow = row.status === 'current';
-                    const sourceText = quantityText(row.sourceQuantity, row.unit);
-                    const takenBadge = sourceTakenBadge(row);
+                    // Each end reports its own figure and its own act: what left this bin on the take half,
+                    // what has landed in it on the placement half. Same card, same layout — the difference
+                    // is which of the row's two quantities belongs to the bin the card is about.
+                    const sourceText = quantityText(
+                      walkEnd === 'to' ? row.quantity : row.sourceQuantity,
+                      row.unit
+                    );
+                    const takenBadge =
+                      walkEnd === 'to' ? targetMovedBadge(row) : sourceTakenBadge(row);
+                    const cameFrom = walkEnd === 'to' ? sourceLabelsFor(row) : [];
 
                     return (
                       <div
                         key={`${row.key}-${rowIndex}`}
                         className={
-                          // The product in hand, tinted inside its bin. The bin card keeps a white
-                          // ground: two nested tints read as two selections, and only one thing is in
-                          // the operator's hands.
-                          isCurrentRow ? 'bg-[#F1F6FA] -mx-1.5 px-1.5 py-1 rounded-[4px]' : ''
+                          // A rule between products, and nothing else. The product in hand used to be
+                          // tinted `#F1F6FA` here; the blue name below says which one it is, and a filled
+                          // ground inside a bin card that is itself inside a panel was a third nested
+                          // surface for one fact. What the tint was also doing, incidentally, was
+                          // separating one product from the next — so that job is now done by a line,
+                          // which does it for every row rather than only the current one.
+                          rowIndex > 0 ? 'pt-2 border-t border-gray-100' : ''
                         }
                       >
-                        {/* **The name owns its own full-width line, before and after the stock is taken.**
-                            This row used to be a flex pair — name on the left, quantity and `Taken` on the
-                            right — and those two only appear once a bin is finished. So the card silently
-                            re-laid itself out at the moment the operator acted: an untaken row had the
-                            whole width for its name, and the same row a tap later had `10 vials  Taken`
-                            beside it and wrapped "CARBOPLATIN 600 MG/60 ML VIAL" onto a second line. The
-                            one row they had just worked was the one that moved.
+                        {/* Two lines, each with the identity on the left and what happened on the right:
+                            name + badges above the quantity, NDC below it opposite the `Taken` badge (or
+                            `Skipped`). Asked for directly, and it lines the row's two right-hand items up
+                            under each other instead of running them side by side, where `5 vials  Taken`
+                            read as one long label rather than a figure and the act that produced it.
 
-                            It is the same reason the badges are not beside the name here (§6): at 320px
-                            anything sharing the name's line costs it the characters carrying the strength,
-                            which is the part being checked. A figure that appears halfway through is worse
-                            than a badge that was always there, because it moves the text under the eye. */}
-                        <span
-                          className={`block break-words text-[12px] leading-[18px] ${
-                            isCurrentRow ? 'font-medium text-[#095192]' : 'text-[#020817]'
-                          }`}
-                        >
-                          {row.productName}
-                        </span>
+                            The left cells are `min-w-0` and wrap, so what a long name loses is a line
+                            break rather than its characters: `CARBOPLATIN 600 MG/60 ML VIAL` wraps intact
+                            instead of truncating to `CARBOPLATIN 600 MG/6…` and losing the strength, which
+                            is the part being checked. The right cells are `shrink-0 whitespace-nowrap`.
 
-                        {/* Badges left, the figure right — one attributes line whose height and position
-                            do not depend on whether the figure is there yet. */}
-                        <div className="flex items-center justify-between gap-2 mt-0.5">
-                          <span className="flex items-center gap-1 flex-wrap min-w-0">
+                            `items-start`, not `items-center`: with the name wrapped to two lines a centred
+                            figure floats between them, unattached to either. */}
+                        <div className="flex items-start justify-between gap-2">
+                          <span className="min-w-0 flex items-baseline gap-1.5 flex-wrap">
+                            <span
+                              className={`break-words text-[12px] leading-[18px] ${
+                                isCurrentRow ? 'font-medium text-[#095192]' : 'text-[#020817]'
+                              }`}
+                            >
+                              {row.productName}
+                            </span>
                             <ProductBadges
                               product={{
                                 name: row.productName,
@@ -739,24 +930,70 @@ export default function MoveSummaryPanel({
                             />
                           </span>
 
-                          <span className="shrink-0 flex items-center gap-1.5 whitespace-nowrap">
-                            {row.isSkipped
-                              ? skippedBadge
-                              : (
-                                <>
-                                  {sourceText && (
-                                    <span className="text-[12px] font-medium text-[#020817]">{sourceText}</span>
-                                  )}
-                                  {takenBadge && doneBadge(takenBadge)}
-                                </>
-                              )}
-                          </span>
+                          {/* `Skipped` takes the figure's place, as plain text rather than a pill — asked
+                              for, and the two are alternatives anyway: a skipped product has no amount, so
+                              nothing is displaced. Opposite the name, which is what it is a fact about.
+                              Grey and unfilled, so it reads as the absence of a quantity rather than as
+                              something achieved — a chip at this position looked like a third act beside
+                              `Taken`/`Moved`, which is exactly what it is not. The pill survives on the
+                              product cards below (`skippedBadge`), where it sits at product level with no
+                              figure to stand in for. */}
+                          {row.isSkipped ? (
+                            <span className="shrink-0 text-[12px] font-medium text-[#64748b] whitespace-nowrap">
+                              Skipped
+                            </span>
+                          ) : (
+                            sourceText && (
+                              /* Blue on the bin in hand, like the name and NDC beside it. That row's figure
+                                 is live — it tracks the editor the operator is typing into — where every
+                                 other figure in the list is a finished amount. Same colour as the rest of
+                                 the current row's identity rather than a new signal: the row is the one
+                                 being worked, and the figure is part of it. */
+                              <span
+                                className={`shrink-0 text-[12px] font-medium whitespace-nowrap ${
+                                  isCurrentRow ? 'text-[#095192]' : 'text-[#020817]'
+                                }`}
+                              >
+                                {sourceText}
+                              </span>
+                            )
+                          )}
                         </div>
 
-                        {row.ndc && (
-                          <span className="block text-[11px] text-[#94a3b8] mt-0.5 break-words">
-                            {row.ndc}
-                            {row.inventoryType ? ` - ${row.inventoryType}` : ''}
+                        {/* The NDC line, and whatever badge belongs to the act. `Skipped` has moved up to
+                            the name's line, so what can appear here is `Taken` alone (currently off, see
+                            SHOW_DONE_BADGES) — and the line still renders for the NDC on its own. */}
+                        {(row.ndc || takenBadge) && (
+                          <div className="flex items-start justify-between gap-2 mt-0.5">
+                            {/* Blue on the current row, with the name above it — the whole identity block
+                                belongs to the product in hand, and a grey NDC under a blue name read as
+                                the coloured part being a different fact from the line identifying it.
+                                `text-gray-500` otherwise, which is what every other surface uses for this
+                                line (SourceProductCard, AllocationSelectionPanel, the card below). It was
+                                `#94a3b8` here — about 2.8:1 on white, under the ~4.5:1 the app holds text
+                                to, and the only place this line was drawn that pale. */}
+                            <span
+                              className={`min-w-0 text-[11px] break-words ${
+                                isCurrentRow ? 'text-[#095192]' : 'text-gray-500'
+                              }`}
+                            >
+                              {row.ndc}
+                              {row.ndc && row.inventoryType ? ` - ${row.inventoryType}` : ''}
+                            </span>
+
+                            <span className="shrink-0 flex items-center gap-1.5 whitespace-nowrap">
+                              {takenBadge && doneBadge(takenBadge)}
+                            </span>
+                          </div>
+                        )}
+
+                        {/* Where this product came from, on the placement half only — the one fact the
+                            door-grouped shape drops and the pairing cards carried. 13px, the app's size for
+                            a "where this product lives" line wherever it appears (§6), and the `from` is
+                            what stops it reading as another bin this product is going to. */}
+                        {cameFrom.length > 0 && (
+                          <span className="block text-[13px] text-gray-500 mt-0.5 break-words">
+                            from {cameFrom.join(', ')}
                           </span>
                         )}
                       </div>
@@ -783,11 +1020,10 @@ export default function MoveSummaryPanel({
               ? `${route!.visits.filter(v => v.storage === 'cabinet').length} door${
                   route!.visits.filter(v => v.storage === 'cabinet').length === 1 ? '' : 's'
                 } · stop ${route!.stopNumber} of ${route!.stopCount}`
-              : isSourceStage
-                ? /* Bins first, because bins are what the take half lists — and this product count is
-                     the only one, since the Products section at the foot now appears only when a product
-                     is spread over several bins. */
-                  `${sourceBinCount} ${sourceBinCount === 1 ? 'bin' : 'bins'} · ${groups.length} ${
+              : isBinWalkStage
+                ? /* Bins first, because bins are what both halves of step ④ list — and this product count
+                     is the only one, since the per-product cards are not rendered on those stages. */
+                  `${walkBinCount} ${walkBinCount === 1 ? 'bin' : 'bins'} · ${groups.length} ${
                     groups.length === 1 ? 'product' : 'products'
                   }`
                 : `${groups.length} ${groups.length === 1 ? 'product' : 'products'}`}
@@ -912,8 +1148,8 @@ export default function MoveSummaryPanel({
           </>
         ) : groups.length === 0 ? (
           <p className="text-[13px] text-[#64748b] text-center mt-6">Nothing selected yet.</p>
-        ) : isSourceStage ? (
-          renderSourceByDoor()
+        ) : isBinWalkStage ? (
+          renderWalkByDoor()
         ) : (
           groups.map((group, groupIndex) => {
             const badgeIdentity = { name: group.productName, ndc: group.ndc, inventoryType: group.inventoryType };
@@ -1027,22 +1263,11 @@ export default function MoveSummaryPanel({
                 sourceBin => targetSignature(sourceBin) === targetSignature(pairingsBySource[0])
               );
 
-            // What the operator ends up holding for this product: every source bin's amount added up,
-            // once per bin. Repeated across the rows that share a source, so it is summed over the
-            // distinct bins rather than over the rows.
-            const collectedTotal = Array.from(
-              group.rows
-                .reduce((map, row) => {
-                  const key = `${row.fromLabel}|${row.fromDoor ?? ''}`;
-                  if (!map.has(key)) map.set(key, row.sourceQuantity ?? null);
-                  return map;
-                }, new Map<string, number | null>())
-                .values()
-            ).reduce<number | null>(
-              (sum, qty) => (qty == null ? sum : (sum ?? 0) + qty),
-              null
-            );
-            const collectedText = quantityText(collectedTotal, group.rows[0]?.unit);
+            // The card used to state a collected total here — every source bin's amount added up, once
+            // per bin — beside the product name. Removed at the operator's request: each bin already
+            // carries its own figure on its own line, and the roll-up's most visible reading was the one
+            // it gave on an allocation-only move, where a card headed `0 vials` above two bins reading
+            // `0 vials` said nothing three times.
             return (
               <div
                 key={`${group.productName}-${groupIndex}`}
@@ -1050,48 +1275,44 @@ export default function MoveSummaryPanel({
                   isSkippedCard
                     ? 'border-gray-200 bg-[#f8fafc]'
                     : isCurrentCard
-                      ? 'border-[#095192] bg-[#f0f6fc]'
+                      ? // Border only. The blue fill tinted the whole card — product name, NDC, every bin
+                        // row — to say one bin is in the operator's hands; the blue bin label says that
+                        // where it is true.
+                        'border-[#095192]'
                       : 'border-gray-200'
                 }`}
               >
-                {/* Identity block — same shape as SourceProductCard/TargetProductCard: name, italic
-                    generic name, badges, then NDC - inventory type on one line.
+                {/* Identity block — the same shape as SourceProductCard/TargetProductCard now: name and
+                    badges on one line, italic generic name, then NDC - inventory type.
 
-                    **The name owns a full-width line, exactly as it does on the take half's bin cards.**
-                    The collected total used to sit beside it as a `shrink-0` figure, so a long name paid
-                    for it: `CARBOPLATIN 600 MG/60 ML VIAL` truncated to `CARBOPLATIN 600 MG/6…` and lost
-                    the strength, which is the part the operator is checking. That is the same reason the
-                    badges are not on this line either — and a figure is worse than a badge, since it is
-                    the thing the eye goes to on a placement screen. Widening the panel to 400px eased it
-                    without settling it; giving the name its own line settles it. */}
-                <h4 className="font-normal text-[#020817] text-[14px] leading-[20px] break-words">
-                  {group.productName}
-                </h4>
+                    **Badges beside the name (§6), on every step of the panel.** They sat on their own line
+                    below the generic name while the panel was 320px, where anything sharing the name's line
+                    cost it the characters carrying the strength — the part the operator is checking. At
+                    400px that no longer holds, and the exception put two rows between the product and the
+                    NDC that identifies it. The row wraps, so a long name still gets a full line and the
+                    badges drop beneath it rather than truncating it.
+
+                    A figure is a different case and is still kept off this line: a collected total used to
+                    sit here as a `shrink-0` span and truncated `CARBOPLATIN 600 MG/60 ML VIAL` to
+                    `CARBOPLATIN 600 MG/6…`. It is gone (see above), and nothing that cannot wrap belongs
+                    here. `Skipped` is the one exception — a fact about the product, and it stays at product
+                    level because the bins are exactly what a skipped card has nothing to say about. */}
+                <div className="flex items-start justify-between gap-2">
+                  <span className="min-w-0 flex items-baseline gap-1.5 flex-wrap">
+                    <h4 className="font-normal text-[#020817] text-[14px] leading-[20px] break-words">
+                      {group.productName}
+                    </h4>
+                    <ProductBadges product={badgeIdentity} />
+                  </span>
+                  <span className="shrink-0 flex items-center gap-1.5 whitespace-nowrap">
+                    {isSkippedCard && skippedBadge}
+                  </span>
+                </div>
                 {group.productDescription && (
                   <p className="italic text-gray-500 leading-snug text-[14px] truncate">
                     {group.productDescription}
                   </p>
                 )}
-                {/* Badges left, the product's figures right — one attributes line, the same arrangement
-                    the take half's rows use. `Skipped` stays at product level rather than moving down to a
-                    bin, because being skipped is a fact about the product and the bins are exactly what a
-                    skipped card has nothing to say about.
-
-                    The collected total is everything gathered for this product across all its source bins:
-                    sources reading 25, 10 and 5 never said 40 anywhere, and 40 is the figure carried to the
-                    target bin. Absent on a skipped card, which is carrying nothing. */}
-                <div className="flex items-center justify-between gap-2 mt-1.5">
-                  <span className="flex items-center gap-1 flex-wrap min-w-0">
-                    <ProductBadges product={badgeIdentity} />
-                  </span>
-                  <span className="shrink-0 flex items-center gap-1.5 whitespace-nowrap">
-                    {isSkippedCard
-                      ? skippedBadge
-                      : collectedText && (
-                          <span className="text-[12px] font-semibold text-[#020817]">{collectedText}</span>
-                        )}
-                  </span>
-                </div>
                 <div className="text-gray-500 text-[13px] break-words mt-1">
                   {group.ndc} - {group.inventoryType}
                 </div>
