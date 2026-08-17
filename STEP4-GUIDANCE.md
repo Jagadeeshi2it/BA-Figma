@@ -585,9 +585,24 @@ Every item here is a prerequisite, not a nice-to-have.
   toast*, so no door is ever conceptually closed and two can be "unlocked" at once. The one-door rule
   needs a single `openDoor` value with explicit lock/unlock transitions.
 - **Bin illumination does not exist.** There is no lit-bin state anywhere in the app.
-- **There is no route.** `groupedTransfers` (quantity page) and `productGroups` (placement page) are
-  product-major orderings of transfers. Neither is a sequence of stops, and neither knows about doors
-  beyond labelling them.
+- ~~**There is no route.**~~ **Both halves now walk bin by bin — but a bin walk is not a stop model.**
+  `planMoveRoute` gives each half its bin order (`takeBinOrder`, `placeBinOrder`), the quantity page steps
+  one bin at a time (`findNextStopIndex`), and as of 2026-08-18 the placement page does too:
+  `buildPlacementStops` orders every (product, bin) pair by the bin, so every stop behind one door is
+  contiguous and the products going into one bin are worked together. That was option 1 of the two put to
+  the operator; it closes the door-thrash, which is the part they feel.
+
+  What is still missing is §2's unit. A stop is `{ door, bin, actions: [take|place] }` and take/place are
+  not phases — the code still takes everything, then places everything, so a door that both gives and
+  receives is opened twice however well each half is ordered, and `Taken`/`Moved` remain per-phase facts.
+  `groupedTransfers` and `productGroups` are still product-major *structures*; only the traversal over them
+  is bin-major, and `placementStops` is a sequence of pairs rather than of stops with actions.
+
+  Two consequences of the bin walk are worth carrying forward into that work, because both were index
+  comparisons standing in for the traversal: `placementBinStatus` takes positions in the walk, and
+  `isLastTargetBinForProduct` (the per-product completeness gate) asks whether any later stop belongs to
+  the product. `scripts/verify-placement-stops.mjs` pins the ordering, including the case where a product's
+  array order and walk order genuinely differ.
 - **There is no staging state.** Nothing represents "taken but not yet placed", which §6 needs (the counter line).
 - **Storage type doesn't reach the pipeline.** `isFridgeDoor` exists but step ④ never asks; both halves
   treat every door identically.
@@ -765,6 +780,15 @@ that change is the first slice rather than the last. Recorded here rather than c
 ---
 
 ## Revisions
+
+- **2026-08-18** — the placement half's walk went **bin-major** (`buildPlacementStops`), on the operator's
+  choice between "order the placement walk by bin" and "build the stop model". They picked the first. §10's
+  "there is no route" entry is rewritten accordingly: both halves now walk bin by bin, so a door's stops are
+  contiguous *within* a phase, and what remains missing is the stop as a unit with take and place
+  interleaved. Two index comparisons that were standing in for the traversal had to go with it —
+  `placementBinStatus` now takes walk positions, and the per-product completeness gate asks the walk. The
+  Move List follows the walk on both halves (door → bin → products), keeping the per-product pairing cards
+  for Review, where nothing is walked and the pairing is what the operator is confirming.
 
 - **2026-08-08** — §12 corrected on the operator's objection: capture does **not** move to the take step.
   Scanning 100 vials out of a bin yields a list and then loose vials, so assigning 80 of those rows to a bin

@@ -341,6 +341,34 @@ route once (`planMoveRoute` + `twoPhaseWalkOrder`) and hands the take order to o
 order to the other. This is what stops a move whose sources sit behind two doors sending the operator
 back to a door they had finished with. See [STEP4-GUIDANCE.md](STEP4-GUIDANCE.md).
 
+**And both walk it bin by bin.** The take half always did. The placement half was **product-major** until
+2026-08-18 — `currentProductIndex` outer, `currentTargetBinIndex` inner — which sorted each product's bins
+by route rank and the products by their earliest bin, and still sent the operator back through a closed
+door: a product placing into Door 1 and Door 3 put Door 3 mid-walk, and the next product's Door 1 bin
+reopened Door 1. `buildPlacementStops` now produces every (product, bin) pair ordered by the **bin**, so
+every stop behind one door is contiguous and all the products going into one bin are worked together.
+`node scripts/verify-placement-stops.mjs` (14 assertions) pins it, "every door is opened exactly once"
+included.
+
+Three things followed, and two were index comparisons that were secretly the old ordering:
+
+- **`placementBinStatus` takes positions** (`stopIndex`, `currentStopIndex`). Its lexicographic
+  (product, bin) test *was* the product-major order written a second time.
+- **`isLastTargetBinForProduct` asks the walk** — is there any later stop for this product — rather than
+  `currentTargetBinIndex === targetBins.length - 1`. Those agreed only while bins were visited in array
+  order, and `productGroups` sorts that array **only when a `placeBinOrder` was handed down**: without one,
+  a product's last array entry can be the first bin the walk reaches, so the per-product completeness gate
+  (§2 E) would fire at the operator's first stop and never again. A stranded remainder, with no `Back` to
+  fix it.
+- **The product sheet's `Done` badge** had the same shape (`idx < currentProductIndex`) and now asks
+  whether every stop of that product is behind the operator. Bin-major, a product can be half-done while a
+  later-indexed one is finished.
+
+`Save & Next Bin` / `Save & Next Product` are read off the next stop, so "next product" now means another
+product going **into the bin in front of you** — the operator stays at a bin until everything arriving
+there has. This is option 1 of the two written up in [STEP4-GUIDANCE.md](STEP4-GUIDANCE.md) §2; the full
+stop model, with take and place interleaved, is still not built.
+
 **The quantity page advances one stop at a time and nothing else** — `findNextStopIndex`, the next group
 the operator has not skipped. Because the route walks door by door, a product with bins behind two doors
 has *other products'* bins between its own, so the page must not go looking for "this product's next bin":
@@ -477,21 +505,86 @@ its own `MoveSummaryRow[]` from state it already holds (§3).
   repeating its arriving amount on each is the original mistake in a new shape. **The bold you-are-here
   marking is deliberately not first-occurrence-only** — that is a fact about the bin, so every row naming
   it wears it.
-- **The take half keeps a single column**, source bins only (`renderSourceOnlyRow`). There the operator's
-  whole job is the bin in front of them and no split has been decided, so pairing rows would name
-  destinations carrying no figure and no act — and leave a column of dangling arrows.
-- **The card states the collected total beside the product name.** Sources reading 25, 10 and 5 never said
-  40 anywhere, leaving the operator to add up what they are carrying — and 40 is the figure they need at the
-  target bin. Summed over distinct source bins, since `sourceQuantity` repeats across the rows sharing one.
+- **Both halves of step ④ group by door and bin; only Review renders the pairing cards.** The two columns
+  above are Review's shape. `groupByDoorAndBin` + `renderWalkByDoor` serve the take half and — since the
+  placement walk went bin-major (above) — the placement half too: a list ordered differently from the walk
+  it describes is worse than either shape on its own. Each end reports its own figure, `sourceQuantity` on
+  the take half and `quantity` on the placement half, from one renderer, so the two cannot drift.
+  Review keeps the cards because nothing is being walked there and which source feeds which target is
+  exactly what the operator is confirming.
+- **On the placement half each product row carries a `from Bin 1B, Bin 1C` line.** The source is the one
+  fact the door-grouped shape drops and the pairing cards carried, and it matters at the shelf — the
+  operator is holding vials out of three bins and that label is how they know these are the right ones.
+  Derived from the rows themselves (a row *is* a pairing), not threaded through a new field. 13px, the
+  app's size for a "where this product lives" line (§6); the `from` is what stops it reading as another
+  destination.
+- **The panel's bin order is told, not inferred.** The placement half's rows are built product-major —
+  they also feed the per-product surfaces — so that stage passes `walkBinOrder` down from
+  `placementStops`. Ordering by row `status` would reproduce it *almost* always, and the exception is
+  where a bin added mid-move lives: it can hold stock while sitting ahead of the operator, which is the
+  whole reason `placementBinStatus` looks at contents as well as position.
+- **A target bin added mid-move can be taken back off it** — a small outlined `Remove` beside the bin's
+  name, to the left of it so the column's right edge survives. One per bin, on the row that carries its
+  figure. Offered only where all four hold: the operator added it in this step (`addedMidMoveBinIds` — the
+  step-② bins are the plan they confirmed on Review), nothing has been placed in it (scanned rows mean
+  vials are physically there and the app cannot fix a shelf), it is not the product's last bin (stock has
+  left its source, so a product with no destination is stock in hand with no screen to put it down on),
+  and it belongs to the product in hand (the removal path is written in the screen's own coordinates).
+  `targetBinIsRemovable` is module scope so the rows' `useMemo` can call it, and `App`'s
+  `handleRemoveMoveTargetBin` drops every transfer of that product into that bin — one per source, the
+  same shape the add created. **It was first built into the footer's `Bins to move to` sheet and was
+  unreachable there**, because that sheet opens from the step-④ position counters and those are switched
+  off (§8). The sheet keeps its copy of the control; the panel is where it can actually be found.
+- **No collected total.** The card stated the sum across a product's source bins beside its name, on the
+  reasoning that sources reading 25, 10 and 5 never said 40 anywhere. Removed at the operator's request:
+  every bin already carries its own figure on its own line, and the roll-up's most visible reading was the
+  one it gave on an allocation-only move — a card headed `0 vials` above two bins reading `0 vials`, saying
+  nothing three times.
 - **The take half has no per-product roll-up.** A `PRODUCTS` section under the bins reported the running
   total carried and how many bins were still to open. It was gated to products spanning several bins,
   because with one bin each its two lines only restated the bin card above them — and then removed
   outright: the door-grouped body already names the product on every bin card it sits in, and the header
   counts them. What the roll-up alone could say is the sum across a product's bins, which is worth less
   than a section of chrome on a 400px panel the operator reads bin by bin.
-- **One badge per act, on the line it belongs to.** `Taken` beside the source line's quantity, `Moved`
+- **One badge per act, on the line it belongs to** — `Taken` beside the source line's quantity, `Moved`
   on a target line once stock is actually placed there. A source's `Taken` persists onto the placement
-  half — every quantity is taken before any is carried, so by then it is genuinely done.
+  half: every quantity is taken before any is carried, so by then it is genuinely done.
+  **Both are currently hidden**, behind `SHOW_DONE_BADGES = false` at the top of the file, at the operator's
+  request while the row's layout is judged. The derivation stays — every rule about which lines may wear
+  one is intact — so flipping it restores the behaviour. §8 carries the standing instruction: if the answer
+  is "keep them off", delete them rather than leaving the flag, and note that the take half then reports
+  progress through position alone (the blue bin border and the lit bulb).
+- **`Skipped` is plain grey text where the figure would be, opposite the product name.** The two are
+  alternatives — a skipped product has no amount — so nothing is displaced. Unfilled rather than a chip
+  because it marks the *absence* of a quantity; a pill there read as a third act beside `Taken`/`Moved`,
+  which is the opposite of what it means. The pill (`skippedBadge`) survives on Review's product cards,
+  where it sits at product level with no figure to stand in for.
+- **Badges sit beside the product name here too, on every step.** This panel was the pipeline's badge
+  exception (§6) while it was 320px, where anything sharing the name's line cost it the characters carrying
+  the strength. At 400px that no longer holds, and the exception put two rows between the product and the
+  NDC identifying it. The rows wrap, so a long name still gets a full line and the badges drop beneath it.
+  A **figure** is a different case and stays off the name's line on the pairing cards.
+- **On the take half's bin cards the quantity IS on the name's line**, hard right, with the NDC below it
+  and the badge line under that — asked for directly. It reintroduces one thing knowingly: the row re-flows
+  when the operator takes stock, since the figure only appears then. Nothing truncates as a result (the
+  left cell wraps), which is what makes it acceptable.
+- **The current row is blue throughout** — name, NDC and figure at `#095192`. The figure on that row is
+  *live*: `sourceQuantity` for the bin in hand tracks the quantity editor beside it, so the panel is a
+  complete tally of the take before `Proceed to Move To`, where the current bin used to be the one figure
+  missing. Bins **ahead** of the operator still state nothing, and that must not be relaxed —
+  `transferQuantities` is seeded with every transfer's full amount on mount, so showing the fallback there
+  reported 200 vials taken out of a bin nobody had opened.
+- **The bin in hand carries a lit bulb**, opposite its name: `#095192` with a pale `#DBE9F6` fill, pulsing
+  under `motion-safe:` so a reduced-motion preference gets a steady one. It stands for the cabinet lighting
+  the bin the operator is to open, so the panel and the shelf name the same bin. Amber first, on the
+  reasoning that a lamp is not a state the operator chose; blue at their request, and defensible — every
+  other mark for "this bin" on that card is already blue. A `fill` rather than a glow: a halo at 14px reads
+  as a rendering artifact and the app has no glow to borrow. Verify the utilities generated after touching
+  them (§4).
+- **No fill on the current card, and no tint on the current row.** The product card took `bg-[#f0f6fc]` and
+  the take half's current row took `#F1F6FA`; both tinted a whole surface to say one bin is in the
+  operator's hands. The card keeps its blue border, the row keeps its blue name, and a rule between
+  products does the separating the tint was doing by accident.
 - **A product name owns a full-width line on every card in this panel, and the figures sit on the badges
   line below it.** On the take half's bin cards the quantity and `Taken` used to be a flex pair with the
   name, and since both only appear once a bin is finished, the card re-laid itself out at the moment the
@@ -578,6 +671,23 @@ What this touches, and why each part is easy to break again:
 - `finalizeAndConfirm` must not drop a lone 0-quantity transfer. Its "skip a source that contributed
   nothing" guard is now conditional on another source covering the move, or the whole thing silently
   cancelled.
+- **`??`, never `||`, when reading `transfer.quantity`.** A source at 0 is a real answer, and `||` read it
+  as "not set" and substituted the bin's untouched holding. `remainingQtyToMove` and
+  `currentProductTotalQuantity` both did (they are the same sum, one minus what has been scanned), so a
+  product taken 20-from-one-bin / 0-from-another reported **45** to place — the 20 plus the 25 nobody asked
+  for — and that figure seeds the placement pool, so the operator was handed 45 vials for a 20-vial take.
+  Found 2026-08-18 from the panel reading `20 vials` on one source, `0 vials` on the other and `45 vials` at
+  the target. Fixed and replayed in Node over the user case, a full two-bin take, an allocation-only move, a
+  one-source-two-target split and a genuinely absent quantity.
+- **`Skip This Bin` on the quantity page** leaves one source bin out of a multi-bin product's move, which
+  `Skip Product` (all-or-nothing, and offered only on a product's first bin) could not. It is not a new kind
+  of state: skipping a bin is taking 0 out of it, so it sets 0 and steps along the walk. Offered only when
+  the product spans several bins **and another of them still contributes** — one ahead in the walk, or one
+  already taken at a non-zero amount. Zeroing a product's last contributing bin would turn the move into an
+  allocation-only move, which *relocates* the allocation rather than leaving the product alone, and that is
+  not what skipping a bin means. `finalizeAll` grew optional quantity overrides for the case where skipping
+  the last stop must set 0 and hand over in the same tick — the same reason it already took the skip set as
+  an argument rather than reading state.
 
 ### D. Allocate Product — the Unallocated Products tray
 
@@ -746,8 +856,17 @@ express that — a pick names one bin.
 
 | Gesture | Pairs |
 |---|---|
-| Tap a product row on a bin card | one — that product, that bin |
+| Tap a product row on a bin card | one — that product, that bin, **and no amber anywhere** |
 | Pick a product from the search dropdown | one per bin the product lives in — deliberate, it is what "wherever this drug is" means |
+
+**Only the search pick lights the cabinet up.** `applySourcePicks` takes a `highlight` option, and the row
+tap passes `false`. It used to write the identity into `selectedSearchQuery` either way, so tapping OCTAGAM
+in Bin 1B turned OCTAGAM amber in Bin 1C — a bin nobody had searched for or picked, contradicted by the
+`1 Selected` badge on the card that *was* picked. Amber means "the search found this", and a tap on a shelf
+is not a search. `changeAllocationSourceQuery` is still written both ways: that one is the picks' own
+projection, which Review scopes bins by and the footer counts. What this gives up is any hint on the
+shelves that the drug also sits elsewhere — the search dropdown still answers that, and a hint would need
+its own colour, because amber is spoken for.
 
 Both funnel through `applySourcePicks(binIds, query)`, which differs only in the bins it is handed. Three
 things follow, and all three were bugs before:
@@ -1008,7 +1127,12 @@ by product, then by source bin, one row per pairing (§2 B). Five things about i
   from `status`, which is per-row — keying the marking on `status` alone lit every target bin of the
   current product at once, so the panel could not say which bin was in the operator's hands.
 - **`stage`** (`'review' | 'source' | 'target'`) is passed by the screen, not inferred. It decides the
-  header banner, which end gets the bold, and which badges can appear.
+  header banner, which end gets the bold, and which badges can appear — and, since 2026-08-18, whether the
+  rows are grouped by door and bin (`source`, `target`) or rendered as pairing cards (`review`).
+- **`toBinId` and `canRemoveTarget`** exist for the Remove control. The id resolves a row back to a bin;
+  the flag is the screen's judgement, because only it knows a bin was added mid-move and holds nothing.
+  The panel decides only *where* to draw the control — beside the target's figure, so a bin fed by three
+  sources offers one.
 - **On Review nothing is marked at all** — every row is `status: 'pending'`, and both `isCurrent*` flags
   are false. The blue card and the bold bin mean "this is the bin in your hands", which exists only on
   step ④, where it comes from real progress (`groupIndex === currentIndex`). Review's rows used to take
@@ -1292,7 +1416,17 @@ declared in `package.json`; they resolve from `node_modules` by luck). Verificat
 2. `grep` for dangling references after any removal.
 3. **Replay the logic in Node** over real or faithful synthetic data. This has been the most
    reliable method by far: transcribe the function, run it over the cases, compare old vs new.
-4. Browser checks in batches, not per change — with a settle before reading.
+   Eleven `scripts/verify-*.mjs` now do this permanently — the sequencing and filtering rules that look
+   right and walk a door twice. Run the lot before a merge; the step-④ ones are
+   `verify-placement-stops` (the bin-major placement walk), `verify-placement-walk-status`,
+   `verify-quantity-walk`, `verify-step4-walk`, `verify-move-route`, `verify-move-target-bins` and
+   `verify-source-attribution`. A script that lifts a function out of a component by name fails loudly on a
+   rename, which is the intent — so a helper worth pinning belongs at **module scope and exported**
+   (`buildPlacementStops`, `placementBinStatus`, `targetBinIsRemovable`).
+4. Browser checks in batches, not per change — with a settle before reading. React's fiber is worth
+   knowing about here: reading `memoizedProps` (and `.alternate`) off a rendered element's `__reactFiber$`
+   key answers "what did the component actually receive" without touching state, which is how the 45-vial
+   bug above was pinned to a value rather than a render.
 
 The highest-value assertion, if tests are ever added, is a **conservation invariant**: for every
 product identity, quantity across all bins plus unallocated is unchanged by any allocate or move,
@@ -1558,7 +1692,18 @@ physically impossible allocation without objection (§5).
 - **Step ④'s position counters are switched off, not decided.** `SHOW_STEP4_POSITION_COUNTERS = false`
   (§2). The operator asked to hide them while the Move Summary is judged alone and said they would call
   it; the cells and their side sheets stay wired. If the answer is "off", delete them — that is the
-  lesson the deleted stepper band paid for.
+  lesson the deleted stepper band paid for. **A live consequence, not just latent rot:** the side sheets
+  those cells open are the only route to the placement screen's `Bins to move to` list, so a control built
+  into it is invisible. The Remove-added-bin control was, for exactly one round (§2 B).
+- **`Taken` / `Moved` are switched off the same way.** `SHOW_DONE_BADGES = false` in `MoveSummaryPanel.tsx`,
+  at the operator's request while the row layout is judged. Same standing instruction as above: decide, then
+  either flip it or delete the two functions. While they are off, the take half reports progress by position
+  alone — the blue bin border and the lit bulb — which is a decision to take deliberately rather than to
+  arrive at by leaving a flag alone.
+- **The placement half is bin-major but still not the stop model.** `buildPlacementStops` fixed the
+  door-thrash (§2 B); take and place are still two phases, so a door that both gives and receives is opened
+  twice. [STEP4-GUIDANCE.md](STEP4-GUIDANCE.md) §2 is the shape that closes it, and §10 lists what the code
+  would need first.
 - **The `+N more` panel does not close when the step changes.** Open it in step ① and it stays open
   through ②, where its rows mean nothing. Correct as far as it goes — rows are inert in a Bin move and
   in the target step — but a panel of dead rows is still a panel of dead rows (`UX-AUDIT H6-3`).
