@@ -748,9 +748,17 @@ export const useInventoryState = (activeStation: string = 'Onco Station') => {
    * Both source gestures funnel through here — they differ only in the bins they name. A row tap names
    * one bin; a search pick names every bin the product lives in, which is the dropdown's whole purpose
    * and the one case where selecting a product across bins is what the operator asked for.
+   *
+   * **They also differ in whether they light the cabinet up (`highlight`).** A search pick does: the
+   * operator asked "where is this drug", so its rows go amber wherever it lives, and that is the answer.
+   * A row tap does not. Writing `selectedSearchQuery` there put amber on the same drug in every OTHER bin
+   * the moment one row was tapped — bins nobody had searched for, nobody had picked, and which the badge
+   * on the tapped card (`1 Selected`) then contradicted. Amber means "the search found this"; a tap on a
+   * shelf is not a search, and the one bin the gesture named is already saying so in blue.
    */
   const applySourcePicks = useCallback(
-    (binIds: string[], query: string) => {
+    (binIds: string[], query: string, options: { highlight?: boolean } = {}) => {
+      const { highlight = true } = options;
       const groups = query.split('|').map(group => group.trim()).filter(Boolean);
       if (groups.length === 0 || binIds.length === 0) return;
 
@@ -775,7 +783,12 @@ export const useInventoryState = (activeStation: string = 'Onco Station') => {
       const addedBins = binsFromSourcePicks(additions);
       setChangeAllocationSourceBins(bins => Array.from(new Set([...bins, ...addedBins])));
 
-      setSelectedSearchQuery(previous => groups.reduce((acc, group) => appendQueryGroup(acc, group), previous));
+      // The highlight channel is the cabinet's amber, and only a search asks for it (see above). The
+      // source query is the picks' own projection — what Review scopes each bin to and what the footer
+      // counts — so it is written either way.
+      if (highlight) {
+        setSelectedSearchQuery(previous => groups.reduce((acc, group) => appendQueryGroup(acc, group), previous));
+      }
       setChangeAllocationSourceQuery(previous => groups.reduce((acc, group) => appendQueryGroup(acc, group), previous));
     },
     [doorShelfConfig]
@@ -1504,7 +1517,9 @@ export const useInventoryState = (activeStation: string = 'Onco Station') => {
         return;
       }
 
-      applySourcePicks([binId], group);
+      // One bin, and no amber anywhere: the gesture named this bin and this product, so the blue on the
+      // row and the badge on the card are the whole of what it did.
+      applySourcePicks([binId], group, { highlight: false });
     },
     [sourceProductPicks, applySourcePicks]
   );
