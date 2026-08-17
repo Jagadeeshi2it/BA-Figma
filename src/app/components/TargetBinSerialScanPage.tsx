@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { toast } from "sonner@2.0.3";
 import { Button } from "./ui/button";
-import { ChevronRight, Search, Package, PackagePlus, LogIn, ListChecks, ArrowRight, Check, Minus, X } from "lucide-react";
+import { ChevronRight, Search, Package, PackagePlus, LogIn, ListChecks, ArrowRight, Check, Minus, CircleMinus } from "lucide-react";
 import { DoorUnlockedToast, ValidationToast } from "./ui/sonner-1";
 import CabinetPipView from "./CabinetPipView";
 import SideSheet from "./SideSheet";
@@ -301,9 +301,18 @@ function SerialTable({
                           event.stopPropagation();
                           onRemoveOne(item.serial);
                         }}
-                        className="w-8 h-8 inline-flex items-center justify-center rounded-[4px] text-[#095192] hover:bg-[#F1F6FA] cursor-pointer"
+                        // `CircleMinus` rather than an X or a trash can. A trash can claims the vial is
+                        // deleted and an X reads as dismiss-this-row; a minus says "take it out of this
+                        // set", which is exactly what happens — it lands in the not-placed table.
+                        //
+                        // `#C6362C` is the app's one red (CLAUDE.md §6). Strictly that colour is reserved
+                        // for acts that destroy data and this one moves a row, so it overstates slightly;
+                        // it is the requested treatment, and a second red would be worse than a strong one.
+                        // `red-50` for the hover rather than a new tint — it is what this screen's trash
+                        // button already used, so it is a value the palette has instead of one more hex.
+                        className="w-8 h-8 inline-flex items-center justify-center rounded-[4px] text-[#C6362C] hover:bg-red-50 cursor-pointer"
                       >
-                        <X className="w-4 h-4" />
+                        <CircleMinus className="w-4 h-4" />
                       </button>
                     </td>
                   )}
