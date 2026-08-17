@@ -922,9 +922,14 @@ export default function TargetBinSerialScanPage({
       tb.transfers.forEach(transfer => {
         const sourceKey = `${transfer.fromBinId}-${transfer.productId}`;
         if (!uniqueSourceQuantities.has(sourceKey)) {
-          // CRITICAL FIX: Use transfer.quantity (edited value) first, not originalQuantity
-          // transfer.quantity contains the edited value from QuantitySelectionPage
-          const sourceQty = transfer.quantity || (transfer as any).originalQuantity || 0;
+          // `??`, not `||`. `transfer.quantity` is the amount the operator set at the source, and **0 is a
+          // real answer** — "take nothing out of this bin", which a multi-bin product legitimately gets
+          // (Skip This Bin on the quantity page, or simply typing 0) and which a zero-stock allocation move
+          // gets for every bin (CLAUDE.md §2 E). `||` treated that 0 as "not set" and substituted the bin's
+          // whole holding, so a product taken 20-from-one-bin / 0-from-another reported 45 to move: 20 plus
+          // the 25 nobody asked for. That figure seeds the pool, so the operator was handed 45 vials to
+          // place for a 20-vial take.
+          const sourceQty = transfer.quantity ?? (transfer as any).originalQuantity ?? 0;
           uniqueSourceQuantities.set(sourceKey, sourceQty);
         }
       });
@@ -954,7 +959,10 @@ export default function TargetBinSerialScanPage({
       tb.transfers.forEach(transfer => {
         const sourceKey = `${transfer.fromBinId}-${transfer.productId}`;
         if (!uniqueSourceQuantities.has(sourceKey)) {
-          const sourceQty = transfer.quantity || (transfer as any).originalQuantity || 0;
+          // `??` for the same reason as remainingQtyToMove above — a source at 0 contributes 0, and must
+          // not be re-read as its untouched holding. These two sums have to agree: one is the total, the
+          // other the total minus what has been scanned, and the pool is seeded from this one.
+          const sourceQty = transfer.quantity ?? (transfer as any).originalQuantity ?? 0;
           uniqueSourceQuantities.set(sourceKey, sourceQty);
         }
       });
