@@ -23,7 +23,7 @@ pnpm run dev     # or npm run dev — Vite on :5173
 | `src/app/hooks/useInventoryState.ts` (~1920 lines) | **The state layer.** One hook. Everything that mutates inventory goes through here. |
 | `src/app/components/` | UI. `MainLayout` provides `topBar` / `bottomBar` / `sidePanel` slots. |
 | `src/app/components/PipelineSteps.tsx` | The move pipeline's step vocabulary — `TOTAL_PIPELINE_STEPS`, `instructionFor`. Vocabulary only: the visible stepper band it used to export was deleted once the footer's `Step n/4` won (§2). |
-| `src/app/components/MoveSummaryPanel.tsx` | The 320px "what's moving where" panel on Review and both halves of step ④. Presentational — each screen derives its own rows (§3). |
+| `src/app/components/MoveSummaryPanel.tsx` | The 400px "what's moving where" panel on Review and both halves of step ④. Presentational — each screen derives its own rows (§3). |
 | `src/app/components/PipelineFooter.tsx` | The footer parts every move stage builds from: `PipelineFooterShell`, `StepCell`, `SummaryCell`, `FooterButton`, `FooterActions`, `plural`. |
 | `src/app/data/` | Seed data. `doorConfigurations.ts` is the pipeline; `realData.ts` (~10k lines) is the imported cabinet contents. |
 | `src/app/utils/` | Pure helpers — search, bin geometry, badges, text highlighting. |
@@ -423,7 +423,7 @@ them rather than leaving the flag** — the stepper band above is the warning, n
 
 #### The Move List panel
 
-A 320px panel on Review and both halves of step ④, answering "what is moving from where to where"
+A 400px panel on Review and both halves of step ④, answering "what is moving from where to where"
 while the operator is mid-move. `MoveSummaryPanel.tsx` is purely presentational; each screen derives
 its own `MoveSummaryRow[]` from state it already holds (§3).
 
@@ -488,11 +488,13 @@ its own `MoveSummaryRow[]` from state it already holds (§3).
   that had the whole width wrapped onto a second line a tap later. Same reasoning as badges-not-beside-
   the-name at this width (§6), with an extra edge — a figure that arrives halfway through moves text
   under the eye, which a badge that was always there does not.
-- **A bin card reports progress only once there is progress.** It carried `In progress` on the bin in
-  hand and `Pending` on every other, both of which the card already says without words: the current bin
-  has a blue border and holds the tinted product row, and untouched is what every other bin is. A label
-  on all of them is a column of noise for the one bin doing something to compete with. What is left is
-  `n of m taken`, green once all of it is.
+- **The take half reports no aggregate progress at all.** Three labels were tried and all three are gone:
+  `In progress` / `Pending` on the bin cards, `n of m taken` on the bin header, and `n of m bins` on the
+  door heading. Each restated in words or numbers what the panel already shows in place — a `Taken` badge
+  on every finished row, a blue border on the bin in hand, the unlocked icon on the door holding it. At
+  this point in the move the operator's question is the bin in front of them, not how far along they are,
+  and a tally on every door and every card made the panel read as a progress report rather than a list of
+  what is moving. The row badges are the only progress it states now.
 - **Bold marks the bin in hand** — the source bin while taking, the target bin while placing. A filled
   chip was tried first and read as "selected" rather than "you are here".
 - **Only the quantity being moved.** The History page's `-20 → 180` shape was tried and dropped: what
@@ -1285,10 +1287,12 @@ been violations of it.
   which product, and what handling it needs. On their own line they put two rows between the product and
   the NDC that identifies it. Everywhere else (bin cards, both side panels, the search dropdown) they stay
   on their own line under the generic name.
-  **The Move List panel is the exception inside the pipeline, and width is the reason:** at 320px, badges
+  **The Move List panel is the exception inside the pipeline, and width was the reason:** at 320px, badges
   on the name's line cost the name the characters it needs — `CARBOPLATIN 600 MG/60 ML VIAL` truncated to
-  `CARBOPLATIN 600 MG/6…`, losing the strength, which is the part the operator is checking. Do not
-  "restore consistency" there without widening the panel first.
+  `CARBOPLATIN 600 MG/6…`, losing the strength, which is the part the operator is checking. **The panel is
+  400px now**, so that constraint has loosened and the exception is open to being revisited — but it has
+  not been, and the take half's rows still put the quantity on the badge line rather than the name's for a
+  second reason that width does not fix (a figure appearing mid-move moves text under the eye).
   `ProductBadges` renders the three spans for every one of these surfaces, so only the *position* differs;
   the badges themselves cannot.
 - **A "where this product lives" line is 13px, wherever it appears** — the bin locations under a product

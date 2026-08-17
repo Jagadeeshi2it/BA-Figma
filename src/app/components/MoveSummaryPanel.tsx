@@ -651,21 +651,26 @@ export default function MoveSummaryPanel({
    *
    * A row wears `Taken` only once stock has actually left (`sourceTakenBadge`, shared with the pairing
    * view). No `0 Taken` on rows the operator has not reached: the row model treats "undecided" as null and
-   * renders nothing for it, because a stated zero reads as a decision already made — and a bin header saying
-   * `4 of 4 taken` above rows each claiming `0 Taken` is a straight contradiction.
+   * renders nothing for it, because a stated zero reads as a decision already made. Those badges are now
+   * the only progress this view reports — the door and bin tallies that used to sit beside them are gone.
    */
   const renderSourceByDoor = () =>
     sourceDoors.map((door, doorIndex) => {
       const bins = door.bins;
-      const binsDone = bins.filter(bin => bin.rows.every(row => row.status === 'done')).length;
       const holdsCurrent = bins.some(bin => bin.rows.some(row => row.status === 'current'));
 
       return (
         <div key={`${door.door ?? 'no-door'}-${doorIndex}`} className="mb-3 last:mb-0">
           {/* The door as a heading rather than a prefix repeated on every bin. With the walk grouped door
-              by door, a door is a section that opens and closes, and the heading is the only place
-              "this door is finished" can be said once. */}
-          <div className="flex items-center justify-between gap-2 mb-1.5">
+              by door, a door is a section that opens and closes.
+
+              **No aggregate counters here or on the bin cards.** The heading carried `n of m bins` and each
+              bin carried `n of m taken`, and between them they restated in numbers what the panel already
+              shows in place: a `Taken` badge on every row that is done, a blue border on the bin in hand,
+              and the unlocked icon on the door holding it. Counting is not the operator's question at this
+              point — the bin in front of them is — and a per-door and per-bin tally on every card made the
+              panel read as a progress report rather than a list of what is moving. */}
+          <div className="flex items-center gap-2 mb-1.5">
             <span className="flex items-center gap-1.5 min-w-0">
               {holdsCurrent ? (
                 <Unlock className="w-3.5 h-3.5 shrink-0 text-[#12805C]" />
@@ -680,17 +685,10 @@ export default function MoveSummaryPanel({
                 {door.door ?? 'Bins'}
               </span>
             </span>
-            <span className="shrink-0 text-[11px] text-[#64748b] whitespace-nowrap">
-              {binsDone === bins.length
-                ? 'done'
-                : `${binsDone} of ${bins.length} bin${bins.length === 1 ? '' : 's'}`}
-            </span>
           </div>
 
           {bins.map((bin, binIndex) => {
             const isCurrentBin = bin.rows.some(row => row.status === 'current');
-            const takenCount = bin.rows.filter(row => row.status === 'done').length;
-            const allTaken = takenCount === bin.rows.length;
 
             return (
               <div
@@ -707,21 +705,6 @@ export default function MoveSummaryPanel({
                   >
                     {bin.label}
                   </span>
-                  {/* Progress is reported only once there is progress. `In progress` and `Pending` were
-                      words for two states the card already shows without them: the bin in hand has a blue
-                      border and holds the tinted product row, and "not yet reached" is the default every
-                      untouched bin is in — a label saying so on every card is a column of noise that the
-                      one bin actually doing something has to compete with. What is left is the only line
-                      carrying a fact: how much of this bin is done, green once all of it is. */}
-                  {takenCount > 0 && (
-                    <span
-                      className={`shrink-0 text-[11px] whitespace-nowrap ${
-                        allTaken ? 'text-[#12805C] font-medium' : 'text-[#64748b]'
-                      }`}
-                    >
-                      {takenCount} of {bin.rows.length} taken
-                    </span>
-                  )}
                 </div>
 
                 <div className="space-y-2">
@@ -872,7 +855,7 @@ export default function MoveSummaryPanel({
   );
 
   return (
-    <div className="shrink-0 w-[320px] h-full bg-white border-l border-gray-200 flex flex-col">
+    <div className="shrink-0 w-[400px] h-full bg-white border-l border-gray-200 flex flex-col">
       <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 shrink-0">
         <div className="min-w-0">
           <h3 className="text-[14px] font-semibold text-[#020817]">{title}</h3>
