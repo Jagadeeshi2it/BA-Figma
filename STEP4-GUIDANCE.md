@@ -729,16 +729,21 @@ Four consequences worth having in mind, three of them free:
 - **The per-row trash icon changes meaning**, from "delete this serial" to "unassign it from this bin" —
   the same act as a one-row selection. That also closes the route into the stranded state: deleting rows is
   how an operator reaches a bin with an outstanding remainder today.
-- **Removal has to be unavailable on a product's last bin**, or the pool has nowhere to drain to. `Add Move
-  To Bin` is the existing answer and already sits in that footer; the refusal should name it, as the
-  blocked-save toast does.
+- **Removal has to be unavailable on a product's last bin**, or the pool has nowhere to drain to. **Built**
+  as `!isLastTargetBinForProduct`, which states all three cases at once — a single target bin is its own
+  last, so it is off; an earlier bin of several is on — and turns itself on when `Add Move To Bin` appends a
+  bin, because the bin the operator is standing at stops being the last one. The row ticks are disabled with
+  it, since picking rows that cannot lead anywhere is not a decision. The refusal names `Add Move To Bin`
+  when it is on screen, as the blocked-save toast does.
 
 Open details, none blocking:
 
-- **What the bulk control is called.** `Remove Selected` says what leaves but not where it goes. Buttons in
-  this app name what happens next (CLAUDE.md §6), which argues for the count and the destination — but the
-  destination is "whichever bin needs them", which is only nameable on the second-to-last bin. Probably
-  `Remove 20 from this bin`, with the pool implied by the next screen opening with them.
+- ~~**What the bulk control is called.**~~ **Settled: `Remove selected` and `Move selected`, fixed.** They
+  briefly stated their own count — `Remove 20 from this bin` — which argued that a button should name what
+  happens next. It reads well in a screenshot and badly in the hand: the label re-flowed and the button
+  changed width on every tick, moving under the eye of someone mid-selection. The same objection as a figure
+  arriving on a product name's line. A count that changes belongs in the caption above the table, which is
+  not a control and is not being aimed at.
 - **Whether scanning may also add.** Under this model the box selects; it currently adds. One control
   meaning two things by context is what §2 B's `Back` was removed for.
 - **Whether a serial can be assigned to a bin it was not taken from.** The pool makes this impossible by

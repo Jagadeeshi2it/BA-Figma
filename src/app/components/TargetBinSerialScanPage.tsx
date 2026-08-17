@@ -209,6 +209,7 @@ function SerialTable({
   onToggle,
   onToggleAll,
   onRemoveOne,
+  selectable = true,
   caption,
   action
 }: {
@@ -218,11 +219,21 @@ function SerialTable({
   onToggleAll: () => void;
   /** Per-row removal. Omitted on the not-placed table, which has nowhere further to remove to. */
   onRemoveOne?: (serial: string) => void;
+  /**
+   * Whether picking rows can lead anywhere. False on a bin with no later bin to send anything to, where the
+   * table is a manifest of what is going in rather than a decision to be made.
+   *
+   * Rendered-and-dimmed rather than withheld: a checkbox column that appears and disappears between bins is
+   * a layout moving under the operator mid-task, and `Add Move To Bin` can turn this on part-way through a
+   * product. Same reasoning as `Select All` in the allocation panels (CLAUDE.md §6).
+   */
+  selectable?: boolean;
   caption: React.ReactNode;
   action?: React.ReactNode;
 }) {
-  const allSelected = items.length > 0 && items.every(item => selected.has(item.serial));
-  const someSelected = items.some(item => selected.has(item.serial));
+  const allSelected = selectable && items.length > 0 && items.every(item => selected.has(item.serial));
+  const someSelected = selectable && items.some(item => selected.has(item.serial));
+  const canPick = selectable && items.length > 0;
 
   const tick = (checked: boolean, indeterminate: boolean) => (
     <div
@@ -257,10 +268,10 @@ function SerialTable({
                 <div
                   role="checkbox"
                   aria-checked={allSelected}
-                  aria-disabled={items.length === 0}
+                  aria-disabled={!canPick}
                   aria-label="Select all rows"
-                  onClick={items.length > 0 ? onToggleAll : undefined}
-                  className={items.length > 0 ? 'cursor-pointer w-fit' : 'opacity-50 cursor-not-allowed w-fit'}
+                  onClick={canPick ? onToggleAll : undefined}
+                  className={canPick ? 'cursor-pointer w-fit' : 'opacity-50 cursor-not-allowed w-fit'}
                 >
                   {tick(allSelected, someSelected && !allSelected)}
                 </div>
@@ -279,14 +290,15 @@ function SerialTable({
               return (
                 <tr
                   key={item.serial}
-                  onClick={() => onToggle(item.serial)}
+                  onClick={canPick ? () => onToggle(item.serial) : undefined}
                   // The whole row is the control, as it is in both allocation panels — aiming at a 20px
-                  // box in a table row is the worse target on a tablet.
-                  className={`border-t border-[#e5e7eb] cursor-pointer transition-colors ${
-                    isSelected ? 'bg-[#F1F6FA]' : 'hover:bg-gray-50'
-                  }`}
+                  // box in a table row is the worse target on a tablet. Inert where picking leads nowhere,
+                  // and it keeps its plain look there rather than inviting a tap it cannot answer.
+                  className={`border-t border-[#e5e7eb] transition-colors ${
+                    canPick ? 'cursor-pointer' : ''
+                  } ${isSelected ? 'bg-[#F1F6FA]' : canPick ? 'hover:bg-gray-50' : ''}`}
                 >
-                  <td className="px-4 py-3">{tick(isSelected, false)}</td>
+                  <td className={`px-4 py-3 ${canPick ? '' : 'opacity-50'}`}>{tick(isSelected, false)}</td>
                   <td className="px-4 py-3 text-[14px] text-[#020817]">{item.serial}</td>
                   <td className="px-4 py-3 text-[14px] text-[#020817]">{item.lot}</td>
                   <td className="px-4 py-3 text-[14px] text-[#020817]">{item.expiration}</td>
@@ -1474,6 +1486,41 @@ export default function TargetBinSerialScanPage({
   const canScanSelect =
     serialScanningRequired && currentScannedItems.length + poolItems.length > 0;
 
+  /**
+   * Whether vials can be taken out of the bin in front of the operator — i.e. whether there is a later bin
+   * for this product to send them to.
+   *
+   * `!isLastTargetBinForProduct` covers all three cases in one expression, which is why it is stated this
+   * way rather than as "more than one target bin":
+   *
+   *   - one target bin        → it is the last → off
+   *   - the last of several   → off
+   *   - an earlier of several → on
+   *
+   * And it turns on by itself when the operator adds a bin mid-move: `Add Move To Bin` appends to the
+   * product's `targetBins`, so the bin they are standing at stops being the last one.
+   *
+   * Without this, removal on a last bin drops vials into a pool with nowhere to drain to — `canSave` then
+   * refuses, correctly, but only after the fact. Better not to offer the act than to undo it.
+   */
+  const canRemoveFromThisBin = serialScanningRequired && !isLastTargetBinForProduct;
+
+  /**
+   * Why removal is unavailable, said on tap rather than left to a dimmed control.
+   *
+   * Two different blocks needing different sentences, and neither is "you did something wrong": no later
+   * bin is a fact about the move, and nothing ticked is a step not yet taken. `Add Move To Bin` is named
+   * only when it is actually on screen, the same rule `cannotSaveReason` follows — pointing at a control
+   * that is not there is worse than saying nothing about it.
+   */
+  const canRemoveSelected = canRemoveFromThisBin && selectedPlaced.size > 0;
+
+  const cannotRemoveReason = !canRemoveFromThisBin
+    ? canAddTargetBin
+      ? 'This is the only bin left for this product, so there is nowhere to move vials to. Use Add Move To Bin to give it another.'
+      : 'This is the only bin left for this product, so everything here has to go in it.'
+    : 'Select the vials that belong in another bin first.';
+
   // Validation for save button
   // CRITICAL: Different logic for last vs non-last target bins when serial scanning required
   const canSave = (() => {
@@ -1741,7 +1788,8 @@ export default function TargetBinSerialScanPage({
                 selected={selectedPlaced}
                 onToggle={toggleSelectedPlaced}
                 onToggleAll={toggleAllPlaced}
-                onRemoveOne={serialScanningRequired ? handleRemoveItem : undefined}
+                onRemoveOne={canRemoveFromThisBin ? handleRemoveItem : undefined}
+                selectable={canRemoveFromThisBin}
                 caption={
                   <>
                     <span className="font-semibold text-[#020817]">{currentScannedItems.length}</span>{' '}
@@ -1750,23 +1798,38 @@ export default function TargetBinSerialScanPage({
                 }
                 action={
                   serialScanningRequired && (
-                    // States its own count, so the operator can check what the tap will take before taking
-                    // it — the same reason the disabled primaries name their requirement (CLAUDE.md §6).
-                    // Dimmed rather than withheld when nothing is ticked: a control that comes and goes as
-                    // rows are selected is a layout moving under the operator mid-task.
+                    // **The label never changes.** It briefly stated its own count — `Remove 3 from this
+                    // bin` — which reads well in a screenshot and badly in the hand: the button re-flowed
+                    // and changed width on every tick, moving under the eye of someone mid-selection. Same
+                    // objection as the take half's bin cards, where a figure arriving on the name's line
+                    // pushed the text. A count that changes belongs in the caption above, which is not a
+                    // control and is not being aimed at.
+                    //
+                    // Dimmed rather than withheld in both blocked states: a control that comes and goes is
+                    // a layout shifting mid-task, and `Add Move To Bin` can turn this one on part-way
+                    // through a product.
+                    //
+                    // `aria-disabled` without the `disabled` attribute, so the tap still lands and can
+                    // explain itself — a disabled button swallows the click and reads as broken.
                     <button
                       type="button"
-                      aria-disabled={selectedPlaced.size === 0}
-                      onClick={selectedPlaced.size > 0 ? handleRemoveSelected : undefined}
+                      aria-disabled={!canRemoveSelected}
+                      onClick={
+                        canRemoveSelected
+                          ? handleRemoveSelected
+                          : () =>
+                              toast.custom(
+                                () => <ValidationToast message={cannotRemoveReason} />,
+                                { id: 'cannot-remove-serials', duration: 5000 }
+                              )
+                      }
                       className={`h-9 px-3 inline-flex items-center rounded-[4px] text-[14px] leading-[20px] bg-white text-[#095192] border border-[#095192] transition-colors ${
-                        selectedPlaced.size > 0
+                        canRemoveSelected
                           ? 'hover:bg-[#F1F6FA] cursor-pointer'
                           : 'opacity-50 cursor-not-allowed'
                       }`}
                     >
-                      {selectedPlaced.size > 0
-                        ? `Remove ${selectedPlaced.size} from this bin`
-                        : 'Remove selected'}
+                      Remove selected
                     </button>
                   )
                 }
@@ -1785,22 +1848,31 @@ export default function TargetBinSerialScanPage({
                     </>
                   }
                   action={
-                    // The inverse of Remove, for a mis-tap. Named for what it does rather than "undo",
-                    // because by the time the operator is looking at this table it is a placement decision
-                    // like any other.
+                    // The inverse of Remove, for a mis-tap. `Move selected` rather than "undo", because by
+                    // the time the operator is looking at this table it is a placement decision like any
+                    // other — and it pairs with `Remove selected` as the same kind of act in the other
+                    // direction. Fixed label for the same reason, and it explains itself on a blocked tap.
                     <button
                       type="button"
                       aria-disabled={selectedUnplaced.size === 0}
-                      onClick={selectedUnplaced.size > 0 ? handlePlaceSelected : undefined}
+                      onClick={
+                        selectedUnplaced.size > 0
+                          ? handlePlaceSelected
+                          : () =>
+                              toast.custom(
+                                () => (
+                                  <ValidationToast message="Select the vials that go in this bin first." />
+                                ),
+                                { id: 'cannot-move-serials', duration: 5000 }
+                              )
+                      }
                       className={`h-9 px-3 inline-flex items-center rounded-[4px] text-[14px] leading-[20px] bg-white text-[#095192] border border-[#095192] transition-colors ${
                         selectedUnplaced.size > 0
                           ? 'hover:bg-[#F1F6FA] cursor-pointer'
                           : 'opacity-50 cursor-not-allowed'
                       }`}
                     >
-                      {selectedUnplaced.size > 0
-                        ? `Place ${selectedUnplaced.size} in this bin`
-                        : 'Place selected'}
+                      Move selected
                     </button>
                   }
                 />
