@@ -391,23 +391,6 @@ export default function MoveSummaryPanel({
   const sourceDoors = isSourceStage ? groupBySourceDoorAndBin(rows) : [];
   const sourceBinCount = sourceDoors.reduce((sum, door) => sum + door.bins.length, 0);
 
-  /**
-   * Whether the per-product roll-up at the foot of the take half has anything to say.
-   *
-   * It exists for two facts, and both are only facts when a product is spread over more than one source
-   * bin: the running total the operator ends up carrying (sources reading 25, 10 and 5 never say 40
-   * anywhere), and how many bins are still to open for it. Give every product exactly one bin and both
-   * collapse into what the bin card already shows — the total IS that bin's figure, and "1 bin to go" is
-   * the bin's own untouched state restated. Three products with one bin each produced three lines all
-   * reading "1 bin to go", directly beneath the three cards that had just said so.
-   *
-   * So it renders only when at least one product actually spans bins. Counted per distinct source bin
-   * rather than per row, because a row is one source→target pairing — a product sent to two targets out
-   * of a single bin would otherwise look spread when it is not.
-   */
-  const anyProductSpansSourceBins = groups.some(
-    group => new Set(group.rows.map(row => `${row.fromLabel}|${row.fromDoor ?? ''}`)).size > 1
-  );
   const stageCopy =
     stage === 'review' || stage === 'route' ? null : STAGE_COPY[stage as 'source' | 'target'];
   const StageIcon = stageCopy?.icon;
@@ -787,72 +770,6 @@ export default function MoveSummaryPanel({
       );
     });
 
-  /**
-   * Per-product totals beneath the bins, on the take half only.
-   *
-   * Bin-first grouping scatters one product's bins across several cards, and the figure the operator needs
-   * at the target is the sum: sources reading 25, 10 and 5 never said 40 anywhere, which is why the
-   * product-grouped card states it beside the name. This is where that fact survives the regrouping — the
-   * product view never disappears (STEP4-GUIDANCE.md §6).
-   *
-   * **It reports what has been collected, not a fraction of a planned total**, because no planned total
-   * exists to divide by on this half: `sourceQuantity` is null until a bin is finished, deliberately, since
-   * every bin is seeded with its full amount on mount and echoing that default would claim stock had left a
-   * bin nobody had opened. Written as `n of m` first, it read `0 of 0 vials taken` on every product before
-   * the first bin was worked. So the line states the running sum and how many bins are still to come, which
-   * are both facts, and the sum is exactly the figure the operator carries to the target.
-   */
-  const renderSourceProductTotals = () => (
-    <div className="mt-1 pt-3 border-t border-gray-200">
-      <p className="text-[11px] font-semibold text-[#475569] uppercase tracking-wide mb-1.5">Products</p>
-      <div className="space-y-1.5">
-        {groups.map((group, groupIndex) => {
-          const skipped = group.rows.length > 0 && group.rows.every(row => row.isSkipped);
-          // Per source bin, not per pairing: `sourceQuantity` repeats across the rows sharing one bin, so
-          // summing rows would multiply a bin's contribution by its number of destinations.
-          const byBin = new Map<string, { qty: number; done: boolean }>();
-          group.rows.forEach(row => {
-            if (row.sourceQuantity == null) return;
-            const key = `${row.fromLabel}|${row.fromDoor ?? ''}`;
-            const existing = byBin.get(key);
-            byBin.set(key, {
-              qty: row.sourceQuantity,
-              done: (existing?.done ?? false) || row.status === 'done'
-            });
-          });
-          const taken = Array.from(byBin.values())
-            .filter(bin => bin.done)
-            .reduce((sum, bin) => sum + bin.qty, 0);
-          // Bins still to reach into, counted per bin rather than per pairing for the same reason.
-          const binsLeft = new Set(
-            group.rows
-              .filter(row => row.status !== 'done')
-              .map(row => `${row.fromLabel}|${row.fromDoor ?? ''}`)
-          ).size;
-          const unit = pluralizeUnit(group.rows[0]?.unit || 'vial', taken);
-          const binsLeftText = `${binsLeft} bin${binsLeft === 1 ? '' : 's'} to go`;
-
-          return (
-            <div key={`${group.productName}-${groupIndex}`} className="text-[12px]">
-              <div className="flex items-center justify-between gap-2">
-                <span className="truncate text-[#020817]">{group.productName}</span>
-                {skipped && skippedBadge}
-              </div>
-              {!skipped && (
-                <div className="text-[11px] text-[#64748b]">
-                  {taken > 0
-                    ? binsLeft > 0
-                      ? `${taken} ${unit} taken · ${binsLeftText}`
-                      : `${taken} ${unit} taken`
-                    : binsLeftText}
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
 
   return (
     <div className="shrink-0 w-[400px] h-full bg-white border-l border-gray-200 flex flex-col">
@@ -996,10 +913,7 @@ export default function MoveSummaryPanel({
         ) : groups.length === 0 ? (
           <p className="text-[13px] text-[#64748b] text-center mt-6">Nothing selected yet.</p>
         ) : isSourceStage ? (
-          <>
-            {renderSourceByDoor()}
-            {anyProductSpansSourceBins && renderSourceProductTotals()}
-          </>
+          renderSourceByDoor()
         ) : (
           groups.map((group, groupIndex) => {
             const badgeIdentity = { name: group.productName, ndc: group.ndc, inventoryType: group.inventoryType };

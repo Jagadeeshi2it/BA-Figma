@@ -394,7 +394,16 @@ export default function TargetBinSerialScanPage({
    * been re-planned, the walk the operator is following is no longer the one they set up at step ②, and
    * that stays true for the rest of the batch.
    */
-  const [binsAddedMidMove, setBinsAddedMidMove] = useState(false);
+  /**
+   * Target bins added during placement, in the order they were added.
+   *
+   * A list rather than the boolean this used to be, because it now decides *position*: a bin added mid-move
+   * is ranked after every bin the route already planned, so it lands ahead of the operator in the walk
+   * rather than behind them. Route rank alone put `Bin 1B` before the `Bin 2C`/`Bin 2D` the operator was
+   * already working, which — with no `Back` in step ④ — made it a row that could never be reached and would
+   * sit at 0 vials for the rest of the move.
+   */
+  const [addedMidMoveBinIds, setAddedMidMoveBinIds] = useState<string[]>([]);
   const [summaryOpen, setSummaryOpen] = useState(true);
 
   // CRITICAL: Determine if serial scanning is needed
@@ -609,13 +618,42 @@ export default function TargetBinSerialScanPage({
     if (placeBinOrder && placeBinOrder.length > 0) {
       const rank = new Map(placeBinOrder.map((binId, index) => [binId, index]));
       const rankOf = (toBinId: string) => rank.get(toBinId) ?? Number.MAX_SAFE_INTEGER;
+
+      /**
+       * Bins added during placement sort after every bin the route planned, and among themselves in the
+       * order they were added.
+       *
+       * Route rank alone is wrong here, and not marginally: the operator adds a bin while standing at one,
+       * so the new bin has to be somewhere they are still going to reach. Ranking `Bin 1B` by its natural
+       * route position put it ahead of the `Bin 2C`/`Bin 2D` already being worked, and with no `Back` in
+       * step ④ that row could never be visited — it stayed at 0 vials for the rest of the move while
+       * appearing in the Move List as a destination.
+       *
+       * Insertion order within the added tier rather than route rank, so a second addition always lands
+       * after the first: otherwise adding `Bin 3A` and then `Bin 1B` would put `1B` in front again, and the
+       * bin the operator just named would be the one they walk past.
+       */
+      const addedTier = (toBinId: string) => {
+        const index = addedMidMoveBinIds.indexOf(toBinId);
+        return index === -1 ? -1 : index;
+      };
+      const compareBins = (aId: string, bId: string, aName: string, bName: string) => {
+        const aAdded = addedTier(aId);
+        const bAdded = addedTier(bId);
+        if ((aAdded === -1) !== (bAdded === -1)) return aAdded === -1 ? -1 : 1;
+        if (aAdded !== -1) return aAdded - bAdded;
+        const delta = rankOf(aId) - rankOf(bId);
+        return delta !== 0 ? delta : aName.localeCompare(bName);
+      };
+
       groups.forEach(group => {
-        group.targetBins.sort((a, b) => {
-          const delta = rankOf(a.toBinId) - rankOf(b.toBinId);
-          return delta !== 0 ? delta : a.targetBinName.localeCompare(b.targetBinName);
-        });
+        group.targetBins.sort((a, b) =>
+          compareBins(a.toBinId, b.toBinId, a.targetBinName, b.targetBinName)
+        );
       });
       groups.sort((a, b) => {
+        // A group's position still comes from the earliest bin it PLANS to place into, so adding a bin to a
+        // product does not drag the whole product to the back of the walk.
         const earliest = (group: ProductGroup) =>
           Math.min(...group.targetBins.map(bin => rankOf(bin.toBinId)));
         const delta = earliest(a) - earliest(b);
@@ -624,7 +662,7 @@ export default function TargetBinSerialScanPage({
     }
 
     return groups;
-  }, [transfers, doorShelfConfig, placeBinOrder]);
+  }, [transfers, doorShelfConfig, placeBinOrder, addedMidMoveBinIds]);
 
   // What the Move Summary panel shows on the placement half of step 4 — one row per source→target
   // pairing, which the panel nests under the source bin each pairing leaves from. A target bin fed by
@@ -1004,9 +1042,10 @@ export default function TargetBinSerialScanPage({
    *   - **Nothing can be left unaccounted for.** The last bin holds the pool by construction, so
    *     `remainingQtyToMove` is 0 there without anyone checking — the per-product gate in `canSave` becomes
    *     a statement rather than a rule (CLAUDE.md §2 E).
-   *   - **`binsAddedMidMove` stops mattering to the fill.** It existed because a newly added last bin would
-   *     swallow the whole remainder and leave an earlier empty bin unfixable. A bin added now opens holding
-   *     the pool, which is what the operator added it for.
+   *   - **The mid-move-addition guard stops mattering to the fill.** It existed because a newly added last
+   *     bin would swallow the whole remainder and leave an earlier empty bin unfixable. A bin added now
+   *     opens holding the pool, which is what the operator added it for — and `addedMidMoveBinIds` keeps it
+   *     ahead of them in the walk so they actually arrive at it.
    *
    * **This is the only rule that fills a target bin**, and it has to be. There used to be a second, for the
    * case where serial scanning is not required: it pushed `transfer.quantity` mock rows into whichever bin
@@ -1101,7 +1140,7 @@ export default function TargetBinSerialScanPage({
     if (!currentProduct || !onAddTargetBin || !currentTargetBin) return;
     // Held before the transfers change, because the walk is re-planned as soon as they do.
     setResumeTargetBinId(currentTargetBin.toBinId);
-    setBinsAddedMidMove(true);
+    setAddedMidMoveBinIds(prev => [...prev, ...binIds.filter(binId => !prev.includes(binId))]);
     binIds.forEach(binId => onAddTargetBin(currentProduct.productId, binId));
   };
 

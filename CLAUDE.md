@@ -483,13 +483,12 @@ its own `MoveSummaryRow[]` from state it already holds (§3).
 - **The card states the collected total beside the product name.** Sources reading 25, 10 and 5 never said
   40 anywhere, leaving the operator to add up what they are carrying — and 40 is the figure they need at the
   target bin. Summed over distinct source bins, since `sourceQuantity` repeats across the rows sharing one.
-- **The take half's per-product roll-up appears only when a product spans more than one source bin.** Its
-  two facts — the running total carried, and how many bins are still to open — are only facts in that
-  case. Give every product one bin and both collapse into what the bin card already shows: the total *is*
-  that bin's figure, and `1 bin to go` is the bin's untouched state restated. Three products with one bin
-  each printed three lines all reading `1 bin to go` under the three cards that had just said so. The
-  header's `n bins · m products` is the product count for the common case; the roll-up is for the case the
-  door-grouped body genuinely cannot answer.
+- **The take half has no per-product roll-up.** A `PRODUCTS` section under the bins reported the running
+  total carried and how many bins were still to open. It was gated to products spanning several bins,
+  because with one bin each its two lines only restated the bin card above them — and then removed
+  outright: the door-grouped body already names the product on every bin card it sits in, and the header
+  counts them. What the roll-up alone could say is the sum across a product's bins, which is worth less
+  than a section of chrome on a 400px panel the operator reads bin by bin.
 - **One badge per act, on the line it belongs to.** `Taken` beside the source line's quantity, `Moved`
   on a target line once stock is actually placed there. A source's `Taken` persists onto the placement
   half — every quantity is taken before any is carried, so by then it is genuinely done.
