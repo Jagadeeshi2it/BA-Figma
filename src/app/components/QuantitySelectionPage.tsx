@@ -300,20 +300,21 @@ export default function QuantitySelectionPage({
           toLabel: target.name,
           toDoor: target.door,
           /**
-           * Only a bin the operator has finished with states a figure. Ahead of them, and at the bin
-           * they are standing at, it is `null` — which the panel renders as nothing at all.
+           * A bin the operator has finished with states what came out of it, and **the bin in hand states
+           * what is about to** — `takenFromThisBin` reads `transferQuantities`, which is what the editor
+           * beside it writes, so the figure tracks the operator's typing live. Asked for so the panel can
+           * be read as the final tally of the whole take before `Proceed to Move To`: with the current row
+           * blank, the last product's amount was the one figure missing from the list at exactly the
+           * moment the operator was about to leave the source side for good.
            *
-           * Every bin used to show its amount from the moment the screen opened, because
-           * `transferQuantities` is seeded with each transfer's full quantity on mount and this fell back
-           * to that same default anyway. So the panel reported 200 vials taken out of a bin nobody had
-           * opened yet, and a card summed those defaults into a collected total for stock still sitting
-           * on the shelf. A quantity in this panel is a claim about what has happened; a default is not.
-           *
-           * The bin in hand is excluded too, deliberately: its editor is pre-filled with the full amount,
-           * so echoing it here would be repeating the same untouched default in a second place. The
-           * page's own `Qty to move` figure is the live one while they are deciding.
+           * Bins **ahead** of them stay `null`, which the panel renders as nothing at all, and that part
+           * must not be relaxed. `transferQuantities` is seeded with every transfer's full quantity on
+           * mount, so showing the fallback everywhere reported 200 vials taken out of a bin nobody had
+           * opened yet. A figure against an unvisited bin is a claim about what happened; a default is
+           * not. The bin in hand is different in kind: the operator is looking at that number in the
+           * editor, so echoing it is reporting their decision rather than inventing one.
            */
-          sourceQuantity: status === 'done' ? takenFromThisBin : null,
+          sourceQuantity: status === 'done' || status === 'current' ? takenFromThisBin : null,
           quantity: null,
           unit: group.unit,
           // The bin in the operator's hands on this half is a SOURCE bin; no target is being filled
@@ -454,8 +455,10 @@ export default function QuantitySelectionPage({
   // at the source, before anything is carried to the target bin.
   //
   // Takes the skip set as an argument rather than reading state: a skip on the last product has to
-  // finish in the same tick it was recorded, and setState hasn't landed by then.
-  const finalizeAll = (skipped: Set<string>) => {
+  // finish in the same tick it was recorded, and setState hasn't landed by then. `quantityOverrides` is
+  // the same problem for a quantity — `Skip This Bin` on the last stop sets 0 and finalizes together,
+  // so the 0 has to arrive as an argument too. Keyed like `transferQuantities`, per transfer.
+  const finalizeAll = (skipped: Set<string>, quantityOverrides: { [key: string]: number } = {}) => {
     setIsSaving(true);
 
     const finalTransfers: TransferWithQuantity[] = [];
@@ -482,7 +485,7 @@ export default function QuantitySelectionPage({
       }
       group.transfers.forEach(transfer => {
         const key = `${transfer.productId}-${transfer.fromBinId}-${transfer.toBinId}`;
-        const updatedQuantity = transferQuantities[key] ?? transfer.moveQuantity;
+        const updatedQuantity = quantityOverrides[key] ?? transferQuantities[key] ?? transfer.moveQuantity;
         finalTransfers.push({
           ...transfer,
           quantity: updatedQuantity,
@@ -516,6 +519,50 @@ export default function QuantitySelectionPage({
     }
 
     finalizeAll(skipped);
+  };
+
+  /**
+   * Leave THIS source bin out of the move, keeping the rest of the product's bins.
+   *
+   * A product spread over three bins is one the operator may well want to take from two of them —
+   * `Skip Product` is all-or-nothing and, being offered only on a product's first bin, was no help once
+   * they were standing at the second. This is the per-bin scope of the same act.
+   *
+   * It is deliberately not a new kind of state: skipping a bin is taking 0 out of it, so this sets the
+   * quantity to 0 and steps along the walk exactly as the primary does. The placement screen already
+   * drops a source that contributed nothing as long as another source covers the move (that guard is
+   * conditional for the zero-quantity allocation move — see CLAUDE.md §2 E), so a bin at 0 leaves the
+   * ledger by itself and no downstream screen has to learn a "skipped bin" concept.
+   *
+   * That conditional guard is exactly why `showSkipBinButton` refuses to zero a product's LAST
+   * contributing bin: with every source at 0 the move stops being "less stock than offered" and becomes
+   * an allocation-only move, which relocates the product's allocation instead of leaving it alone.
+   * `Skip Product` is the control for wanting nothing of a product, and it says so.
+   */
+  const handleSkipBin = () => {
+    if (isSaving) return;
+
+    handleQuantityChange(0);
+
+    // `skippedProductKeys` unchanged — the product is still in the move, this one bin just contributes
+    // nothing. So the walk advances by the ordinary rule, including to this product's other bins.
+    const nextStop = findNextStopIndex(skippedProductKeys);
+
+    if (nextStop !== -1) {
+      setCurrentIndex(nextStop);
+      setEditingQuantity(false);
+      return;
+    }
+
+    // Last stop: the 0 has to be in `transferQuantities` before finalizeAll reads it, and setState has
+    // not landed in this tick — so hand the amounts over explicitly rather than through state. Keyed per
+    // transfer, the way finalizeAll reads them; the group key handleQuantityChange also writes is for
+    // this page's own editor and is not what the handover looks at.
+    const zeroed: { [key: string]: number } = {};
+    currentGroup.transfers.forEach(transfer => {
+      zeroed[`${transfer.productId}-${transfer.fromBinId}-${transfer.toBinId}`] = 0;
+    });
+    finalizeAll(skippedProductKeys, zeroed);
   };
 
   const handleSave = () => {
@@ -611,6 +658,33 @@ export default function QuantitySelectionPage({
   const activeProductKey = `${currentGroup.productName}-${currentGroup.ndc}-${currentGroup.inventoryType}`;
   const getGroupMoveQty = (g: GroupedTransfer) =>
     transferQuantities[`${g.productId}-${g.fromBinId}-group`] ?? g.transfers[0].moveQuantity;
+
+  /**
+   * `Skip This Bin` — offered only where it means something.
+   *
+   * Two conditions, and the second is the load-bearing one:
+   *
+   * 1. The product is being taken from more than one bin. With one bin, skipping it is skipping the
+   *    product, which `Skip Product` already says plainly.
+   * 2. Some OTHER bin of this product still contributes — one ahead in the walk (which the operator has
+   *    yet to decide, so it may) or one already visited at a non-zero amount. Without this, the last bin
+   *    of a product could be zeroed and the whole product would arrive at the placement screen with
+   *    nothing to place: that is the allocation-only move (§2 E), which RELOCATES the allocation rather
+   *    than leaving the product where it is. The operator asking to skip a bin is not asking for that.
+   *
+   * Note it does not require `hasMultipleProducts` the way `Skip Product` does. There is always
+   * somewhere to go from here — this product's other bins — so a single-product move can use it.
+   */
+  const sameProductBinIndexes = groupedTransfers
+    .map((group, index) => ({ group, index }))
+    .filter(({ group }) => productKeyOf(group) === currentProductKeyForNav)
+    .map(({ index }) => index);
+  const anotherBinOfProductContributes = sameProductBinIndexes.some(
+    index =>
+      index !== currentIndex &&
+      (index > currentIndex || getGroupMoveQty(groupedTransfers[index]) > 0)
+  );
+  const showSkipBinButton = sameProductBinIndexes.length > 1 && anotherBinOfProductContributes;
 
   const productSummaries = (() => {
     const byKey = new Map<string, {
@@ -969,6 +1043,12 @@ export default function QuantitySelectionPage({
                 )
               }
             />
+            {/* Bin scope before product scope: it is the narrower act, and the one whose subject is the
+                bin the operator is standing at. Both can be on screen at once — on a product's first bin,
+                where skipping the product is still offered — and their labels are what tell them apart. */}
+            {showSkipBinButton && (
+              <FooterButton label="Skip This Bin" variant="secondary" onClick={handleSkipBin} />
+            )}
             {showSkipButton && (
               <FooterButton label="Skip Product" variant="secondary" onClick={handleSkip} />
             )}
