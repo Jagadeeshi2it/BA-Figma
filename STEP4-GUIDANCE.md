@@ -670,6 +670,55 @@ That means:
 - Allocation opens a location at `quantity: 0` (CLAUDE.md §2 A), so an empty serial list is the correct
   starting state and needs no special case.
 
+### The apportionment interaction: scan the smaller subset
+
+From the operator, 2026-08-08, and it is better than the "assign 80 of the 100" sketch above because the
+effort always scales with the **smaller** subset rather than with whichever bin the route happens to visit
+first.
+
+**The rule: each target bin opens holding every serial not yet assigned to an earlier bin.** For the first
+bin that is all 100. The operator then scans the ones that belong somewhere else, which **selects** the
+matching rows, and removes them in one act. What is removed is unassigned, and the next bin opens holding
+exactly it.
+
+    bin 1 opens with 100 → scan 20, remove → bin 1 keeps 80
+    bin 2 opens with  20 → scan  5, remove → bin 2 keeps 15
+    bin 3 opens with   5 → done
+
+Stated as a pool rather than "the removed ones go to the next bin", which is what the operator described
+for two bins: with three or more, "next" needs defining, and the pool needs no special case. It also makes
+the *first bin holds everything* claim fall out rather than being asserted — the first bin's pool is the
+whole take.
+
+Four consequences worth having in mind, three of them free:
+
+- **The scan becomes a verification, not data entry.** A scanned serial either is or is not among the ones
+  taken out of the source. That is the **first real validation in the app** — `validateSerialNumbers`
+  answers only "have enough been picked" (CLAUDE.md §5), and nothing anywhere checks a serial value. A vial
+  that does not match is a genuine error worth saying out loud: it is not part of this move.
+- **The completeness gate stops needing to be enforced.** A product's last bin holds the unassigned pool by
+  construction, so nothing can be left over — the per-product check (CLAUDE.md §2 E) becomes structurally
+  satisfied rather than a rule the save handler has to police. The 25-taken-20-placed defect it was written
+  for cannot arise.
+- **The per-row trash icon changes meaning**, from "delete this serial" to "unassign it from this bin" —
+  the same act as a one-row selection. That also closes the route into the stranded state: deleting rows is
+  how an operator reaches a bin with an outstanding remainder today.
+- **Removal has to be unavailable on a product's last bin**, or the pool has nowhere to drain to. `Add Move
+  To Bin` is the existing answer and already sits in that footer; the refusal should name it, as the
+  blocked-save toast does.
+
+Open details, none blocking:
+
+- **What the bulk control is called.** `Remove Selected` says what leaves but not where it goes. Buttons in
+  this app name what happens next (CLAUDE.md §6), which argues for the count and the destination — but the
+  destination is "whichever bin needs them", which is only nameable on the second-to-last bin. Probably
+  `Remove 20 from this bin`, with the pool implied by the next screen opening with them.
+- **Whether scanning may also add.** Under this model the box selects; it currently adds. One control
+  meaning two things by context is what §2 B's `Back` was removed for.
+- **Whether a serial can be assigned to a bin it was not taken from.** The pool makes this impossible by
+  construction, which is probably correct, but it forecloses "I put this one back in a third bin" without
+  going through `Add Move To Bin`.
+
 ### What must be deleted
 
 `synthesizeScannedItems` and the auto-fill that calls it. Both exist only to spare the operator a scan the
@@ -684,6 +733,12 @@ slower or fast-and-false; there is no third until capture moves. Recorded here r
 
 ## Revisions
 
+- **2026-08-08** — §12's apportionment interaction, from the operator: every target bin opens holding the
+  unassigned pool, a scan selects the matching row, and a bulk remove drains the selection to the next bin.
+  Effort scales with the smaller subset, whichever bin the route reaches first. Recorded as part of §12
+  rather than as a standalone improvement because it **cannot work on fabricated serials** — scan-to-select
+  needs the list to be the real one, so it presupposes take-step capture. It also retires two rules by
+  construction: the per-product completeness gate and the delete-rows route into a stranded remainder.
 - **2026-08-08** — §12 added, from the pharmacy team's answer that serials must be traceable to bins. The
   answer arrived via a different question — why an 80/20 split forces 80 scans at the first target — and
   the investigation found the flow captures identity at the wrong end: bins hold no serials, the take step

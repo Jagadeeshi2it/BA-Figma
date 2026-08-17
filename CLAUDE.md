@@ -1261,7 +1261,11 @@ prerequisite rather than a gap: identity has to be captured at the **take** step
 actually handles each vial, and bins have to hold serials so the cabinet state can answer what is in them.
 Written up as [STEP4-GUIDANCE.md](STEP4-GUIDANCE.md) §12, including the decision it forces immediately —
 the auto-fill is inventing the fact they need, and removing it before capture moves makes every split move
-a full hand-scan at the target.
+a full hand-scan at the target. §12 also carries the apportionment interaction the operator proposed: each
+target bin opens holding every serial not yet assigned, a scan **selects** the matching row rather than
+adding one, and a bulk remove drains the selection to the next bin — so the scanning effort is always the
+smaller subset. That interaction is what makes the per-product completeness gate below structural rather
+than policed, and it is why the scan becomes the app's first real validation.
 
 ---
 
