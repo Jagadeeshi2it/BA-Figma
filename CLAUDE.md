@@ -536,6 +536,21 @@ What this touches, and why each part is easy to break again:
 - **History classifies on `actionType`, not on `quantity === 0`.** Those were the same test while a
   0-quantity transfer only ever meant "Allocate only"; a real move can now end at 0, so the old check
   filed it as a new allocation and wrote no move entry.
+- **Each product's last target bin has to account for everything taken from its sources**, and that check
+  is scoped per product — `isLastTargetBinForProduct`, hoisted so `canSave`, the save handler and the
+  auto-fill effect all read one value. It used to AND in "and this is the last product of the batch", so it
+  never ran for any earlier product: with five products, BESPONSA could have 25 vials taken, 20 placed, and
+  `Save & Next Product` stayed live while the screen beside it showed `Qty to move 5`.
+  Nothing left the ledger when that happened — `finalizeAndConfirm` bills each source by what was actually
+  placed, so quantities still balanced — but the books stopped describing the shelf: 25 came out of the bin,
+  20 went away, and 5 sat in the operator's hand recorded as never having moved. **There is no `Back` in
+  step ④, so an advanced-past product can never be completed.** The auto-fill hid this most of the time by
+  putting the whole remainder in a product's last bin; deleting scanned serials afterwards is the route back
+  into it, since the fill does not re-run on a bin that already has stock.
+  No deadlock comes with the stricter gate: it can only bite while serials are being scanned with a
+  remainder outstanding, and that is exactly when the scan control is live, so the rest can always go into
+  the bin in front of the operator — there is no capacity model to refuse it (§5). `Add Move To Bin` is the
+  other way out, and the blocked-tap toast already names it.
 - `finalizeAndConfirm` must not drop a lone 0-quantity transfer. Its "skip a source that contributed
   nothing" guard is now conditional on another source covering the move, or the whole thing silently
   cancelled.

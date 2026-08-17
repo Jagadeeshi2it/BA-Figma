@@ -594,6 +594,27 @@ export default function TargetBinSerialScanPage({
     currentProductIndex === productGroups.length - 1 &&
     (!remainingTransfers || remainingTransfers.length === 0);
 
+  /**
+   * The last bin THIS product has to offer — where its own account has to balance.
+   *
+   * Distinct from `isFinalSaveStep`, and the distinction is load-bearing. `canSave` and the save handler
+   * both used to demand "everything taken has been placed" only on the batch's final bin, which ANDed in
+   * `currentProductIndex === productGroups.length - 1`. So the check never ran for any product but the
+   * last: with five products, BESPONSA could have 25 vials taken, 20 placed, and `Save & Next Product`
+   * stayed live — the screen showing `Qty to move 5` while the button ignored that number.
+   *
+   * Nothing is lost from the ledger when that happens (`finalizeAndConfirm` bills each source by what was
+   * actually placed, so quantities still balance), but the books stop describing the shelf: 25 vials came
+   * out of the source bin, 20 went away, and the remaining 5 are in the operator's hand while the record
+   * says they never moved. And there is no `Back` in step ④, so once the walk advances that product can
+   * never be completed — the remainder is stranded by design.
+   *
+   * A product's requirement therefore belongs to the last bin of that product. `Add Move To Bin` is the
+   * intended way out and the blocked-tap toast already names it.
+   */
+  const isLastTargetBinForProduct = !!currentProduct &&
+    currentTargetBinIndex === currentProduct.targetBins.length - 1;
+
 
   // Unlock the door this target bin is behind, locking whatever was open. Silent when the door is
   // already the open one — see the matching effect on the quantity screen.
@@ -883,7 +904,6 @@ export default function TargetBinSerialScanPage({
    */
   useEffect(() => {
     if (!currentProduct || !currentTargetBin) return;
-    const isLastTargetBinForProduct = currentTargetBinIndex === currentProduct.targetBins.length - 1;
     if (!isLastTargetBinForProduct || remainingQtyToMove <= 0) return;
 
     if (binsAddedMidMove) {
@@ -904,6 +924,9 @@ export default function TargetBinSerialScanPage({
     currentProduct,
     currentTargetBin,
     currentTargetBinIndex,
+    // Listed although it derives from currentProduct + currentTargetBinIndex above it, so the guard the
+    // effect reads is visible in its own dependency list rather than implied by two of its inputs.
+    isLastTargetBinForProduct,
     remainingQtyToMove,
     scannedItems,
     binsAddedMidMove
@@ -1009,13 +1032,9 @@ export default function TargetBinSerialScanPage({
       // Skip serial scanning validation - user is just confirming the move
       console.log('🔧 Serial scanning not required - proceeding without validation');
     } else {
-      // Check if this is the LAST target bin
-      const isLastTargetBin = 
-        currentTargetBinIndex === currentProduct.targetBins.length - 1 &&
-        currentProductIndex === productGroups.length - 1;
-      
-      // Mirrors canSave: only the final bin has to account for everything taken from the source.
-      if (isLastTargetBin && remainingQtyToMove !== 0) {
+      // Mirrors canSave: each product's last bin has to account for everything taken from that
+      // product's sources. Reads the same hoisted flag, so the guard and the button cannot disagree.
+      if (isLastTargetBinForProduct && remainingQtyToMove !== 0) {
         console.log('❌ Cannot save: the whole quantity taken from the source must be placed');
         return;
       }
@@ -1182,14 +1201,10 @@ export default function TargetBinSerialScanPage({
       return true;
     }
 
-    // Check if this is the LAST target bin
-    const isLastTargetBin =
-      currentTargetBinIndex === currentProduct.targetBins.length - 1 &&
-      currentProductIndex === productGroups.length - 1;
-
-    // The final bin carries the batch's requirement: everything taken out of the source has to have
-    // been placed somewhere.
-    if (isLastTargetBin) return remainingQtyToMove === 0;
+    // Each product's LAST bin carries that product's requirement: everything taken out of its sources
+    // has to have been placed somewhere. Scoped per product, not per batch — see
+    // `isLastTargetBinForProduct` for what the batch-scoped version let through.
+    if (isLastTargetBinForProduct) return remainingQtyToMove === 0;
 
     // Elsewhere, the only thing that blocks saving is having nothing to save. Leaving a bin empty is
     // still allowed — "all of it in the first bin, none in the second" is a legitimate outcome — but it
