@@ -72,13 +72,15 @@ const doorWithFreeBins = (count: number) => () =>
  * a visible round trip — the cursor left the panel for the cabinet and came straight back to the panel
  * it had just been in, since the search box is where the round really starts.
  *
- * Tapping the door already open is a harmless no-op, so this is unconditional rather than the scenario
- * trying to predict when it is needed.
+ * **Skipped when that door is already open** — see the same helper in allocateProduct.ts. A no-op to the
+ * app is not a no-op to a viewer: the cursor pressing a door the walk is already on reads as the demo
+ * losing its place.
  */
 const openDoorWithRoom = (count: number): DemoStep => ({
   kind: 'click',
   label: count === 1 ? 'Open a door with a free bin' : `Open a door with ${count} free bins`,
   target: doorWithFreeBins(count),
+  skipWhen: () => doorWithFreeBins(count)()?.getAttribute('data-door-open') === 'true',
   settleMs: 1200,
   // Nothing to put back: which door is open is not part of the selection.
   reverse: [],

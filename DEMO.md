@@ -305,7 +305,14 @@ with room or one that is cold, so it is always paired with the attributes below 
 
 Plus the data attributes a scenario resolves against rather than naming a specific element:
 `data-bin-id`, `data-bin-available`, `data-bin-product-count` and `data-product-quantity` on `BinCard`,
-and `data-door-free-bins` / `data-door-kind` on each door button.
+and `data-door-free-bins` / `data-door-kind` / `data-door-open` on each door button.
+
+**`data-door-open` exists for a step that should not happen.** Every door-opening step resolves "a door
+with room", and in this seed that is usually Door 1 — which is already open, so the cursor travelled
+across the cabinet to press the door the walk was standing on. Harmless to the app, and misleading to a
+viewer, who reads every click as meaningful. The attribute is what lets the step's `skipWhen` (§8) tell
+"the right door" from "a click worth making"; the resolver cannot, because the door it returns is
+correct either way.
 
 **One anchor for four primaries.** `pipeline-primary` is on every stage's forward button rather than
 one per stage, because the footer's whole design is that the operator looks at one place for what
@@ -369,6 +376,7 @@ interface DemoStep {
   text?: string | (() => string); // 'type' only; a function is resolved when the step runs
   settleMs?: number;          // overrides the PACE default
   reverse?: DemoStep[];       // see §5
+  skipWhen?: () => boolean;   // skip the step entirely — no cursor, no click
 }
 ```
 
@@ -376,8 +384,24 @@ interface DemoStep {
 |---|---|
 | `click` | Move to the target and click it, for real |
 | `type` | Move, focus, and type `text` a character at a time |
-| `await` | Wait for the target to appear without touching it |
+| `await` | Wait for the target to appear. **No cursor movement** |
 | `note` | A pause. No cursor movement, no interaction |
+
+**An `await` waits; it does not point.** It used to travel the cursor to the element it was waiting for,
+which was worst in the case it is used for most: the move walks await the pipeline footer, so the hand
+flew down to a primary that was still *disabled*, paused on it, and left again — a click that appeared
+not to work. The scroll-into-view still happens, so whatever appeared is on screen; only the gesture is
+withheld.
+
+**`skipWhen` is for a step that would achieve nothing**, evaluated the moment the step is reached, before
+any cursor movement. The case it was built for is the door step above: pressing Door 1 while Door 1 is
+open reads as the walk losing its place. Two rules come with it — the predicate must be cheap and
+read-only, since it runs on the main thread mid-walk; and a skipped step is skipped on the way back too,
+so Previous never undoes something that never ran.
+
+Both of these are about the same thing. A demo that moves the cursor is making a claim that a gesture is
+happening, and a gesture that changes nothing spends the viewer's attention while teaching them to
+distrust the next one.
 
 **A target may be a function**, re-evaluated at the moment the step runs. That is the escape hatch for
 anything only the scenario can identify — see `nthFreeBin` in `allocateProduct.ts`. It is what keeps
@@ -443,9 +467,9 @@ work proceeds.
 
 **Each round is the tray first, then one trip to the cabinet.** `openDoorWithRoom` runs immediately
 before the bins are tapped, never at the top of a round — the order the decision is actually made in
-(what needs a home, and only then where), and it removes a visible round trip: the `await` step parks
-the cursor on the search box, so a door step above the search dragged it out to the cabinet and the
-search dragged it straight back. Round 2 needs no door step (`firstFridge` opens the fridge) and
+(what needs a home, and only then where), and it removes a visible round trip: the cursor is left on the
+search box by the step that used it, so a door step above the search dragged it out to the cabinet and
+the search dragged it straight back. Round 2 needs no door step (`firstFridge` opens the fridge) and
 already ran in this order. The Multi Bin walk follows the same rule (§10a2).
 
 **The seam between rounds is free.** `handleConfirmAssignment` leaves the panel open and resets exactly
@@ -544,7 +568,7 @@ the next free ones on their own.
 **The door opens after the product is picked, never at the top of a round.** Both rounds are
 everything-in-the-panel, then one trip to the cabinet — the order the decision is actually made in
 (what am I giving another bin, and only then where). Opening the door first cost a visible round trip:
-the `await` step parks the cursor on the search box, the door step dragged it across to the cabinet,
+the cursor is left on the search box by the step that used it, the door step dragged it across to the cabinet,
 and the search step dragged it straight back. One product decision, split by an errand, which reads as
 the walk changing its mind. Each round now crosses between panel and cabinet once.
 
@@ -681,8 +705,9 @@ Checklist:
    an action outright.
 6. **Group the steps by surface.** Do everything on one surface before moving to the next — both
    allocation walks pick their products in the panel and only then open a door. A step that sends the
-   cursor away and straight back reads as the walk changing its mind, and the `await` step after a
-   panel opens already parks the cursor there.
+   cursor away and straight back reads as the walk changing its mind. Two features of the runner serve
+   the same end and are worth reaching for: an `await` moves nothing, and `skipWhen` drops a step whose
+   click would change nothing (§8).
 7. Verify by watching it, or by driving the steps through `dom.ts`'s own `dispatchRealClick` — never a
    hand-rolled click (§12).
 

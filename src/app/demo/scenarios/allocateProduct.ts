@@ -97,13 +97,16 @@ const doorWithFreeBins = (count: number) => () =>
  * Round 2 needs no such step — it goes to a fridge, which `firstFridge` opens — but it already follows
  * the same order: filter, Select All, and only then the cold store.
  *
- * Tapping the door already open is a harmless no-op, so this can be unconditional rather than the
- * scenario trying to predict when it is needed.
+ * **Skipped when that door is already open.** Tapping it is a harmless no-op to the app and was left
+ * unconditional on that basis — but not to a viewer, who reads every click as meaningful and sees the
+ * cursor press a door the walk is already standing on. The resolver cannot answer it: the door is the
+ * right one, the click is the redundant part.
  */
 const openDoorWithRoom = (count: number): DemoStep => ({
   kind: 'click',
   label: count === 1 ? 'Open a door with a free bin' : `Open a door with ${count} free bins`,
   target: doorWithFreeBins(count),
+  skipWhen: () => doorWithFreeBins(count)()?.getAttribute('data-door-open') === 'true',
   settleMs: 1200,
   // Nothing to put back: which door is open is not part of the selection, and the previous round's
   // door is wherever the resolver was pointing before — the rebuild handles it if Previous goes past.

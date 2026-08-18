@@ -19,8 +19,13 @@ export type DemoStepKind =
   | 'click'
   // Move to the target, focus it, and type `text` a character at a time.
   | 'type'
-  // Wait for the target to appear without touching it. Used where the app needs a beat and the
-  // next step's target is not the thing being waited on.
+  // Wait for the target to appear without touching it, and WITHOUT moving the cursor. Used where the
+  // app needs a beat and the next step's target is not the thing being waited on.
+  //
+  // The cursor used to travel to the awaited element, which was actively misleading: the commonest
+  // await in the move walks is "the pipeline footer has appeared", so the hand flew down to a primary
+  // that was still disabled, paused on it, and left again — a click that appeared not to work.
+  // Waiting is not a gesture, so it no longer looks like one.
   | 'await'
   // A pause. No cursor movement, no interaction — the opening and closing beats, which give the
   // viewer a moment to take in the screen before anything moves and to see the result afterwards.
@@ -68,6 +73,20 @@ export interface DemoStep {
    * `note` and `await` steps are reversible for free and need nothing declared.
    */
   reverse?: DemoStep[];
+  /**
+   * Skip this step entirely when it would achieve nothing — evaluated the moment the step is reached,
+   * before any cursor movement.
+   *
+   * The case it exists for: a walk that has to be standing on a particular door, when the app already
+   * is. The cursor travelled to Door 1 and pressed it while Door 1 was open, which reads as the demo
+   * not knowing where it is — worse than a missing step, because a viewer takes every click as
+   * meaningful. Resolving "a door with room" cannot answer this on its own: the door is the right one,
+   * the *click* is what is redundant.
+   *
+   * Skipped steps are skipped on the way back too, so Previous does not undo something that never ran.
+   * Keep the predicate cheap and read-only — it runs on the main thread mid-walk.
+   */
+  skipWhen?: () => boolean;
 }
 
 export interface DemoScenario {

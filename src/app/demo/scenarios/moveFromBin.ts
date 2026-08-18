@@ -122,6 +122,11 @@ export const moveFromBin: DemoScenario = {
       kind: 'click',
       label: 'Open a door with room to move into',
       target: doorWithRoom,
+      // Skipped when that door is already the open one, which in this seed it usually is: pressing Door 1
+      // while standing on Door 1 reads as the walk not knowing where it is, and a viewer takes every
+      // click as meaningful. The resolver cannot answer this — the door is the right one, the click is
+      // what is redundant.
+      skipWhen: () => doorWithRoom()?.getAttribute('data-door-open') === 'true',
       settleMs: 1200,
       // Which door is open is not part of the selection, so there is nothing to put back.
       reverse: [],

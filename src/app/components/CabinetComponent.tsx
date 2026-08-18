@@ -90,6 +90,7 @@ function DoorButton({
         data-demo="door"
         data-door-free-bins={freeBinCount}
         data-door-kind={doorKind}
+        data-door-open={isSelected ? 'true' : 'false'}
         onClick={onClick}
       >
         <div className={`absolute border ${
@@ -146,6 +147,7 @@ function DoorButton({
       data-demo="door"
       data-door-free-bins={freeBinCount}
       data-door-kind={doorKind}
+      data-door-open={isSelected ? 'true' : 'false'}
       onClick={onClick}
     >
       <div className={`absolute border ${

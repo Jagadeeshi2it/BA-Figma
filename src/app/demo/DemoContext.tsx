@@ -178,6 +178,10 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
     async (step: DemoStep, token: DemoRunToken, fast: boolean): Promise<boolean> => {
       const settle = fast ? 0 : step.settleMs;
 
+      // Nothing to do here, so nothing is shown being done. Checked before the target is even resolved:
+      // the point is that the cursor does not travel to a control it is not going to press.
+      if (step.skipWhen?.()) return true;
+
       if (step.kind === 'note') {
         await sleep(settle ?? PACE.afterNoteMs, token);
         return true;
@@ -196,17 +200,21 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
       await scrollTargetIntoView(el, token);
       if (token.cancelled) return false;
 
+      // An await waits; it does not point. The cursor used to travel to the awaited element, which put
+      // the hand on a disabled primary — the commonest await in the move walks is "the footer has
+      // appeared" — paused there, and left. That reads as a click that did not work. The scroll above
+      // still runs, so what appeared is on screen; only the gesture is withheld.
+      if (step.kind === 'await') {
+        await sleep(settle ?? PACE.afterAwaitMs, token);
+        return true;
+      }
+
       // Re-resolve after the scroll. A React re-render during the settle can replace the node, and
       // clicking a detached element is a click that silently does nothing.
       const live = resolveTarget(step.target) ?? el;
       const { x, y } = centreOf(live);
       await moveCursorTo(x, y, token, fast);
       if (token.cancelled) return false;
-
-      if (step.kind === 'await') {
-        await sleep(settle ?? PACE.afterAwaitMs, token);
-        return true;
-      }
 
       // Arrive, then act. The pause between landing on a control and pressing it is most of what
       // makes the cursor read as a hand rather than a script.
@@ -277,6 +285,16 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
     async (toRun: DemoScenario, token: DemoRunToken): Promise<boolean> => {
       const undoing = positionRef.current - 1;
       if (undoing < 0) return true;
+
+      // A step that never ran needs no undoing, and running its reverse would put the app somewhere it
+      // was not — the door step's reverse is empty, but a future skippable step's need not be. Position
+      // still moves back by one, so Previous walks the list the viewer sees rather than a filtered one.
+      if (toRun.steps[undoing].skipWhen?.()) {
+        advanceTo(undoing);
+        pausedRef.current = true;
+        setStatus('paused');
+        return true;
+      }
 
       const reverse = reverseOf(toRun.steps[undoing]);
       if (!reverse) {
