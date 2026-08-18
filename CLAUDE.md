@@ -327,9 +327,17 @@ by you, just now", in the voice the app already uses for spent controls (`Select
 in the cabinet's own step ② every target is one the operator can take back, so there is nothing to
 distinguish and the badge reads `Move To` as before.
 
-Buttons name **what happens next**: `Select` / `Remove` on the cards, `Next Bin to Move From` →
+Buttons name **what happens next**: `Select` / `Remove` on the cards, `Save & Next Bin` →
 `Save & Continue` → `Proceed to Move To` on the quantity page. Nothing says "Confirm" until it
 commits — Review's primary is `Start Qty Move`.
+
+The first of those was `Next Bin to Move From` until 2026-08-18. It named the destination and not the
+commit, when the button does both — and at 21 characters it was the longest label in a footer that also
+carries two skips. `Save & Next Bin` is what the placement screen's equivalent already said; the two halves
+now share the label for what is the same act on each, and each screen's own header says which half you are
+standing on. The skips read **widest scope first, towards the primary** — `Skip Product`, `Skip Bin`, then
+the save — since both can be on screen at once on a product's first bin, and `Skip Bin` is `Skip This Bin`
+shortened for the same reason.
 
 **All quantities are taken at the source before anything is carried to the target.** The quantity
 page walks every product itself and hands the whole move over once. It used to report one product
@@ -605,6 +613,14 @@ its own `MoveSummaryRow[]` from state it already holds (§3).
   what is moving. The row badges are the only progress it states now.
 - **Bold marks the bin in hand** — the source bin while taking, the target bin while placing. A filled
   chip was tried first and read as "selected" rather than "you are here".
+- **The stage line is a purple inset notice, not a tinted bar.** `#F3E8FF` ground, 6px radius, a
+  `CircleAlert` and 14px text at `#7B32C1`. Two things went with the redesign. It **stopped being blue**,
+  because blue in this panel means the bin in the operator's hands — its border, its name, its live figure,
+  the bulb — and a full-width blue bar competed with all of them while saying something else entirely.
+  `#7B32C1` rather than the app's `#8F48D2`, which is 4.4:1 on that tint. And the **icon became a notice**
+  instead of `LogOut`/`LogIn`: those matched the footer's Source/Target cells and so named a *place*, where
+  this line is an instruction. `STAGE_COPY`'s `icon` field went with the last thing reading it. Note this
+  gives purple a second job — it is the assignment border elsewhere (§6).
 - **Only the quantity being moved.** The History page's `-20 → 180` shape was tried and dropped: what
   the bin held before and ends up holding is not the operator's business mid-move. The `+`/`-` went
   with it, since the sign only earned its place as part of that arithmetic.
@@ -679,7 +695,7 @@ What this touches, and why each part is easy to break again:
   Found 2026-08-18 from the panel reading `20 vials` on one source, `0 vials` on the other and `45 vials` at
   the target. Fixed and replayed in Node over the user case, a full two-bin take, an allocation-only move, a
   one-source-two-target split and a genuinely absent quantity.
-- **`Skip This Bin` on the quantity page** leaves one source bin out of a multi-bin product's move, which
+- **`Skip Bin` on the quantity page** leaves one source bin out of a multi-bin product's move, which
   `Skip Product` (all-or-nothing, and offered only on a product's first bin) could not. It is not a new kind
   of state: skipping a bin is taking 0 out of it, so it sets 0 and steps along the walk. Offered only when
   the product spans several bins **and another of them still contributes** — one ahead in the walk, or one
@@ -1473,22 +1489,36 @@ been violations of it.
 - **`Cancel` and `Back` are blue secondary buttons, everywhere.** Leaving a flow discards a selection
   that was never committed — a step back, not a deletion, so neither earns the destructive red they
   used to carry. `#C6362C` is for things that actually destroy data.
+  **The search dropdown's undo is the exception, and it is a narrow one.** `Remove from Move From` /
+  `Remove Selection` on a row — and the bin list's `Remove from Move From` — are outlined in `#C6362C`
+  with red text. What earns it is not destruction (un-picking deletes nothing) but that this is the one
+  place a selecting control and its undo share a column, alternating row by row: twenty identical
+  white-and-blue buttons where one goes the other way, with only the label to say so, on a list the
+  operator scans rather than reads. `Cancel` and `Back`, which the rule above was written about, sit alone
+  in a footer with nothing to be mistaken for. Both lists in the dropdown do it, or a red undo in one and a
+  blue undo in the other would read as two different acts.
 - Shared visual vocabulary: product rows are name → italic generic name → grey badges →
   `ndc - inventoryType`; primary `#095192`, secondary white/`#095192` border, destructive `#C6362C`,
   selected tint `#F1F6FA`, assignment border `#8F48D2`.
 - **Badges sit beside the display name inside the move pipeline, and below the generic name outside it.**
   Steps ③ and ④ — the Review cards and header, both step-④ screens — read name-and-kind as one thing:
   which product, and what handling it needs. On their own line they put two rows between the product and
-  the NDC that identifies it. Everywhere else (bin cards, both side panels, the search dropdown) they stay
-  on their own line under the generic name.
-  **The Move List panel is the exception inside the pipeline, and width was the reason:** at 320px, badges
-  on the name's line cost the name the characters it needs — `CARBOPLATIN 600 MG/60 ML VIAL` truncated to
-  `CARBOPLATIN 600 MG/6…`, losing the strength, which is the part the operator is checking. **The panel is
-  400px now**, so that constraint has loosened and the exception is open to being revisited — but it has
-  not been, and the take half's rows still put the quantity on the badge line rather than the name's for a
-  second reason that width does not fix (a figure appearing mid-move moves text under the eye).
-  `ProductBadges` renders the three spans for every one of these surfaces, so only the *position* differs;
-  the badges themselves cannot.
+  the NDC that identifies it. Everywhere else (bin cards, both side panels) they stay on their own line
+  under the generic name.
+  **Two surfaces have since moved to the name's line, and the rule is drifting towards beside-the-name
+  generally.** The Move List panel was the pipeline's own exception, on width — at 320px badges on the
+  name's line cost `CARBOPLATIN 600 MG/60 ML VIAL` the characters carrying its strength, truncating it to
+  `CARBOPLATIN 600 MG/6…`. At 400px that no longer holds and the exception is gone. The **search
+  dropdown** followed for the reading above, not for width. Both wrap (`items-baseline` + `flex-wrap`), so
+  a long name still gets a full line and the badges drop beneath rather than truncating it — which is what
+  makes the width argument survivable now.
+  A **figure** is a different case and stays off the name's line on the Move List's pairing cards: one that
+  arrives halfway through the move shifts text under the eye, which a badge that was always there does not.
+  The take half's bin cards do put the quantity on the name's line, at the operator's request, and accept
+  that reflow knowingly.
+  `ProductBadges` renders the three spans for most of these surfaces, so only the *position* differs; the
+  badges themselves cannot. The dropdown still hand-writes the three, from the same `binProducts` helpers —
+  worth folding into `ProductBadges` next time it is touched.
 - **A "where this product lives" line is 13px, wherever it appears** — the bin locations under a product
   in either side panel, the purple list of bins it is about to be assigned to, and the search dropdown's
   locations. They are the same fact on four surfaces. Three of them were 12px at some point, which read

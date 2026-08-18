@@ -311,7 +311,8 @@ and `data-door-free-bins` / `data-door-kind` on each door button.
 one per stage, because the footer's whole design is that the operator looks at one place for what
 happens next — a walkthrough reaching for the same place is demonstrating that rather than working
 around it. It is also the only handle that survives the labels: `Move To`, `Select bins to move`,
-`Build Move List`, `Start Qty Move` and `Proceed to Move To` are all this one control.
+`Build Move List`, `Start Qty Move`, `Save & Next Bin`, `Save & Continue`, `Proceed to Move To`,
+`Save & Next Product` and `Save & Finish` are all this one control.
 
 **`review-select-product` is conditional**, present on `Select` and absent on the spent `Selected`. So
 "the first match" is always a product still available to pick, and a walk can select several by

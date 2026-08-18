@@ -117,6 +117,7 @@
       <li class="sub"><a href="#3-3-two-position-counters-are-switched-off-not-decided">3.3 Two position counters are switched off, not decided</a></li>
       <li class="sub"><a href="#3-4-the-n-more-panel-does-not-close-when-the-step-changes">3.4 The <code>+N more</code> panel does not close when the step changes</a></li>
       <li class="sub"><a href="#3-5-one-instruction-serves-both-step-screens">3.5 One instruction serves both step-④ screens</a></li>
+      <li class="sub"><a href="#3-6-the-taken-moved-badges-are-switched-off-not-decided">3.6 The <code>Taken</code> / <code>Moved</code> badges are switched off, not decided</a></li>
       <li class="sub"><a href="#3-6-test-assertions-worth-writing">3.6 Test assertions worth writing</a></li>
     </ol>
   </nav>
@@ -239,15 +240,44 @@ Two controls exist for the cabinet itself: **`Unlock Door`** beside the product 
 unlock when the app believes it sent one and the hardware did not, and `Cancel`, which is available
 **only until the first quantity leaves a source bin**.
 
-The **Move List** panel on the right is the answer to "what am I carrying": sources listed, then
-targets, each stated once, with the collected total beside the product name and a `Taken` badge once
-that source is done.
+The **Move List** panel on the right is the answer to "what am I carrying", and it is grouped the way the
+operator walks: **door, then bin, then the products at that bin.** The door heading carries a lock or
+unlock icon, the bin the operator is standing at has a blue border and a pulsing bulb — the screen's copy
+of the cabinet lighting that bin — and each product row states the quantity leaving that bin on the name's
+line, with its NDC and inventory type beneath. The row for the bin in hand is blue throughout and its
+figure is **live**, tracking the quantity editor beside it, so the panel is a complete tally of the take
+before `Proceed to Move To`. Bins the walk has not reached state no figure at all: a quantity here is a
+claim about what has happened, and the screen is seeded with each transfer's full amount, so printing it
+early would report stock taken out of a bin nobody has opened.
+
+Above the list, a purple notice says which half of the errand is in hand — *"Take qty from the bin you are
+moving from"* on this screen, *"Place qty in the bin you are moving to"* on the next. It is deliberately
+not blue: blue in this panel means "the bin in your hands".
+
+Two things the panel used to show and no longer does. A **collected total** sat beside the product name,
+summing what the operator was carrying across the product's source bins; it was removed because every bin
+already states its own figure, and on an allocation-only move the card read `0 vials` above two bins
+reading `0 vials`. And the green **`Taken` / `Moved`** badges are currently switched off behind a flag
+(§3.6) while the row layout is judged — with them off, progress is reported by position alone: the blue
+border and the lit bulb.
 
 ![Placing the quantity in the target bin](screenshots/move-from-bin/07-step4-place.png)
 
 The **place** half, same step number: `Move To` door and bin, the target's `Before`/`After`, a serial
 scan box — here reading *"Serial scanning not required"* — and `Qty moved`. The items being placed are
 listed with serial, lot, expiry and source.
+
+Its Move List is grouped by door and bin too, by the **target** end, with each product row carrying a
+`from Bin 1B, Bin 1C` line so the operator can tell that the vials in their hand belong here. That
+grouping matches the walk: **the placement half is worked bin by bin**, so every bin behind one door is
+finished before the next door opens and all the products going into one bin are done together. It was
+product-major until 2026-08-18, which could send the operator back through a door they had closed — a
+product placing into Door 1 and Door 3 put Door 3 in the middle of the walk, and the next product's Door 1
+bin reopened Door 1. `node scripts/verify-placement-stops.mjs` pins the ordering.
+
+A target bin the operator adds mid-move (`Add Move To Bin`) can be taken back off the move: a small
+`Remove` beside its name in this panel, offered only while that bin was added in this step, holds nothing,
+is not the product's last bin, and belongs to the product in hand.
 
 Note the footer: **`Cancel` is now dimmed.** Every quantity has been taken by this point, so cancelling
 would rest entirely on the operator putting stock back in the right bins, which nothing in the app can
@@ -349,10 +379,12 @@ at `quantity: 0` with `actionType: 'move'`; the real amount is set on the quanti
 
 ### 3.1 Step ④'s take-then-place shape is specified to change
 
-The current fixed shape — take everything, then place everything — is documented for replacement by a
+The current shape — take everything, then place everything — is documented for replacement by a
 cabinet-aware route under a one-door-at-a-time constraint. `STEP4-GUIDANCE.md` in the repo root is that
-specification; **none of it is built.** Anyone implementing step ④ should read it before treating the
-present behaviour as the target.
+specification, and **the sequencing half of it is now built**: both halves of step ④ walk bin by bin, so a
+door's work is contiguous within each phase. What is not built is the **stop** as the unit of work — take
+and place interleaved on one screen — so a door that both gives and receives is still opened twice. Anyone
+implementing step ④ should read that document before treating the present behaviour as the target.
 
 ### 3.2 Serial numbers are counted, not validated
 
@@ -373,6 +405,13 @@ Open it in step ① and it stays open through step ②, where its rows mean noth
 
 `instructionFor` returns the same "take, then place" sentence on the take screen and the place screen.
 Each screen's own header disambiguates, so this is tolerable rather than right.
+
+### 3.6 The `Taken` / `Moved` badges are switched off, not decided
+
+Both are behind `SHOW_DONE_BADGES` in `MoveSummaryPanel.tsx`, hidden at the operator's request while the
+row layout is judged. Every rule about which lines may wear one is still in the code, so turning them back
+on restores the behaviour — but if the answer is "keep them off" they should be deleted rather than left
+behind a flag, and the panel's only progress signals then are the blue bin border and the lit bulb.
 
 ### 3.6 Test assertions worth writing
 
@@ -522,15 +561,44 @@ Two controls exist for the cabinet itself: **`Unlock Door`** beside the product 
 unlock when the app believes it sent one and the hardware did not, and `Cancel`, which is available
 **only until the first quantity leaves a source bin**.
 
-The **Move List** panel on the right is the answer to "what am I carrying": sources listed, then
-targets, each stated once, with the collected total beside the product name and a `Taken` badge once
-that source is done.
+The **Move List** panel on the right is the answer to "what am I carrying", and it is grouped the way the
+operator walks: **door, then bin, then the products at that bin.** The door heading carries a lock or
+unlock icon, the bin the operator is standing at has a blue border and a pulsing bulb — the screen's copy
+of the cabinet lighting that bin — and each product row states the quantity leaving that bin on the name's
+line, with its NDC and inventory type beneath. The row for the bin in hand is blue throughout and its
+figure is **live**, tracking the quantity editor beside it, so the panel is a complete tally of the take
+before `Proceed to Move To`. Bins the walk has not reached state no figure at all: a quantity here is a
+claim about what has happened, and the screen is seeded with each transfer's full amount, so printing it
+early would report stock taken out of a bin nobody has opened.
+
+Above the list, a purple notice says which half of the errand is in hand — *"Take qty from the bin you are
+moving from"* on this screen, *"Place qty in the bin you are moving to"* on the next. It is deliberately
+not blue: blue in this panel means "the bin in your hands".
+
+Two things the panel used to show and no longer does. A **collected total** sat beside the product name,
+summing what the operator was carrying across the product's source bins; it was removed because every bin
+already states its own figure, and on an allocation-only move the card read `0 vials` above two bins
+reading `0 vials`. And the green **`Taken` / `Moved`** badges are currently switched off behind a flag
+(§3.6) while the row layout is judged — with them off, progress is reported by position alone: the blue
+border and the lit bulb.
 
 ![Placing the quantity in the target bin](screenshots/move-from-bin/07-step4-place.png)
 
 The **place** half, same step number: `Move To` door and bin, the target's `Before`/`After`, a serial
 scan box — here reading *"Serial scanning not required"* — and `Qty moved`. The items being placed are
 listed with serial, lot, expiry and source.
+
+Its Move List is grouped by door and bin too, by the **target** end, with each product row carrying a
+`from Bin 1B, Bin 1C` line so the operator can tell that the vials in their hand belong here. That
+grouping matches the walk: **the placement half is worked bin by bin**, so every bin behind one door is
+finished before the next door opens and all the products going into one bin are done together. It was
+product-major until 2026-08-18, which could send the operator back through a door they had closed — a
+product placing into Door 1 and Door 3 put Door 3 in the middle of the walk, and the next product's Door 1
+bin reopened Door 1. `node scripts/verify-placement-stops.mjs` pins the ordering.
+
+A target bin the operator adds mid-move (`Add Move To Bin`) can be taken back off the move: a small
+`Remove` beside its name in this panel, offered only while that bin was added in this step, holds nothing,
+is not the product's last bin, and belongs to the product in hand.
 
 Note the footer: **`Cancel` is now dimmed.** Every quantity has been taken by this point, so cancelling
 would rest entirely on the operator putting stock back in the right bins, which nothing in the app can
@@ -559,9 +627,13 @@ whole batch can legitimately move nothing but the allocation.
   <p><img src="screenshots/move-from-bin/06-step4-take-quantity.png" alt="Step 4 of 4, taking the quantity at the source" /></p>
 <p>The <strong>take</strong> half, one product at a time: the product's name and badges, <code>Move From</code> door and bin, the bin's inventory <code>Before Move</code> and <code>After Move</code>, and the quantity to move — editable via the pencil, defaulting to everything in the bin. The instruction is explicit about the physical act: <em>"Remove the quantity shown from this bin, then tap 'Proceed to Move To'."</em></p>
 <p>Two controls exist for the cabinet itself: <strong><code>Unlock Door</code></strong> beside the product name, which re-sends the unlock when the app believes it sent one and the hardware did not, and <code>Cancel</code>, which is available <strong>only until the first quantity leaves a source bin</strong>.</p>
-<p>The <strong>Move List</strong> panel on the right is the answer to "what am I carrying": sources listed, then targets, each stated once, with the collected total beside the product name and a <code>Taken</code> badge once that source is done.</p>
+<p>The <strong>Move List</strong> panel on the right is the answer to "what am I carrying", and it is grouped the way the operator walks: <strong>door, then bin, then the products at that bin.</strong> The door heading carries a lock or unlock icon, the bin the operator is standing at has a blue border and a pulsing bulb — the screen's copy of the cabinet lighting that bin — and each product row states the quantity leaving that bin on the name's line, with its NDC and inventory type beneath. The row for the bin in hand is blue throughout and its figure is <strong>live</strong>, tracking the quantity editor beside it, so the panel is a complete tally of the take before <code>Proceed to Move To</code>. Bins the walk has not reached state no figure at all: a quantity here is a claim about what has happened, and the screen is seeded with each transfer's full amount, so printing it early would report stock taken out of a bin nobody has opened.</p>
+<p>Above the list, a purple notice says which half of the errand is in hand — <em>"Take qty from the bin you are moving from"</em> on this screen, <em>"Place qty in the bin you are moving to"</em> on the next. It is deliberately not blue: blue in this panel means "the bin in your hands".</p>
+<p>Two things the panel used to show and no longer does. A <strong>collected total</strong> sat beside the product name, summing what the operator was carrying across the product's source bins; it was removed because every bin already states its own figure, and on an allocation-only move the card read <code>0 vials</code> above two bins reading <code>0 vials</code>. And the green <strong><code>Taken</code> / <code>Moved</code></strong> badges are currently switched off behind a flag (§3.6) while the row layout is judged — with them off, progress is reported by position alone: the blue border and the lit bulb.</p>
 <p><img src="screenshots/move-from-bin/07-step4-place.png" alt="Placing the quantity in the target bin" /></p>
 <p>The <strong>place</strong> half, same step number: <code>Move To</code> door and bin, the target's <code>Before</code>/<code>After</code>, a serial scan box — here reading <em>"Serial scanning not required"</em> — and <code>Qty moved</code>. The items being placed are listed with serial, lot, expiry and source.</p>
+<p>Its Move List is grouped by door and bin too, by the <strong>target</strong> end, with each product row carrying a <code>from Bin 1B, Bin 1C</code> line so the operator can tell that the vials in their hand belong here. That grouping matches the walk: <strong>the placement half is worked bin by bin</strong>, so every bin behind one door is finished before the next door opens and all the products going into one bin are done together. It was product-major until 2026-08-18, which could send the operator back through a door they had closed — a product placing into Door 1 and Door 3 put Door 3 in the middle of the walk, and the next product's Door 1 bin reopened Door 1. <code>node scripts/verify-placement-stops.mjs</code> pins the ordering.</p>
+<p>A target bin the operator adds mid-move (<code>Add Move To Bin</code>) can be taken back off the move: a small <code>Remove</code> beside its name in this panel, offered only while that bin was added in this step, holds nothing, is not the product's last bin, and belongs to the product in hand.</p>
 <p>Note the footer: <strong><code>Cancel</code> is now dimmed.</strong> Every quantity has been taken by this point, so cancelling would rest entirely on the operator putting stock back in the right bins, which nothing in the app can verify. Tapping it explains rather than doing nothing. The primary is <strong><code>Save &amp; Finish</code></strong>, and that is the first control in the whole pipeline that changes inventory.</p>
 <p><img src="screenshots/move-from-bin/08-after-commit.png" alt="Back on the cabinet, with the emptied bin's prompt" /></p>
 <p>On commit the transfers are applied, the pipeline closes, and the operator is returned to the cabinet with a toast confirming what moved where. The source row is now at <strong>0 vials</strong> — visible on Bin 1A above — and because this move took everything out of it, the <strong>zero-inventory banner</strong> is raised over the cabinet: <em>"1 product now has zero inventory. Would you like to unallocate it?"</em>, offering <code>Review and Unallocate</code> or <code>Dismiss</code>.</p>
@@ -693,7 +765,7 @@ whole batch can legitimately move nothing but the allocation.
     <h3 id="3-1-step-s-take-then-place-shape-is-specified-to-change"><a class="anchor" href="#3-1-step-s-take-then-place-shape-is-specified-to-change">3.1 Step ④'s take-then-place shape is specified to change</a></h3>
     
   </div>
-  <p>The current fixed shape — take everything, then place everything — is documented for replacement by a cabinet-aware route under a one-door-at-a-time constraint. <code>STEP4-GUIDANCE.md</code> in the repo root is that specification; <strong>none of it is built.</strong> Anyone implementing step ④ should read it before treating the present behaviour as the target.</p>
+  <p>The current shape — take everything, then place everything — is documented for replacement by a cabinet-aware route under a one-door-at-a-time constraint. <code>STEP4-GUIDANCE.md</code> in the repo root is that specification, and <strong>the sequencing half of it is now built</strong>: both halves of step ④ walk bin by bin, so a door's work is contiguous within each phase. What is not built is the <strong>stop</strong> as the unit of work — take and place interleaved on one screen — so a door that both gives and receives is still opened twice. Anyone implementing step ④ should read that document before treating the present behaviour as the target.</p>
   
 </section>
 
@@ -730,6 +802,15 @@ whole batch can legitimately move nothing but the allocation.
     
   </div>
   <p><code>instructionFor</code> returns the same "take, then place" sentence on the take screen and the place screen. Each screen's own header disambiguates, so this is tolerable rather than right.</p>
+  
+</section>
+
+<section class="note level-3">
+  <div class="note-head">
+    <h3 id="3-6-the-taken-moved-badges-are-switched-off-not-decided"><a class="anchor" href="#3-6-the-taken-moved-badges-are-switched-off-not-decided">3.6 The <code>Taken</code> / <code>Moved</code> badges are switched off, not decided</a></h3>
+    
+  </div>
+  <p>Both are behind <code>SHOW_DONE_BADGES</code> in <code>MoveSummaryPanel.tsx</code>, hidden at the operator's request while the row layout is judged. Every rule about which lines may wear one is still in the code, so turning them back on restores the behaviour — but if the answer is "keep them off" they should be deleted rather than left behind a flag, and the panel's only progress signals then are the blue bin border and the lit bulb.</p>
   
 </section>
 
