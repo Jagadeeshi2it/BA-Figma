@@ -1118,7 +1118,7 @@ export default function TargetBinSerialScanPage({
         if (!uniqueSourceQuantities.has(sourceKey)) {
           // `??`, not `||`. `transfer.quantity` is the amount the operator set at the source, and **0 is a
           // real answer** — "take nothing out of this bin", which a multi-bin product legitimately gets
-          // (Skip This Bin on the quantity page, or simply typing 0) and which a zero-stock allocation move
+          // (Skip Bin on the quantity page, or simply typing 0) and which a zero-stock allocation move
           // gets for every bin (CLAUDE.md §2 E). `||` treated that 0 as "not set" and substituted the bin's
           // whole holding, so a product taken 20-from-one-bin / 0-from-another reported 45 to move: 20 plus
           // the 25 nobody asked for. That figure seeds the pool, so the operator was handed 45 vials to
@@ -1756,7 +1756,7 @@ export default function TargetBinSerialScanPage({
 
     // Elsewhere, the only thing that blocks saving is having nothing to save. Leaving a bin empty is
     // still allowed — "all of it in the first bin, none in the second" is a legitimate outcome — but it
-    // goes through `Skip This Bin`, which says so. Saving is for a bin that received something.
+    // goes through `Skip Bin`, which says so. Saving is for a bin that received something.
     //
     // Note this is NOT the old "demand qtyMoved > 0 everywhere", which made the emptied last bin
     // unfinishable: the last bin returns above, on the remainder, before ever reaching this line.
@@ -1825,7 +1825,7 @@ export default function TargetBinSerialScanPage({
     // Two different blocks, and they need different sentences. An empty bin is blocked on this bin
     // having received nothing; the final bin is blocked on the batch still having stock unplaced.
     if (showSkipBin) {
-      return 'Nothing has been placed in this bin yet. Add what goes here, or use Skip This Bin to pass it over.';
+      return 'Nothing has been placed in this bin yet. Add what goes here, or use Skip Bin to pass it over.';
     }
     const amount = `${remainingQtyToMove} ${pluralizeUnit(currentProduct.unit || 'vial', remainingQtyToMove)}`;
     return canAddTargetBin
@@ -2244,7 +2244,7 @@ export default function TargetBinSerialScanPage({
                 the bin is empty: once something is in it, saving is what happens next. */}
             {showSkipBin && (
               <FooterButton
-                label="Skip This Bin"
+                label="Skip Bin"
                 variant="secondary"
                 onClick={handleSave}
                 demoId="pipeline-skip-bin"

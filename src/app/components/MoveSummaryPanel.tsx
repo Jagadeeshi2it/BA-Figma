@@ -2,13 +2,12 @@ import React from 'react';
 import {
   X,
   ArrowRight,
-  LogOut,
-  LogIn,
   Lock,
   Unlock,
   Package,
   Check,
   Lightbulb,
+  CircleAlert,
   Route as RouteIcon
 } from 'lucide-react';
 import { pluralizeUnit } from '../utils/pluralizeUnit';
@@ -171,9 +170,12 @@ interface MoveSummaryPanelProps {
   walkBinOrder?: string[];
 }
 
-const STAGE_COPY: Record<Exclude<MoveSummaryStage, 'review' | 'route'>, { label: string; icon: typeof LogOut }> = {
-  source: { label: 'Take qty from the bin you are moving from', icon: LogOut },
-  target: { label: 'Place qty in the bin you are moving to', icon: LogIn }
+// Copy only. It carried a per-stage icon (`LogOut`/`LogIn`, matching the footer's Source/Target cells)
+// until the banner became a notice and took the same icon on both halves — see the banner below. The
+// field went with the last thing reading it rather than being left as a second source of truth.
+const STAGE_COPY: Record<Exclude<MoveSummaryStage, 'review' | 'route'>, { label: string }> = {
+  source: { label: 'Take qty from the bin you are moving from' },
+  target: { label: 'Place qty in the bin you are moving to' }
 };
 
 /** What the operator does at a stop, in the words the stop's own screen uses. */
@@ -494,7 +496,6 @@ export default function MoveSummaryPanel({
 
   const stageCopy =
     stage === 'review' || stage === 'route' ? null : STAGE_COPY[stage as 'source' | 'target'];
-  const StageIcon = stageCopy?.icon;
 
   // Each line gets the badge for ITS OWN act: stock is TAKEN out of a source bin and MOVED once it's
   // in a target bin. One badge used to be chosen per stage and hung on the target lines regardless,
@@ -1039,13 +1040,28 @@ export default function MoveSummaryPanel({
         </button>
       </div>
 
-      {/* Which half of the move is in the operator's hands right now. Carries the same icon the
-          footer's own Source/Target cells use, so the two chrome surfaces name this the same way.
-          Absent on Review, where nothing is being handled yet. */}
-      {stageCopy && StageIcon && (
-        <div className="flex items-center gap-1.5 px-4 py-2 border-b border-gray-200 bg-[#F1F6FA] shrink-0">
-          <StageIcon className="w-3.5 h-3.5 text-[#095192] shrink-0" />
-          <span className="text-[12px] font-medium text-[#095192]">{stageCopy.label}</span>
+      {/* Which half of the move is in the operator's hands right now. Absent on Review, where nothing is
+          being handled yet.
+
+          **An inset purple notice, not a tinted bar across the panel** — the design asked for. Two things
+          changed with it, both deliberate:
+
+          - **It is no longer blue.** Blue is the move's own colour in this panel: the bin in hand, its
+            name, its live figure, the lit bulb. A full-width blue bar at the top competed with all of them
+            for the same meaning while actually saying something different — which half of the errand you
+            are on. Purple is the app's one remaining unclaimed accent (`#8F48D2`, the assignment border),
+            and the text is `#7B32C1` because `#8F48D2` on this tint is 4.4:1, just under the ~4.5:1 the
+            app holds text to.
+          - **The icon is a notice, not the end's icon.** It carried `LogOut`/`LogIn` to match the footer's
+            Source/Target cells, which tied the banner to a *place*. This line is an instruction, so it
+            wears the shape instructions wear, the same one on both halves. `STAGE_COPY`'s `icon` field went
+            with it: this banner was the only thing reading it, and the footer's cells import their own. */}
+      {stageCopy && (
+        <div className="px-3 pt-3 shrink-0">
+          <div className="flex items-center gap-2 px-3 py-2.5 rounded-[6px] bg-[#F3E8FF]">
+            <CircleAlert className="w-4 h-4 shrink-0 text-[#7B32C1]" />
+            <span className="text-[14px] leading-[20px] font-medium text-[#7B32C1]">{stageCopy.label}</span>
+          </div>
         </div>
       )}
 

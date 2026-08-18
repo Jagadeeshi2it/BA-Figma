@@ -456,7 +456,7 @@ export default function QuantitySelectionPage({
   //
   // Takes the skip set as an argument rather than reading state: a skip on the last product has to
   // finish in the same tick it was recorded, and setState hasn't landed by then. `quantityOverrides` is
-  // the same problem for a quantity — `Skip This Bin` on the last stop sets 0 and finalizes together,
+  // the same problem for a quantity — `Skip Bin` on the last stop sets 0 and finalizes together,
   // so the 0 has to arrive as an argument too. Keyed like `transferQuantities`, per transfer.
   const finalizeAll = (skipped: Set<string>, quantityOverrides: { [key: string]: number } = {}) => {
     setIsSaving(true);
@@ -643,8 +643,11 @@ export default function QuantitySelectionPage({
   // was bouncing between source and target.
   const nextStopIsSameProduct = !!nextStopGroup && productKeyOf(nextStopGroup) === currentProductKeyForNav;
 
+  // `Save & Next Bin`, not `Next Bin to Move From`: the button commits this bin's quantity before it moves
+  // on, and the old label said only where it went. Same wording as the placement screen's — the two are
+  // the same act on their own halves, and each screen's header says which half you are on.
   const primaryActionLabel = nextStopIsSameProduct
-    ? 'Next Bin to Move From'
+    ? 'Save & Next Bin'
     : nextStopGroup
       ? 'Save & Continue'
       : 'Proceed to Move To';
@@ -660,7 +663,7 @@ export default function QuantitySelectionPage({
     transferQuantities[`${g.productId}-${g.fromBinId}-group`] ?? g.transfers[0].moveQuantity;
 
   /**
-   * `Skip This Bin` — offered only where it means something.
+   * `Skip Bin` — offered only where it means something.
    *
    * Two conditions, and the second is the load-bearing one:
    *
@@ -1043,14 +1046,15 @@ export default function QuantitySelectionPage({
                 )
               }
             />
-            {/* Bin scope before product scope: it is the narrower act, and the one whose subject is the
-                bin the operator is standing at. Both can be on screen at once — on a product's first bin,
-                where skipping the product is still offered — and their labels are what tell them apart. */}
-            {showSkipBinButton && (
-              <FooterButton label="Skip This Bin" variant="secondary" onClick={handleSkipBin} />
-            )}
+            {/* Widest scope first, reading towards the primary: `Skip Product`, then `Skip Bin`, then the
+                button that saves this bin and moves on. Both skips can be on screen at once — on a
+                product's first bin, where skipping the whole product is still offered — so the order is
+                what stops them reading as one control with an odd label. */}
             {showSkipButton && (
               <FooterButton label="Skip Product" variant="secondary" onClick={handleSkip} />
+            )}
+            {showSkipBinButton && (
+              <FooterButton label="Skip Bin" variant="secondary" onClick={handleSkipBin} />
             )}
             <FooterButton
               label={primaryActionLabel}

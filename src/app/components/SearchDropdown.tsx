@@ -522,9 +522,15 @@ const SearchDropdown = memo(function SearchDropdown({
                       data-demo="search-bin-action"
                       aria-disabled={action.kind === 'blocked'}
                       onClick={() => handleBinAction(bin, action)}
-                      className={`w-full bg-white border-[#095192] text-[#095192] hover:bg-[#F1F6FA] hover:text-[#095192] text-[14px] h-10 rounded-[4px] ${
-                        action.kind === 'blocked' ? 'opacity-50 cursor-not-allowed hover:bg-white' : ''
-                      }`}
+                      /* Red on `Remove from Move From`, for the reason the product rows above use it: in a
+                         column where most rows offer a selection, the one that undoes one has to be
+                         distinguishable by more than its label. Both lists are in the same dropdown, so a
+                         red undo in one and a blue undo in the other would read as two different acts. */
+                      className={`w-full bg-white text-[14px] h-10 rounded-[4px] ${
+                        action.label.startsWith('Remove')
+                          ? 'border-[#C6362C] text-[#C6362C] hover:bg-[#FDF2F1] hover:text-[#C6362C]'
+                          : 'border-[#095192] text-[#095192] hover:bg-[#F1F6FA] hover:text-[#095192]'
+                      } ${action.kind === 'blocked' ? 'opacity-50 cursor-not-allowed hover:bg-white' : ''}`}
                     >
                       {/* Not the products' "Highlight in Bin": that means "show me this drug inside
                           whichever bins hold it". Here the bin IS the thing being shown, and the row
@@ -584,27 +590,38 @@ const SearchDropdown = memo(function SearchDropdown({
                 row renders its own action button below this block, in both modes. */}
             <div className="box-border content-stretch flex flex-row items-start justify-between gap-2 p-0 relative shrink-0 w-full mb-4">
               <div className="flex-1 box-border content-stretch flex flex-col gap-0.5 items-start justify-start min-w-0 p-0 relative">
-                <div className="box-border content-stretch flex flex-row items-start justify-start p-0 relative w-full min-w-0">
-                  {/* A picked row wears the same highlight colour the bins use for a matched product,
-                      rather than a tick of its own — one visual language for "this is the one you
-                      asked about", whether you're reading the list or the shelf it points at. */}
-                  <div className={`flex-1 flex flex-col font-normal justify-center leading-[0] not-italic relative text-xs text-left min-w-0 ${isPicked(result) ? 'text-[#A16207]' : 'text-[#020817]'}`}>
-                    <p className="block leading-[16px] text-[14px] font-medium break-words">{result.name}</p>
-                  </div>
-                </div>
-                {/* Badges sit under the name, not beside it, and come from the same helpers the bin
-                    rows use — keyed on name + NDC + inventory type, which is exactly what a search
-                    result is grouped by, so a hit and the bin row it points at always agree. */}
-                <div className="flex items-center gap-1 my-1">
-                  <span className="bg-[#D1D5DB] text-[#111827] text-[9px] font-medium px-1.5 py-0.5 rounded">
-                    {getVialType(result)}
+                {/* **Badges beside the name**, wrapping with it, rather than on their own line below.
+                    Asked for: a hit is read as one thing — which product, and what handling it needs — and
+                    on their own line they put a row between the name and the `NDC - inventory type` that
+                    identifies it. `items-baseline` and `flex-wrap`, so a long name keeps a full line and
+                    the badges drop beneath it rather than truncating it.
+
+                    They come from the same helpers the bin rows use — keyed on name + NDC + inventory
+                    type, which is exactly what a search result is grouped by, so a hit and the bin row it
+                    points at always agree.
+
+                    A picked row wears the same highlight colour the bins use for a matched product, rather
+                    than a tick of its own — one visual language for "this is the one you asked about",
+                    whether you're reading the list or the shelf it points at. */}
+                <div className="flex items-baseline gap-1.5 flex-wrap w-full min-w-0">
+                  <p
+                    className={`leading-[16px] text-[14px] font-medium break-words ${
+                      isPicked(result) ? 'text-[#A16207]' : 'text-[#020817]'
+                    }`}
+                  >
+                    {result.name}
+                  </p>
+                  <span className="flex items-center gap-1">
+                    <span className="bg-[#D1D5DB] text-[#111827] text-[9px] font-medium px-1.5 py-0.5 rounded">
+                      {getVialType(result)}
+                    </span>
+                    {hasClimateBadge(result) && (
+                      <span className="bg-[#DBEAFE] text-[#1D4ED8] text-[9px] font-medium px-1.5 py-0.5 rounded">CLIMATE</span>
+                    )}
+                    {hasCivBadge(result) && (
+                      <span className="bg-[#FEF3C7] text-[#B45309] text-[9px] font-medium px-1.5 py-0.5 rounded">CIV</span>
+                    )}
                   </span>
-                  {hasClimateBadge(result) && (
-                    <span className="bg-[#DBEAFE] text-[#1D4ED8] text-[9px] font-medium px-1.5 py-0.5 rounded">CLIMATE</span>
-                  )}
-                  {hasCivBadge(result) && (
-                    <span className="bg-[#FEF3C7] text-[#B45309] text-[9px] font-medium px-1.5 py-0.5 rounded">CIV</span>
-                  )}
                 </div>
                 <div className="flex flex-col font-normal justify-center leading-[0] not-italic relative shrink-0 text-[#676b74] text-xs text-left w-full">
                   <p className="block leading-[16px] break-words overflow-hidden text-[14px]">{result.ndc} - {result.inventoryType}</p>
@@ -682,9 +699,25 @@ const SearchDropdown = memo(function SearchDropdown({
                     onDismissList?.();
                   }}
                   variant="outline"
-                  className={`w-full bg-white border-[#095192] text-[#095192] hover:bg-[#F1F6FA] hover:text-[#095192] text-[14px] h-10 rounded-[4px] ${
-                    action.kind === 'blocked' ? 'opacity-50 cursor-not-allowed hover:bg-white' : ''
-                  }`}
+                  /**
+                   * An undo reads red here, and only here.
+                   *
+                   * Every row in this list carries the same white-and-blue outlined button, so a row
+                   * offering `Remove from Move From` / `Remove Selection` looked identical to the twenty
+                   * offering `Move From` — the label was the only thing saying it went the other way, on a
+                   * list the operator scans rather than reads. Red is the difference they asked for.
+                   *
+                   * It is a deliberate exception to the rule that `#C6362C` is for things that destroy data
+                   * (§6): un-picking a product deletes nothing. What earns it is that this is the one place
+                   * a selecting control and its undo sit in one column, alternating row by row — Cancel and
+                   * Back, which that rule was written about, are alone in a footer with nothing to be
+                   * confused with. The blocked state keeps its own colour and dims, as before.
+                   */
+                  className={`w-full bg-white text-[14px] h-10 rounded-[4px] ${
+                    isRemove
+                      ? 'border-[#C6362C] text-[#C6362C] hover:bg-[#FDF2F1] hover:text-[#C6362C]'
+                      : 'border-[#095192] text-[#095192] hover:bg-[#F1F6FA] hover:text-[#095192]'
+                  } ${action.kind === 'blocked' ? 'opacity-50 cursor-not-allowed hover:bg-white' : ''}`}
                 >
                   {action.label}
                 </Button>
